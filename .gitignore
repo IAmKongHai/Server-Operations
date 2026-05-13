@@ -1,0 +1,14 @@
+# 运行时日志，不入库
+logs/
+
+# macOS
+.DS_Store
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 临时备份
+*.bak
+*.bak.*

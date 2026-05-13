@@ -1,0 +1,40 @@
+# Server 运维笔记
+
+这个仓库用于记录我名下各台服务器的运维变更、故障处理、配置约定。
+
+## 目录结构
+
+```
+server/
+├── README.md            # 本文件，仓库说明
+├── AGENTS.md            # 给 AI agent 的工作约定
+├── CLAUDE.md            # → AGENTS.md（别名，Claude Code 默认读取）
+├── docs/
+│   └── solutions/       # 故障解决方案与最佳实践，按服务器 + 类别组织
+│       └── <server>/<category>/<slug>-<date>.md
+└── <server>/            # 每台服务器的私有资料（连接信息、备份脚本备份等）
+    └── nyh-prod/
+```
+
+## 已纳入的服务器
+
+| 名称           | 类型              | 用途                                                                                            |
+| -------------- | ----------------- | ----------------------------------------------------------------------------------------------- |
+| `nyh-prod`     | 生产 / 多项目共用 | 南亚汇（NYH）生产、AcquilangAi 生产、DDRicher 测试 / 生产；装有宝塔面板（端口 10463）            |
+| `dev-cypresso` | 测试              | iCare 项目集成测试服务器                                                                         |
+| `tizi`         | 代理              | 主代理服务器                                                                                     |
+| `rao-tizi`     | 代理（备用）      | `tizi` 的备用代理                                                                                |
+| `mac-mini`     | 本地              | 家里的 Mac mini                                                                                  |
+
+> 详细的服务运行清单、域名、端口、备份策略等，按需在 `<server>/` 子目录或 `docs/solutions/<server>/` 下补充。
+
+## 常用工作流
+
+- **记录新故障/解决方案**：在 Claude Code 里运行 `/ce:compound`，agent 会按 `docs/solutions/` 的约定写入
+- **检索历史方案**：`grep -r "<关键词>" docs/solutions/` 或按 frontmatter 检索 `grep -rl "server: nyh-prod" docs/solutions/`
+- **SSH 连接**：所有服务器都通过本机 `~/.ssh/config` 的别名连接，例如 `ssh nyh-prod`
+
+## 安全约定
+
+- 仓库不存放任何明文密码、私钥、token；如需引用敏感信息，仅记录其位置（如"见 1Password 条目 X"或"见服务器 /root/.something"）
+- 操作生产服务器前先在文档里写清楚预期影响和回滚方法

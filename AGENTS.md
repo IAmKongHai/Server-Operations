@@ -1,0 +1,81 @@
+# Agent 工作约定
+
+这是一个运维笔记仓库，不是应用代码仓。绝大多数任务是：
+- 通过 SSH 登录服务器排查问题
+- 把解决方案沉淀进 `docs/solutions/`
+- 维护命名约定与目录结构
+
+## 语言
+
+始终使用中文沟通。
+
+## 生产服务器操作守则
+
+**`nyh-prod` 是生产服务器**。其它任何被纳入本仓库的服务器，默认都按生产对待，除非 README 明确标注是测试环境。
+
+操作前：
+1. 说清楚要做什么、预期影响、能否回滚
+2. 改动配置/服务前先备份当前状态（`cp file file.bak.YYYYMMDD` 或读出当前值留在对话里）
+3. 危险动作（重启、删除、改防火墙、改数据库）必须先征得用户确认，不要"顺手"做掉
+
+不允许在没有用户确认的情况下：
+- 重启进程、服务、面板
+- 删除文件、目录、备份
+- 修改 crontab、防火墙规则、SSH 配置
+- 改动数据库 schema 或数据
+
+可以自由做的事：
+- 只读查询（`ls`、`cat`、`ps`、`openssl x509 -noout`、`systemctl status` 等）
+- 在用户工作目录下创建/修改文档文件
+
+## 故障文档约定（`docs/solutions/`）
+
+详见 `docs/solutions/README.md`。要点：
+
+- 路径：`docs/solutions/<server>/<category>/<slug>-<YYYY-MM-DD>.md`
+- 文件名 slug 用小写、英文、连字符；末尾带日期方便排序
+- frontmatter 字段遵循 ce-compound 的 schema，外加一个本仓库扩展字段 `server:`
+- 类别枚举沿用 ce-compound 标准：`integration-issues`、`runtime-errors`、`performance-issues`、`security-issues`、`database-issues`、`workflow-issues`、`best-practices` 等
+
+写文档时**优先用 `/ce:compound`**（lightweight 模式即可），它会自动按 schema 校验字段。
+
+## 服务器连接
+
+所有服务器走 `~/.ssh/config` 别名：
+
+| 别名           | 用途                                                                                   | 是否按生产对待                    |
+| -------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
+| `nyh-prod`     | 南亚汇（NYH）生产、AcquilangAi 生产、DDRicher 测试 / 生产；宝塔面板端口 10463          | **是**                            |
+| `dev-cypresso` | iCare 项目集成测试服务器                                                               | 否（测试环境，但仍需备份后再改）  |
+| `tizi`         | 主代理服务器                                                                           | **是**（挂了影响日常翻墙）        |
+| `rao-tizi`     | `tizi` 的备用代理                                                                      | 是                                |
+| `mac-mini`     | 家里的 Mac mini                                                                        | 否                                |
+| `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
+
+注意：
+- `nyh-prod` 上同时跑着多个项目的生产数据库与站点，任何重启 / 配置改动都要先想清楚波及哪些项目
+- 宝塔面板的 entrance 路径（URL 里 `/100c682f` 这一段）相当于第二道密码，不要写进 commit 信息或公开文档
+- `dev-cypresso` 虽是测试，但 iCare 团队会用，破坏性操作前仍需确认
+- `nas` 上的 SQL Server 容器承载历史业务数据库（`medicalassistance` 等），关键容器统一用 `--restart=always` 而非 `unless-stopped`，避免 NAS 重启后不自动拉起
+
+## 检索历史方案
+
+下次接到类似问题前先看 `docs/solutions/`：
+
+```bash
+# 按服务器
+grep -rl "server: nyh-prod" docs/solutions/
+
+# 按关键词
+grep -ri "宝塔\|baota\|bt-panel" docs/solutions/
+
+# 按 tag
+grep -r "tags:.*ssl-cert" docs/solutions/
+```
+
+## 文档风格
+
+- 中文为主，技术名词、命令、路径、配置项保留英文原文
+- 命令块用 fenced code block 标注语言（```bash、```nginx 等）
+- 给出"做了什么"和"为什么"，避免只贴命令不解释
+- 不要在文档里写明文密码、token、私钥
