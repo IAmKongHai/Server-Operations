@@ -90,3 +90,4 @@ grep -r "tags:.*baota" docs/solutions/
 ## 现有文档
 
 - [nyh-prod / 宝塔面板加载内存中过期 SSL 证书](nyh-prod/integration-issues/baota-panel-stale-ssl-cert-in-memory-2026-05-11.md) — 2026-05-11
+- [xiao-linux / 新机入网初始化](xiao-linux/workflow-issues/initial-setup-2026-05-14.md) — 2026-05-14
