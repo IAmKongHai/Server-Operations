@@ -39,8 +39,6 @@ ssh dev-cypresso
 - **PID**：Developer Edition
 - **凭据**：见 [`secrets.local.md`](./secrets.local.md)（本地，未入库）
 
-xiao-linux 上同款 SQL Server 容器的搭建过程见 [`docs/solutions/xiao-linux/workflow-issues/install-mssql-2017-fts-2026-05-14.md`](../docs/solutions/xiao-linux/workflow-issues/install-mssql-2017-fts-2026-05-14.md)。
-
 ## 常用查询
 
 ```bash

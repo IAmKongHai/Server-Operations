@@ -26,7 +26,7 @@ server/
 | `rao-tizi`     | 代理（备用）      | `tizi` 的备用代理                                                                                |
 | `mac-mini`     | 本地              | 家里的 Mac mini                                                                                  |
 | `nas`          | 本地 / 数据       | 家用 NAS，跑 SQL Server（`mas-old-sql2022-fts-nas` 等）及历史业务数据库                          |
-| `xiao-linux`   | 内网 / Tailscale  | Tailscale 内网 Ubuntu 22.04 小机器（`100.123.159.77`），用途待定                                  |
+| `pve`          | 本地 / 测试       | Proxmox VE 虚拟化宿主，计划承载开发测试 VM                                                       |
 
 > 详细的服务运行清单、域名、端口、备份策略等，按需在 `<server>/` 子目录或 `docs/solutions/<server>/` 下补充。
 
