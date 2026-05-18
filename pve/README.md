@@ -39,26 +39,28 @@ ssh pve
 | ---: | --- | --- | --- | --- |
 | `110` | `mssql-ref` | `1` | `order=10,up=60,down=180` | 先启动数据库，给 SQL Server 预留启动时间 |
 | `120` | `mas-win` | `1` | `order=20,up=90,down=180` | 后启动 IIS / C# 应用 |
+| `130` | `mas-go-dev` | `1` | `order=30,up=60,down=180` | MAS Go + React 内网自动部署环境 |
 
 `pve-guests.service` 已启用并处于 active。宿主机重启后，PVE 会按上面的顺序恢复 VM；手动启动时也建议先启动 `mssql-ref`，等 `192.168.2.20:1433` 可用后再启动或访问 `mas-win`。
 
 ## Tailscale
 
-2026-05-16 已将 PVE 加入 Tailscale，并作为 subnet router 只开放两台 MAS 参考 VM。
+2026-05-16 已将 PVE 加入 Tailscale，并作为 subnet router 开放 MAS 参考环境。
+2026-05-17 为 `mas-go-dev` 扩展 advertised route 到团队公共服务网段 `192.168.2.16/28`。
 
 | 项目 | 值 |
 | --- | --- |
 | Tailscale DNS | `pve.taila93443.ts.net` |
 | Tailscale IPv4 | `100.95.67.55` |
-| Advertised routes | `192.168.2.20/32`、`192.168.2.21/32` |
+| Advertised routes | `192.168.2.16/28` |
 | IP forwarding | `/etc/sysctl.d/99-tailscale-subnet-router.conf` |
 | UDP GRO forwarding | `vmbr0` 已启用，并写入 `/etc/network/interfaces` 的 `post-up` |
 | Network config backup | `/etc/network/interfaces.bak.tailscale-20260516-202446` |
 
-仍需在 Tailscale Admin Console 中确认：
+Tailscale route 状态：
 
-- Approve `192.168.2.20/32` 和 `192.168.2.21/32` subnet routes。
-- 关闭 `pve` 这台 Tailscale device 的 key expiry，避免半年后 subnet routes 仍显示但不可达。
+- `192.168.2.16/28` 已出现在 `AllowedIPs` 和 `PrimaryRoutes`。
+- 仍建议关闭 `pve` 这台 Tailscale device 的 key expiry，避免半年后 subnet routes 仍显示但不可达。
 
 外部 Tailnet 客户端 approve 后可访问：
 
@@ -66,6 +68,7 @@ ssh pve
 https://100.95.67.55:8006
 http://192.168.2.21:9021
 http://192.168.2.21:9020
+http://192.168.2.22:5174
 192.168.2.20:1433
 ```
 
@@ -124,6 +127,7 @@ no pools available
 - 当前 VM：
   - `110 / mssql-ref`：运行 MAS 老系统参考数据库
   - `120 / mas-win`：运行 MAS 老 C# / IIS 参考应用
+  - `130 / mas-go-dev`：运行 MAS Go + React 内网自动部署环境
 
 ## 虚拟化检查
 
@@ -176,6 +180,46 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 - 重启后复查通过，无失败服务，无可升级包
 
 ## VM 清单
+
+### `mas-go-dev`
+
+MAS Go + React 重构版内网自动部署 VM。该 VM 只作为并行开发/测试部署目标，不替换 `dev-cypresso` 现有公网测试部署。
+
+2026-05-17 创建完成：
+
+| 项目 | 值 |
+| --- | --- |
+| VMID | `130` |
+| IP | `192.168.2.22/24` |
+| OS | Amazon Linux 2023.10.20260105 x86_64 |
+| Kernel | `6.1.159-181.297.amzn2023.x86_64` |
+| CPU / Memory | 4 vCPU / 16 GiB |
+| Disk | `nvme-data:vm-130-disk-1`，120G thin-provisioned |
+| Network | `vmbr0` |
+| On boot | `onboot=1`，`startup=order=30,up=60,down=180` |
+| Docker | `25.0.14` |
+| Docker Compose | `v2.24.5` |
+| GitHub runner | org runner `mas-go-dev`，runner group `mas-go-dev` |
+| Runtime root | `/opt/mas-go-dev` |
+
+目标用途：
+
+- 运行 GitHub Actions self-hosted runner。
+- 在 VM 内本地 checkout/build/deploy MAS Go 后端和 React 前端。
+- 连接 `mssql-ref` 上的 SQL Server：`192.168.2.20:1433`。
+- 通过 Tailscale subnet route 暴露给团队访问。
+
+当前状态：
+
+- 前端 test image 已能在 `0.0.0.0:5174` 启动并通过 `/healthz`。
+- 用户确认后，已对 `mssql-ref` 执行 MAS Go 后端 `migrate + seed`；执行前已创建 VM `110` 快照 `before-mas-go-migrate-20260517` 和三库 SQL 备份。
+- 后端 test image 已启动，Docker health 为 `healthy`。
+- `http://192.168.2.22:5174/api/v1/health` 返回 HTTP 200。
+- 后端 workflow 每次 `mas-go-dev` 部署都会先通过临时容器执行 `migrate up -> seed dry-run check -> seed apply`，执行完自动删除容器。
+- VM `130` 已创建部署就绪快照：`mas-go-dev-deploy-ready-20260517`。
+- PVE 配置中有一个排查 UEFI Secure Boot 时留下的 4 MiB `unused0: nvme-data:vm-130-disk-0`，待确认后可清理。
+
+相关计划：`docs/plans/2026-05-17-001-feat-mas-go-dev-deployment-plan.md`。
 
 ### `mssql-ref`
 

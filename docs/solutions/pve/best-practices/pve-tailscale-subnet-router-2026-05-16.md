@@ -14,22 +14,29 @@ tags: [pve, tailscale, subnet-router, vpn, mas, reference-environment]
 
 ## Context
 
-需要让团队成员通过 Tailscale 访问 PVE 上的 MAS 参考环境，但不希望在每台 VM 内分别安装 Tailscale。当前只需要开放两台参考 VM：
+需要让团队成员通过 Tailscale 访问 PVE 上的 MAS 参考环境，但不希望在每台 VM 内分别安装 Tailscale。
 
 | VM | IP | 用途 |
 | --- | --- | --- |
 | `mssql-ref` | `192.168.2.20` | SQL Server 参考数据库 |
 | `mas-win` | `192.168.2.21` | Windows Server Core / IIS / MAS 老 C# 应用 |
+| `mas-go-dev` | `192.168.2.22` | MAS Go + React 内网自动部署环境 |
 
 ## Decision
 
-在 PVE 宿主机安装并登录 Tailscale，把 PVE 配置为 subnet router，只 advertise 两个 `/32` 地址：
+在 PVE 宿主机安装并登录 Tailscale，把 PVE 配置为 subnet router。初始只 advertise 两个 `/32` 地址：
 
 ```bash
 tailscale up --advertise-routes=192.168.2.20/32,192.168.2.21/32
 ```
 
-不 advertise 整个 `192.168.2.0/24`，避免把家庭内网其他设备暴露给团队。
+2026-05-17 为 `mas-go-dev` 扩展为团队公共服务网段：
+
+```bash
+tailscale set --advertise-routes=192.168.2.16/28
+```
+
+不 advertise 整个 `192.168.2.0/24`，避免把家庭内网其他设备暴露给团队。`192.168.2.16/28` 之后只放团队公共服务，不放私人设备。
 
 ## Implementation
 
@@ -40,7 +47,7 @@ Tailscale 状态：
 | Hostname | `pve` |
 | Tailscale DNS | `pve.taila93443.ts.net` |
 | Tailscale IPv4 | `100.95.67.55` |
-| Advertised routes | `192.168.2.20/32`、`192.168.2.21/32` |
+| Advertised routes | `192.168.2.16/28` |
 
 启用 Linux 转发：
 
@@ -73,14 +80,15 @@ ethtool -K vmbr0 rx-udp-gro-forwarding on rx-gro-list off
 /etc/network/interfaces.bak.tailscale-20260516-202446
 ```
 
-## Remaining Admin Console Steps
+## Admin Console State
 
-需要在 Tailscale Admin Console 对 `pve` 这台机器执行：
+2026-05-17 扩展到 `192.168.2.16/28` 后，PVE self status 已显示该网段出现在 `AllowedIPs` 和 `PrimaryRoutes`。
 
-- Approve subnet routes：`192.168.2.20/32`、`192.168.2.21/32`
+仍建议在 Tailscale Admin Console 对 `pve` 这台机器执行：
+
 - Disable key expiry，避免 subnet router key 到期后 route fail-close
 
-在 approve 前，`tailscale status --self --json` 的 `Self.AllowedIPs` 只会显示 PVE 自己的 Tailscale IP，不会包含这两个 subnet route；这是正常状态。
+在 approve 前，`tailscale status --self --json` 的 `Self.AllowedIPs` 只会显示 PVE 自己的 Tailscale IP，不会包含 subnet route；这是正常状态。
 
 ## Verification
 
@@ -89,19 +97,21 @@ PVE 本机验证：
 ```text
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
-AdvertiseRoutes = 192.168.2.20/32, 192.168.2.21/32
+AdvertiseRoutes = 192.168.2.16/28
 ```
 
 approve 后，从 Tailnet 客户端验证：
 
 ```bash
 curl -I http://192.168.2.21:9021/
+curl -I http://192.168.2.22:5174/healthz
 nc -zv 192.168.2.20 1433
 ```
 
 预期：
 
 - `http://192.168.2.21:9021/` 返回 MAS Web 登录页。
+- `http://192.168.2.22:5174/healthz` 返回 MAS React 前端 healthcheck。
 - `192.168.2.20:1433` 可连接 SQL Server。
 
 ## Notes
