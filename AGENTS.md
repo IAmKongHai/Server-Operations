@@ -17,6 +17,8 @@
 - 不切换到非 `main` 分支工作
 - 开始改文件前先确认当前分支是 `main`
 - 如果当前不在 `main`，先切回 `main`，不要在其它分支继续提交
+- 每次执行任务后，如果工作区有变更，必须用中文写清楚变更目的并提交 `git commit`，提交完成才算任务完成
+- 提交信息应保持规范：优先沿用仓库已有风格；没有明确风格时使用 Conventional Commits，例如 `docs: 记录 dev-cypresso 容器停用时间线`
 
 ## 生产服务器操作守则
 
@@ -47,6 +49,25 @@
 - 类别枚举沿用 ce-compound 标准：`integration-issues`、`runtime-errors`、`performance-issues`、`security-issues`、`database-issues`、`workflow-issues`、`best-practices` 等
 
 写文档时**优先用 `/ce:compound`**（lightweight 模式即可），它会自动按 schema 校验字段。
+
+## 运维时间线约定（`docs/operations/`）
+
+日常服务器操作记录写入 `docs/operations/<server>.md`，按时间倒序持续追加。
+
+适合记录：
+- 停止/启动容器、改 restart policy、迁移服务
+- 调整配置、磁盘、备份、计划任务
+- 一次性维护动作及其验证结果
+
+每条记录至少写清：
+- 时间（`YYYY-MM-DD HH:mm CST`）
+- 原因
+- 影响
+- 回滚方式
+- 做了什么
+- 验证结果
+
+如果一次操作暴露出可复用经验或故障复盘，再另写 `docs/solutions/`。
 
 ## 服务器连接
 

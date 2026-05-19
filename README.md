@@ -10,6 +10,8 @@ server/
 ├── AGENTS.md            # 给 AI agent 的工作约定
 ├── CLAUDE.md            # → AGENTS.md（别名，Claude Code 默认读取）
 ├── docs/
+│   ├── operations/      # 日常运维操作时间线，按服务器持续追加
+│   │   └── <server>.md
 │   └── solutions/       # 故障解决方案与最佳实践，按服务器 + 类别组织
 │       └── <server>/<category>/<slug>-<date>.md
 └── <server>/            # 每台服务器的私有资料（连接信息、备份脚本备份等）
@@ -33,6 +35,7 @@ server/
 ## 常用工作流
 
 - **记录新故障/解决方案**：在 Claude Code 里运行 `/ce:compound`，agent 会按 `docs/solutions/` 的约定写入
+- **记录日常运维操作**：追加到 `docs/operations/<server>.md`，按时间倒序记录操作原因、影响、回滚方式和验证结果
 - **检索历史方案**：`grep -r "<关键词>" docs/solutions/` 或按 frontmatter 检索 `grep -rl "server: nyh-prod" docs/solutions/`
 - **SSH 连接**：所有服务器都通过本机 `~/.ssh/config` 的别名连接，例如 `ssh nyh-prod`
 
