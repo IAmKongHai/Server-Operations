@@ -9,7 +9,7 @@ date: 2026-05-19
 
 ## Summary
 
-`nyh-prod` 上 7 个在用域名（acquilangai 及 ddricher/acquilangai 相关站点、`duowei.konghai.me`、`m.acquilangai.com`）的续期失败。现场验证后确认问题分为两层：一是 `/.well-known/acme-challenge/` 请求曾被主站业务入口吞掉；二是 Docker 功能面板里的反代域名未进入宝塔网站模块的 `sites` / `domain` 映射，导致 `renew_v2` 默认扫描与 `--index` 续期会判定域名“不存在”或“未使用”。该计划目标是保留 Docker 面板管理模型，恢复 HTTP-01 通道，并用显式 HTTP-01 申请脚本托管这些 Docker 反代域名的证书续期。
+`nyh-prod` 上 7 个在用域名（acquilangai 及 ddricher/acquilangai 相关站点、`duowei.konghai.me`、`m.acquilangai.com`）的续期失败。现场验证后确认问题分为两层：一是 `/.well-known/acme-challenge/` 请求曾被主站业务入口吞掉；二是 Docker 功能面板里的反代域名未进入宝塔网站模块的 `sites` / `domain` 映射，导致 `renew_v2` 默认扫描与 `--index` 续期会判定域名“不存在”或“未使用”。该计划目标是保留 Docker 面板管理模型，恢复 HTTP-01 通道，并用动态发现的显式 HTTP-01 申请脚本托管这些 Docker 反代域名的证书续期。
 
 ## Problem Frame
 
@@ -26,7 +26,7 @@ date: 2026-05-19
 - R3. 在不改动现有业务入口、不把 Docker 反代站点迁入宝塔网站列表的前提下，恢复证书续期链路。
 - R4. 续期可恢复后，输出可验证结果（证书到期时间更新、端口证书有效期一致、续期日志记录）。
 - R5. 形成最小化操作记录，便于将来回放和责任审计。
-- R6. 为 Docker 功能面板域名建立独立定时续期脚本，避免依赖宝塔 `renew_v2` 默认站点扫描。
+- R6. 为 Docker 功能面板域名建立独立定时续期脚本，动态发现 Docker/反代 vhost，避免依赖宝塔 `renew_v2` 默认站点扫描，也避免人工维护续期清单。
 
 ## Scope Boundaries
 
@@ -54,6 +54,7 @@ date: 2026-05-19
 - 目标域名的 `well-known` include 文件曾为空；恢复为宝塔标准模板后，使用临时 token 验证 `/.well-known/acme-challenge/` 可返回预期内容。
 - `admin.acquilangai.com` 的显式 HTTP-01 申请已验证成功：磁盘证书从 2026-05-18 更新到 2026-08-17/18，手动 Nginx reload 后 443 端口返回新证书。
 - `renew_v2 --index` 对 `admin.acquilangai.com` 的测试失败原因为宝塔 `domain` 表无该域名映射；该失败发生在文件验证前，不是 HTTP-01 路由失败。
+- 用户指出新增 Docker 功能面板站点后人工维护续期清单不可靠；脚本应每次运行时从 Nginx vhost 配置动态发现候选站点，仅保留明确废弃域名的排除清单。
 - 宝塔社区存在同类反馈：Docker 功能面板/反代站点在 SSL 续期中被判定为“域名全部未使用，已跳过”，而宝塔“网站”模块站点可进入默认续期流程。
 - 该仓的既有实践中已有 `nyh-prod` 证书加载问题的处理经验，问题本质是“续签到磁盘但进程/配置未及时按新路径响应”。
 - 关键约束：生产环境下操作应可回滚且不扩大影响面。
@@ -65,7 +66,8 @@ date: 2026-05-19
 - 不把 Docker 功能面板域名重新接管到宝塔“网站”列表；该做法虽能让 `renew_v2` 默认扫描覆盖，但会改变用户期望的管理入口。
 - 不手写宝塔 `sites` / `domain` 数据库映射；避免 UI 状态、vhost 文件、证书索引和实际配置之间产生新的不一致。
 - 对 Docker 反代域名采用宝塔 `acme_v2.py --domain ... --type http --path ...` 显式 HTTP-01 申请；该路径不依赖 `domain` 表映射，且已在 `admin.acquilangai.com` 上验证可行。
-- 将自动化动作分为“剩余天数判断 + 证书目录外备份 + 显式 HTTP-01 申请 + Nginx 语法校验 + reload + 端口证书核对 + 记录”，避免每天无条件申请触发 Let’s Encrypt 限速。
+- 定时脚本每次运行时扫描 Nginx vhost 配置动态发现 Docker/反代类站点；判定依据包括 `server_name`、`root`、`ssl_certificate`、`proxy_pass`、`well-known` include，以及该域名是否不属于宝塔普通网站 `domain` 表。
+- 将自动化动作分为“动态发现 + 排除废弃域名 + 剩余天数判断 + 证书目录外备份 + 显式 HTTP-01 申请 + Nginx 语法校验 + reload + 端口证书核对 + 记录”，避免每天无条件申请触发 Let’s Encrypt 限速。
 - 备份目录必须放在 `/www/server/panel/vhost/cert` 之外；宝塔 `sub_all_cert()` 会扫描该目录并替换同域名旧证书，放在其中的备份也会被覆盖。
 
 ## Open Questions
@@ -76,6 +78,8 @@ date: 2026-05-19
   - 决议：本计划需要加入 Docker 面板域名的独立续期脚本；普通站点巡检留在 Follow-Up。
 - 是否恢复宝塔网站模块站点绑定？
   - 决议：不恢复。保持目标域名只由 Docker 功能面板管理，续期由独立脚本维护。
+- 是否人工维护 Docker 域名续期清单？
+  - 决议：不人工维护。脚本每次运行动态扫描 Nginx vhost 配置发现候选域名，仅维护废弃域名排除清单。
 
 ## Implementation Units
 
@@ -170,9 +174,9 @@ date: 2026-05-19
 - 443 端口通过 SNI 读取到的新证书有效期与磁盘证书一致。
 - 续期日志保留 HTTP-01 验证成功、证书下载、证书替换与 reload 结果。
 
-### U5. 为 Docker 功能面板域名建立独立定时续期脚本
+### U5. 为 Docker 功能面板域名建立动态发现定时续期脚本
 
-**Goal:** 把显式 HTTP-01 续期模式固化为可重复执行的定时任务，覆盖 7 个在用 Docker 面板域名。
+**Goal:** 把显式 HTTP-01 续期模式固化为可重复执行的定时任务，并通过扫描 Nginx vhost 配置自动发现 Docker 功能面板反代域名，避免新增站点后人工维护清单。
 
 **Requirements:** R1, R3, R4, R6
 
@@ -183,23 +187,32 @@ date: 2026-05-19
 - Add/Update: `docs/operations/nyh-prod.md`
 
 **Approach:**
-- 在服务器上维护 Docker 面板域名续期清单，记录域名、webroot、当前证书目录和 SAN 组合。
+- 每次运行扫描 Nginx vhost 配置，提取 `server_name`、`root`、`ssl_certificate`、`proxy_pass` 和 `well-known` include。
+- 将存在 `proxy_pass`、存在证书路径、存在 webroot、具备 `well-known` include，且不在宝塔普通网站 `domain` 表中的 vhost 判定为 Docker/反代类续期候选。
+- 维护最小排除清单，仅放入已明确废弃或不应续期的域名，例如 `pgadmin.konghai.me`、`test-center.nanyahui.com`、`test-vip.nanyahui.cn`。
+- 从当前证书读取 SAN，生成显式 HTTP-01 申请的完整域名集合；无法读取 SAN 时，降级使用 vhost `server_name` 并在日志中标记需要人工确认。
 - 每次执行先读取当前证书剩余天数，仅在剩余天数小于等于阈值时申请，避免无条件重复申请触发 Let’s Encrypt 限速。
 - 对 `acquilangai.com` 这类包含 `www` SAN 的证书，显式申请时保持与当前证书域名集合一致，避免新证书 SAN 不匹配导致宝塔自动替换逻辑无法命中目标证书目录。
 - 每个域名申请前将当前证书备份到 `/www/backup/ssl-cert/` 这类宝塔证书扫描目录之外。
 - 申请成功后执行 Nginx 语法校验；校验通过才 reload Nginx，并核对 443 端口证书有效期。
+- 支持 dry-run 模式，打印本次动态发现的候选、排除、跳过和将要续期的域名，作为上线前验收步骤。
 - 使用 `flock` 避免定时任务并发执行；日志写入独立文件，便于审计和失败重试。
 
 **Test scenarios:**
 - Happy path: 当证书剩余天数小于等于阈值时，脚本对目标域名申请新证书、reload Nginx，并记录新有效期。
+- Happy path: 新增 Docker 功能面板反代站点后，只要生成了符合条件的 Nginx vhost 与证书目录，脚本下次运行能自动发现该域名。
 - Edge case: 当证书剩余天数大于阈值时，脚本跳过申请并记录跳过原因。
+- Edge case: vhost 中多个 `server_name` 或证书 SAN 与 `server_name` 不完全一致时，脚本优先使用当前证书 SAN，并在日志中记录最终申请域名集合。
 - Edge case: 多 SAN 证书申请时，脚本使用完整 SAN 列表，申请后目标证书目录被正确替换。
+- Error path: vhost 缺少 `well-known` include、webroot 不存在或证书文件缺失时，脚本跳过该 vhost 并记录原因，不尝试申请。
 - Error path: 某个域名 HTTP-01 验证失败时，脚本记录失败并继续处理后续域名，不回滚已成功域名。
 - Error path: Nginx 语法校验失败时，不执行 reload，并保留新旧证书与失败日志供人工处理。
 - Integration: 定时任务重复执行不会并发运行，不会每天消耗 Let’s Encrypt 申请额度。
 
 **Verification:**
-- 7 个目标域名进入脚本清单，废弃 3 个域名不在清单内。
+- dry-run 输出能展示动态发现的 Docker/反代候选域名、排除域名、跳过原因和计划续期域名。
+- 7 个目标域名被动态发现，废弃 3 个域名被排除清单过滤。
+- 新增一个符合条件的 Docker 功能面板反代站点后，无需手工编辑脚本清单即可在 dry-run 中出现。
 - 运行日志能区分跳过、成功、失败和 reload 结果。
 - 每个续期成功域名的磁盘证书与 443 端口证书有效期一致。
 
@@ -221,9 +234,10 @@ date: 2026-05-19
 - 标注不再维护的 3 个域名为何有意跳过。
 - 记录 `admin.acquilangai.com` 试点成功结果，以及备份目录不能放在宝塔证书扫描目录内的经验。
 - 记录 Docker 面板域名与宝塔网站模块域名在续期机制上的差异，避免后续误判为单纯 HTTP-01 路由问题。
+- 记录动态发现规则、排除清单维护规则和新增 Docker 反代站点后的自动纳入条件。
 
 **Test scenarios:**
-- Happy path: 文档内容覆盖目标域名、步骤、验证、自动化策略与回滚。
+- Happy path: 文档内容覆盖目标域名、步骤、验证、动态发现自动化策略与回滚。
 - Edge case: 预留字段用于记录可能遗留的异常域名。
 - Error path: 任何记录缺项（原因/影响/回滚）直接补齐，避免缺口。
 
@@ -235,6 +249,6 @@ date: 2026-05-19
 
 - 七个在用域名的 `/.well-known/acme-challenge/` 验证不再走业务 404/502。
 - 这 7 个域名证书续签后显示为新时间线，离到期时间重置。
-- Docker 功能面板域名由独立定时脚本维护证书续期，不依赖宝塔 `renew_v2` 默认站点扫描。
+- Docker 功能面板域名由动态发现定时脚本维护证书续期，不依赖宝塔 `renew_v2` 默认站点扫描，也不依赖人工维护域名清单。
 - 无额外高风险服务重启，生产访问窗口可控。
 - 运维记录与解决方案文档完整，复盘可复用。
