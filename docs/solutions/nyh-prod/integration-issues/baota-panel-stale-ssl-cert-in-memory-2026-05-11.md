@@ -92,3 +92,4 @@ crontab 入口（root）：
 ## Related Issues
 - 当前服务器上其它由宝塔托管的站点证书走 nginx，nginx 在续签后会自动 reload，不存在此问题
 - 类似根因模式：长驻进程缓存配置/证书/密钥，但配置源已变更 → 缺少 reload 钩子
+- Docker 功能面板反代域名不一定进入宝塔普通“网站”模块的续期扫描；相关复盘见 `docs/solutions/nyh-prod/integration-issues/baota-ssl-acme-challenge-routing-fix-2026-05-19.md`

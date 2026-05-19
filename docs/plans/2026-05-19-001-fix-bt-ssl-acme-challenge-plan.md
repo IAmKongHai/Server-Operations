@@ -1,7 +1,7 @@
 ---
 title: 修复 nyh-prod 宝塔站点 SSL 续期挑战路由
 type: fix
-status: active
+status: completed
 date: 2026-05-19
 ---
 

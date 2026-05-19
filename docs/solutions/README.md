@@ -90,4 +90,5 @@ grep -r "tags:.*baota" docs/solutions/
 ## 现有文档
 
 - [nyh-prod / 宝塔面板加载内存中过期 SSL 证书](nyh-prod/integration-issues/baota-panel-stale-ssl-cert-in-memory-2026-05-11.md) — 2026-05-11
+- [nyh-prod / 宝塔 Docker 反代域名 SSL 证书未自动续期](nyh-prod/integration-issues/baota-ssl-acme-challenge-routing-fix-2026-05-19.md) — 2026-05-20
 - [dev-cypresso / GitHub Actions 部署失败，磁盘被 Docker 老镜像占满](dev-cypresso/integration-issues/docker-image-buildup-fills-disk-2026-05-14.md) — 2026-05-14
