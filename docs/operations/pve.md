@@ -1,5 +1,30 @@
 # pve 运维操作时间线
 
+## 2026-05-20 16:03 CST - 修复 mas-go-dev 前端本地 Docker build OOM
+
+- 服务器：`pve`
+- 操作人：`Codex` + 用户手动重启 VM
+- 原因：`iCare-frontend-mas` 的 `Deploy to mas-go-dev` job 在 `docker build` 阶段执行 `npm run build`，Node 报 `JavaScript heap out of memory`。排查发现 VM `130/mas-go-dev` 配置为 `memory=8192`，但 `balloon=2048`，guest 实际只看到约 `2.1GiB` 内存，导致 Vite/TypeScript 构建堆空间不足。
+- 影响：将 `mas-go-dev` 的 balloon 下限提高到 8 GiB，并由用户重启 VM 使配置生效；重启期间 `mas-go-dev` 后端、前端和 GitHub Actions runner 短暂中断。未修改数据库、网络、防火墙或应用代码。
+- 回滚：
+  - 快速回滚：`qm set 130 --balloon 2048`，然后在维护窗口重启 VM 130。
+  - 配置文件回滚：参考备份 `/etc/pve/qemu-server/130.conf.bak.20260520-oom`。
+- 变更：
+  - 备份 `/etc/pve/qemu-server/130.conf` 到 `/etc/pve/qemu-server/130.conf.bak.20260520-oom`。
+  - 执行 `qm set 130 --balloon 8192`，使 VM 130 配置变为 `memory=8192`、`balloon=8192`。
+  - 尝试 QMP 热调整运行态 balloon，未能让 guest 立即释放到 8 GiB；随后用户手动重启 VM 130。
+- 验证：
+  - PVE 运行态显示 `balloon=8589934592`、`balloon_min=8589934592`、`maxmem=8589934592`。
+  - `mas-go-dev` guest 可见内存约 `7.7GiB`，无 swap。
+  - `actions.runner.cypressoai.mas-go-dev.service` 为 `active running`，并已连接 GitHub。
+  - Docker 服务为 `active`，`icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动。
+  - `http://127.0.0.1:5174/healthz` 返回 `ok`。
+  - `http://127.0.0.1:5174/api/v1/health` 返回 `code=200`、database `up`。
+  - 重新运行 GitHub Actions failed job 后，`iCare-frontend-mas` run `26147661747` 变为 `success`，新的 `Deploy to mas-go-dev` job `76913376725` 成功完成。
+- 后续：
+  - 暂不启用 swap；8 GiB 固定内存已解决本次 Node build OOM。若后续仍出现偶发 OOM，再考虑在 guest 内添加 4 GiB swap 作为兜底。
+  - 观察 PVE 宿主机 available memory，避免多台 VM 高峰期同时吃满物理内存。
+
 ## 2026-05-20 12:00 CST - 验证 MAS 参考环境 VM 内存调整
 
 - 服务器：`pve`
