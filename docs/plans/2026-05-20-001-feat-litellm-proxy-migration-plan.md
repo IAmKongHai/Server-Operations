@@ -1,7 +1,7 @@
 ---
 title: 迁移 litellm-us 反向代理到 rao-tizi
 type: feat
-status: active
+status: completed
 date: 2026-05-20
 ---
 

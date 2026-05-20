@@ -1,5 +1,31 @@
 # rao-tizi 运维时间线
 
+## 2026-05-20 10:29 CST - 接管 litellm-us DNS 流量并签发正式证书
+
+- 服务器：`rao-tizi`
+- 操作人：`Codex`
+- 原因：用户已在 Cloudflare 将 `litellm-us.konghai.me` 改为 A 记录 `64.64.253.141`，生产服务器 `nyh-prod` 解析和访问已切到 `rao-tizi`。
+- 影响：`litellm-us.konghai.me:8443` 正式由 `rao-tizi` 上的 Nginx 承载；`s-ui` 仍占用 `443/tcp`，未修改或重启。
+- 回滚：
+  - DNS 回滚到旧值 `tz.skysms.xyz` 或 `74.211.103.83`
+  - 如需回滚证书路径，可恢复 `/etc/nginx/conf.d/llm-proxy.conf.bak.202605201029` 后执行 `nginx -t && systemctl reload nginx`
+- 变更：
+  - 使用 certbot 为 `litellm-us.konghai.me` 正式签发新证书，lineage 为 `litellm-us-konghai-me-20260520`
+  - 将 Nginx 证书路径从复制证书切换到 `/etc/letsencrypt/live/litellm-us-konghai-me-20260520/`
+  - 备份切换前 Nginx 配置到 `/etc/nginx/conf.d/llm-proxy.conf.bak.202605201029`
+  - 移走第一次同名签发失败留下的无效 renewal 配置：`/etc/letsencrypt/renewal/litellm-us.konghai.me.conf.invalid.202605201032`
+- 验证：
+  - `nyh-prod` 解析 `litellm-us.konghai.me` 为 `64.64.253.141`
+  - `nyh-prod` 访问 `https://litellm-us.konghai.me:8443/openai/` 返回上游 `421`
+  - `nyh-prod` 访问 `/anthropic/`、`/cerebras/`、`/xai/`、`/groq/` 分别返回上游 `404`、`405`、`421`、`404`
+  - 端口证书 issuer 为 Let's Encrypt `E7`，有效期为 `2026-05-20 09:31:17 CST` 到 `2026-08-18 09:31:16 CST`
+  - `certbot certificates` 仅列出有效 lineage `litellm-us-konghai-me-20260520`
+  - `certbot renew --dry-run --cert-name litellm-us-konghai-me-20260520 --no-random-sleep-on-renew` 成功
+  - `nginx -t` 通过，Nginx 仍只监听 `80/tcp` 和 `8443/tcp`，`443/tcp` 仍由 `sui` 监听
+- 后续：
+  - 继续观察 Nginx access/error log 和 `certbot-renew.timer`。
+  - 切换稳定后如需停用 `tizi` 上 Nginx，需要另行确认。
+
 ## 2026-05-20 09:51 CST - 预置 litellm-us 反向代理备用入口
 
 - 服务器：`rao-tizi`

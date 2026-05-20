@@ -1,5 +1,21 @@
 # tizi 运维时间线
 
+## 2026-05-20 10:29 CST - litellm-us DNS 流量切出到 rao-tizi
+
+- 服务器：`tizi`
+- 操作人：`Codex`
+- 原因：用户已在 Cloudflare 将 `litellm-us.konghai.me` 切到 `64.64.253.141`，由 `rao-tizi` 接管反向代理流量。
+- 影响：未修改 `tizi` 上的 Nginx、firewalld、证书、crontab 或 `s-ui`；`tizi` 仍保留原 Nginx 服务作为短期 DNS 回滚目标。
+- 回滚：将 `litellm-us.konghai.me` DNS 改回 `tz.skysms.xyz` 或 `74.211.103.83`。
+- 变更：
+  - 本机未执行配置变更。
+- 验证：
+  - `nyh-prod` 已解析 `litellm-us.konghai.me` 到 `64.64.253.141`
+  - `rao-tizi` 上已签发新证书并通过五个代理路径验证
+- 后续：
+  - 切换稳定前保留 `tizi` 上原 Nginx 配置和证书。
+  - 若要停用 `tizi` 上的 Nginx，需要再次确认后执行。
+
 ## 2026-05-20 09:51 CST - 为 litellm-us 反向代理迁移创建回滚备份
 
 - 服务器：`tizi`
