@@ -229,6 +229,7 @@ MAS 老系统参考数据库 VM。只用于重构期间读取旧库，不作为�
 | --- | --- |
 | VMID | `110` |
 | IP | `192.168.2.20/24` |
+| SSH | `ssh ubuntu@192.168.2.20` |
 | OS | Ubuntu 22.04.5 LTS |
 | Kernel | `5.15.0-179-generic` |
 | CPU / Memory | 4 vCPU / 8 GiB |

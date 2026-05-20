@@ -82,6 +82,7 @@
 | `mac-mini`     | 家里的 Mac mini                                                                        | 否                                |
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
 | `pve`          | Proxmox VE 虚拟化宿主，计划承载开发测试 VM；当前可通过 `ssh pve` 以 root 密钥登录    | 否（测试环境，但仍需备份后再改）  |
+| `mssql-ref`    | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库；当前可通过 `ssh ubuntu@192.168.2.20` 登录 | 否（参考/测试数据库，改库前仍需备份确认） |
 
 注意：
 - `nyh-prod` 上同时跑着多个项目的生产数据库与站点，任何重启 / 配置改动都要先想清楚波及哪些项目
@@ -89,6 +90,7 @@
 - `dev-cypresso` 虽是测试，但 iCare 团队会用，破坏性操作前仍需确认
 - `nas` 上的 SQL Server 容器承载历史业务数据库（`medicalassistance` 等），关键容器统一用 `--restart=always` 而非 `unless-stopped`，避免 NAS 重启后不自动拉起
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
+- `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认
 
 ## 检索历史方案
 
