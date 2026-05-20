@@ -1,5 +1,26 @@
 # pve 运维操作时间线
 
+## 2026-05-20 12:00 CST - 验证 MAS 参考环境 VM 内存调整
+
+- 服务器：`pve`
+- 操作人：`Codex`
+- 原因：用户已手动调整并重启 MAS 参考环境三台 VM，需要确认 PVE 配置、guest 可见内存和关键服务状态。
+- 影响：本次仅检查和记录；实际资源调整由用户已完成。当前配置提高了 `mssql-ref` 的数据库缓存空间，并压缩 `mas-win`、`mas-go-dev` 的内存上限。
+- 回滚：如调整后出现内存压力或应用异常，可在维护窗口内把 VM 内存恢复到调整前配置：`mssql-ref=8192 MiB`、`mas-win=8192 MiB`、`mas-go-dev=16384 MiB`，并按 `mssql-ref -> mas-win -> mas-go-dev` 顺序重启验证。
+- 变更：
+  - `mssql-ref`：`memory=20480`，6 vCPU，无 balloon 配置。
+  - `mas-win`：`memory=4096`，`balloon=2048`，4 vCPU。
+  - `mas-go-dev`：`memory=8192`，`balloon=2048`，4 vCPU。
+  - 三台 VM 均处于 `running`，并保留原有 `onboot` 与 `startup` 顺序。
+- 验证：
+  - PVE 宿主机内存：总计约 `31GiB`，available 约 `12GiB`，swap 使用 `0B`。
+  - `mssql-ref` guest 可见内存约 `19GiB`，`mssql-server` 为 `active`，本地 SQL Server 查询返回版本 `16.0.4252.3`。
+  - `mas-win` QEMU guest agent ping 正常，`192.168.2.21:9020` 和 `192.168.2.21:9021` 端口开放。
+  - `mas-go-dev` guest 当前可见内存约 `5.8GiB`，Docker 容器 `icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动；GitHub Actions runner 服务 `actions.runner.cypressoai.mas-go-dev.service` 为 `active running`。
+- 后续：
+  - 观察 SQL 查询高峰时 PVE 宿主机 available memory、swap、`mssql-ref` 内 `vmstat` 的 `wa/st` 是否下降。
+  - 如 `mas-go-dev` 后续 Docker build 内存不足，再考虑把其上限从 8 GiB 调回 10-12 GiB，或清理构建缓存。
+
 ## 2026-05-20 11:04 CST - 添加同事 SSH 公钥
 
 - 服务器：`pve`

@@ -193,7 +193,7 @@ MAS Go + React 重构版内网自动部署 VM。该 VM 只作为并行开发/测
 | IP | `192.168.2.22/24` |
 | OS | Amazon Linux 2023.10.20260105 x86_64 |
 | Kernel | `6.1.159-181.297.amzn2023.x86_64` |
-| CPU / Memory | 4 vCPU / 16 GiB |
+| CPU / Memory | 4 vCPU / 8 GiB，balloon min 2 GiB |
 | Disk | `nvme-data:vm-130-disk-1`，120G thin-provisioned |
 | Network | `vmbr0` |
 | On boot | `onboot=1`，`startup=order=30,up=60,down=180` |
@@ -232,7 +232,7 @@ MAS 老系统参考数据库 VM。只用于重构期间读取旧库，不作为�
 | SSH | `ssh ubuntu@192.168.2.20` |
 | OS | Ubuntu 22.04.5 LTS |
 | Kernel | `5.15.0-179-generic` |
-| CPU / Memory | 4 vCPU / 8 GiB |
+| CPU / Memory | 6 vCPU / 20 GiB |
 | System disk | `nvme-data:vm-110-disk-0`，200G |
 | Restore/data disk | `nvme-data:vm-110-disk-1`，400G，guest 内挂载 `/restore` |
 | SSH user | `ubuntu`，已部署本机公钥 |
@@ -321,7 +321,7 @@ MAS 老 C# 系统参考应用 VM。只用于重构期间打开旧页面、调用
 | VMID | `120` |
 | IP | `192.168.2.21/24` |
 | OS | Windows Server 2022 Standard Evaluation / Server Core |
-| CPU / Memory | 4 vCPU / 8 GiB |
+| CPU / Memory | 4 vCPU / 4 GiB，balloon min 2 GiB |
 | System disk | `nvme-data:vm-120-disk-0`，100G thin-provisioned |
 | Network | `e1000` on `vmbr0` |
 | QEMU guest agent | 已安装并运行 |
