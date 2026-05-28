@@ -19,3 +19,5 @@ secrets.local.md
 .env
 .env.*
 !.env.example
+.antigravitycli/
+.claude/scheduled_tasks.lock
