@@ -1,5 +1,20 @@
 # pve 运维操作时间线
 
+## 2026-05-28 09:45 CST - 添加同事 SSH 公钥到 mas-go-dev
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Codex`
+- 原因：允许同事通过 SSH 登录 `ec2-user@192.168.2.22`，便于协作处理 MAS Go + React 内网自动部署环境。
+- 影响：`hon-2026` 对应私钥持有人可以登录 `ec2-user` 用户；未重启服务，未改动 Docker、GitHub Actions runner、数据库、网络或防火墙。
+- 回滚：用备份 `/home/ec2-user/.ssh/authorized_keys.bak.20260528-0945-hon-2026` 覆盖 `/home/ec2-user/.ssh/authorized_keys`，或删除注释为 `hon-2026` 的公钥行。
+- 变更：
+  - 备份 `/home/ec2-user/.ssh/authorized_keys` 到 `/home/ec2-user/.ssh/authorized_keys.bak.20260528-0945-hon-2026`。
+  - 向 `/home/ec2-user/.ssh/authorized_keys` 追加一条 `ssh-ed25519` 公钥，注释为 `hon-2026`。
+  - 保持 `/home/ec2-user/.ssh` 权限为 `700`，`authorized_keys` 权限为 `600`。
+- 验证：
+  - `authorized_keys` 中已能精确匹配 `hon-2026` 公钥。
+  - `/home/ec2-user/.ssh/authorized_keys` 权限为 `600`，共 2 行。
+
 ## 2026-05-20 16:03 CST - 修复 mas-go-dev 前端本地 Docker build OOM
 
 - 服务器：`pve`
