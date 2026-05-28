@@ -1,5 +1,62 @@
 # mssql-ref 运维操作时间线
 
+## 2026-05-28 13:45 CST - 给 SQL Server 配 max server memory 上限并加 4 GB swap
+
+- 服务器：`mssql-ref`
+- 操作人：`Claude`
+- 原因：承接 12:14 那条画像记录留下的隐患——SQL Server 在 Linux 上默认贪婪占内存，`max server memory = 2147483647 MB`（即未限制），RSS 已经到 14.2 GB，可用内存仅 4.8 GB，且 swap 为 0；一旦 OS 侧瞬时吃内存就会直接 OOM kill `sqlservr`。本次给 SQL Server 显式封顶并加一个安全网式的小 swap。
+- 影响：
+  - SQL Server 可用内存被限制为 14 GiB（原先无限制）。当前 RSS 14.2 GB 略高于上限，working set 会在后续运行中由 SQLOS 缓慢收敛，不会立即整块释放，这是正常行为。
+  - 系统新增 4 GiB swap 文件 `/swapfile`，`vm.swappiness=10`（默认 60）——只在真正有内存压力时才会落盘，平时不会抖动；这台是 PVE 上的 VM，swap 写到虚拟盘，对 SSD 寿命的影响远小于裸机直接拿 swap 当 RAM 扩展。
+  - 未重启任何服务，未改 schema/data。
+- 回滚：
+  - SQL Server 内存：`EXEC sp_configure 'max server memory (MB)', 2147483647; RECONFIGURE;`（立即生效，不需重启）。
+  - swap：`sudo swapoff /swapfile && sudo rm /swapfile`，并从 `/etc/fstab` 删除 `/swapfile none swap sw 0 0` 那行（已备份到 `/etc/fstab.bak.20260528`）。
+  - swappiness：`sudo rm /etc/sysctl.d/99-swappiness.conf && sudo sysctl -w vm.swappiness=60`。
+- 变更：
+  1. SSH `ubuntu@192.168.2.20`，从 `/root/mssql-secrets.env` 读出 `MSSQL_SA_PASSWORD`（仅在 SSH 会话中使用，不落盘也不进 commit）。
+  2. 用 `/opt/mssql-tools18/bin/sqlcmd` 以 `sa` 登入本地实例：
+     ```sql
+     EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+     EXEC sp_configure 'max server memory (MB)', 14336; RECONFIGURE;
+     ```
+     `sys.configurations` 中 `max server memory (MB)` 由 `2147483647 → 14336`。
+  3. 备份 `/etc/fstab` → `/etc/fstab.bak.20260528`。
+  4. `sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`。
+  5. 追加 `/swapfile none swap sw 0 0` 到 `/etc/fstab`，确保重启后自动挂载。
+  6. 写入 `/etc/sysctl.d/99-swappiness.conf`，内容 `vm.swappiness=10`，并 `sudo sysctl -p /etc/sysctl.d/99-swappiness.conf` 即时生效。
+- 验证：
+  - `sqlcmd` 查 `sys.configurations`：`max server memory (MB) = 14336`，`min server memory (MB) = 16`（未改）。
+  - `free -h`：`Swap: 4.0Gi / 0B / 4.0Gi`（启用且未使用）。
+  - `swapon --show`：`/swapfile file 4G 0B -2`。
+  - `cat /proc/sys/vm/swappiness`：`10`。
+  - `ls -lh /swapfile`：`-rw------- root root 4.0G`，权限正确。
+  - `tail -3 /etc/fstab` 已含 `/swapfile` 行。
+  - 进程 `sqlservr` 仍 `active (running)`，未重启。
+- 关于 0 swap 的早期决策：之前在 NAS/裸机上选 0 swap，前提是"内存充足、避免 SSD 无谓写入"。这台 VM 的差异是：(a) 内存前提不再成立（封顶后 OS 只剩 ~5 GB，没安全网就只能 OOM kill）；(b) 写入落在 PVE 虚拟盘而非裸 SSD，amplification 已被宿主层吸收。加 4 GB 小 swap + 低 swappiness 是性价比最高的兜底，不与原决策的精神冲突。
+- 后续：
+  - 观察一两天 `free -h` 和 `sar -B` 等，确认 `sqlservr` RSS 是否如预期收敛到 14 GB 以内、swap 是否始终 `Used=0`。
+  - 文档维护：`docs/solutions/pve/best-practices/mas-legacy-reference-sql-vm-2026-05-16.md` 仍待更新（VM 现况 `6 vCPU / 19 GiB`，且已显式封顶 `max server memory = 14336 MB`、加了 4 GB swap）。
+
+## 2026-05-28 12:14 CST - 校验运行时画像（容量规划用）
+
+- 服务器：`mssql-ref`
+- 操作人：`Claude`
+- 原因：评估能否把 iCare 项目的 Azurite / Redis 等基础服务共栖到这台 VM 上时，需要先把"它当前是什么"摸清楚。
+- 影响：纯只读 SSH 查询（`free`、`df`、`ps`、`systemctl list-units`、`which docker`），未改动任何配置或服务。
+- 回滚：N/A（无写操作）。
+- 关键事实（与既有文档差异要注意）：
+  - **SQL Server 是宿主机 systemd 服务，不是 Docker 容器**。`systemctl` 中可见 `mssql-server.service (loaded active running)`；`which docker` / `/usr/bin/docker*` / `/snap/bin/docker*` 全部未找到，机器上**没有安装 Docker 引擎**。
+  - VM 已扩容：`nproc=6`、`free -h` 显示总内存 `19Gi`。`docs/solutions/pve/best-practices/mas-legacy-reference-sql-vm-2026-05-16.md` 写的"4 vCPU / 8 GiB"已过期。
+  - **内存紧张**：`sqlservr` 进程 RSS ≈ 14.2 GB（`ps -eo pid,rss,comm`），可用内存仅 `4.8Gi`。
+  - **无 swap**：`Swap: 0B / 0B / 0B`。一旦内存吃满将直接 OOM kill，没有缓冲。
+  - SQL Server 没有配置 `max server memory` 上限（未直接登入数据库确认，但从内存占用与 14GB 持续居高可推断）。SQL Server 在 Linux 上默认会贪婪占用，不显式封顶是潜在隐患。
+  - CPU 与磁盘有富余：`load 0.09`、根分区 `/dev/sda1 194G / 13G used / 181G avail (7%)`。瓶颈仅在内存。
+- 结论 / 后续：
+  - **iCare 的 Azurite + Redis 不放 mssql-ref**。理由：需新装 Docker、内存只剩 4.8GB 且无 swap、SQL Server 是关键路径不宜与其他服务争内存、跨 VM 网络复杂度上升。改走 mas-go-dev 上的 `infra.compose.yaml` 方案。
+  - 待处理（独立任务，在其他 session 跟进）：给 SQL Server 显式配置 `max server memory`（建议 12 GB 左右，留 7 GB 给 OS）；评估是否需要加 swap 文件。
+  - 待处理（文档维护）：把 `mas-legacy-reference-sql-vm-2026-05-16.md` 的"4 vCPU / 8 GiB"更新为现况 `6 vCPU / 19 GiB`，并补一句"SQL Server 当前裸跑、未限制 max server memory"。
+
 ## 2026-05-20 11:19 CST - 修正本机 known_hosts 中的旧主机指纹
 
 - 服务器：`mssql-ref`
