@@ -1,5 +1,33 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-05-28 14:55 CST - 部署 build cache 自动清理 timer + 全清历史 cache
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：本仓库 backend Dockerfile + workflow 修复（合并到 develop 后已跑过多个 PR）已验证 build cache 不再无限累积，但磁盘里仍残留 66.91GB 历史 cache 层（其中大量是被新 build 复用的老 591MB Go 编译层）。决定全清一次彻底回收空间，并安装 systemd timer 兜底，防止未来再出现孤儿层堆积。
+- 影响：
+  - 安装 `docker-builder-prune.service` + `.timer`（root），每天 UTC 20:00（CST 凌晨 4 点）自动清理 168 小时（7 天）未使用的 buildkit cache 层。RandomizedDelaySec=300 避免与其他 timer 同时启动。
+  - `sudo docker builder prune -a -f` 全清 buildkit cache，下次 PR build 需要全量重新下载 Go modules + 编译，预计耗时从 3-5 分钟拉长到 8-15 分钟（一次性），多消耗 500MB-1GB 网络流量。
+  - 未触碰镜像、容器、卷；正在运行的 `icare-backend-api-1`(healthy)、`icare-backend-worker-1`、`azurite`、`redis`、`mas-icare-portal` 全部未受影响。
+- 回滚：
+  - timer：`sudo systemctl disable --now docker-builder-prune.timer && sudo rm /etc/systemd/system/docker-builder-prune.{service,timer} && sudo systemctl daemon-reload && sudo rm /var/log/docker-prune.log`
+  - cache：不可逆，但下次 build 会按需重建。
+- 变更：
+  - 新建 `/etc/systemd/system/docker-builder-prune.service`：`Type=oneshot`，执行 `/usr/bin/docker builder prune --filter until=168h --force`，stdout/stderr 追加到 `/var/log/docker-prune.log`。
+  - 新建 `/etc/systemd/system/docker-builder-prune.timer`：`OnCalendar=*-*-* 20:00:00 UTC`，`Persistent=true`（断电期间错过的会补跑），`RandomizedDelaySec=300`。
+  - `sudo touch /var/log/docker-prune.log && sudo chmod 644`。
+  - `sudo systemctl daemon-reload && sudo systemctl enable --now docker-builder-prune.timer`。
+  - `sudo docker builder prune -a -f`，回收 66.92GB。
+- 验证：
+  - `systemctl list-timers docker-builder-prune.timer` 显示 `NEXT=2026-05-28 20:03:48 UTC`（含随机延迟）。
+  - 清理前：`Build Cache 993 条 / 66.91GB`，根分区 `74G/120G (62%)`。
+  - 清理后：`Build Cache 0 条 / 0B`，根分区 `5.5G/120G (5%)`，可用 `115GB`。
+  - `docker ps`：5 个容器全部 `Up`，`icare-backend-api-1` 保持 `healthy`。
+- 后续：
+  - 观察下次 PR 部署：build 时长（预期 8-15 分钟）、build 完成后 `docker system df` 的 Build Cache 应该回到 1-2GB 级别。
+  - 每天 UTC 20:00 后查看 `/var/log/docker-prune.log` 几次，确认 timer 按预期执行。
+  - 长期理想态：Build Cache 稳定在 1-2GB（一份完整复用 cache），timer 偶尔清掉过期残留。如果一周后看到 Build Cache 又涨到几十 GB，说明 cache 复用机制再次失效，需要重新排查。
+
 ## 2026-05-28 12:47 CST - 上线 iCare 集成测试基础设施容器（azurite + redis）
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
