@@ -36,7 +36,7 @@ tags: [pve, sql-server, mssql, full-text-search, mas, reference-environment]
 | Name | `mssql-ref` |
 | IP | `192.168.2.20/24` |
 | OS | Ubuntu 22.04.5 LTS cloud image |
-| CPU / Memory | 4 vCPU / 8 GiB |
+| CPU / Memory | 6 vCPU / 19 GiB（2026-05-28 复核：原 4 vCPU / 8 GiB 已扩容） |
 | Disk | `nvme-data`，200G thin-provisioned |
 
 安装 SQL Server：
@@ -187,6 +187,7 @@ VM 内数据文件落点：
 
 ## Operational Notes
 
+- 内存与 swap（2026-05-28 调整）：SQL Server `max server memory = 14336 MB`（原默认 `2147483647` MB 即无限制）；OS 侧 `/swapfile` 4 GiB + `vm.swappiness=10` 作为安全网。修改方式见 `docs/operations/mssql-ref.md` 2026-05-28 13:45 那条记录，回滚也写在同处。
 - 只读登录：`mas_ref_reader`。
 - 只读登录密码：登录 `mssql-ref` 后从 `/root/mssql-secrets.env` 读取 `MSSQL_MAS_REF_READER_PASSWORD`。
 - SA 密码：同一文件中的 `MSSQL_SA_PASSWORD`。
