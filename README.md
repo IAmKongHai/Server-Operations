@@ -30,6 +30,7 @@ server/
 | `nas`          | 本地 / 数据       | 家用 NAS，跑 SQL Server（`mas-old-sql2022-fts-nas` 等）及历史业务数据库                          |
 | `pve`          | 本地 / 测试       | Proxmox VE 虚拟化宿主，计划承载开发测试 VM                                                       |
 | `mssql-ref`    | 本地 / 数据       | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库（`192.168.2.20`）                            |
+| `mas-go-dev`   | 本地 / 测试       | PVE 上的 Amazon Linux 2023 VM（`192.168.2.22`），承载 MAS Go 重构版开发/集成测试环境与 GH Actions runner |
 
 > 详细的服务运行清单、域名、端口、备份策略等，按需在 `<server>/` 子目录或 `docs/solutions/<server>/` 下补充。
 
