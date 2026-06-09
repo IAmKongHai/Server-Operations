@@ -1,6 +1,7 @@
 ---
 title: SonarQube Scanner CLI 因 4 段版本号导致 tool-cache 永不命中、每次 CI 重新下载
 date: 2026-06-09
+last_updated: 2026-06-09
 category: docs/solutions/mac-mini/integration-issues
 server: mac-mini
 module: iCare CI / GitHub Actions self-hosted runner (mac-mini-sonar-1..4)
@@ -15,7 +16,7 @@ symptoms:
 root_cause: wrong_api
 resolution_type: dependency_update
 severity: medium
-tags: [sonarqube, github-actions, tool-cache, semver, self-hosted-runner, mac-mini]
+tags: [sonarqube, github-actions, tool-cache, semver, self-hosted-runner, mac-mini, gpg, runner-workfolder]
 ---
 
 # SonarQube Scanner CLI 因 4 段版本号导致 tool-cache 永不命中、每次 CI 重新下载
@@ -87,6 +88,12 @@ gpg --version | head -n 1
 
 修复应落在 runner 全局环境，而不是在每个业务仓 workflow 里加 `GITHUB_PATH` workaround。
 
+这个分层很重要：
+
+- pin `sonarqube-scan-action` 是仓库级依赖选择，因为 4 段版本号的 tool-cache bug 来自 action 自身；
+- `gpg` 可见性和 `RUNNER_TEMP` 路径长度是 mac-mini runner 环境问题，应该在 4 个 runner service 上一次性修好；
+- 不要在每个仓库的 `sonar.yml` 里堆 `GITHUB_PATH`、`skipSignatureVerification` 或临时路径 workaround。以后其它仓库调度到同一批 `mac-mini-sonar-*` runner，会遇到同样环境条件，仓库内 workaround 会重复扩散并增加维护复杂度。
+
 ### Step 1: 暴露 Homebrew GPG 到 runner service PATH
 
 按用户确认后的全局修法执行：
@@ -153,6 +160,31 @@ Action failed: Failed to import SonarSource public key from all keyservers
 - `backend` PR SonarQube Scan 重跑成功，日志显示 `gpg` 从 `/opt/homebrew/bin/gpg` 执行，签名校验通过，Scanner CLI 缓存到 `8.1.0-build.6389`。
 - `frontend-mas` PR SonarQube PR Scan 重跑成功；该 run 的 `Frontend Tests` 仍在跑时，Sonar job 已完成通过。
 
+### Step 3: 验证 4 个 runner slot 的缓存预热和命中
+
+改短 `workFolder` 后，tool-cache 根目录也从旧的 `_work/_tool` 迁移到每个短路径下的新 `_tool`。因此每个 runner slot 第一次跑 Scanner CLI 8.1.0.6389 都会冷下载一次，这是预期行为；判断是否修好要看第二次落到同一 slot 时是否出现命中日志。
+
+截至 2026-06-09 15:22 CST，4 个 slot 的磁盘缓存均已存在，版本目录均约 161M，并带 `.complete` 标记：
+
+```text
+/Users/konghai/gha/s1/_tool/sonar-scanner-cli/8.1.0-build.6389/macosx-aarch64
+/Users/konghai/gha/s2/_tool/sonar-scanner-cli/8.1.0-build.6389/macosx-aarch64
+/Users/konghai/gha/s3/_tool/sonar-scanner-cli/8.1.0-build.6389/macosx-aarch64
+/Users/konghai/gha/s4/_tool/sonar-scanner-cli/8.1.0-build.6389/macosx-aarch64
+```
+
+已确认的 GitHub Actions 日志信号：
+
+- `backend` run `27188281929` 落到 `mac-mini-sonar-1`，出现 `Using cached Sonar Scanner CLI from: /Users/konghai/gha/s1/_tool/...`。
+- `backend` run `27189003660` 落到 `mac-mini-sonar-2`，首次冷下载并写入 `/Users/konghai/gha/s2/_tool/...`，GPG 校验通过。
+- `backend` run `27189712844` 落到 `mac-mini-sonar-3`，首次冷下载并写入 `/Users/konghai/gha/s3/_tool/...`，GPG 校验通过。
+- `backend` run `27190395471` 落到 `mac-mini-sonar-4`，出现 `Using cached Sonar Scanner CLI from: /Users/konghai/gha/s4/_tool/...`。
+- `frontend-mas` run `27187078961` 落到 `mac-mini-sonar-1`，首次冷下载并写入 `/Users/konghai/gha/s1/_tool/...`。
+- `frontend-mas` run `27188925920` 落到 `mac-mini-sonar-4`，首次冷下载并写入 `/Users/konghai/gha/s4/_tool/...`，GPG 校验通过。
+- `frontend-mas` run `27189913021` 和 `27190626527` 均落到 `mac-mini-sonar-2`，均出现 `Using cached Sonar Scanner CLI from: /Users/konghai/gha/s2/_tool/...`。
+
+结论：`mac-mini-sonar-1`、`2`、`4` 已经有二次命中日志；`mac-mini-sonar-3` 已完成冷下载和 `.complete` 写入，但抽样时还没有后续 Sonar job 再次落到该 slot，所以暂未看到第二次命中日志。整体根因已消除，后续落到 `s3` 的第二个 Sonar job 应以 `Using cached ...` 作为确认信号。
+
 ## Why This Works
 
 根因在 `sonarqube-scan-action@v6.0.0` 的 `dist/index.js`：它用**原始 4 段版本号** `7.2.0.5079` 直接调 `@actions/tool-cache` 的 `tc.find(TOOLNAME, "7.2.0.5079", flavor)`。
@@ -172,6 +204,7 @@ Action failed: Failed to import SonarSource public key from all keyservers
 - **4 段版本号（`x.y.z.build`，SonarScanner 这类工具常见）与 `@actions/tool-cache` 的 SemVer 要求不兼容**是个隐蔽坑：`cacheDir` 写得进、`find` 读不出。遇到"某工具每次 CI 重下"先怀疑版本号格式。
 - **macOS self-hosted runner 的 service PATH 不等于 SSH 登录 shell PATH**：Homebrew 工具即使已安装在 `/opt/homebrew/bin`，后台 runner 也可能看不到。需要用 `ps eww -p <Runner.Listener PID>` 或 workflow 里 `command -v gpg` 验证 runner 实际环境。
 - **macOS GnuPG 对临时 homedir 路径长度敏感**：Sonar action 会在 `RUNNER_TEMP` 下建 `gpg-home-*`，如果 runner `workFolder` 太深，`S.gpg-agent` / `S.dirmngr` socket 可能超过 macOS 限制。runner 放在长目录名下时，应把 `.runner` 的 `workFolder` 改到短路径。
+- **环境问题优先在 runner 层修**：如果问题由 self-hosted runner 的 PATH、workFolder、tool-cache、权限或本地依赖引起，不要把修法复制进每个仓库的 workflow。仓库 workflow 只表达该仓库的 CI 逻辑和依赖版本；共享 runner 的运行条件应在 runner service 上统一维护。
 - **验证生效标志**：合并后首次跑出现 `Installing Sonar Scanner CLI 8.1.0.6389` + `cached to:`（下载一次新版，正常）；**第二次同一 runner 跑出现 `Using cached Sonar Scanner CLI from:`** —— 此句首次出现即代表缓存终于命中。
 - **后续维护**：当前是 pin 到 master 临时 commit。等 SonarSource 发布含 SQSCANGHA-135 的正式 release（预计 v8.2+）后，把三处升回稳定 tag。关注 https://github.com/SonarSource/sonarqube-scan-action/releases 。
 

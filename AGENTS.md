@@ -114,6 +114,8 @@ grep -ri "宝塔\|baota\|bt-panel" docs/solutions/
 grep -r "tags:.*ssl-cert" docs/solutions/
 ```
 
+`CONCEPTS.md` 记录项目内有特定含义的共享术语（实体、命名流程、状态概念），适合在梳理运维背景或讨论领域概念前快速对齐词义。
+
 ## 文档风格
 
 - 中文为主，技术名词、命令、路径、配置项保留英文原文
