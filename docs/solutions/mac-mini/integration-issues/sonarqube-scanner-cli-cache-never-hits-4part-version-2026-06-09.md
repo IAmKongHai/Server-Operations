@@ -10,6 +10,8 @@ symptoms:
   - "每次 SonarQube Scan 都重新下载 Scanner CLI 7.2.0.5079（每份约 145M），浪费外网流量和时间"
   - "CI 日志永远是 'Sonar Scanner CLI cached to:'，从不出现 'Using cached Sonar Scanner CLI from:'"
   - "磁盘缓存目录存在且有 .complete 标记，但目录树 mtime 每次运行都被刷新成当次时间"
+  - "pin 到上游修复 commit 后，Scanner CLI 8.1.0.6389 首次下载阶段报 'GPG is not available'"
+  - "修复 PATH 后，GPG 能执行但仍可能因 runner _work/_temp 路径过深报 'File name too long' / 'gpg-agent: IPC connect call failed'"
 root_cause: wrong_api
 resolution_type: dependency_update
 severity: medium
@@ -56,7 +58,100 @@ uses: SonarSource/sonarqube-scan-action@358113921641f7f7c0e0d1291c4177001d2a8aaf
 
 - Server 为 SonarQube Community Build v26.3.0.120487（= 日历版 2026.3）；Scanner CLI 8.1.0.6389 官方兼容 2026.3。
 - Scanner CLI 8.x 内置 JRE 为 Java 21，正好对齐官方"2026.4（7 月）起 Scanner 强制 Java 21"的要求（旧 7.2.0.5079 内置 Java 17 是将被淘汰侧）。
-- 8.0 / 8.1 changelog 均为基础设施维护（JRE、依赖、代理认证修复），**无**影响报告产出的 behavior change、无 breaking change。注意 v8.0.0 把 `skipSignatureVerification` 默认改为 `false`（默认开启 GPG 校验）—— mac-mini 已有 `gpg 2.5.18` + `dirmngr`，满足条件。
+- 8.0 / 8.1 changelog 均为基础设施维护（JRE、依赖、代理认证修复），**无**影响报告产出的 behavior change、无 breaking change。注意 v8.0.0 把 `skipSignatureVerification` 默认改为 `false`（默认开启 GPG 校验）。mac-mini 已安装 `gpg 2.5.18` + `dirmngr`，但 runner service 的 PATH 还需要显式暴露 Homebrew 目录，见下一节。
+
+## Follow-up: GPG is not available
+
+pin 到 `358113921641f7f7c0e0d1291c4177001d2a8aaf` 后，`backend` 和 `frontend-mas` 的 Sonar job 首次下载 Scanner CLI 8.1.0.6389 时失败：
+
+```text
+Error: Action failed: GPG is not available. Install GPG or set skipSignatureVerification: true
+```
+
+这不是 mac-mini 没装 GPG。SSH 登录 shell 里能看到：
+
+```bash
+command -v gpg
+# /opt/homebrew/bin/gpg
+gpg --version | head -n 1
+# gpg (GnuPG) 2.5.18
+```
+
+真正问题是 4 个 GitHub Actions runner 以 launch agent service 方式运行，实际进程 PATH 来自各自 runner 目录下的 `.path`：
+
+```text
+/Users/konghai/.cargo/bin:/Users/konghai/.volta/bin:/usr/bin:/bin:/usr/sbin:/sbin
+```
+
+这里没有 `/opt/homebrew/bin`。而上游 action 的签名校验只执行命令名 `gpg --version`，不会查 `/opt/homebrew/bin/gpg`，所以 CI 环境里找不到 GPG。
+
+修复应落在 runner 全局环境，而不是在每个业务仓 workflow 里加 `GITHUB_PATH` workaround。
+
+### Step 1: 暴露 Homebrew GPG 到 runner service PATH
+
+按用户确认后的全局修法执行：
+
+1. 备份 4 个 runner 的 `.path`：
+
+```text
+/Users/konghai/actions-runner/mac-mini-sonar-1/.path.bak.20260609-140142
+/Users/konghai/actions-runner/mac-mini-sonar-2/.path.bak.20260609-140142
+/Users/konghai/actions-runner/mac-mini-sonar-3/.path.bak.20260609-140142
+/Users/konghai/actions-runner/mac-mini-sonar-4/.path.bak.20260609-140142
+```
+
+2. 把 4 个 `.path` 从：
+
+```text
+/Users/konghai/.cargo/bin:/Users/konghai/.volta/bin:/usr/bin:/bin:/usr/sbin:/sbin
+```
+
+改为：
+
+```text
+/opt/homebrew/bin:/Users/konghai/.cargo/bin:/Users/konghai/.volta/bin:/usr/bin:/bin:/usr/sbin:/sbin
+```
+
+3. 重启 4 个 runner service。重启前 `mac-mini-sonar-3` 有 `Runner.Worker` 正在跑，所以先重启空闲的 `1/2/4`，等 `3` 空闲后再重启，避免中断正在执行的 CI。
+
+4. 验证 4 个 `Runner.Listener` 进程的实际 PATH 都包含 `/opt/homebrew/bin`，且以该 PATH 执行 `command -v gpg` 均返回 `/opt/homebrew/bin/gpg`。
+
+### Step 2: 缩短 runner workFolder，避免 GnuPG socket 路径过长
+
+PATH 修复后，`frontend-mas` 仍出现另一类 GPG 失败：
+
+```text
+gpg: can't connect to the gpg-agent: IPC connect call failed
+Action failed: Failed to import SonarSource public key from all keyservers
+```
+
+进一步在 mac-mini 上复现发现，问题来自 Sonar action 用 `RUNNER_TEMP` 创建临时 `GNUPGHOME`。原默认路径形如：
+
+```text
+/Users/konghai/actions-runner/mac-mini-sonar-1/_work/_temp/gpg-home-1780986085108-41704/S.gpg-agent
+```
+
+该 socket 路径长度约 99，接近 macOS Unix domain socket 路径限制；同样的 `gpg --homedir ... --recv-keys` 在这个深路径下可复现 `File name too long` / IPC 失败，而放到短路径下返回 0。
+
+最终继续在 runner 层修复：备份 4 个 runner 的 `.runner`，把 `workFolder` 从 `_work` 改到短路径：
+
+```text
+/Users/konghai/actions-runner/mac-mini-sonar-1/.runner.bak.20260609-142350 -> workFolder: /Users/konghai/gha/s1
+/Users/konghai/actions-runner/mac-mini-sonar-2/.runner.bak.20260609-142350 -> workFolder: /Users/konghai/gha/s2
+/Users/konghai/actions-runner/mac-mini-sonar-3/.runner.bak.20260609-142350 -> workFolder: /Users/konghai/gha/s3
+/Users/konghai/actions-runner/mac-mini-sonar-4/.runner.bak.20260609-142350 -> workFolder: /Users/konghai/gha/s4
+```
+
+短路径下同类 socket 路径长度约 68：
+
+```text
+/Users/konghai/gha/s1/_temp/gpg-home-1780986085108-41704/S.gpg-agent
+```
+
+改完后重启 4 个 runner service。验证结果：
+
+- `backend` PR SonarQube Scan 重跑成功，日志显示 `gpg` 从 `/opt/homebrew/bin/gpg` 执行，签名校验通过，Scanner CLI 缓存到 `8.1.0-build.6389`。
+- `frontend-mas` PR SonarQube PR Scan 重跑成功；该 run 的 `Frontend Tests` 仍在跑时，Sonar job 已完成通过。
 
 ## Why This Works
 
@@ -75,6 +170,8 @@ uses: SonarSource/sonarqube-scan-action@358113921641f7f7c0e0d1291c4177001d2a8aaf
 
 - **诊断 tool-cache 是否命中，不要只看"缓存目录是否存在"**：要看 ① action 日志里有没有打出"命中"那句（如本例的 `Using cached ... from:`），② 缓存目录 mtime 是否每次被刷新（被刷新 = 实际在重写 = 没命中）。
 - **4 段版本号（`x.y.z.build`，SonarScanner 这类工具常见）与 `@actions/tool-cache` 的 SemVer 要求不兼容**是个隐蔽坑：`cacheDir` 写得进、`find` 读不出。遇到"某工具每次 CI 重下"先怀疑版本号格式。
+- **macOS self-hosted runner 的 service PATH 不等于 SSH 登录 shell PATH**：Homebrew 工具即使已安装在 `/opt/homebrew/bin`，后台 runner 也可能看不到。需要用 `ps eww -p <Runner.Listener PID>` 或 workflow 里 `command -v gpg` 验证 runner 实际环境。
+- **macOS GnuPG 对临时 homedir 路径长度敏感**：Sonar action 会在 `RUNNER_TEMP` 下建 `gpg-home-*`，如果 runner `workFolder` 太深，`S.gpg-agent` / `S.dirmngr` socket 可能超过 macOS 限制。runner 放在长目录名下时，应把 `.runner` 的 `workFolder` 改到短路径。
 - **验证生效标志**：合并后首次跑出现 `Installing Sonar Scanner CLI 8.1.0.6389` + `cached to:`（下载一次新版，正常）；**第二次同一 runner 跑出现 `Using cached Sonar Scanner CLI from:`** —— 此句首次出现即代表缓存终于命中。
 - **后续维护**：当前是 pin 到 master 临时 commit。等 SonarSource 发布含 SQSCANGHA-135 的正式 release（预计 v8.2+）后，把三处升回稳定 tag。关注 https://github.com/SonarSource/sonarqube-scan-action/releases 。
 
