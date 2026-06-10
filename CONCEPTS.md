@@ -2,10 +2,10 @@
 
 Shared domain vocabulary for this project - entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
-## mac-mini SonarQube CI
+## mac-mini iCare CI
 
 ### mac-mini-sonar runner
-A named pool of four GitHub Actions self-hosted runner service instances on `mac-mini` used by iCare SonarQube analysis jobs.
+A named pool of four GitHub Actions self-hosted runner service instances on `mac-mini` used by iCare CI jobs such as SonarQube analysis and frontend tests.
 
 Each runner instance owns its own service environment, work folder, temporary directory, and local tool-cache slot. A fix to PATH, work folder depth, or local tool availability is not complete until all four service instances have been updated and restarted.
 
