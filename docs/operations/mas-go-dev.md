@@ -1,5 +1,31 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-10 19:50 CST - 给 mas-go-dev-ci-1 补装 dirmngr，修复 develop 版 Sonar 签名校验失败
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：PR #581（develop）的 `SonarQube Scan` step 在 mas-go-dev-ci-1 上失败：`gpg: keyserver receive failed: No dirmngr` → `Failed to import SonarSource public key from all keyservers`。根因是 develop 版 sonar.yml 的 `SonarSource/sonarqube-scan-action` **pin 到 SQSCANGHA-135 修复 commit，会校验 Scanner CLI 的 GPG 签名**，需从 keyserver 拉 SonarSource 公钥；而本 VM 装的是 `gnupg2-minimal`，只有 `gpg` 没有 `dirmngr`（gpg 的网络/keyserver 组件），导致拉公钥失败。main 版用 `@v6` 不做此校验，所以之前在本机实测 main workflow（#574/#580）从未暴露此问题。
+- 影响：替换一个系统包（minimal→完整 gnupg2），`gpg` 同版本 2.3.7、路径不变，新增 dirmngr/gpg-agent 等完整组件。不影响容器与部署 runner。
+- 回滚方式：`sudo dnf install -y --allowerasing gnupg2-minimal`（换回 minimal 包）。
+- 做了什么：
+  - 预检确认本 VM 到 `keyserver.ubuntu.com:443` / `keys.openpgp.org:443` 出网可达（均 200），方案可行
+  - `sudo dnf install -y --allowerasing gnupg2`：AL2023 上 `gnupg2-minimal` 与完整 `gnupg2` 互斥（都提供 `/usr/bin/gpg`），dnf 默认拒绝替换，需 `--allowerasing` 用完整包替掉 minimal 包；无独立 dirmngr 包，这是装 dirmngr 的唯一途径
+  - 实测同款命令拉 SonarSource 公钥（`gpg --recv-keys 679F...EC1A`）返回 `imported: 1`、exit 0
+- 验证结果：补装 dirmngr 后重跑 PR #581 失败 job（run `27271362622`），`SonarQube Scan` step 成功（落在 mas-go-dev-ci-1，即修复的那台）。
+- 经验：mac-mini 之前也踩过同源的 Sonar GPG 坑（`docs/solutions/mac-mini/.../sonarqube-scanner-cli-cache-never-hits-4part-version-2026-06-09.md`，那次是 PATH 缺 gpg + 路径过深）。本次是新 runner 缺 dirmngr。**任何要承接 backend Sonar 扫描的 self-hosted runner，都需具备完整 gpg + dirmngr + 能出网拉 keyserver 公钥**。已另写 `docs/solutions/mas-go-dev/`。
+
+## 2026-06-10 19:35 CST - 把 backend CI 共享池改动同步到 `develop` 分支（修正只合 main 的疏漏）
+
+- 仓库：`iCare-backend`（runner / VM 无变更）
+- 操作人：`Claude`
+- 原因：前面 PR #574、#580 都只合并到 `main`，但 iCare-backend **日常开发在 `develop`**。GitHub Actions 以「触发 run 的分支上的 workflow 版本」为准，所以 develop 上 backend 的测试/Sonar job 仍是最原始的 `[mac-mini-sonar, macos, arm64]` 独占调度，#574/#580 的改动对 develop **完全没生效**。这是「改 CI 没认准活跃分支」的疏漏。
+- 影响：仅 develop 分支 workflow 文件改动，走 PR。runner 标签是 org 级（与分支无关），#580 已加好 `backend-ci`，本次无需再动。
+- 关键判断：**没有用 merge main 的方式同步**。`develop` 与 `main` 已分叉（main ahead 4 / behind 335），develop 含 main 没有的内容——`ready_for_review` 触发、Sonar action pin 到 SQSCANGHA-135 修复 commit、gotenberg sidecar 部署步骤。merge main 会搅乱这些。改为基于最新 develop **只 cherry-pick 两处 `runs-on` + GOCACHE 注释**，逐行 diff 核对 develop 独有内容均原样保留。
+- 做了什么：提交 PR [iCare-backend#581](https://github.com/cypressoai/iCare-backend/pull/581)（base=`develop`）：`sonar.yml` `SonarQube Scan`、`deploy.yml` `Build and Test` 两个 job `runs-on` 改为 `[self-hosted, backend-ci]`。
+- 回滚方式：revert PR #581。
+- 教训：**给某仓库改 CI / workflow 前，先确认它的活跃开发分支是哪个**（用 `gh api repos/<repo>/compare/<base>...<head>` 看 ahead/behind 判断主线）。iCare 系列仓库默认分支可能是 `main`，但实际开发在 `develop`，PR base 要对准 develop，否则改动对团队日常 CI 不生效。
+- 验证结果：PR #581 首跑 `SonarQube Scan` step **失败**（落在 mas-go-dev-ci-1，测试全过、挂在 Sonar 上报），根因是该 VM 缺 `dirmngr`——详见下方 19:50 记录。补装 dirmngr 后重跑（run `27271362622`）`SonarQube Scan` step 成功。
+
 ## 2026-06-10 19:10 CST - backend CI 由硬绑定 mas-go-dev-ci-1 改为 `backend-ci` 共享 runner 池
 
 - 服务器：`mas-go-dev`（PVE VM `130`）+ `mac-mini`（org runner 标签变更）
