@@ -1,5 +1,19 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-10 18:06 CST - 新增第二个 GitHub Actions runner `mas-go-dev-ci-1`
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：mac-mini 上 4 个 `mac-mini-sonar-*` runner 承接 MAS CI 任务时 CPU 拥挤、队列积压（见 `docs/operations/mac-mini.md` 2026-06-10 17:05 审计）。评估 PVE 资源后决定在 `mas-go-dev` VM 内新增一个 Linux runner 为 MAS 项目分流 CI 任务。PVE 宿主 CPU 长期空闲（三台 VM 周均 CPU 1.2% / 0.6% / 2.6%）但宿主内存仅余 ~3.7GiB，故不另开 VM/LXC，复用本 VM（内存周均占用 45%，操作时 available 4.5GiB）。
+- 影响：纯新增操作，未改动既有 `mas-go-dev` runner、部署目录、容器。新 runner 标签为 `self-hosted, Linux, X64, docker, al2023, mas-go-dev-ci`，**刻意不带 `mas-go-dev` 标签**，避免抢走部署 job 造成并发部署冲突；现有 workflow 不会调度到它，需要分流的 job 显式改 `runs-on: [self-hosted, mas-go-dev-ci]` 才会使用。
+- 回滚方式：`cd /opt/actions-runner/mas-go-dev-ci-1 && sudo ./svc.sh stop && sudo ./svc.sh uninstall`，然后 `sudo -u actions-runner ./config.sh remove --token <removal-token>`（token 用 `gh api -X POST orgs/cypressoai/actions/runners/remove-token` 获取），最后删除目录。
+- 做了什么：
+  - 创建 `/opt/actions-runner/mas-go-dev-ci-1`（owner `actions-runner`），下载并解压 actions/runner `v2.335.1` linux-x64
+  - 以 `actions-runner` 用户执行 `config.sh`，注册到组织 `cypressoai`，runner group `mas-go-dev`（visibility: selected，限 MAS 仓库），名称 `mas-go-dev-ci-1`，自定义标签 `mas-go-dev-ci,docker,al2023`
+  - `sudo ./svc.sh install actions-runner && sudo ./svc.sh start` 安装并启动 systemd 服务 `actions.runner.cypressoai.mas-go-dev-ci-1.service`（enabled，随 VM 自启）
+- 验证结果：systemd 服务 `active (running)`；GitHub API 显示 `mas-go-dev-ci-1` `status: online, busy: false`，标签正确，已在 runner group `mas-go-dev` 中（与既有 `mas-go-dev` runner 并列）。
+- 附带发现：PVE 节点级 RRD 历史文件损坏（`rrd_fetch_r failed: mmaping file '/var/lib/rrdcached/db/pve-node-9.0/pve'`，PVE 9 已知问题），本次未处理；各 VM 级 RRD 正常。
+
 ## 2026-05-29 CST - 确认 azurite 运行状态 + 沉淀 iCare 项目使用方式
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
