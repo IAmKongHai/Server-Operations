@@ -1,5 +1,22 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-10 18:25 CST - 为 `mas-go-dev-ci-1` 承接 backend Go 测试 + Sonar 扫描做 VM 准备并提交 workflow PR
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：用户决定让 `mas-go-dev-ci-1` 只承接 `iCare-backend` 的 Go 测试与 SonarQube 扫描（即 `sonar.yml` 的 `sonarqube` job 和 `deploy.yml` 的 `test` job，原来都调度到 `mac-mini-sonar` 标签）。预检发现 VM 缺 gcc（CGO 需要）、`actions-runner` 无 sudo（workflow 的 `sudo dnf install gcc` 兜底走不通）、且解析不了 `mac-mini`（`SONAR_HOST_URL` 指向 `http://mac-mini:9000`，原靠 tailnet MagicDNS，本 VM 未装 Tailscale）。
+- 影响：VM 上新增系统包与一条 hosts 记录，均为加法操作，不影响既有容器与部署 runner。workflow 改动走 PR，不直接动 main。
+- 回滚方式：
+  - gcc：`sudo dnf remove gcc glibc-devel`（一般无需回滚，留着无害）
+  - hosts：`sudo cp /etc/hosts.bak.20260610 /etc/hosts`
+  - workflow：revert PR [iCare-backend#574](https://github.com/cypressoai/iCare-backend/pull/574)
+- 做了什么：
+  - `sudo dnf install -y gcc glibc-devel`（gcc 11.5.0），workflow 的 `Ensure C Build Toolchain` 步骤会因 gcc 已存在直接短路通过
+  - 备份 `/etc/hosts` 为 `/etc/hosts.bak.20260610` 后追加 `192.168.2.170 mac-mini`（mac-mini 与 PVE 同在 192.168.2.0/24 局域网，无需走 Tailscale）
+  - 提交 PR iCare-backend#574：两个 job 的 `runs-on` 从 `[mac-mini-sonar, macos, arm64]` 改为 `[self-hosted, mas-go-dev-ci]`，并更新 GOCACHE 注释（单实例 runner 用默认缓存路径，无需 mac-mini 的 per-slot 隔离）
+- 验证结果：`getent hosts mac-mini` 返回 `192.168.2.170`；从 VM `curl http://mac-mini:9000/api/system/status` 返回 `"status":"UP"`；PR 触发的 `SonarQube Analysis` run 已调度执行（PR 事件用分支上的新版 workflow，正好实测新 runner）。
+- 注意事项：mac-mini 的 `192.168.2.170` 是 DHCP 地址，若日后变化需同步更新本 VM `/etc/hosts`；更稳妥的长期方案是给 mac-mini 配静态 IP 或 DHCP 保留。
+
 ## 2026-06-10 18:06 CST - 新增第二个 GitHub Actions runner `mas-go-dev-ci-1`
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
