@@ -1,5 +1,26 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-11 15:50 CST - 新增 `mas-go-dev-ci-2` 分流 frontend SonarQube job
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Codex`
+- 原因：`mac-mini` 上的 frontend PR CI 排队严重。前端 `sonar.yml` 已把 `SonarQube Scan` 单 job 改为共享标签 `frontend-sonar-ci`，`mas-go-dev-ci-1` 已验证能承接该 job；为进一步分流多个 PR 同时触发的 SonarQube job，在同一 VM 上新增第二个 CI runner。
+- 影响：
+  - 新增一个 GitHub Actions runner service：`actions.runner.cypressoai.mas-go-dev-ci-2.service`，enabled，随 VM 自启。
+  - 新 runner 标签为 `self-hosted, Linux, X64, al2023, mas-go-dev-ci, frontend-sonar-ci`。
+  - **刻意不加 `backend-ci` / `docker` 标签**：当前只让它承接 frontend SonarQube；不参与 backend Go test / Sonar，也不抢部署 runner `mas-go-dev` 的 job。
+  - 可能同时在 `mas-go-dev-ci-1` / `mas-go-dev-ci-2` 上并发跑两个 frontend SonarQube job。该 PR Sonar 不跑 coverage，单 job 通常约 1-2 分钟；当前 VM 4 核、可用内存约 4.1GiB，风险可控。
+- 回滚方式：`cd /opt/actions-runner/mas-go-dev-ci-2 && sudo ./svc.sh stop && sudo ./svc.sh uninstall`，然后 `sudo -u actions-runner ./config.sh remove --token <removal-token>`（token 用 `gh api -X POST orgs/cypressoai/actions/runners/remove-token` 获取），最后删除 `/opt/actions-runner/mas-go-dev-ci-2`。
+- 做了什么：
+  - 预检确认 `mas-go-dev-ci-1` 在线空闲，且不存在 `/opt/actions-runner/mas-go-dev-ci-2`、同名 systemd service 或 GitHub runner 记录。
+  - 创建 `/opt/actions-runner/mas-go-dev-ci-2`（owner `actions-runner`），下载并解压 actions/runner `v2.335.1` linux-x64。
+  - 以 `actions-runner` 用户执行 `config.sh`，注册到组织 `cypressoai`，runner group `mas-go-dev`，名称 `mas-go-dev-ci-2`，自定义标签 `mas-go-dev-ci,al2023,frontend-sonar-ci`。
+  - `sudo ./svc.sh install actions-runner && sudo ./svc.sh start` 安装并启动 systemd 服务。
+- 验证结果：
+  - `systemctl is-active actions.runner.cypressoai.mas-go-dev-ci-2.service` 返回 `active`，`systemctl is-enabled` 返回 `enabled`。
+  - journal 显示 `Connected to GitHub`、runner version `2.335.1`、`Listening for Jobs`。
+  - GitHub API 显示 `mas-go-dev-ci-2` `status: online, busy: false`，标签正确；`mas-go-dev-ci-1` 与部署 runner `mas-go-dev` 均保持在线空闲。
+
 ## 2026-06-10 19:50 CST - 给 mas-go-dev-ci-1 补装 dirmngr，修复 develop 版 Sonar 签名校验失败
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
