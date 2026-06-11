@@ -1,5 +1,20 @@
 # rao-tizi 运维时间线
 
+## 2026-06-11 12:25 CST - 调整 S-UI 用户流量月度重置时间
+
+- 服务器：`rao-tizi`
+- 操作人：`Codex`
+- 原因：服务商对该服务器的流量重置时间为每月 11 日，原 S-UI 用量重置定时任务在每月 1 日执行，和服务商周期不一致。
+- 影响：root crontab 中 S-UI 用户用量归零任务从每月 1 日 23:59 改为每月 11 日 23:59；未重启服务，未修改当前数据库用量数据。
+- 回滚：
+  - 恢复修改前 root crontab：`crontab /root/crontab.bak.20260611-122514`
+  - 或将任务日期改回每月 1 日：`59 23 1 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"`
+- 变更：
+  - 修改前备份 root crontab 到 `/root/crontab.bak.20260611-122514`
+  - 将原任务 `59 23 1 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"` 改为 `59 23 11 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"`
+- 验证：
+  - `crontab -l` 已显示新任务：`59 23 11 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"`
+
 ## 2026-05-20 10:29 CST - 接管 litellm-us DNS 流量并签发正式证书
 
 - 服务器：`rao-tizi`
