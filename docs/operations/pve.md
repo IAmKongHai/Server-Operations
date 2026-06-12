@@ -1,5 +1,30 @@
 # pve 运维操作时间线
 
+## 2026-06-12 14:10 CST - 升级 Proxmox VE 到 9.2
+
+- 服务器：`pve`
+- 操作人：`Codex`
+- 原因：节点级 RRD 最小修复已完成并验证稳定后，按计划将 PVE 从 9.1 系升级到 9.2 系，以获得后续 PVE 9 修复与更新。
+- 影响：升级 PVE 管理面、QEMU、内核、OpenSSH、glibc 等系统包；PVE Web UI/API、SSH 与管理服务可能短暂波动。未重启宿主机，未重启 VM，未修改 VM 配置、storage、网络、防火墙、数据库或应用部署目录。新内核 `7.0.6-2-pve` 已安装，但当前运行内核仍为 `7.0.2-3-pve`，需后续单独维护窗口重启后才会生效。
+- 回滚：PVE 包升级不适合做简单一键回滚；如出现异常，应先依据升级日志 `/root/pve-upgrade-9.2-20260612-140236/upgrade.log`、升级前快照目录 `/root/pve-upgrade-9.2-20260612-140236/`、`/var/log/apt/` 与 `/var/log/dpkg.log` 定位失败点，再按具体包或服务处理。不要直接删除包、清理备份或重启宿主机。
+- 变更：
+  - 用户确认后执行升级。
+  - 升级前保存状态到 `/root/pve-upgrade-9.2-20260612-140236/`，包括 `precheck.txt`、`dpkg-packages.txt`、`etc-apt.tgz` 与 `upgrade.log`。
+  - 执行 `apt-get update`。
+  - 执行 `DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confold" dist-upgrade -y`，保留本地配置文件。
+  - 升级结果为 `107 upgraded, 4 newly installed, 0 to remove`；新装包包括 `proxmox-kernel-7.0.6-2-pve-signed`、`proxmox-kernel-6.17.13-13-pve-signed`、`proxmox-enterprise-support-keyring`、`wireguard-tools`。
+  - APT 在收尾阶段反复输出 `W: Tried to start delayed item ... python3.13 ... but failed` 警告；命令最终退出码为 0，后续 `dpkg --audit`、`apt-get check`、待升级包检查均正常。
+- 验证：
+  - `pveversion -v` 显示 `proxmox-ve: 9.2.0`、`pve-manager: 9.2.3`、`pve-qemu-kvm: 11.0.0-4`、`qemu-server: 9.1.16`、`proxmox-kernel-7.0: 7.0.6-2`。
+  - 当前运行内核仍为 `7.0.2-3-pve`；`/boot/vmlinuz-7.0.6-2-pve` 已存在。
+  - `dpkg --audit` 无输出；`apt-get check` 正常；`apt list --upgradable` 无待升级包。
+  - `pveproxy`、`pvedaemon`、`pvestatd`、`pve-cluster`、`rrdcached.service`、`ssh` 均为 `active`；`systemctl --failed` 无失败服务。
+  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-go-dev` 仍为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
+  - 节点 RRD、VM `110` RRD、storage `local` RRD API 均能返回 JSON 数据；14:10 之后 `journalctl -p warning` 无新日志。
+- 后续：
+  - 不在本次操作中重启宿主机。若要让新内核 `7.0.6-2-pve` 生效，需要另行确认维护窗口并安排宿主机重启。
+  - 升级日志包含大量重复 APT delayed item warning，保留在服务器侧用于审计，不写入仓库。
+
 ## 2026-06-12 13:50 CST - 最小修复 PVE 节点级 RRD 损坏
 
 - 服务器：`pve`

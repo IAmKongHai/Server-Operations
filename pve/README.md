@@ -19,16 +19,16 @@ ssh pve
 
 ## 基线信息
 
-盘点时间：2026-05-16
+盘点时间：2026-06-12
 
 | 项目 | 值 |
 | --- | --- |
 | OS | Debian GNU/Linux 13 (trixie) |
-| Proxmox VE | `9.1.11` |
-| Kernel | `7.0.2-3-pve` |
+| Proxmox VE | `9.2.3` |
+| Kernel | 当前运行 `7.0.2-3-pve`；已安装 `7.0.6-2-pve`，待宿主机维护窗口重启后生效 |
 | CPU | Intel Core i5-9600，6 核 6 线程 |
 | 内存 | 约 31 GiB |
-| QEMU | `pve-qemu-kvm 11.0.0-2` |
+| QEMU | `pve-qemu-kvm 11.0.0-4` |
 | ZFS | `zfsutils-linux 2.4.2-pve1`，当前无 pool |
 
 ## VM 自启动
@@ -117,11 +117,12 @@ no pools available
 
 ## PVE 状态
 
-2026-05-16 检查，系统升级并重启后：
+2026-06-12 检查，完成 PVE 9.2 升级后：
 
-- `proxmox-ve: 9.1.0`
-- `pve-manager: 9.1.11`
+- `proxmox-ve: 9.2.0`
+- `pve-manager: 9.2.3`
 - running kernel：`7.0.2-3-pve`
+- installed kernel：`7.0.6-2-pve`
 - `systemctl --failed`：无失败服务
 - 单节点安装，未加入 cluster
 - 当前 VM：
@@ -178,6 +179,18 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 - 升级 `pve-qemu-kvm`：`10.1.2-3` -> `11.0.0-2`
 - 升级 ZFS：`2.3.4-pve1` -> `2.4.2-pve1`
 - 重启后复查通过，无失败服务，无可升级包
+
+2026-06-12 已执行 PVE 9.2 升级：
+
+- 执行 `apt-get update`
+- 执行 `apt-get dist-upgrade -y`，保留本地配置文件
+- 升级 `proxmox-ve`：`9.1.0` -> `9.2.0`
+- 升级 `pve-manager`：`9.1.11` -> `9.2.3`
+- 升级 `pve-qemu-kvm`：`11.0.0-2` -> `11.0.0-4`
+- 升级 `qemu-server`：`9.1.10` -> `9.1.16`
+- 安装新内核：`7.0.6-2-pve`
+- 未重启宿主机；当前仍运行 `7.0.2-3-pve`
+- 复查通过：无失败服务，无可升级包，VM `110`、`120`、`130` 仍运行，storage 均 active
 
 ## VM 清单
 
