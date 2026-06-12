@@ -1,5 +1,27 @@
 # pve 运维操作时间线
 
+## 2026-06-12 14:24 CST - 重启 PVE 宿主机使 9.2 新内核生效
+
+- 服务器：`pve`
+- 操作人：`Codex`
+- 原因：PVE 9.2 升级已安装新内核 `7.0.6-2-pve`，用户确认立即重启宿主机，使新内核生效。
+- 影响：PVE 管理面与三台 VM 随宿主机重启短暂停机；未修改 VM 配置、storage、网络、防火墙、数据库或应用部署目录。
+- 回滚：如新内核启动异常，可在宿主机控制台/启动菜单选择旧内核 `7.0.2-3-pve` 启动，再根据 `/root/pve-reboot-after-9.2-20260612-141818/pre-reboot.txt` 与系统日志排查。当前未发生回滚。
+- 变更：
+  - 重启前保存状态到 `/root/pve-reboot-after-9.2-20260612-141818/pre-reboot.txt`。
+  - 执行 `systemctl reboot`。
+  - 宿主机约 14:20 恢复 SSH，并进入新内核 `7.0.6-2-pve`。
+  - `pve-guests` 按自启动顺序拉起 VM：14:20 启动 `110/mssql-ref`，14:21 启动 `120/mas-win`，14:22 启动 `130/mas-go-dev`，14:23 完成 `startall`。
+- 验证：
+  - `pveversion` 显示 `pve-manager/9.2.3`，running kernel 为 `7.0.6-2-pve`。
+  - `pveproxy`、`pvedaemon`、`pvestatd`、`pve-cluster`、`rrdcached.service`、`ssh`、`pve-guests` 均为 `active`；`systemctl --failed` 无失败服务。
+  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-go-dev` 均为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
+  - 节点 RRD、VM `110` RRD、storage `local` RRD API 均能返回 JSON 数据；14:20 之后 `journalctl -p warning` 无新日志。
+  - 从 PVE 验证 `192.168.2.20:1433`、`192.168.2.21:9020`、`192.168.2.21:9021` 可达；`http://192.168.2.22:5174/healthz` 返回 `ok`。
+  - `mas-go-dev` 内 Docker 与 GitHub Actions runner 为 `active`，`icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动。
+- 附带发现：
+  - VM `110` 与 `130` 的 PVE 配置中有 `agent: enabled=1`，但 guest 内未安装 `qemu-guest-agent`，所以 `qm agent <vmid> ping` 返回 `QEMU guest agent is not running`。本次未修复该既有不一致；业务连通性验证正常。
+
 ## 2026-06-12 14:10 CST - 升级 Proxmox VE 到 9.2
 
 - 服务器：`pve`

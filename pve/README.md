@@ -25,7 +25,7 @@ ssh pve
 | --- | --- |
 | OS | Debian GNU/Linux 13 (trixie) |
 | Proxmox VE | `9.2.3` |
-| Kernel | 当前运行 `7.0.2-3-pve`；已安装 `7.0.6-2-pve`，待宿主机维护窗口重启后生效 |
+| Kernel | `7.0.6-2-pve` |
 | CPU | Intel Core i5-9600，6 核 6 线程 |
 | 内存 | 约 31 GiB |
 | QEMU | `pve-qemu-kvm 11.0.0-4` |
@@ -121,14 +121,17 @@ no pools available
 
 - `proxmox-ve: 9.2.0`
 - `pve-manager: 9.2.3`
-- running kernel：`7.0.2-3-pve`
-- installed kernel：`7.0.6-2-pve`
+- running kernel：`7.0.6-2-pve`
 - `systemctl --failed`：无失败服务
 - 单节点安装，未加入 cluster
 - 当前 VM：
   - `110 / mssql-ref`：运行 MAS 老系统参考数据库
   - `120 / mas-win`：运行 MAS 老 C# / IIS 参考应用
   - `130 / mas-go-dev`：运行 MAS Go + React 内网自动部署环境
+
+附带状态：
+
+- VM `110` 与 `130` 的 PVE 配置中有 `agent: enabled=1`，但 guest 内未安装 `qemu-guest-agent`；PVE 侧 `qm agent ping` 会失败。业务端口与健康检查正常，待后续单独修复 guest agent 配置。
 
 ## 虚拟化检查
 
@@ -189,7 +192,7 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 - 升级 `pve-qemu-kvm`：`11.0.0-2` -> `11.0.0-4`
 - 升级 `qemu-server`：`9.1.10` -> `9.1.16`
 - 安装新内核：`7.0.6-2-pve`
-- 未重启宿主机；当前仍运行 `7.0.2-3-pve`
+- 2026-06-12 14:20 已重启宿主机，当前运行 `7.0.6-2-pve`
 - 复查通过：无失败服务，无可升级包，VM `110`、`120`、`130` 仍运行，storage 均 active
 
 ## VM 清单
