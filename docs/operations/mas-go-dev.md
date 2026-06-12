@@ -26,7 +26,8 @@
   - `curl -I http://mac-mini.taila93443.ts.net:9000/` 返回 `HTTP/1.1 200`。
 - 注意事项：
   - `tailscale status` 提示 `Some peers are advertising routes but --accept-routes is false`。当前场景只需要访问 tailnet peer（`mac-mini`）和 MagicDNS，不依赖接受其它节点 advertised routes，因此不影响本次修复。
-  - 建议后续在 Tailscale Admin Console 中确认 `mas-go-dev` 的 key expiry / tag / ACL 策略，避免长期 CI VM 因 key 过期或 ACL 调整导致访问中断。
+  - 用户已在 Tailscale Admin Console 中给 tailnet 内所有设备设置 `Disable key expiry`，降低 `mas-go-dev`、`pve` 等长期节点因 key 过期导致访问中断的风险。
+  - 后续仍需留意 tag / ACL 策略变更，避免 CI VM 对 `mac-mini:9000` 的访问被权限规则误伤。
 
 ## 2026-06-12 14:42 CST - 确认 AL2023 无法从官方仓库安装 qemu-guest-agent
 
