@@ -1,5 +1,30 @@
 # pve 运维操作时间线
 
+## 2026-06-12 13:50 CST - 最小修复 PVE 节点级 RRD 损坏
+
+- 服务器：`pve`
+- 操作人：`Codex`
+- 原因：PVE 节点级 RRD 文件 `/var/lib/rrdcached/db/pve-node-9.0/pve` 为 0 字节，`pmxcfs` 每 10 秒持续报 `RRDC/RRD update error` 与 `mmaping file ... Invalid argument`，导致 `pvesh get /nodes/pve/rrddata --timeframe hour` 失败，Web UI 节点图表可能不显示。VM 级与 storage 级 RRD 正常。
+- 影响：短暂停止并启动 `pvestatd`、`rrdcached.socket`、`rrdcached.service`，PVE 管理面状态采集/图表短暂波动；未重启 VM，未改动 VM 配置、storage、网络、防火墙、数据库或应用部署目录。节点级 RRD 历史从修复后重新开始；VM/storage RRD 历史保留。
+- 回滚：如需回滚，可先停止 `pvestatd` 与 `rrdcached`，再把保留的坏文件 `/var/lib/rrdcached/db/pve-node-9.0/pve.bad.20260612-134546` 或备份 `/root/pve-node-rrd-pve.20260612-134546.bak` 放回 `/var/lib/rrdcached/db/pve-node-9.0/pve`，然后启动 `rrdcached` 与 `pvestatd`。该回滚只会恢复原损坏状态，主要用于保留现场，不是功能性恢复方案。
+- 变更：
+  - 用户确认后执行最小修复。
+  - 修复前确认 `pve-node-9.0/pve` 为 `0` bytes，mtime 为 `2026-05-16 10:02`。
+  - 停止 `pvestatd`、`rrdcached.socket`、`rrdcached.service`。
+  - 复制坏文件到 `/root/pve-node-rrd-pve.20260612-134546.bak`。
+  - 将原坏文件改名为 `/var/lib/rrdcached/db/pve-node-9.0/pve.bad.20260612-134546`。
+  - 启动 `rrdcached.socket`、`rrdcached.service`、`pvestatd`。
+- 验证：
+  - 新 `/var/lib/rrdcached/db/pve-node-9.0/pve` 已重新生成，大小 `1504296` bytes。
+  - `rrdcached.socket`、`rrdcached.service`、`pvestatd`、`pve-cluster` 均为 `active`。
+  - `pvesh get /nodes/pve/rrddata --timeframe hour --cf AVERAGE --output-format json` 已能返回节点 RRD 数据，不再报 `rrd_fetch_r failed`。
+  - VM `110`、`120`、`130` 的 RRD API 均能返回数据；`pve-storage-9.0/pve/local` RRD API 能返回数据。
+  - 13:46 之后 `journalctl` 未再出现新的 `RRD/RRDC/rrdcached/pve-node` 错误。
+  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-go-dev` 仍为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
+- 后续：
+  - PVE 9.2 升级仍待用户另行确认；本次未升级 PVE，也未重启宿主机。
+  - 已沉淀复用方案：`docs/solutions/pve/runtime-errors/pve-node-rrd-corruption-2026-06-12.md`。
+
 ## 2026-05-28 09:45 CST - 添加同事 SSH 公钥到 mas-go-dev
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
