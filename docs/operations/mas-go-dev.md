@@ -1,5 +1,25 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-12 14:42 CST - 确认 AL2023 无法从官方仓库安装 qemu-guest-agent
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：`Codex`
+- 原因：PVE 侧 VM 配置已有 `agent: enabled=1`，但 guest 内未安装 `qemu-guest-agent`，导致 `qm agent 130 ping` 返回 `QEMU guest agent is not running`。用户确认尝试安装。
+- 影响：未安装任何包，未启用任何新服务，未重启 VM，未改 Docker、runner、应用部署目录或业务配置。仅在 `/home/ec2-user/qemu-guest-agent-install-20260612-064212/` 保留安装尝试日志。
+- 回滚：无功能性变更需要回滚；如需清理安装尝试日志，可删除 `/home/ec2-user/qemu-guest-agent-install-20260612-064212/`。
+- 变更：
+  - 安装前状态保存到 `/home/ec2-user/qemu-guest-agent-install-20260612-064212/precheck.txt`。
+  - 执行 `sudo dnf install -y qemu-guest-agent`，返回 `No match for argument: qemu-guest-agent` / `Unable to find a match`。
+  - 执行 `dnf provides '*/qemu-ga' '*/qemu-guest-agent'`，当前启用的 `amazonlinux` 与 `kernel-livepatch` 仓库无匹配结果。
+  - 查阅 AWS 官方 AL2023 KVM 文档，确认 AL2023 当前不打包也不支持 KVM guest agent；因此未从第三方来源安装。
+- 验证：
+  - `rpm -q qemu-guest-agent` 仍显示 package not installed。
+  - PVE 侧 `qm agent 130 ping` 仍返回 `QEMU guest agent is not running`，符合 AL2023 官方限制与当前仓库状态。
+  - Docker 与 `actions.runner.cypressoai.mas-go-dev.service` 均为 `active`。
+  - `icare-backend-api-1` 仍为 `healthy`，`http://127.0.0.1:5174/healthz` 返回 `ok`。
+- 后续：
+  - 不建议为 AL2023 引入非官方 QEMU RPM 来追求 PVE guest agent 能力；如确实强依赖该能力，应另行评估迁移到 Ubuntu/Debian 等官方仓库提供 qemu guest agent 的 guest OS。
+
 ## 2026-06-11 15:50 CST - 新增 `mas-go-dev-ci-2` 分流 frontend SonarQube job
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）

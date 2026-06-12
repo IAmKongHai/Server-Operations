@@ -1,5 +1,22 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-12 14:42 CST - 安装并启用 qemu-guest-agent
+
+- 服务器：`mssql-ref`（PVE VM `110`，`192.168.2.20`）
+- 操作人：`Codex`
+- 原因：PVE 侧 VM 配置已有 `agent: enabled=1`，但 guest 内未安装 `qemu-guest-agent`，导致 `qm agent 110 ping` 返回 `QEMU guest agent is not running`。
+- 影响：新增 Ubuntu 包 `qemu-guest-agent` 与依赖 `liburing2`，启动 `qemu-guest-agent.service`；未重启 VM，未重启 SQL Server，未改数据库 schema/data。
+- 回滚：`sudo systemctl stop qemu-guest-agent && sudo apt-get purge -y qemu-guest-agent liburing2`。如后续发现 `liburing2` 被其他包依赖，则只 purge `qemu-guest-agent`。
+- 变更：
+  - 安装前状态保存到 `/home/ubuntu/qemu-guest-agent-install-20260612-064134/precheck.txt`。
+  - 执行 `sudo apt-get update && sudo apt-get install -y qemu-guest-agent`。
+  - 执行 `sudo systemctl enable --now qemu-guest-agent`；Ubuntu 22.04 中该 unit 为 `static`，但服务已启动。
+  - 安装后状态保存到 `/home/ubuntu/qemu-guest-agent-install-20260612-064134/postcheck.txt`。
+- 验证：
+  - guest 内 `qemu-guest-agent` 为 `active`，包版本为 `1:6.2+dfsg-2ubuntu6.30`。
+  - PVE 侧 `qm agent 110 ping` 成功，`qm agent 110 get-osinfo` 返回 Ubuntu 22.04.5 LTS 与 kernel `5.15.0-181-generic`。
+  - `mssql-server` 仍为 `active`，`1433` 端口仍在监听。
+
 ## 2026-05-28 13:45 CST - 给 SQL Server 配 max server memory 上限并加 4 GB swap
 
 - 服务器：`mssql-ref`

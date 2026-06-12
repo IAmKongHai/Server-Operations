@@ -131,7 +131,8 @@ no pools available
 
 附带状态：
 
-- VM `110` 与 `130` 的 PVE 配置中有 `agent: enabled=1`，但 guest 内未安装 `qemu-guest-agent`；PVE 侧 `qm agent ping` 会失败。业务端口与健康检查正常，待后续单独修复 guest agent 配置。
+- VM `110` 已在 Ubuntu guest 内安装并启用 `qemu-guest-agent`，PVE 侧 `qm agent 110 ping` 正常。
+- VM `130` 使用 Amazon Linux 2023；AWS 官方文档说明 AL2023 当前不打包也不支持 KVM guest agent，默认仓库无 `qemu-guest-agent`。PVE 侧 `qm agent 130 ping` 会失败，但业务端口与健康检查正常。
 
 ## 虚拟化检查
 

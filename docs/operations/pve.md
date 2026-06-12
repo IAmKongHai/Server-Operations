@@ -1,5 +1,27 @@
 # pve 运维操作时间线
 
+## 2026-06-12 14:42 CST - 验证并补齐部分 VM 的 QEMU guest agent
+
+- 服务器：`pve`、`mssql-ref`、`mas-go-dev`
+- 操作人：`Codex`
+- 原因：PVE 升级与重启后发现 VM `110/mssql-ref`、`130/mas-go-dev` 均配置了 `agent: enabled=1`，但 PVE 侧 `qm agent <vmid> ping` 返回 `QEMU guest agent is not running`。用户确认立即安装并记录。
+- 影响：在 `mssql-ref` guest 内新增 `qemu-guest-agent` 与依赖包 `liburing2`，启动 `qemu-guest-agent.service`；未重启 VM，未重启 SQL Server。`mas-go-dev` 因 Amazon Linux 2023 官方仓库不提供 `qemu-guest-agent`，未安装包、未启用服务、未引入第三方 RPM。
+- 回滚：
+  - `mssql-ref`：`sudo systemctl stop qemu-guest-agent && sudo apt-get purge -y qemu-guest-agent liburing2`，如需保留依赖则只 purge `qemu-guest-agent`。
+  - `mas-go-dev`：无功能性变更需要回滚；仅保留安装尝试记录目录 `/home/ec2-user/qemu-guest-agent-install-20260612-064212`。
+- 变更：
+  - `mssql-ref` 安装前状态保存到 `/home/ubuntu/qemu-guest-agent-install-20260612-064134/precheck.txt`，安装后状态保存到同目录 `postcheck.txt`。
+  - 在 `mssql-ref` 执行 `sudo apt-get update && sudo apt-get install -y qemu-guest-agent`，随后 `sudo systemctl enable --now qemu-guest-agent`。该 unit 在 Ubuntu 22.04 中是 `static`，但已 active running。
+  - 在 `mas-go-dev` 执行 `sudo dnf install -y qemu-guest-agent`，返回 `No match for argument: qemu-guest-agent` / `Unable to find a match`；`dnf provides '*/qemu-ga' '*/qemu-guest-agent'` 也无结果。
+  - 查阅 AWS 官方 AL2023 KVM 文档，确认 AL2023 当前不打包也不支持 KVM guest agent；因此未从非官方来源安装。
+- 验证：
+  - PVE 侧 `qm agent 110 ping` 成功，`qm agent 110 get-osinfo` 返回 Ubuntu 22.04.5 LTS 与 kernel `5.15.0-181-generic`。
+  - `mssql-ref` 内 `qemu-guest-agent` 为 `active`，SQL Server `mssql-server` 仍为 `active`，`1433` 端口仍在监听。
+  - PVE 侧 `qm agent 130 ping` 仍返回 `QEMU guest agent is not running`，符合 AL2023 官方限制与当前仓库状态。
+  - `mas-go-dev` 内 Docker 与 GitHub Actions runner 均为 `active`，`icare-backend-api-1` 仍为 `healthy`，`http://127.0.0.1:5174/healthz` 返回 `ok`。
+- 后续：
+  - `mas-go-dev` 不建议为了 guest agent 引入第三方 QEMU RPM；如果强依赖 PVE guest agent 能力，应优先考虑换用官方支持 qemu guest agent 的发行版，或接受当前 AL2023 限制。
+
 ## 2026-06-12 14:24 CST - 重启 PVE 宿主机使 9.2 新内核生效
 
 - 服务器：`pve`
