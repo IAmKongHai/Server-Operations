@@ -1,5 +1,33 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-12 15:57 CST - 在 VM 内启用 Tailscale，恢复访问 mac-mini SonarQube
+
+- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 操作人：用户安装并登录 Tailscale；`Codex` 做只读验证并记录。
+- 原因：`mas-go-dev` 此前依赖 PVE subnet router 与本地静态解析访问 `mac-mini` SonarQube。VM 重启 / 网络重载后，VM 主动访问 tailnet 的路由与 MagicDNS 能力不可用，`http://mac-mini:9000/` 无法解析或连接。用户决定在 VM 内直接安装并登录 Tailscale，减少对 PVE 反向路由和手工 DNS/hosts 方案的依赖。
+- 影响：
+  - VM 自身成为 tailnet 节点，Tailscale IPv4 为 `100.109.223.53`。
+  - `tailscaled` 已启用开机自启并处于运行状态。
+  - `mac-mini` MagicDNS 恢复可用，`mac-mini` / `mac-mini.taila93443.ts.net` 均解析到 `100.108.64.126`。
+  - 未改 Docker、runner、应用部署目录、PVE subnet router 或防火墙规则。
+- 回滚方式：
+  - 临时停用：`sudo systemctl disable --now tailscaled`。
+  - 如需从 tailnet 退出：`sudo tailscale logout`。
+  - 如需完全卸载：按 Amazon Linux 2023 包管理方式移除 `tailscale`，再清理本机不再需要的 tailscale 状态文件。
+- 做了什么：
+  - 用户已在 `mas-go-dev` 内完成 Tailscale 安装和登录。
+  - 只读验证 `command -v tailscale`、`systemctl is-active tailscaled`、`systemctl is-enabled tailscaled`、`tailscale ip -4`、`tailscale status`。
+  - 验证 MagicDNS 解析与 SonarQube HTTP 访问。
+- 验证结果：
+  - `tailscaled`：`active` / `enabled`。
+  - `tailscale ip -4`：`100.109.223.53`。
+  - `getent hosts mac-mini`：`100.108.64.126 mac-mini.taila93443.ts.net`。
+  - `curl -I http://mac-mini:9000/` 返回 `HTTP/1.1 200`。
+  - `curl -I http://mac-mini.taila93443.ts.net:9000/` 返回 `HTTP/1.1 200`。
+- 注意事项：
+  - `tailscale status` 提示 `Some peers are advertising routes but --accept-routes is false`。当前场景只需要访问 tailnet peer（`mac-mini`）和 MagicDNS，不依赖接受其它节点 advertised routes，因此不影响本次修复。
+  - 建议后续在 Tailscale Admin Console 中确认 `mas-go-dev` 的 key expiry / tag / ACL 策略，避免长期 CI VM 因 key 过期或 ACL 调整导致访问中断。
+
 ## 2026-06-12 14:42 CST - 确认 AL2023 无法从官方仓库安装 qemu-guest-agent
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
