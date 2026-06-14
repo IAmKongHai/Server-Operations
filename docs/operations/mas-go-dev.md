@@ -27,6 +27,16 @@
   - **更正（已核查 iCare backend 仓库）**：先前担心「CI 会覆盖回旧账号」不成立。`deploy.yml` 不生成/覆盖 `.env.docker`，只通过 `DOCKER_ENV_FILE: /opt/mas-go-dev/backend/.env.docker` 引用 VM 上已存在的文件；仓库内只有占位模板（`.env.docker.example` 为 `replace-with-db-user`，`.env.konghai`/`.env.example` 是本地用的 `sa`/`icare`），GitHub secrets 里也没有这个 DB 账号。`mas_ref_reader`/`mas_ref_owner` 的真实值**只存在于 VM 上手工维护的 `.env.docker`**。所以本次修改即持久生效，**仓库侧无需改动**。
   - 唯一残留风险：VM 上几个 `.env.docker.bak.*` 里含旧账号，若有人手工用旧备份覆盖会退回 `mas_ref_reader`（人工风险，非自动化）。
   - 无其它使用方确认前，`mssql-ref` 上的 `mas_ref_reader` 暂保持禁用而非删除。
+- 经验复盘（手动重建后端后前端短暂 502，根因不是 nginx 缓存）：
+  - 现象：手动 `docker compose up -d --force-recreate api worker` 重建后端后，立刻访问前端 `http://192.168.2.22:5174/login` 出现 502，前端 nginx 日志 `connect() failed (111: Connection refused) ... upstream http://api:8080`。几十秒后自愈。
+  - 一开始误判为「api 容器 IP 变了、前端 nginx DNS 缓存还指向旧 IP」。用户质疑：CI 部署同样会重建容器，但他从来无感、不需要等几十秒——若真是 DNS 缓存窗口，日常应偶尔撞到。
+  - 实测验证（触发一次 CI 后端部署，与手动重建前的基线对比）：
+    - api 容器 ID 与 IP **都变了**（`172.18.0.6` → `172.18.0.5`，且与 worker 互换），证明 CI 部署也是 rm + 重建、IP 一样会变 —— “CI 部署 IP 不变” 的猜想被证伪。
+    - 但部署后前端容器内 `getent hosts api` **立即解析到新 IP**，无任何缓存滞后 —— nginx DNS 缓存假说也被证伪。
+  - 真正根因：前端 nginx 用 DNS 名 `http://api:8080` 反代（非硬编码 IP，`resolver 127.0.0.11`），解析本身没问题。差别在**有没有等后端 ready**：
+    - CI 部署脚本（`deploy.yml`）用 `stop` + `rm -f` + `up -d`，且**带 30 次 `curl healthz` 重试（最多 ~60s），等 api 真正 ready 才算部署完成**；用户都是在部署完成后访问，自然无感。
+    - 手动 `--force-recreate` 命令一返回我就让用户访问，api 容器虽 `Started` 但 Go 程序还在初始化（连两个 SQL Server 库的那几秒）、尚未监听 8080 → nginx 连过去 `Connection refused` → 502；初始化完成即自愈。
+  - 教训 / 操作建议：手动重建后端容器后，应仿照 CI 先等健康检查通过再交付/通知访问，例如 `for i in {1..30}; do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 2; done`。这与容器 IP、nginx 缓存均无关。
 
 ## 2026-06-12 15:57 CST - 在 VM 内启用 Tailscale，恢复访问 mac-mini SonarQube
 
