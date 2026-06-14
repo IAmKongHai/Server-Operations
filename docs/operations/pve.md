@@ -1,5 +1,27 @@
 # pve 运维操作时间线
 
+## 2026-06-14 22:50 CST - 清理三台 VM 的 9 个搭建期快照
+
+- 服务器：`pve`（VM `110/mssql-ref`、`120/mas-csharp`、`130/mas-go-dev`）
+- 操作人：`Claude`
+- 原因：排查 NVMe（`nvme-data` thin pool）占用时发现三台 VM 共留有 9 个快照，均为 2026-05-16~17 一次性搭建/迁移的里程碑检查点（装系统→装中间件→恢复库→迁移），距今约一个月。确认 PVE 无任何自动清理快照的机制（`jobs.cfg`/`vzdump.cron` 空、无 cron/timer/脚本），这些快照只会随原卷写入持续增长，故清理。
+- 影响：
+  - 删除全部 9 个快照（删的仅是回滚能力，三台 VM 当前 `current` 运行状态与数据不受影响）：
+    - VM110：`mssql-ready` / `mssql-full-ready` / `mssql-all-full-ready` / `before-mas-go-migrate-20260517`
+    - VM120：`windows-core-ready` / `iis-aspnet-ready` / `mas-csharp-smoke-ready` / `mas-csharp-preprod-ready`
+    - VM130：`mas-go-dev-deploy-ready-20260517`
+  - `nvme-data` thin pool 物理占用 42.79% → 40.98%（回收约 17G）。回收量不大，因快照创建后原卷写入有限、CoW 差异块本就不多；清理的主要价值是消除其持续增长隐患（尤其 VM110 数据库一直在写）。
+  - 三台 VM 全程 `running`，未重启、未动数据。
+- 回滚：快照删除不可逆，无法回滚（如需还原点须重新 `qm snapshot` 创建）。但当前运行状态完好，无回滚需求。
+- 变更：
+  1. 只读核查：`qm listsnapshot 110/120/130` 列出快照树与创建时间、描述；确认无自动清理机制。
+  2. 确认三台 `qm status` 均 `running`（停在 `current`，非某快照）。
+  3. 逐个 `qm delsnapshot <vmid> <snapname>`，每条链从最旧开始删。
+- 验证：
+  - 三台 `qm listsnapshot` 均只剩 `current`；`lvs nvme-data` 无残留 `snap_` LV。
+  - thin pool Data% 40.98%；三台 VM 仍 `running`。
+- 备注：PVE 的 vzdump 保留策略只管「备份文件」，不管「VM 快照」；快照清理在 PVE 里始终是手动的。后续若再打搭建/迁移检查点，用完应手动删，避免再次堆积。
+
 ## 2026-06-12 14:42 CST - 验证并补齐部分 VM 的 QEMU guest agent
 
 - 服务器：`pve`、`mssql-ref`、`mas-go-dev`
