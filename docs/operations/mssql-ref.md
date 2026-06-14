@@ -1,5 +1,28 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-14 22:25 CST - 收缩另三个库日志，/restore 盘回收 ~27GB
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：承接上一条收缩 insularsalesportal 日志，检查其余用户库是否同样可清。发现 `medicalassistance` / `authprovidermasweb` / `maswebkit` **本就是 SIMPLE 模式**（无需改模式），但日志文件物理膨胀、几乎全空，尤其 `medicalassistance_log` 占 28GB（实际只用 80MB）。
+- 重要发现（与既有认知差异）：这三个老库的数据/日志文件**不在系统盘**，而在第二块盘 `/dev/sdb` 挂载点 `/restore/data/<db>_full/`。系统盘 `/var/opt/mssql/data/` 只放了新导入的 `insularsalesportal`。`/restore` 盘收缩前 265G/393G（72%），是真正有空间压力的盘；系统盘则仅 7%。
+- 影响：
+  - 收缩三个库的日志文件（均 SIMPLE，日志重用空间充足，收缩仅回收物理空闲、不动数据、不锁表、在线操作）：
+    - `medicalassistance_log`：28GB → 260MB
+    - `authprovidermasweb` 日志：264MB → 65MB
+    - `maswebkit` 日志：260MB → 69MB
+  - `/restore` 盘占用 265G → 238G（72% → 64%），回收约 27GB。
+  - 所有 `.mdf` 数据文件未动；未改恢复模式（本就 SIMPLE）；未重启 SQL Server。`medicalassistance` 是后端在连的活跃库，收缩期间不影响读写。
+- 回滚：无需回滚（仅回收空闲空间）。日志会随后续事务自然回升到工作集大小，属正常，不会再涨回 28GB（那是历史一次性膨胀）。
+- 变更：
+  1. 只读核查：`sys.databases`（三库均 SIMPLE / NOTHING）、`sys.master_files`（真实物理路径在 `/restore/data/`）、`du` 确认 `medicalassistance_log` 实占 28G（非稀疏）、无任何日志备份历史。
+  2. `DBCC SHRINKFILE (N'TopLogicAuthProvider_log', 64);`（authprovidermasweb）
+  3. `DBCC SHRINKFILE (N'maswebkit_log', 64);`
+  4. `DBCC SHRINKFILE (N'medicalassistance_log', 256);`
+- 验证：
+  - `du`：三库日志合计 ~28.5GB → 392MB（medicalassistance 260M / authprovidermasweb 65M / maswebkit 69M）。
+  - `df -h /restore`：238G / 64%（原 265G / 72%）。
+
 ## 2026-06-14 22:11 CST - insularsalesportal 改 SIMPLE 并收缩日志，回收 ~362MB
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
