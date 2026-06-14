@@ -1,5 +1,32 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-14 21:25 CST - 后端 DB 账号切到 mas_ref_owner，修复因 mssql-ref 停用旧账号导致的 500
+
+- 服务器：`mas-go-dev`（`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：本次在 `mssql-ref` 上把 SQL 账号 `mas_ref_reader` 停用（DISABLE），换成 `mas_ref_owner`。检查发现后端 `icare-backend-api` / `worker` 的 `.env.docker` 用 `mas_ref_reader` 连库（`medicalassistance` 与 `maswebkit` 两套连接，host `192.168.2.20`），账号被禁用后 API 持续报 500：`Login failed for user 'mas_ref_reader'. The account is disabled.`。这就是账号迁移时待确认的「遗留使用方」。
+- 影响：
+  - 修改 `/opt/mas-go-dev/backend/.env.docker`：`DB_USER` 与 `WEBKIT_DB_USER` 由 `mas_ref_reader` 改为 `mas_ref_owner`（密码不变，两账号同密码，`DB_PASSWORD`/`WEBKIT_DB_PASSWORD` 未动；两个 `*_DSN` 为空，无需改）。
+  - 重建 `icare-backend-api-1` + `icare-backend-worker-1` 两个容器使新 env 生效。未动 gotenberg / azurite / redis / seed，未碰 runner。
+- 回滚：用备份 `/opt/mas-go-dev/backend/.env.docker.bak.20260614-claude-switch-owner` 覆盖后同样方式重建容器；或在 mssql-ref 上 `ALTER LOGIN [mas_ref_reader] ENABLE` 临时恢复旧账号。
+- 变更：
+  1. 确认连库配置在 `.env.docker`（compose 经 `env_file: ${DOCKER_ENV_FILE:-.env.docker}` 注入），密码为明文、文件 600、属主 `actions-runner`。
+  2. 以 `actions-runner` 身份 `cp` 备份后 `sed` 精确替换两处 `DB_USER`。
+  3. 重建容器（需带 runner 部署时的镜像 tag，否则 compose 默认 `${BACKEND_IMAGE:-icare/backend:local}` 会去拉不存在的 `:local`）：
+     ```bash
+     cd /opt/mas-go-dev/backend
+     export BACKEND_IMAGE=icare/backend:mas-go-dev-598f00214c4b1b828d5849b5c93409c5aee83d7a
+     docker compose -f backend.compose.yaml up -d --force-recreate --no-build --no-deps --pull never api worker
+     ```
+- 验证：
+  - api/worker 启动日志均 `database connected`（medicalassistance + maswebkit），无 login failed。
+  - 近 1 分钟 `login failed` 次数为 0（修复前持续刷）。
+  - 之前 500 的 `/api/v1/admin/permissions` 现返回 401（缺 token 的正常响应，DB 连接已通）。
+  - `icare-backend-api-1` 转 `healthy`，worker 正常。
+- 后续（重要，未完成）：
+  - **`.env.docker` 由 runner 每次 PR 部署维护**，本次只改了 VM 上的文件。CI env 来源（仓库 secrets / workflow 里的 `DB_USER` / `WEBKIT_DB_USER`）仍是 `mas_ref_reader`，**下次部署会把 VM 上的值覆盖回旧账号**，届时又会 500。需在仓库侧（iCare，base 到 `develop`）把这两个值改成 `mas_ref_owner`。
+  - 在确认 CI 源头改完、无其它使用方前，`mssql-ref` 上的 `mas_ref_reader` 暂保持禁用而非删除。
+
 ## 2026-06-12 15:57 CST - 在 VM 内启用 Tailscale，恢复访问 mac-mini SonarQube
 
 - 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）

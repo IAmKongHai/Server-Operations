@@ -29,6 +29,7 @@
 - 后续：
   - 若有应用/工具仍配 `mas_ref_reader` 连接，需改用 `mas_ref_owner`（密码不变）。AGENTS.md 未记录具体使用方，需用户侧确认。
   - 确认无遗留使用方且观察一段时间后，可考虑彻底 `DROP LOGIN [mas_ref_reader]` 及各库 `DROP USER`，并从 env 删除旧键。
+  - **已发现的遗留使用方**：`mas-go-dev` 后端 `icare-backend-api` / `worker` 用 `mas_ref_reader` 连 `medicalassistance` / `maswebkit`，禁用后即报 500。已于 21:25 改其 `.env.docker` 切到 `mas_ref_owner` 并重建容器恢复，详见 `docs/operations/mas-go-dev.md`。注意该 env 由 runner 维护，CI 源头仍需改（见该文档）。
 
 ## 2026-06-14 20:55 CST - 修正 mas_ref_reader 在 insularsalesportal 的权限为 db_owner
 
