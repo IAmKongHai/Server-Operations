@@ -1,5 +1,35 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-14 21:12 CST - 用 mas_ref_owner 替换误导性账号 mas_ref_reader
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：`mas_ref_reader` 这个账号名带 "reader" 但实际在各库是 `db_owner`（读写），名字误导。新建 `mas_ref_owner` 继承其全部权限，停用旧账号。
+- 影响：
+  - 新建服务器登录名 `mas_ref_owner`，密码沿用旧 `mas_ref_reader`（`CHECK_POLICY = OFF`，避免历史密码不合当前策略导致建号失败）。
+  - 在 `mas_ref_reader` 有用户映射的 4 个库里给 `mas_ref_owner` 建用户并复制相同角色：
+    - `authprovidermasweb` / `maswebkit` / `insularsalesportal`：`db_owner` + `db_datareader`
+    - `medicalassistance`：`db_owner` + `db_datareader` + `icare_pii_reader`
+  - 旧登录名 `mas_ref_reader` 已 `DISABLE`（仅禁用登录，未删除，库内用户映射保留）。
+  - `/root/mssql-secrets.env` 新增 `MSSQL_MAS_REF_OWNER_PASSWORD`（值同旧 reader 密码），保留旧 `MSSQL_MAS_REF_READER_PASSWORD` 键作历史参考。原文件备份到 `/root/mssql-secrets.env.bak.20260614`。
+  - 未删除任何库/用户，未重启 SQL Server。
+- 回滚：
+  - 重新启用旧账号：`ALTER LOGIN [mas_ref_reader] ENABLE;`
+  - 移除新账号（如需）：各库 `DROP USER [mas_ref_owner];` 后 `DROP LOGIN [mas_ref_owner];`
+  - 凭据文件：用 `/root/mssql-secrets.env.bak.20260614` 覆盖。
+- 变更：
+  1. `CREATE LOGIN [mas_ref_owner] WITH PASSWORD = <旧 reader 密码>, CHECK_POLICY = OFF;`（密码从 env 读，全程在 VM 内，不进 commit）。
+  2. 逐库 `CREATE USER [mas_ref_owner] FOR LOGIN [mas_ref_owner];` + `ALTER ROLE [...] ADD MEMBER [mas_ref_owner];`，角色按 `mas_ref_reader` 实际映射逐一复制。
+  3. `ALTER LOGIN [mas_ref_reader] DISABLE;`
+  4. 在 `/root/mssql-secrets.env` 追加 owner 密码键（备份后改）。
+- 验证：
+  - 逐库逐角色并排对比 `mas_ref_owner` 与 `mas_ref_reader`，4 个库角色一一对应、完全一致。
+  - 用 `mas_ref_owner` 实测登录成功（`SUSER_NAME()` 正确），在 `insularsalesportal` 建表/插入/删表成功。
+  - 用 `mas_ref_reader` 实测登录被拒：`Login failed ... The account is disabled.`。
+- 后续：
+  - 若有应用/工具仍配 `mas_ref_reader` 连接，需改用 `mas_ref_owner`（密码不变）。AGENTS.md 未记录具体使用方，需用户侧确认。
+  - 确认无遗留使用方且观察一段时间后，可考虑彻底 `DROP LOGIN [mas_ref_reader]` 及各库 `DROP USER`，并从 env 删除旧键。
+
 ## 2026-06-14 20:55 CST - 修正 mas_ref_reader 在 insularsalesportal 的权限为 db_owner
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
