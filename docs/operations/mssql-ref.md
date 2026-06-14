@@ -1,5 +1,24 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-14 20:55 CST - 修正 mas_ref_reader 在 insularsalesportal 的权限为 db_owner
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：上一条（20:42）按账号名字面把 `mas_ref_reader` 在 `insularsalesportal` 库只授予了 `db_datareader`（只读），是误判。核对发现该账号在本实例其它库的惯例是 `db_owner`，用户需要对 `insularsalesportal` 的写权限。
+- 核对发现（`mas_ref_reader` 各处实际权限）：
+  - 服务器级：无角色（非 sysadmin）。
+  - `authprovidermasweb`：`db_owner` + `db_datareader`
+  - `maswebkit`：`db_owner` + `db_datareader`
+  - `medicalassistance`：`db_owner` + `db_datareader` + `icare_pii_reader`
+  - `insularsalesportal`：（修正前）仅 `db_datareader`
+- 影响：在 `insularsalesportal` 库把 `mas_ref_reader` 加入 `db_owner` 角色，使其拥有库级完全读写权限（读写数据、改 schema 等），与其它三个库的惯例一致。`db_datareader` 保留（其它库也都同时有）。未改其它库，未重启 SQL Server。
+- 回滚：`ALTER ROLE [db_owner] DROP MEMBER [mas_ref_reader];`（保留 `db_datareader` 即回到只读状态）。
+- 变更：`ALTER ROLE [db_owner] ADD MEMBER [mas_ref_reader];`（在 `insularsalesportal` 库内，sa 执行）。
+- 验证：
+  - 该库内 `mas_ref_reader` 角色为 `db_datareader` + `db_owner`。
+  - 用 `mas_ref_reader` 账号实测：`CREATE TABLE` → `INSERT` → `SELECT`（1 行）→ `DROP TABLE` 全部成功，测试表已清理。
+- 备注：账号名虽叫 “reader”，但在本实例的实际定位是各业务库的 `db_owner`，名字有误导性，后续不要按字面当只读账号用。
+
 ## 2026-06-14 20:42 CST - 重命名 insularsalesportal 库并授予只读账号权限
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
