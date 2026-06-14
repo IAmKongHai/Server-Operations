@@ -1,5 +1,30 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-14 20:27 CST - 导入 insularsalesportal_preprod 参考库
+
+- 服务器：`mssql-ref`（`192.168.2.20`，SQL Server 2022 Developer Edition，systemd 服务）
+- 操作人：`Claude`
+- 原因：把 iCare 的 `insularsalesportal_preprod` 备份导入参考库 VM，供开发/集成测试使用。源备份来自本机 `iCare/backend/db-bak/insularsalesportal_preprod.bak`（8.4M）。
+- 影响：
+  - 新建数据库 `insularsalesportal_preprod`（之前不存在，无覆盖）。数据文件落 `/var/opt/mssql/data/insularsalesportal_preprod.mdf`（9 MB）、日志 `..._log.ldf`（379 MB）。
+  - 源库版本 869（SQL 2017 级）由 SQL Server 自动升级到当前版本 957（SQL 2022），兼容级别保持 120。
+  - 未改动其它现有库（`authprovidermasweb`、`maswebkit`、`medicalassistance` 等），未重启 SQL Server。
+- 回滚：`DROP DATABASE [insularsalesportal_preprod];`（删除后会一并移除 `.mdf` / `.ldf`）。本机仍保留原始 `.bak`。
+- 变更：
+  1. 新建备份目录 `/var/opt/mssql/backup`（`mssql:mssql 770`）。
+  2. `scp` 备份到 VM `/tmp`，两端 `md5` 校验一致（`3069d7a6da1f71829e9f0c62d3d41ca9`），再 `sudo mv` 到备份目录并改属主 `mssql:mssql`。
+  3. 从 `/root/mssql-secrets.env` 读 `MSSQL_SA_PASSWORD`（仅在 SSH 会话内用于 `sqlcmd`，不落盘、不进 commit）。
+  4. 只读验证：`RESTORE HEADERONLY`（`BackupType=1` 完整备份、`IsDamaged=0`、`HasIncompleteMetaData=0`、`Compressed=0`）、`RESTORE FILELISTONLY`（取逻辑文件名 `insularsalesportal` / `insularsalesportal_log`）、`RESTORE VERIFYONLY`（valid）。
+  5. `RESTORE DATABASE [insularsalesportal_preprod] ... WITH MOVE ..., RECOVERY`，把源 Windows 路径 `F:\data` / `F:\log` 改到 Linux 的 `/var/opt/mssql/data/`。
+  6. 导入完成后删除 VM 上的 `.bak`（本机已有原件，不重复存）；删除前再次 `md5` 比对确认是同一份。
+- 验证：
+  - `sys.databases`：`insularsalesportal_preprod` 状态 `ONLINE`、`FULL`、兼容级别 `120`。
+  - 19 张用户表，数据齐全（`tblfranchising` 1143 行、`tblagentjournals` 890 行、`tblagentattachments` 842 行等）。
+  - `RESTORE DATABASE successfully processed 1058 pages`，无报错。
+- 关于「300MB+ 库备份只有 8MB」的疑问：正常。`FILELISTONLY` 显示数据文件实际只有 ~9 MB，所谓 300MB+ 几乎全是事务日志文件（`.ldf` 预分配 379 MB）。完整备份只存数据页 + 活动日志，不会把整个日志文件搬进 `.bak`，所以 `.bak` 远小于数据库占用，数据未丢失。
+- 后续：
+  - 应用/工具连这个参考库时，建议用 `/root/mssql-secrets.env` 里的只读账号（`MSSQL_MAS_REF_READER_PASSWORD` 对应账号）而非 `sa`。
+
 ## 2026-06-12 14:42 CST - 安装并启用 qemu-guest-agent
 
 - 服务器：`mssql-ref`（PVE VM `110`，`192.168.2.20`）
