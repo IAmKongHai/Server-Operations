@@ -1,5 +1,25 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-14 22:11 CST - insularsalesportal 改 SIMPLE 并收缩日志，回收 ~362MB
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：`insularsalesportal` 日志文件 `.ldf` 占 379MB，但实际只用了 21MB（其余空置）。该库恢复模式为 `FULL` 且无人做日志备份，`log_reuse_wait_desc=LOG_BACKUP`，日志只涨不收。作为参考/测试库，改 `SIMPLE` 更合适。
+- 影响：
+  - 恢复模式 `FULL → SIMPLE`：日志自动重用、不再无限增长；代价是失去时间点恢复能力（该只读参考库本就没做日志备份，无实际损失）。
+  - 日志文件物理大小 379MB → 16MB，回收约 362MB 磁盘。
+  - 数据文件 `.mdf` 未动（仍 9MB / 用 8.5MB），数据无变化。未重启 SQL Server，未动其它库。
+- 回滚：`ALTER DATABASE [insularsalesportal] SET RECOVERY FULL;`（如需恢复 FULL 模式）。日志文件会随使用自然重新增长，无需手动扩。
+- 变更：
+  1. 只读核查：`sys.database_files`（log size 379MB / used 21MB）、`sys.databases`（FULL / LOG_BACKUP）。
+  2. `ALTER DATABASE [insularsalesportal] SET RECOVERY SIMPLE;`
+  3. `DBCC SHRINKFILE (N'insularsalesportal_log', 16);`（目标 16MB）。
+- 验证：
+  - `sys.database_files`：日志 size 16.2MB / used 1.1MB；数据文件不变。
+  - `sys.databases`：`recovery_model_desc=SIMPLE`，`log_reuse_wait_desc=NOTHING`（健康）。
+  - 物理文件 `insularsalesportal_preprod_log.ldf` 实际 17M（文件名仍含旧的 preprod，是 restore 时的物理名，不影响库名 `insularsalesportal`）。
+- 备注：磁盘本不紧张（`/var/opt/mssql` 所在盘 182G 可用、占用 7%），本次主要是消除 FULL 模式下日志无限增长的隐患，顺带回收空间。
+
 ## 2026-06-14 21:12 CST - 用 mas_ref_owner 替换误导性账号 mas_ref_reader
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
