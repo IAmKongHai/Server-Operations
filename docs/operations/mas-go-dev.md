@@ -24,8 +24,9 @@
   - 之前 500 的 `/api/v1/admin/permissions` 现返回 401（缺 token 的正常响应，DB 连接已通）。
   - `icare-backend-api-1` 转 `healthy`，worker 正常。
 - 后续（重要，未完成）：
-  - **`.env.docker` 由 runner 每次 PR 部署维护**，本次只改了 VM 上的文件。CI env 来源（仓库 secrets / workflow 里的 `DB_USER` / `WEBKIT_DB_USER`）仍是 `mas_ref_reader`，**下次部署会把 VM 上的值覆盖回旧账号**，届时又会 500。需在仓库侧（iCare，base 到 `develop`）把这两个值改成 `mas_ref_owner`。
-  - 在确认 CI 源头改完、无其它使用方前，`mssql-ref` 上的 `mas_ref_reader` 暂保持禁用而非删除。
+  - **更正（已核查 iCare backend 仓库）**：先前担心「CI 会覆盖回旧账号」不成立。`deploy.yml` 不生成/覆盖 `.env.docker`，只通过 `DOCKER_ENV_FILE: /opt/mas-go-dev/backend/.env.docker` 引用 VM 上已存在的文件；仓库内只有占位模板（`.env.docker.example` 为 `replace-with-db-user`，`.env.konghai`/`.env.example` 是本地用的 `sa`/`icare`），GitHub secrets 里也没有这个 DB 账号。`mas_ref_reader`/`mas_ref_owner` 的真实值**只存在于 VM 上手工维护的 `.env.docker`**。所以本次修改即持久生效，**仓库侧无需改动**。
+  - 唯一残留风险：VM 上几个 `.env.docker.bak.*` 里含旧账号，若有人手工用旧备份覆盖会退回 `mas_ref_reader`（人工风险，非自动化）。
+  - 无其它使用方确认前，`mssql-ref` 上的 `mas_ref_reader` 暂保持禁用而非删除。
 
 ## 2026-06-12 15:57 CST - 在 VM 内启用 Tailscale，恢复访问 mac-mini SonarQube
 
