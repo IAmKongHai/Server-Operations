@@ -1,5 +1,27 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-14 20:42 CST - 重命名 insularsalesportal 库并授予只读账号权限
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：把上一条导入的 `insularsalesportal_preprod` 改名为 `insularsalesportal`（去掉 preprod 后缀），并把该库的只读权限授予参考库专用账号 `mas_ref_reader`。
+- 影响：
+  - 数据库逻辑名 `insularsalesportal_preprod → insularsalesportal`（仅改库名，逻辑文件名与物理文件 `.mdf`/`.ldf` 路径不变，数据不动）。
+  - 在该库内新建数据库用户 `mas_ref_reader`（映射到已存在的服务器登录名 `mas_ref_reader`），加入 `db_datareader` 角色——只读全表，无写权限。
+  - 未改其它库，未重启 SQL Server。
+- 回滚：
+  - 库名：`ALTER DATABASE [insularsalesportal] MODIFY NAME = [insularsalesportal_preprod];`
+  - 权限：`ALTER ROLE [db_datareader] DROP MEMBER [mas_ref_reader];` 及 `DROP USER [mas_ref_reader];`（按需）。
+- 变更：
+  1. 改名前检查：目标名 `insularsalesportal` 不存在、库无活动连接（`sys.dm_exec_sessions` 计数为 0），可安全 rename。
+  2. `ALTER DATABASE [insularsalesportal_preprod] MODIFY NAME = [insularsalesportal];`
+  3. 在 `insularsalesportal` 库内 `CREATE USER [mas_ref_reader] FOR LOGIN [mas_ref_reader];`（已存在则跳过）+ `ALTER ROLE [db_datareader] ADD MEMBER [mas_ref_reader];`。SA 密码与 reader 密码均从 `/root/mssql-secrets.env` 读取，仅用于本次 `sqlcmd`，不落盘不进 commit。
+- 验证：
+  - `sys.databases`：`insularsalesportal` 状态 `ONLINE`、兼容级别 `120`。
+  - `mas_ref_reader` 确认属于 `db_datareader` 角色。
+  - 用 `mas_ref_reader` 账号实测：可读 `dbo.tblfranchising`（1143 行）；执行 `CREATE TABLE` 被拒（`Msg 262 ... permission denied`），确认纯只读。
+- 备注：库内另有 4 个从源库带来的孤立 SQL 用户（`kaseya` / `mrparnala` / `noventiq` / `eegocon`），本次未处理；它们的登录名在本实例不存在，处于孤立状态，不影响 reader 使用。
+
 ## 2026-06-14 20:27 CST - 导入 insularsalesportal_preprod 参考库
 
 - 服务器：`mssql-ref`（`192.168.2.20`，SQL Server 2022 Developer Edition，systemd 服务）
