@@ -1,6 +1,7 @@
 ---
 title: 在 PVE 上搭建 MAS 老系统参考 SQL Server VM
 date: 2026-05-16
+last_updated: 2026-06-15
 category: docs/solutions/pve/best-practices
 server: pve
 module: pve / mssql-ref
@@ -153,7 +154,7 @@ VM 内数据文件落点：
 1. 先恢复到临时库名 `<dbname>_full`，文件放在 `/restore/data/<dbname>_full/`。
 2. 验证成功后删除首轮删减版正式库。
 3. 将 `<dbname>_full` 改名为正式库名。
-4. 重新给 `mas_ref_reader` 授予 `db_datareader`。
+4. 重新给参考登录账号授予 `db_datareader`（该账号后续提权为 `db_owner` 并于 2026-06-15 改名为 `mas_ref_owner`，见下方 Operational Notes）。
 
 当前核心库：
 
@@ -182,14 +183,15 @@ VM 内数据文件落点：
 - SQL Server 监听 `0.0.0.0:1433`。
 - UFW 为 inactive，内网 VM 可直接访问 1433。
 - 三套库均为 `ONLINE`。
-- `mas_ref_reader` 登录可连接 `192.168.2.20:1433`，并能从三套库做普通 `SELECT`。
+- 参考登录账号（当时名为 `mas_ref_reader`，2026-06-15 改名为 `mas_ref_owner`）可连接 `192.168.2.20:1433`，并能从三套库做普通 `SELECT`。
 - PVE 快照：`mssql-ready`、`mssql-full-ready`、`mssql-all-full-ready`。
 
 ## Operational Notes
 
 - 内存与 swap（2026-05-28 调整）：SQL Server `max server memory = 14336 MB`（原默认 `2147483647` MB 即无限制）；OS 侧 `/swapfile` 4 GiB + `vm.swappiness=10` 作为安全网。修改方式见 `docs/operations/mssql-ref.md` 2026-05-28 13:45 那条记录，回滚也写在同处。
-- 只读登录：`mas_ref_reader`。
-- 只读登录密码：登录 `mssql-ref` 后从 `/root/mssql-secrets.env` 读取 `MSSQL_MAS_REF_READER_PASSWORD`。
+- 参考登录账号：`mas_ref_owner`（2026-05-16 创建时名为 `mas_ref_reader`，提权 `db_owner` 后于 2026-06-15 改名，密码不变）。该账号已是各库 `db_owner`，不再是只读。
+- 登录密码：登录 `mssql-ref` 后从 `/root/mssql-secrets.env` 读取 `MSSQL_MAS_REF_OWNER_PASSWORD`（旧变量 `MSSQL_MAS_REF_READER_PASSWORD` 仍残留同值，以新变量为准）。
+- 改此账号名或密码后，需同步 `mas-win` 上 `MAS-API\Web.config` 的 33 处连接串，否则 MAS-WEB 登录失败，详见 [runtime-errors 排查记录](../runtime-errors/mas-web-login-fail-stale-mssql-user-in-mas-api-2026-06-15.md)。
 - SA 密码：同一文件中的 `MSSQL_SA_PASSWORD`。
 - 如果后续应用提示缺少 `insularsalesportal`、`masprepaid` 等库，先确认是否阻塞核心页面，再决定补库或改配置降级。
 - 如果需要回滚到三套核心库都从备份恢复后的状态，可在 PVE 中回到 `mssql-all-full-ready` 快照。
@@ -203,5 +205,7 @@ VM 内数据文件落点：
 
 ```text
 Server=192.168.2.20,1433
-User ID=mas_ref_reader
+User ID=mas_ref_owner
 ```
+
+（2026-06-15 更新：账号已由 `mas_ref_reader` 改名为 `mas_ref_owner`，密码不变。）

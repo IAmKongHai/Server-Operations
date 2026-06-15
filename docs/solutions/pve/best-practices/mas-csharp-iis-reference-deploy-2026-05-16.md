@@ -1,6 +1,7 @@
 ---
 title: 在 PVE 上部署 MAS 老 C# / IIS 参考环境
 date: 2026-05-16
+last_updated: 2026-06-15
 category: docs/solutions/pve/best-practices
 server: pve
 module: pve / mas-win
@@ -75,7 +76,7 @@ IIS 基线：
 - 从 iCare repo `docs/MAS-old-c#/old-C#-code/` 打包 `MAS-API` 和 `MAS-WEB`。
 - VM 内保留 `Web.config.orig`，只修改部署副本。
 - 数据库连接统一指向 `192.168.2.20,1433`。
-- SQL login 使用 `mas_ref_reader`，密码从 `mssql-ref` 的 `/root/mssql-secrets.env` 读取。
+- SQL login 使用 `mas_ref_owner`，密码从 `mssql-ref` 的 `/root/mssql-secrets.env` 的 `MSSQL_MAS_REF_OWNER_PASSWORD` 读取。（2026-06-15 更新：原账号 `mas_ref_reader` 已改名为 `mas_ref_owner`，密码不变；改名后需同步 `MAS-API\Web.config`，否则登录失败，详见 [runtime-errors 排查记录](../runtime-errors/mas-web-login-fail-stale-mssql-user-in-mas-api-2026-06-15.md)。）
 - `MAS-WEB` 的 `serverlink` 指向 `http://192.168.2.21:9020/`。
 - `MAS-WEB` 的环境开关按 NAS 旧部署对齐为 `env=client-prod`。
 - `MAS-API` 的环境开关按 NAS 旧部署对齐为 `prodEnv=true`、`uatEnv=false`。
@@ -85,7 +86,7 @@ IIS 基线：
 
 ## SQL Permissions
 
-首轮只给 `mas_ref_reader` 三库 `db_datareader`，但旧 C# 登录链路会调用函数、存储过程，并写入登录状态和 access token。随后为了支持全面 CRUD 测试，按用户确认将该登录提升为三套参考库的 `db_owner`：
+首轮只给该 SQL login 三库 `db_datareader`，但旧 C# 登录链路会调用函数、存储过程，并写入登录状态和 access token。随后为了支持全面 CRUD 测试，按用户确认将该登录提升为三套参考库的 `db_owner`：
 
 | 数据库 | 角色 | 原因 |
 | --- | --- | --- |
@@ -93,7 +94,7 @@ IIS 基线：
 | `authprovidermasweb` | `db_owner` | OAuth token、用户认证、异常日志等认证相关写入 |
 | `maswebkit` | `db_owner` | WebKit 相关旧模块 CRUD 验证 |
 
-说明：账号名沿用早期只读阶段的 `mas_ref_reader`，但它现在已经不是只读账号。该授权只适用于 PVE 参考环境，不要复制到生产或准生产数据库。
+说明：该账号早期叫 `mas_ref_reader`（只读阶段命名），提权为 `db_owner` 后名实不符，已于 2026-06-15 改名为 `mas_ref_owner`（密码不变）。该授权只适用于 PVE 参考环境，不要复制到生产或准生产数据库。
 
 ## Validation
 
