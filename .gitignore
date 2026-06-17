@@ -16,6 +16,9 @@ logs/
 # 抓包数据：含设备/服务器 IP、证书等敏感信息，不入库
 Shadowrocket/*.csv
 
+# MAS 老系统部署副本的 Web.config：含明文 DB 密码，仅本地参考，不入库
+mas-win/**/Web.config
+
 # 本地凭据：仅本机持有，不入库
 secrets.local.md
 *.secrets.local.md
