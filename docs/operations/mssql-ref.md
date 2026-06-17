@@ -1,5 +1,32 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-17 10:20 CST - 恢复 masprepaid 参考库并授权 mas_ref_owner
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：MAS-WEB 前端报错，排查发现代码连的 `masprepaid` 库在本实例上**根本不存在**（不是权限问题）。该库尚未从备份恢复进来。本机备份文件：`/Users/konghai/Code_local/Project/iCare/backend/db-bak/masprepaiduat-17-06-2026.bak`（8.2M，UAT 数据）。
+- 影响：
+  - 新建 `masprepaid` 库（从备份恢复），数据文件落在第二块盘 `/restore/data/`（`masprepaid.mdf` / `masprepaid_log.ldf`），与其它老库一致。
+  - 备份来自旧版本（兼容级别 869），恢复时 SQL Server 自动升级到当前 957。
+  - 给 `mas_ref_owner` 在 masprepaid 建用户并授 `db_owner` + `db_datareader`，与其它参考库对齐（见 [mssql-ref-mas-ref-reader-is-db-owner]）。
+  - 恢复模式由默认 `FULL` 改为 `SIMPLE`，并收缩日志 146MB → 8.2MB（参考库无需时间点恢复，避免日志无限增长，做法同 6-14 几次收缩）。
+  - 删除 VM 内备份文件 `/restore/backup/masprepaiduat-17-06-2026.bak`（本机已有备份，不在多处冗余）。
+  - 未动其它库，未重启 SQL Server。
+- 回滚：删除该库即可 `DROP DATABASE [masprepaid];`（本机仍有 .bak 可随时重恢复）。
+- 变更：
+  1. `scp` 上传 bak 到 VM，移到 `/restore/backup/` 并 `chown mssql:mssql`。
+  2. `RESTORE FILELISTONLY` 确认逻辑文件名 `masprepaid` / `masprepaid_log`。
+  3. `RESTORE DATABASE [masprepaid] ... WITH MOVE ... TO /restore/data/...`。
+  4. `CREATE USER [mas_ref_owner] FOR LOGIN [mas_ref_owner];` + 加入 `db_owner`、`db_datareader`。
+  5. `ALTER DATABASE [masprepaid] SET RECOVERY SIMPLE;` + `DBCC SHRINKFILE (N'masprepaid_log', 8);`。
+  6. `rm /restore/backup/masprepaiduat-17-06-2026.bak`。
+- 验证：
+  - `sys.databases`：`masprepaid` = `ONLINE` / `SIMPLE`。
+  - 角色核查：`mas_ref_owner` 在 masprepaid 为 `db_owner` + `db_datareader`。
+  - 用 `mas_ref_owner` 账号实际登录 masprepaid 成功，`SELECT` 到 2 张表（库本身数据量很小）。
+  - 收缩后 `masprepaid_log` size 8.19MB；数据文件 24MB 未动。
+- 备注：库只有 2 张表，符合 UAT 参考库特征。前端报错根因是「目标库缺失」而非权限，恢复后即可连。
+
 ## 2026-06-14 22:25 CST - 收缩另三个库日志，/restore 盘回收 ~27GB
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
