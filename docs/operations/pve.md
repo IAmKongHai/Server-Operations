@@ -1,5 +1,36 @@
 # pve 运维操作时间线
 
+## 2026-06-19 00:18 CST - 新增 fnOS NAS VM
+
+- 服务器：`pve`（VM `140/fnos-nas`）
+- 操作人：`Codex` + 用户图形界面安装 fnOS
+- 原因：在 PVE 内新增一台轻量 NAS VM 运行飞牛 fnOS，用于存放可重新下载的影视资源；计划容量不超过 300G，不承载重要数据。
+- 影响：
+  - 新增 VM `140/fnos-nas`，占用 2 vCPU / 2 GiB 内存。
+  - 在 `local-lvm` 新增 3 个 thin volumes：4 MiB EFI 盘、32G 系统盘、300G 数据盘；`local-lvm` Data% 当前约 3.66%。
+  - 上传 fnOS ISO 到 PVE `local` ISO 存储，`local` 使用率约 32.90%。
+  - 现有 VM `110/mssql-ref`、`120/mas-win`、`130/mas-go-dev` 全程保持 running；未重启宿主机，未改网络、防火墙、Tailscale route、数据库或现有 VM 配置。
+- 回滚：
+  - 如需删除该 NAS VM，先确认不需要保留影视数据，然后关闭 VM `140`，执行 `qm destroy 140 --destroy-unreferenced-disks 1 --purge` 删除 VM 配置和 `local-lvm` 磁盘。
+  - 如需清理安装镜像，可删除 `/var/lib/vz/template/iso/fnos_Mainland-PE_x86_1.1.3107_1809.iso`。
+  - 本机 SSH 快捷别名可从 `~/.ssh/config` 删除 `Host fnos-nas` 段；fnOS 内公钥可从 `/home/konghai/.ssh/authorized_keys` 删除对应行。
+- 变更：
+  - 从本地仓库根目录上传 `fnos_Mainland-PE_x86_1.1.3107_1809.iso` 到 PVE `/var/lib/vz/template/iso/`；上传后 SHA256 校验一致：`8175479731186edbc65ac7d5f33718a8dc8cd2f47907c4527ca44aa3a8391c7e`。
+  - 创建 VM `140/fnos-nas`：`q35`、OVMF、2 cores、2 GiB memory、VirtIO 网卡、`vmbr0`、`onboot=0`。
+  - 在 `local-lvm` 创建 `scsi0` 32G 系统盘、`scsi1` 300G 数据盘，均开启 `discard=on`、`iothread=1`、`ssd=1`。
+  - 用户通过 PVE Console 完成 fnOS 安装：系统分区 32G、Swap 2G；安装完成后卸载 ISO，启动顺序改为 `scsi0` 优先。
+  - 用户在 fnOS 内设置固定 IP `192.168.2.9/24`，启用 SSH，并将 300G 数据盘初始化为 `ext4` Basic 存储空间，挂载为 `/vol1`。
+  - 因 fnOS 用户 `konghai` 的 home 目录缺失，手动创建 `/home/konghai/.ssh`、设置权限并写入本机 `~/.ssh/id_ed25519.pub`；本机 `~/.ssh/config` 追加别名 `fnos-nas`（不属于仓库文件）。
+- 验证：
+  - PVE `qm list` 显示 `140/fnos-nas` 为 `running`，`onboot=0`，`boot: order=scsi0`，`ide2: none,media=cdrom`。
+  - `pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 active；`nvme-data` 未新增 fnOS 磁盘。
+  - fnOS 内 `hostname` 为 `kh-nas-in-pve`，`enp6s18` 为 `192.168.2.9/24`。
+  - fnOS 内系统盘为 32G ext4，根分区已用约 9.2G；Swap 为 2.0G；数据盘经 md/LVM 后以 ext4 挂载到 `/vol1`，可用约 298G。
+  - `ssh fnos-nas 'hostname; whoami; pwd'` 免密成功，返回 `kh-nas-in-pve`、`konghai`、`/home/konghai`。
+- 后续：
+  - 暂不启用 `onboot`，避免宿主机重启后新 NAS VM 与 MAS 相关 VM 抢资源；稳定使用后如需要自动恢复，再单独确认。
+  - 该 VM 数据为可重新下载影视资源，暂不设计备份或快照保留策略；不要长期保留该 VM 快照。
+
 ## 2026-06-14 22:50 CST - 清理三台 VM 的 9 个搭建期快照
 
 - 服务器：`pve`（VM `110/mssql-ref`、`120/mas-csharp`、`130/mas-go-dev`）

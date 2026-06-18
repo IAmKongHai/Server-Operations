@@ -40,6 +40,7 @@ ssh pve
 | `110` | `mssql-ref` | `1` | `order=10,up=60,down=180` | 先启动数据库，给 SQL Server 预留启动时间 |
 | `120` | `mas-win` | `1` | `order=20,up=90,down=180` | 后启动 IIS / C# 应用 |
 | `130` | `mas-go-dev` | `1` | `order=30,up=60,down=180` | MAS Go + React 内网自动部署环境 |
+| `140` | `fnos-nas` | `0` | - | fnOS NAS，当前手动启动，避免宿主机重启后抢占资源 |
 
 `pve-guests.service` 已启用并处于 active。宿主机重启后，PVE 会按上面的顺序恢复 VM；手动启动时也建议先启动 `mssql-ref`，等 `192.168.2.20:1433` 可用后再启动或访问 `mas-win`。
 
@@ -101,6 +102,12 @@ bridge-ports: nic0
 - `nvme-data` 实际占用约 28.5%，剩余约 684G。
 - `mssql-ref` 与 `mas-win` 都保留了阶段快照，thin volume 逻辑分配总量已超过 thin pool 物理容量；当前不影响运行，但不要长期保留无用快照或继续无限扩盘。
 
+2026-06-19 状态：
+
+- `local-lvm` 新增 VM `140/fnos-nas` 的 4 MiB EFI 盘、32G 系统盘和 300G 数据盘；Data% 约 3.66%。
+- `local` 存有 fnOS 安装镜像 `fnos_Mainland-PE_x86_1.1.3107_1809.iso`，约 3.3G。
+- `nvme-data` 仍只承载 MAS 参考/开发相关 VM，未新增 fnOS 磁盘。
+
 磁盘布局摘要：
 
 | 设备 | 用途 |
@@ -128,6 +135,7 @@ no pools available
   - `110 / mssql-ref`：运行 MAS 老系统参考数据库
   - `120 / mas-win`：运行 MAS 老 C# / IIS 参考应用
   - `130 / mas-go-dev`：运行 MAS Go + React 内网自动部署环境
+  - `140 / fnos-nas`：运行飞牛 fnOS NAS，存放可重新下载的影视资源
 
 附带状态：
 
@@ -197,6 +205,37 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 - 复查通过：无失败服务，无可升级包，VM `110`、`120`、`130` 仍运行，storage 均 active
 
 ## VM 清单
+
+### `fnos-nas`
+
+飞牛 fnOS NAS VM。只用于存放可重新下载的影视资源，不承载重要数据，不设计灾备。
+
+2026-06-19 创建完成：
+
+| 项目 | 值 |
+| --- | --- |
+| VMID | `140` |
+| IP | `192.168.2.9/24` |
+| Hostname | `kh-nas-in-pve` |
+| OS | fnOS Mainland PE `1.1.3107` |
+| Kernel | `6.18.18-trim` |
+| CPU / Memory | 2 vCPU / 2 GiB |
+| System disk | `local-lvm:vm-140-disk-1`，32G thin-provisioned |
+| Data disk | `local-lvm:vm-140-disk-2`，300G thin-provisioned，fnOS 内 `/vol1`，ext4 Basic |
+| EFI disk | `local-lvm:vm-140-disk-0`，4 MiB |
+| Network | VirtIO on `vmbr0` |
+| SSH | `ssh fnos-nas`（本机 `~/.ssh/config`，用户 `konghai`） |
+| On boot | `onboot=0` |
+| ISO | `local:iso/fnos_Mainland-PE_x86_1.1.3107_1809.iso`，安装后已从 VM 光驱卸载 |
+
+当前状态：
+
+- PVE 启动顺序为 `scsi0` 优先，`ide2` 为 `none,media=cdrom`。
+- fnOS 数据盘通过 md/LVM 暴露为 `/vol1`，可用约 298G。
+- 初始用途是影视资源存储，数据可重新下载；不要长期保留 VM 快照。
+- 暂不启用自启动；若后续需要宿主机重启后自动恢复，再单独确认。
+
+相关计划：`docs/plans/2026-06-18-001-feat-fnos-nas-vm-deployment-plan.md`。
 
 ### `mas-go-dev`
 
