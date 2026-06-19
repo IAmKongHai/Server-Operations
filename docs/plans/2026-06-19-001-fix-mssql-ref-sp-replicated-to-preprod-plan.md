@@ -38,17 +38,27 @@ tags:
 - **替换规则**：子串 `medicalassistance_replicated` → `medicalassistance_preprod`。
   同时覆盖带方括号写法 `[medicalassistance_replicated]`（核心子串一致，直接替换子串即可）。
 
-## 待改清单（按库，命中 SP 数）
+## 待改清单（按库，命中对象数）
 
-| 库 | 引用 `_replicated` 的 SP 数 | 状态 |
+> 2026-06-19 第 1 步只读核对后更新：补上原先漏算的 1 个标量函数；
+> 总对象数从 97 修正为 **98**（97 SP + 1 函数）。
+
+| 库 | 引用 `_replicated` 的对象 | 数量 | 状态 |
+| --- | --- | :-: | --- |
+| `insularsalesportal` | SP | 70 | 待改（含 1 个 B 类例外，见下） |
+| `masprepaid` | SP | 14 | 待改 |
+| `maswebkit` | SP 13 + 标量函数 `GetTotalIBNR` 1 | 14 | 待改 |
+| **合计** | | **98** | |
+
+> 注：以上为「定义中含 `medicalassistance_replicated` 的对象个数」；
+> 单个对象内可能有多处引用，实际替换次数 > 98。
+
+### 分两批处理
+
+| 批次 | 对象数 | 处理 |
 | --- | :-: | --- |
-| `insularsalesportal` | 70 | 待改 |
-| `masprepaid` | 14 | 待改 |
-| `maswebkit` | 13 | 待改 |
-| **合计** | **97** | |
-
-> 注：以上为「定义中含 `medicalassistance_replicated` 的 SP 个数」；
-> 单个 SP 内可能有多处引用，实际替换次数 > 97。
+| **A 类·可直接改** | 97（96 SP + 1 函数）| 引用的表在目标库均存在，`_replicated` → `_preprod` 即修复 |
+| **B 类·需先决策** | 1 | `insularsalesportal.sp_getretailfranchisingdetails`，引用了目标库**不存在**的表 `tblprovidertemplate`，改名解决不了，先搁置待用户决策 |
 
 ## 已确认的事实
 
@@ -56,6 +66,13 @@ tags:
 - 真正裸名引用（`medicalassistance.` / `[medicalassistance]`）逐库均为 0。
 - 目标库 `medicalassistance_preprod` 存在 384 张 `tbl*` 表，抽查的 `tblagents/tblcompany/tbldoctors/tblmembers/tblusers` 均存在。
 - SA 密码在 VM 内 `/root/mssql-secrets.env`（`sudo cat`）。sqlcmd 路径 `/opt/mssql-tools18/bin/sqlcmd`，需 `-C` 跳过证书校验。
+
+### 第 1 步只读核对结论（2026-06-19）
+
+- **对象总数 98**：97 SP + maswebkit 标量函数 `GetTotalIBNR`（补查 view/function/trigger 发现，原 plan 只统计 SP 漏掉了它）。其它库非 SP 对象无引用。
+- **被引用表共 40 个去重表名**，与目标库 `medicalassistance_preprod` 实际表比对：**39 个存在，1 个缺失**。
+- **缺失表 `tblprovidertemplate`**：目标库无此表，也无名字相近表（已查 `tblprovider*` 18 张，无 template）。唯一引用者为 `insularsalesportal.sp_getretailfranchisingdetails` → 列为 B 类。
+- 风险点「两库 schema 是否一致」已就表名维度验证完毕（仅 1 张缺失）；列级差异尚未逐一比对，但 39 张表既存在，盲改风险已大幅降低。
 
 ## 执行步骤
 
