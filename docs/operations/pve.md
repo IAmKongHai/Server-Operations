@@ -1,5 +1,37 @@
 # pve 运维操作时间线
 
+## 2026-06-19 16:20 CST - mas-win 响应慢排查：解除内存超卖，固定 6G
+
+- 服务器：`pve`（VM `120/mas-win`、`110/mssql-ref`、`140/fnos-nas`）
+- 操作人：`Claude`
+- 原因：用户反馈 `mas-win`（VMID 120）上的 IIS 站点响应非常慢。排查发现根因是宿主内存超卖：宿主 31GiB 物理内存，四台 VM 静态需求合计约 32GiB；`mas-win` 是当时唯一开启 ballooning 的 VM（`balloon=2048` < `memory=4096`），宿主内存吃紧时 auto-balloon 把它压到最小 2GiB，导致 Windows 物理内存不足、疯狂走 pagefile（`info balloon` 显示 `mem_swapped_in` 累计约 13.3GiB），站点响应极慢。
+- 影响：
+  - `mas-win` 内存从被压的 2GiB 恢复到固定 6GiB，ballooning 彻底关闭，不再被宿主回收；Windows 停止换页。
+  - `mssql-ref`(110) 内存上限从 20480 永久下调到 18432（实测 SQL Server `max server memory` 已设 14336MB，VM 内仍余约 4GiB，未挤压 SQL）。
+  - `fnos-nas`(140) 优雅关机（用户决定），腾出 2GiB 给 `mas-win`；`onboot=0`，宿主重启不会自动拉起。
+  - `mas-win` 重启过程站点中断约 1~2 分钟；`mas-go-dev`(130) 全程未受影响。
+  - 重启后宿主空闲内存偏紧（约 292MiB，swap 用约 316MiB）；用户计划后续给 PVE 加物理内存，再重新开 `fnos-nas`。
+- 回滚：
+  - 恢复内存超卖前状态：`ssh pve "qm set 120 --balloon 2048 --memory 4096 && qm set 110 --memory 20480"`。
+  - 或从配置备份恢复：`/root/120.conf.bak.20260619`、`/root/110.conf.bak.20260619`。
+  - 重新开机 NAS：`ssh pve "qm start 140"`。
+- 变更：
+  - 在线放气：`qm monitor 110` 执行 `balloon 18432`（腾 2GiB 给宿主）；`qm monitor 120` 执行 `balloon 4096`（mas-win 当场恢复，`free_mem` 670MiB→2714MiB，换页停止）。
+  - 备份 VM 配置到 `/root/120.conf.bak.20260619`、`/root/110.conf.bak.20260619`。
+  - `qm set 120 --balloon 0`（关闭 ballooning）。
+  - `qm set 110 --memory 18432`（mssql-ref 内存永久降到 18GiB）。
+  - `qm shutdown 140 --timeout 60`（关闭 fnos-nas）。
+  - `qm set 120 --memory 6144`（mas-win 内存改 6GiB）。
+  - `qm reboot 120 --timeout 120`（重启固化配置）。
+- 验证：
+  - 重启后 QEMU 进程 `VmRSS` 约 6.0GiB，`mas-win` 实拿满 6GiB。
+  - `qm monitor 120` 执行 `info balloon` 返回 `No balloon device has been activated`，确认 ballooning 已彻底关闭、6GiB 永久固定。
+  - `mssql-ref` 在线降内存后 VM 内 `free -h` 仍有富余、swap 未动；SQL Server `max server memory=14336MB`，不受影响。
+  - `qm list`：120 running（6144）、110 running、130 running、140 stopped。
+- 后续（用户负责）：
+  - 给 PVE 增加物理内存，缓解宿主内存紧张（当前布局 18+6+8≈32GiB 仍略超 31GiB 物理量，靠页缓存弹性支撑）。
+  - 加完内存后 `ssh pve "qm start 140"` 重新开 `fnos-nas`。
+
 ## 2026-06-19 00:18 CST - 新增 fnOS NAS VM
 
 - 服务器：`pve`（VM `140/fnos-nas`）
