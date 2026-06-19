@@ -66,7 +66,36 @@ tags:
 | --- | --- | --- |
 | `maswebkit` | ✅ 14/14 成功 | `_replicated` 残留 0；改过对象对 `_preprod` 的 9689 处引用全部解析 OK |
 | `masprepaid` | ⚠️ 13/14 成功 | 1 个失败 → 见 C 类 |
-| `insularsalesportal` | ⏸ 未执行 | 70 个，待列级差异全量核对后再改 |
+| `insularsalesportal` | 🔍 已全量预检，待改 | 70 个全量试编译完成，揪出 66 净改 + 1 缺表 + 3 缺列，见下 |
+
+### insularsalesportal 全量预检结论（2026-06-19）
+
+为避免再逐个撞 ALTER 错误，对 70 个对象做了**全量试编译预检**：游标取每个 SP 的
+`OBJECT_DEFINITION`，`_replicated`→`_preprod` 替换后，在事务里 `DROP PROCEDURE` + 用改名
+定义 `CREATE`，捕获错误后 `ROLLBACK`（库零改动，验证后 `_replicated` 计数仍 70、SP 总数仍 147）。
+
+结果：**66 净改 + 1 缺表（B 类）+ 3 缺列（C 类）**。
+
+| 类别 | 数量 | 对象与缺失项 |
+| --- | :-: | --- |
+| **A 类·可直接改** | 66 | 引用表/列全在目标库，改名即修复 |
+| **B 类·缺表** | 1 | `sp_getretailfranchisingdetails` → `tblprovidertemplate` 不存在 |
+| **C 类·缺列** | 3 | `sp_getiortapayordetails`（`tblagents.franchisecode`）、`sp_getproducttypes`（`tblproductlines.iorta`）、`sp_getroomaccommodation`（`tblbenefitsa.iorta`） |
+
+**重要发现——试编译只抓缺列、抓不到缺表**：SQL Server 对**跨库三段式引用的表**走延迟名称
+解析，缺表在 ALTER/CREATE 编译期**不报错**（运行时才断链），故 B 类 `sp_getretailfranchisingdetails`
+在试编译里反而通过（计入 67 个 OK）；缺**列**则编译期立即报 Msg 207。
+因此另补了一道**缺表核对**：把 insular 70 SP 引用的 29 张去重表与目标库逐一比对，
+确认只有 `tblprovidertemplate` 1 张缺失，无新增缺表。
+
+> 全三库例外汇总（B 缺表 / C 缺列，单纯改库名解决不了，均需补表/补列或改写 SP）：
+> - **B 类（缺表）** ×1：`insularsalesportal.sp_getretailfranchisingdetails` → `tblprovidertemplate`
+> - **C 类（缺列）** ×4：
+>   - `masprepaid.sp_checkprepaidcancellationdate` → `tblcompanyclasses.cancellationdays`
+>   - `insularsalesportal.sp_getiortapayordetails` → `tblagents.franchisecode`
+>   - `insularsalesportal.sp_getproducttypes` → `tblproductlines.iorta`
+>   - `insularsalesportal.sp_getroomaccommodation` → `tblbenefitsa.iorta`
+> 缺失列经查在目标库 `medicalassistance_preprod` 整库均不存在，非单表偶缺。
 
 ### 新增 C 类·目标库缺列（改名后编译失败）
 
