@@ -1,5 +1,42 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-19 15:10 CST - insularsalesportal 66 个 SP 跨库引用 _replicated 改名 _preprod（全三库工程收口，5 例外遗留）
+
+- 服务器：`mssql-ref`（`192.168.2.20`），按生产对待，已先备份（见 13:30 记录）。
+- 操作人：`Claude`
+- 原因：接上一会话，完成三库 SP 跨库引用 `medicalassistance_replicated` → `medicalassistance_preprod` 改名的最后一库 `insularsalesportal`（70 个对象）。上一会话因 `masprepaid` 撞上缺列、担心 insular 引用面更广藏更多缺表/缺列而停下，本次先全量预检再改。
+- 做了什么：
+  1. **全量试编译预检**（只读、零改动）：游标取 insular 70 个 SP 的 `OBJECT_DEFINITION`，`_replicated`→`_preprod` 替换后，在事务里 `DROP PROCEDURE` + 用改名定义 `CREATE`、捕获错误后 `ROLLBACK`。预检后复查 `_replicated` 计数仍 70、SP 总数仍 147，确认库未被破坏。
+  2. **补缺表核对**：发现试编译走延迟名称解析，**缺表不报错、只有缺列报 Msg 207**。故另把 insular 70 SP 引用的 29 张去重表与目标库逐一比对，确认只 `tblprovidertemplate` 1 张缺失。
+  3. **执行改名**：从 13:30 的备份 `.sql` 经 `sed`（首个 `CREATE PROC`→`ALTER PROC` + 库名子串替换）生成 66 个 ALTER 脚本（跳过 1 B 类 + 3 C 类例外），逐个 `sqlcmd -b` 执行。
+- 影响：
+  - `insularsalesportal` **66 个 A 类 SP 全部 ALTER 成功**，跨库引用改指 `medicalassistance_preprod`，断链消除。
+  - 残留引用 `_replicated` 的对象 = **4**（insular 本库的 1 缺表 + 3 缺列例外，按用户决策跳过保持原样）。
+  - 未动表结构与数据，仅改 SP 定义。
+- 全三库累计结果：maswebkit 14/14、masprepaid 13/14、insular 66/70，共 **93 个 ALTER 成功**；遗留 **5 个例外**（B 缺表 1 + C 缺列 4，含 masprepaid 1）。
+- 验证结果：
+  - insular `_replicated` 残留对象 = 4（即 5 例外里属于 insular 的 4 个），`_preprod` 对象 = 74。
+  - 只读 SP `sp_getmasagents @agentcode=''` 实测执行返回 agent 数据、exit=0，跨库取数不再断链。
+- 回滚：任一 SP 改坏，用 `/restore/backup/sp-replicated-fix-20260619/insularsalesportal/<对象>.sql`（原始 `_replicated` 定义）`ALTER` 还原。
+- 遗留待办（按用户决策暂跳过，待补表/补列或确认废弃后再改）：
+  - B·缺表：`insularsalesportal.sp_getretailfranchisingdetails` → `tblprovidertemplate`
+  - C·缺列：`insularsalesportal.sp_getiortapayordetails`(`tblagents.franchisecode`)、`sp_getproducttypes`(`tblproductlines.iorta`)、`sp_getroomaccommodation`(`tblbenefitsa.iorta`)、`masprepaid.sp_checkprepaidcancellationdate`(`tblcompanyclasses.cancellationdays`)
+  - 详见 plan `docs/plans/2026-06-19-001-fix-mssql-ref-sp-replicated-to-preprod-plan.md` 末尾「遗留待办例外清单」。
+
+## 2026-06-19 13:30 CST - 备份各库 SP/函数定义，准备把跨库引用 medicalassistance_replicated 改名为 _preprod
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：核查发现 `insularsalesportal`/`masprepaid`/`maswebkit` 三库的存储过程及函数里，仍以三段式 `medicalassistance_replicated.dbo.<表>` 跨库引用了一个本机不存在的库 `medicalassistance_replicated`，会断链。计划统一改指向 `medicalassistance_preprod`（与 10:45 改名工程的同步范围一致，当时遗漏了 `_replicated` 引用）。详见 plan `docs/plans/2026-06-19-001-fix-mssql-ref-sp-replicated-to-preprod-plan.md`。
+- 本次只做备份（阶段 0），尚未改任何对象。
+- 影响：
+  - 仅只读导出对象定义，未改库/表/SP/数据。
+  - 待改对象共 **98 个**：`insularsalesportal` 70 SP、`masprepaid` 14 SP、`maswebkit` 13 SP + 标量函数 `GetTotalIBNR`。
+  - 其中 `insularsalesportal.sp_getretailfranchisingdetails` 引用了目标库 `medicalassistance_preprod` 中**不存在**的表 `tblprovidertemplate`（B 类）；按用户决定仍随大批改库名，缺表问题单独留待后续补表。
+- 备份位置：`/restore/backup/sp-replicated-fix-20260619/<db>/<schema>_<对象名>.sql`，逐对象一个文件，共 98 个，已校验全部含原始 `medicalassistance_replicated` 定义，可作回滚源。
+- 回滚：用对应 `.sql` 重新 `ALTER`/`CREATE` 还原该对象定义。
+- 验证结果：文件数 70/14/14=98，无空文件，98/98 含原始 `_replicated` 字样。
+
 ## 2026-06-19 10:45 CST - 库 medicalassistance 改名为 medicalassistance_preprod 并同步两个使用方
 
 - 服务器：`mssql-ref`（`192.168.2.20`）

@@ -66,7 +66,7 @@ tags:
 | --- | --- | --- |
 | `maswebkit` | ✅ 14/14 成功 | `_replicated` 残留 0；改过对象对 `_preprod` 的 9689 处引用全部解析 OK |
 | `masprepaid` | ⚠️ 13/14 成功 | 1 个失败 → 见 C 类 |
-| `insularsalesportal` | 🔍 已全量预检，待改 | 70 个全量试编译完成，揪出 66 净改 + 1 缺表 + 3 缺列，见下 |
+| `insularsalesportal` | ✅ 66/66 成功 | 66 个 A 类全部 ALTER 改名成功，残留 `_replicated` = 4（即 1 缺表 + 3 缺列例外）；只读 SP `sp_getmasagents` 实测跨库取数 OK |
 
 ### insularsalesportal 全量预检结论（2026-06-19）
 
@@ -126,11 +126,11 @@ tags:
 
 ### 阶段 0：备份（前置，必做）
 
-- [ ] 用 `bcp` 或脚本导出 3 个库全部待改 SP 的当前定义到 VM 内备份目录
-      （文件名带日期，例如 `/restore/backup/sp-replicated-fix-20260619/<db>/<proc>.sql`），
-      作为回滚源。
-- [ ] 或对 3 个库做一次完整数据库备份（`BACKUP DATABASE`）留底（确认磁盘空间足够，老库文件在 `/restore` 第二块盘）。
-- [ ] 把备份位置和清单记录到本 plan / `docs/operations/mssql-ref.md`。
+- [x] 已导出 3 个库全部待改 SP 原始定义到 `/restore/backup/sp-replicated-fix-20260619/<db>/<proc>.sql`
+      （insular 70 + masprepaid 14 + maswebkit 14），作为回滚源。insular 的 ALTER 即由这批备份
+      经 `sed`（CREATE→ALTER + 库名替换）生成。
+- [ ] （未做）整库 `BACKUP DATABASE`——因仅改 SP 定义、不动表与数据，单 SP 备份已足够回滚，故略。
+- [x] 备份位置记录在本 plan 与 `docs/operations/mssql-ref.md`。
 
 ### 阶段 1：生成精确清单与替换脚本
 
@@ -145,23 +145,42 @@ tags:
 
 ### 阶段 2：分批执行替换
 
-- [ ] 先改 **`maswebkit`（13 个）** 作为试点——量最小、且该库已有 469 处改好的先例可比对。
-- [ ] 验证试点（见阶段 3）通过后，再改 `masprepaid`（14）、`insularsalesportal`（70）。
-- [ ] 每批执行前确认当前在 `mssql-ref`，执行后立即跑该批的验证查询。
+- [x] `maswebkit` 14 个全成（试点，先例 469 处可比对）。
+- [x] `masprepaid` 13 个成（1 个 C 类缺列跳过）。
+- [x] `insularsalesportal` 66 个成（A 类全成；4 个 B/C 类例外跳过）。
+- [x] 每批执行后立即跑验证查询，全部通过。
 
 ### 阶段 3：验证
 
-- [ ] 重新统计：3 个库中 `medicalassistance_replicated` 命中数应全部 = 0。
-- [ ] 统计 `medicalassistance_preprod` 命中数应相应增加。
-- [ ] 抽查若干改过的 SP，确认能成功编译（`ALTER` 成功即语法通过）。
-- [ ] 抽选 1~2 个只读 SP 实际执行，确认能跨库取到 `medicalassistance_preprod` 的数据、不再断链。
-- [ ] 核对被引用的 `tbl*` 表在 `medicalassistance_preprod` 中均存在（阶段 1 清单里收集到的表名逐一比对）。
+- [x] 重新统计：3 个库中 `medicalassistance_replicated` 命中数 = **5**（不可改的例外：1 缺表 + 4 缺列），A 类全部清零。
+- [x] 统计 `medicalassistance_preprod` 命中数相应增加（insular 改后 = 74）。
+- [x] 改过的 SP 全部成功 ALTER（编译通过）：maswebkit 14 + masprepaid 13 + insular 66 = 93。
+- [x] 只读 SP 实际执行验证跨库取数：insular `sp_getmasagents` 实测返回数据、不再断链。
+- [x] 被引用表存在性核对：insular 29 张引用表仅 `tblprovidertemplate` 缺失（B 类），其余均存在。
 
 ### 阶段 4：收尾
 
-- [ ] 在 `docs/operations/mssql-ref.md` 追加本次操作记录（时间 / 原因 / 影响 / 回滚 / 做了什么 / 验证结果）。
-- [ ] 如有可复用经验或踩坑（如「子串统计误把 `_replicated` 当裸名」），另写 `docs/solutions/mssql-ref/`。
-- [ ] 更新本 plan `status: done`。
+- [x] 在 `docs/operations/mssql-ref.md` 追加本次操作记录（时间 / 原因 / 影响 / 回滚 / 做了什么 / 验证结果）。
+- [x] 踩坑「试编译只抓缺列不抓缺表（延迟名称解析）」已沉淀：`docs/solutions/mssql-ref/database-issues/sp-recompile-precheck-misses-missing-tables-2026-06-19.md`。
+- [x] A 类全部改完，B/C 类例外按用户决策**全部跳过**，本工程主体完成；status 保持 in-progress 直到例外待办闭环（补表/补列）。
+
+## 遗留待办例外清单（B 缺表 / C 缺列，5 个对象，按用户决策暂跳过）
+
+这 5 个 SP 保持原 `medicalassistance_replicated` 定义不动（本就断链，改库名也修不了），
+待后续从源库同步 schema（补表 / 补列）后再统一改名。逐个待办：
+
+| 库 | SP | 类别 | 缺失项（在目标库 `medicalassistance_preprod`） |
+| --- | --- | --- | --- |
+| `insularsalesportal` | `sp_getretailfranchisingdetails` | B·缺表 | `tblprovidertemplate` 整表不存在 |
+| `insularsalesportal` | `sp_getiortapayordetails` | C·缺列 | `tblagents.franchisecode` |
+| `insularsalesportal` | `sp_getproducttypes` | C·缺列 | `tblproductlines.iorta` |
+| `insularsalesportal` | `sp_getroomaccommodation` | C·缺列 | `tblbenefitsa.iorta` |
+| `masprepaid` | `sp_checkprepaidcancellationdate` | C·缺列 | `tblcompanyclasses.cancellationdays` |
+
+闭环条件（任一）：
+- 从权威源库把 `tblprovidertemplate` 表、以及 `franchisecode`/`iorta`/`cancellationdays`
+  列补进 `medicalassistance_preprod` → 再对这 5 个 SP 跑改名（脚本已就绪，去掉跳过名单即可）。
+- 或确认这些 SP 在新系统已废弃 → 直接丢弃，不再维护。
 
 ## 回滚方式
 
