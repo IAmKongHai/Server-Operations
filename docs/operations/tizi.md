@@ -10,24 +10,29 @@
   - 公网网卡 `eth0`（`74.211.103.83`）上不再有进程监听 2095，公网无法访问面板。
   - **原 SSH 隧道访问 `http://127.0.0.1:2095/` 方式失效**，以后改用 tailscale 客户端访问 `http://100.90.28.83:2095/app/`。
   - 订阅端口 2096（`subListen`）保持 `127.0.0.1` 不变，本次未动。
-  - 未改动 firewalld、nginx、443 数据面（翻墙连接不受影响）。
+  - firewalld：将 `tailscale0` 接口绑定到内置 `trusted` zone（target ACCEPT，放行 tailscale 网络内所有入站）。公网 `eth0`/`public` zone 策略不变，仍只开 `ssh/80/443/8443`。
+  - 未改动 nginx、443 数据面（翻墙连接不受影响）。
   - 重启 `s-ui` 期间面板短暂中断约几秒，xray/sing-box 数据面不受影响。
 - 回滚：
   1. `cp -a /usr/local/s-ui/db/s-ui.db.before-tailscale-panel-20260619 /usr/local/s-ui/db/s-ui.db`
   2. 或直接 `sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE settings SET value=\"127.0.0.1\" WHERE key=\"webListen\";"`
   3. `systemctl restart s-ui`
+  4. firewalld 回滚：`firewall-cmd --permanent --zone=trusted --remove-interface=tailscale0 && firewall-cmd --reload`
 - 变更：
   - 备份数据库：`cp -a /usr/local/s-ui/db/s-ui.db{,.before-tailscale-panel-20260619}`
   - `systemctl stop s-ui`
   - `sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE settings SET value=\"100.90.28.83\" WHERE key=\"webListen\";"`
   - `systemctl start s-ui`
+  - `firewall-cmd --permanent --zone=trusted --add-interface=tailscale0 && firewall-cmd --reload`
 - 验证：
   - `ss -tlnp | grep 2095` 显示监听地址为 `100.90.28.83:2095`（原为 `127.0.0.1:2095`）
   - `sui setting -show` 显示 `Panel IP: 100.90.28.83`
   - 本机探测公网 `74.211.103.83:2095` → `Connection refused`（公网不可达，符合预期）
-  - 本机探测 tailscale `100.90.28.83:2095` → 可达（符合预期）
+  - `firewall-cmd --get-zone-of-interface=tailscale0` 返回 `trusted`
+  - 用户本机（tailscale IP `100.92.181.15`）浏览器访问 `http://100.90.28.83:2095/app/` 正常打开面板
 - 说明：
   - 用户的两个客户端设备 tailscale IP 为 `100.92.181.15`、`100.108.64.126`。本次未在 firewalld 上按 IP 限制 —— 因 `sui` 只在 tailscale 接口监听，公网已天然隔离，tailscale 网络内设备均可访问面板，符合用户「不限制 tailscale 网络内 IP」的要求。
+  - 排查中踩坑：只改 `webListen` 后客户端访问仍 `ERR_CONNECTION_REFUSED`。根因是 `tailscale0` 接口此前 `no zone`，入站走默认 `public` zone，而 2095 未在 public 放行；tizi 本机能连是因走 loopback 不过 firewalld。把 `tailscale0` 划入 `trusted` zone 后即通。面板路径为 `/app/`，须访问 `http://100.90.28.83:2095/app/`，根路径 `/` 会失败。
   - `webListen=127.0.0.1` 自面板搭建起就是默认状态，并非历史某次改动结果；db 目录下 `s-ui.db.before-localhost-panel-20260502` 备份来历文档未记录，用户推测为定期重置用户用量前的备份，与本次无关。
 
 ## 2026-05-20 10:29 CST - litellm-us DNS 流量切出到 rao-tizi
