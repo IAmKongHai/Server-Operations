@@ -1,5 +1,30 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-19 10:45 CST - 库 medicalassistance 改名为 medicalassistance_preprod 并同步两个使用方
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Claude`
+- 原因：用户要求把参考库 `medicalassistance` 统一改名为 `medicalassistance_preprod`（带 preprod 后缀）。核查现状发现：当前库名是 `medicalassistance`，两个使用方（mas-win 老 C# 系统、mas-go-dev Go 后端）都硬编码连 `medicalassistance`、工作正常，没有任何使用方在连 `medicalassistance_preprod`。与用户最初「老系统硬编码了 preprod」的表述不符，已用 AskUserQuestion 澄清，确认意图是「改库名 + 同步改所有连接串」。
+- 影响：
+  - `mssql-ref`：库逻辑名 `medicalassistance → medicalassistance_preprod`。仅改逻辑库名，逻辑文件名与物理文件（`/restore/data/medicalassistance_full/*.mdf|.ldf`，见 [[mssql-ref-db-files-on-restore-disk]]）、数据、权限、恢复模式（SIMPLE）均不动。
+  - 改名瞬间到两边使用方改完之间有几分钟连库不可用窗口（已先停 mas-go-dev 容器、mas-win 此刻无活动连接）。
+  - 同步改两个使用方（详见各自时间线）：mas-go-dev `.env.docker` 的 `DB_NAME`、mas-win `MAS-API\Web.config` 的 21 个 `initial catalog` + 1 个 `CATALOG_A`。
+  - 未动其它库（`maswebkit`/`authprovidermasweb`/`insularsalesportal`/`masprepaid`），未重启 SQL Server。
+  - **额外发现**：改名前查 `sys.dm_exec_sessions`，除 mas-go-dev 容器（host `c11ebb8a7926`）外，还有来自 **`Mac.lan`** 的 `go-mssqldb` 连接——即某台 Mac（疑似开发者本地）也直连此库。`SINGLE_USER WITH ROLLBACK IMMEDIATE` 会一并强杀，本地那份后端需自行把库名改到 `medicalassistance_preprod` 才能重连（不在本仓三台服务器范围，未处理）。
+- 回滚：
+  - 库名：`ALTER DATABASE [medicalassistance_preprod] MODIFY NAME = [medicalassistance];`
+  - mas-win：用备份 `C:\MAS\Apps\MAS-API\Web.config.bak.20260619` 覆盖后回收 MAS-API 应用池。
+  - mas-go-dev：用备份 `/opt/mas-go-dev/backend/.env.docker.bak.20260619` 覆盖后重建 api/worker。
+- 变更：
+  1. 只读核查：`sys.databases`（`medicalassistance` ONLINE/SIMPLE，目标名不存在）、`sys.dm_exec_sessions`（8~9 个 go-mssqldb 活动会话）。
+  2. 先停 mas-go-dev `api`/`worker` 释放连接；仍有 `Mac.lan` 残连接挡住，普通 `MODIFY NAME` 报 `Msg 5030 could not be exclusively locked`。
+  3. 用 sa 执行：`ALTER DATABASE [medicalassistance] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;` → `MODIFY NAME = [medicalassistance_preprod];` → `SET MULTI_USER;`（sa 密码从 `/root/mssql-secrets.env` 读，仅 SSH 会话内用，不落盘不进 commit）。
+- 验证：
+  - `sys.databases`：`medicalassistance_preprod` = `ONLINE` / `MULTI_USER`，旧名已不存在。
+  - mas-go-dev：api/worker 启动日志 `database connected ... database=medicalassistance_preprod` + `maswebkit`，无 login failed，api `healthy`。
+  - mas-win：ADO.NET 连库测试 `OK login=mas_ref_owner db=medicalassistance_preprod`，`http://192.168.2.21:9021/` 返回 HTTP 200。
+- 相关：[[mssql-ref-mas-ref-reader-is-db-owner]]（连库账号 `mas_ref_owner`）。本次延续 2026-06-15「改库账号前先全量 grep 所有连接串」的教训——改库名同理，先摸清所有硬编码使用方再动手。
+
 ## 2026-06-17 10:20 CST - 恢复 masprepaid 参考库并授权 mas_ref_owner
 
 - 服务器：`mssql-ref`（`192.168.2.20`）

@@ -1,5 +1,28 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-06-19 10:42 CST - 后端 DB_NAME 切到 medicalassistance_preprod（配合 mssql-ref 库改名）
+
+- 服务器：`mas-go-dev`（`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：`mssql-ref` 上库 `medicalassistance` 改名为 `medicalassistance_preprod`（详见 `docs/operations/mssql-ref.md` 2026-06-19）。后端 `.env.docker` 的 `DB_NAME=medicalassistance` 需同步改名，否则连不上库。
+- 影响：
+  - 修改 `/opt/mas-go-dev/backend/.env.docker`：`DB_NAME` 由 `medicalassistance` 改为 `medicalassistance_preprod`（仅这一行）。`WEBKIT_DB_NAME=maswebkit` 未动；host/账号/密码不变。
+  - 强制重建 `icare-backend-api-1` + `icare-backend-worker-1`（含一次性 `seed` 依赖），使新 env 生效。未碰 gotenberg / runner。
+  - 改名过程中库一度不可用，停容器期间 API 短暂不可用（开发测试环境，影响可接受）。
+- 回滚：用备份 `/opt/mas-go-dev/backend/.env.docker.bak.20260619` 覆盖后同样重建容器。
+- 变更：
+  1. 以 `actions-runner` 身份 `cp` 备份后 `sed -i 's/^DB_NAME=medicalassistance$/DB_NAME=medicalassistance_preprod/'` 精确改单行。
+  2. 先 `stop api worker` 释放对旧库的连接（配合 mssql-ref 改名），改名后重建：
+     ```bash
+     cd /opt/mas-go-dev/backend
+     export BACKEND_IMAGE=icare/backend:mas-go-dev-8346d1a908fe958b6c892e52a31de6dd42649bea
+     docker compose -f backend.compose.yaml up --no-build --force-recreate -d api worker
+     ```
+     注意：`start`（而非 `up --force-recreate`）不会重读改过的 `.env.docker`，必须 recreate；且需带镜像 tag，否则默认 `${BACKEND_IMAGE:-icare/backend:local}` 会去拉不存在的 `:local`（同 6-14 那条经验）。`seed` 在旧库名仍存在时会因连不上失败 exit 1、阻断 api/worker；改名后重跑即通过。
+- 验证：
+  - api/worker 启动日志 `database connected ... database=medicalassistance_preprod` + `maswebkit`，无 login failed。
+  - `icare-backend-api-1` 转 `healthy`，worker 正常。
+
 ## 2026-06-14 21:25 CST - 后端 DB 账号切到 mas_ref_owner，修复因 mssql-ref 停用旧账号导致的 500
 
 - 服务器：`mas-go-dev`（`192.168.2.22`）

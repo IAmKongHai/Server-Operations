@@ -32,6 +32,26 @@
   - 给 PVE 增加物理内存，缓解宿主内存紧张（当前布局 18+6+8≈32GiB 仍略超 31GiB 物理量，靠页缓存弹性支撑）。
   - 加完内存后 `ssh pve "qm start 140"` 重新开 `fnos-nas`。
 
+## 2026-06-19 10:48 CST - mas-win MAS-API 连接串库名切到 medicalassistance_preprod（配合 mssql-ref 库改名）
+
+- 服务器：`pve`（VM `120/mas-win`，`192.168.2.21`）
+- 操作人：`Claude`
+- 原因：`mssql-ref` 上库 `medicalassistance` 改名为 `medicalassistance_preprod`（详见 `docs/operations/mssql-ref.md` 2026-06-19）。MAS 老 C# 系统的 `C:\MAS\Apps\MAS-API\Web.config` 把库名硬编码在约 30 个连接串里，需同步改名，否则 MAS-WEB（9021）登录与 API 连库失败（同 2026-06-15 那次故障的连库层）。
+- 影响：
+  - 修改活动 `Web.config`：21 处 `initial catalog=medicalassistance` + 1 处 appSettings `CATALOG_A` 值，统一改为 `medicalassistance_preprod`（共 22 处）。
+  - **未误伤**：`maswebkit` / `insularsalesportal` / `masprepaid` / `authprovidermasweb` 等其它 catalog 不动；`pvLinkedServerMAS=medicalassistance_replicated` 这种带后缀的值不动（用负向断言精确匹配）。`Config - Copy` 副本目录未处理（非活动配置）。
+  - 回收 `MAS-API` 应用池使新配置生效。未动 MAS-WEB（它不直连库）。
+- 回滚：用备份 `C:\MAS\Apps\MAS-API\Web.config.bak.20260619` 覆盖后回收 MAS-API 应用池。
+- 变更：
+  1. `copy /Y` 备份 Web.config 到 `.bak.20260619`。
+  2. 全程走 PVE guest agent（`qm guest exec 120 -- powershell.exe -EncodedCommand`，UTF-16LE base64），本地 `.ps1` 整文件正则替换、UTF-8 无 BOM 写回（同 2026-06-15 的转义解法）。正则用断言 `(?=[;&'"\s])` / `(?![a-z_])` 保护带后缀的值。
+  3. `appcmd recycle apppool /apppool.name:MAS-API`。
+- 验证：
+  - 替换后核对：`initial catalog` 仅 `medicalassistance_preprod`（+其它库名）、`CATALOG_A=medicalassistance_preprod`；`medicalassistance_replicated` 完好（1）、无遗留裸 `medicalassistance`（0）、`_preprod` 共 22 处。
+  - ADO.NET 连库测试：`OK login=mas_ref_owner db=medicalassistance_preprod`。
+  - `http://192.168.2.21:9021/` 返回 HTTP 200。
+- 相关：直接延续 `docs/solutions/pve/runtime-errors/mas-web-login-fail-stale-mssql-user-in-mas-api-2026-06-15.md`（同一份 Web.config、同一套 EncodedCommand 改法），那次改的是账号名，这次改库名。
+
 ## 2026-06-19 00:18 CST - 新增 fnOS NAS VM
 
 - 服务器：`pve`（VM `140/fnos-nas`）
