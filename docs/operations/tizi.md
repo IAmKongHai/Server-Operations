@@ -1,5 +1,19 @@
 # tizi 运维时间线
 
+## 2026-06-19 15:00 CST - 安装 vnstat 流量统计（监控方案第一步）
+
+- 服务器：`tizi`
+- 操作人：`Claude`
+- 原因：实施 `tizi-traffic-accounting-plan-2026-06-19.md` 第一步，部署网卡级精确流量统计，后续与 VPS 面板对账并接 nftables 计数器 + Telegram 告警。
+- 影响：
+  - 安装 `vnstat-2.9`（EPEL 源，`epel-release` 已装、完整 `epel` 仓库原为 disabled，安装时用 `--enablerepo=epel` 临时启用，未持久改动 repo 状态）。
+  - `systemctl enable --now vnstat`，服务 active 且开机自启。
+  - vnstat 只读 `/proc/net/dev` 内核计数器，不抓包、不过流量，对转发性能无影响。
+  - 已识别接口 `eth0`、`tailscale0`；刚装数据库为空（`Not enough data available yet`），需自行积累。
+- 回滚：`systemctl disable --now vnstat && dnf remove -y vnstat`（数据库在 `/var/lib/vnstat/`，如需彻底清理一并删除）。
+- 验证：`systemctl is-active vnstat` → active；`vnstat --iflist` 列出 eth0/tailscale0。
+- 后续：等 1~2 天积累数据后用 `vnstat -m`（月）与 VPS 面板对账，再做 nftables 计数器与 Telegram 告警。
+
 ## 2026-06-19 14:00 CST - S-UI 面板 2095 改为只监听 tailscale 接口
 
 - 服务器：`tizi`

@@ -58,7 +58,7 @@ eth0  合计          = 172.5 GB（约 9 天）
 ## 四、待实施清单
 
 1. [ ] 补充 rao-tizi 的 VPS 提供商面板月用量数值，确定套餐流量上限
-2. [ ] 确认/启用完整 EPEL 源，安装并 enable vnstat，初始化 eth0 数据库
+2. [x] 确认/启用完整 EPEL 源，安装并 enable vnstat，初始化 eth0 数据库（2026-06-19 完成，vnstat 2.9 active，正在积累数据）
 3. [ ] 跑 1~2 天后用 vnstat 月度数据与 VPS 面板对账
 4. [ ] 读出并备份现有 nft ruleset，新增 443 / 8443+80 / 其余 的 counter
 5. [ ] 复用 tizi 的 Telegram 告警脚本（消息标注主机名），配置 rao-tizi 阈值

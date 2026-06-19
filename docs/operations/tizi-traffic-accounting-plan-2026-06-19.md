@@ -82,7 +82,7 @@ eth0  合计          = 947.5 GB   ← 仅 20 天就已超过 VPS 面板的 882 
 
 ## 四、待实施清单（后续执行时展开为具体步骤）
 
-1. [ ] 确认/启用完整 EPEL 源，安装并 enable vnstat，初始化 eth0 数据库
+1. [x] 确认/启用完整 EPEL 源，安装并 enable vnstat，初始化 eth0 数据库（2026-06-19 完成，vnstat 2.9 active，正在积累数据）
 2. [ ] 跑 1~2 天后用 vnstat 月度数据与 VPS 面板对账，确认口径一致
 3. [ ] 读出并备份现有 nft ruleset，新增 443 / 8443+80 / 其余 的 counter
 4. [ ] 编写 Telegram 阈值告警脚本 + cron，token/chat id 存本地 600 文件
