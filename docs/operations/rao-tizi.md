@@ -1,5 +1,37 @@
 # rao-tizi 运维时间线
 
+## 2026-06-19 14:20 CST - S-UI 面板 2095 改为只监听 tailscale 接口
+
+- 服务器：`rao-tizi`
+- 操作人：`Claude`
+- 原因：与主代理 `tizi` 做相同配置——在 `rao-tizi` 安装并登录 tailscale（tailscale IP `100.75.71.21`），希望直接经 tailscale 网络访问 S-UI 面板，取代原先「先建 SSH 隧道再访问 `http://127.0.0.1:2095/`」的方式。参见 `tizi.md` 2026-06-19 同名记录。
+- 影响：
+  - S-UI 面板（`sui` 进程）监听地址从 `127.0.0.1:2095` 改为 `100.75.71.21:2095`，只在 tailscale 接口 `tailscale0` 上监听。
+  - 公网网卡（公网 IP `64.64.253.141`）上不再有进程监听 2095，公网无法访问面板。
+  - **原 SSH 隧道访问 `http://127.0.0.1:2095/` 方式失效**，以后改用 tailscale 客户端访问 `http://100.75.71.21:2095/app/`。
+  - 订阅端口 2096（`subListen`）保持 `127.0.0.1` 不变，本次未动。
+  - firewalld：将 `tailscale0` 接口绑定到内置 `trusted` zone（target ACCEPT，放行 tailscale 网络内所有入站）。公网 `public` zone 策略不变，仍只开 `ssh/80/443/8443`。
+  - 未改动 nginx、443 数据面（翻墙/反代连接不受影响）。
+  - 重启 `s-ui` 期间面板短暂中断约几秒，数据面不受影响。
+- 回滚：
+  1. `cp -a /usr/local/s-ui/db/s-ui.db.before-tailscale-panel-20260619 /usr/local/s-ui/db/s-ui.db`
+  2. 或直接 `sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE settings SET value=\"127.0.0.1\" WHERE key=\"webListen\";"`
+  3. `systemctl restart s-ui`
+  4. firewalld 回滚：`firewall-cmd --permanent --zone=trusted --remove-interface=tailscale0 && firewall-cmd --reload`
+- 变更：
+  - 备份数据库：`cp -a /usr/local/s-ui/db/s-ui.db{,.before-tailscale-panel-20260619}`
+  - `systemctl stop s-ui`
+  - `sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE settings SET value=\"100.75.71.21\" WHERE key=\"webListen\";"`
+  - `systemctl start s-ui`
+  - `firewall-cmd --permanent --zone=trusted --add-interface=tailscale0 && firewall-cmd --reload`
+- 验证：
+  - `ss -tlnp | grep 2095` 显示监听地址为 `100.75.71.21:2095`（原为 `127.0.0.1:2095`）
+  - `sui setting -show` 显示 `Panel IP: 100.75.71.21`
+  - 本机探测公网 `64.64.253.141:2095` → `Connection refused`（公网不可达，符合预期）
+  - `firewall-cmd --get-zone-of-interface=tailscale0` 返回 `trusted`
+  - 从客户端 tailscale 设备访问 `http://100.75.71.21:2095/app/`（面板路径为 `/app/`，根路径 `/` 会失败）
+- 说明：经验来自 `tizi` 同日操作——`tailscale0` 默认 `no zone`，仅改监听 IP 不够，必须把接口划入 `trusted` zone，否则 tailnet 客户端被 firewalld 拒（`ERR_CONNECTION_REFUSED`），而本机自连因走 loopback 不过 firewalld 会有「已 OK」假象。
+
 ## 2026-06-11 12:25 CST - 调整 S-UI 用户流量月度重置时间
 
 - 服务器：`rao-tizi`
