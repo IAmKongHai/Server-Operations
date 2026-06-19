@@ -60,6 +60,25 @@ tags:
 | **A 类·可直接改** | 97（96 SP + 1 函数）| 引用的表在目标库均存在，`_replicated` → `_preprod` 即修复 |
 | **B 类·需先决策** | 1 | `insularsalesportal.sp_getretailfranchisingdetails`，引用了目标库**不存在**的表 `tblprovidertemplate`，改名解决不了，先搁置待用户决策 |
 
+## 执行进度（2026-06-19 实际改库）
+
+| 库 | 结果 | 说明 |
+| --- | --- | --- |
+| `maswebkit` | ✅ 14/14 成功 | `_replicated` 残留 0；改过对象对 `_preprod` 的 9689 处引用全部解析 OK |
+| `masprepaid` | ⚠️ 13/14 成功 | 1 个失败 → 见 C 类 |
+| `insularsalesportal` | ⏸ 未执行 | 70 个，待列级差异全量核对后再改 |
+
+### 新增 C 类·目标库缺列（改名后编译失败）
+
+- `masprepaid.sp_checkprepaidcancellationdate`：第 32 行 `SELECT DATEADD(DAY, cancellationdays, ...) FROM medicalassistance_replicated.dbo.tblcompanyclasses`。
+  目标库 `medicalassistance_preprod.dbo.tblcompanyclasses` 存在（56 列），但**无 `cancellationdays` 列** → ALTER 报 Msg 207，已跳过未改，保持原 `_replicated` 定义。
+- **教训**：第 1 步只比对了"表是否存在"，未比对"列是否存在"。`maswebkit` 凑巧列全（9689 引用全 OK），`masprepaid` 撞上缺列。`insularsalesportal`（70 个、引用面更广）执行前必须先做**列级差异全量核对**。
+
+> 至此例外分三类：
+> - **B 类（缺表）**：`insularsalesportal.sp_getretailfranchisingdetails` → `tblprovidertemplate` 不存在
+> - **C 类（缺列）**：`masprepaid.sp_checkprepaidcancellationdate` → `tblcompanyclasses.cancellationdays` 不存在
+> - 两类都需补表/补列或改写 SP，单纯改库名解决不了。
+
 ## 已确认的事实
 
 - 引用形态统一为 `medicalassistance_replicated.dbo.<tbl*>` 三段式；存在个别 `[medicalassistance_replicated].dbo.` 方括号写法。
