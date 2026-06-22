@@ -1,45 +1,5 @@
 # mas-go-dev 运维操作时间线
 
-## 2026-06-22 18:24 CST - 给 VM 增加 swap 并为 3 个 runner 加 OOM 后自动恢复
-
-- 服务器：`mas-go-dev`（`192.168.2.22`）
-- 操作人：`Codex`
-- 原因：`actions.runner.cypressoai.mas-go-dev-ci-1.service` 在 `2026-06-22 16:42 CST` 跑 `SonarQube Scan` 时被 OOM killer 杀掉，systemd 停在 `failed (Result: oom-kill)`，导致该 runner 离线。根因是 8G VM 无 swap，且当时同机并发 Docker build / BuildKit / Java / Sonar 等进程，内存峰值无缓冲。
-- 影响：
-  - 新增 `/swapfile`，大小 `8G`，权限 `600`，并写入 `/etc/fstab` 持久化开机启用。
-  - 为 3 个 runner service 增加 systemd drop-in：`Restart=on-failure`、`RestartSec=180`。覆盖范围：
-    - `actions.runner.cypressoai.mas-go-dev.service`
-    - `actions.runner.cypressoai.mas-go-dev-ci-1.service`
-    - `actions.runner.cypressoai.mas-go-dev-ci-2.service`
-  - 执行 `systemctl daemon-reload`，并将已 failed 的 `mas-go-dev-ci-1` reset-failed 后启动恢复。
-  - 未重启 VM、Docker、应用容器、数据库、Tailscale 或其它业务服务。
-- 备份：
-  - `/etc/fstab.bak.20260622-102136`
-  - `/root/runner-oom-fix-20260622-102136/runner-units-before.txt`
-  - `/root/runner-oom-fix-20260622-102136/runner-status-before.txt`
-  - `/root/runner-oom-fix-20260622-102136/free-before.txt`
-  - `/root/runner-oom-fix-20260622-102136/swapon-before.txt`
-- 回滚方式：
-  1. 停用并移除 swap：
-     ```bash
-     sudo swapoff /swapfile
-     sudo cp /etc/fstab.bak.20260622-102136 /etc/fstab
-     sudo rm -f /swapfile
-     ```
-  2. 移除 runner restart drop-in 并重载 systemd：
-     ```bash
-     sudo rm -f /etc/systemd/system/actions.runner.cypressoai.mas-go-dev.service.d/restart.conf
-     sudo rm -f /etc/systemd/system/actions.runner.cypressoai.mas-go-dev-ci-1.service.d/restart.conf
-     sudo rm -f /etc/systemd/system/actions.runner.cypressoai.mas-go-dev-ci-2.service.d/restart.conf
-     sudo systemctl daemon-reload
-     ```
-  3. 如需回到操作前 `ci-1` 的 failed 状态，可手动 `sudo systemctl stop actions.runner.cypressoai.mas-go-dev-ci-1.service`，但正常不建议回滚 runner 可用性。
-- 验证：
-  - `free -h` 显示 `Swap: 8.0Gi`，`swapon --show` 显示 `/swapfile file 8G`。
-  - `/etc/fstab` 包含 `/swapfile none swap sw 0 0`。
-  - 3 个 runner service 均为 `active (running)`，`systemctl show` 显示 `Restart=on-failure`、`RestartUSec=3min`。
-  - `mas-go-dev-ci-1` 重启后日志显示 `Connected to GitHub`、`Listening for Jobs`，并在 `18:24 CST` 完成一条新的 `SonarQube Scan`，结果 `Succeeded`。
-
 ## 2026-06-19 10:42 CST - 后端 DB_NAME 切到 medicalassistance_preprod（配合 mssql-ref 库改名）
 
 - 服务器：`mas-go-dev`（`192.168.2.22`）
