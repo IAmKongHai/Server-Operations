@@ -1,5 +1,22 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-22 09:38 CST - 补充：对比存储过程，生成把 _preprod 缺的 146 个 SP 补全的脚本（语法验证通过，未执行）
+
+- 服务器：`mssql-ref`（`192.168.2.20`），按生产对待。
+- 操作人：`Claude`
+- 原因：上一条只补了表/字段，遗漏了可编程对象。继续让 `_preprod` 成超集，补存储过程。
+- 做了什么（只读对比 + PARSEONLY 校验，preprod 零改动）：
+  1. **对象计数**：完整库 sql 含 1618 SP / 13 函数 / 2 视图；preprod 线上 1512 SP / 14 函数 / 2 视图。注意 preprod 的 SP 反而更多（Go 重构 + 06-19 改名工程新增）。
+  2. **按对象名差集**（不按内容，因 06-19 改名后同名 SP 内容已不同）：full 有、preprod 缺 = **146 个，全部是存储过程**；函数/视图无缺失。preprod 独有 41 个。
+     - 踩坑：sqlcmd `LOWER(type)` 对 'P' 返回 `'p '`（char(2) 带尾空格），首次差集因分隔符错位误报"全缺"；改为只按对象名（去空白）比对才正确。
+  3. **提取 DDL**：从 full.sql 抠出 146 个 SP 的完整定义（含 SET 包裹），生成 `import_sp_into_preprod_20260622.sql`（460KB）+ 清单 `import_sp_checklist_20260622.tsv`。
+  4. **核验**：146 个 SP 定义内**无 medicalassistance_replicated 跨库引用**（不会重新引入断链）；全部通过 `SET PARSEONLY` 语法校验。
+- 影响：仅生成脚本，未执行。preprod 对象数不变。
+- 执行顺序：**必须先跑 import_into_preprod（表/列）再跑本 SP 脚本**——多个 SP 引用第一步新建的表（如 tblbatchloamappingdetails / tbldoctorewtjournal）。已写进 SP 脚本头部注释。
+- 其中 80 个 SP 带 v2~v7 版本号后缀（老系统功能迭代版），按用户决策全补。
+- 回滚：脚本未执行，无需回滚；执行前须备份 preprod。
+- 验证结果：PARSEONLY 全过；无 _replicated 引用；preprod 未改动。
+
 ## 2026-06-22 08:50 CST - 对比三份 medicalassistance 结构，生成把缺失表/字段补进 _preprod 的导入脚本（已事务验证，未执行）
 
 - 服务器：`mssql-ref`（`192.168.2.20`），按生产对待。
