@@ -1,0 +1,178 @@
+table	column	diff_type	note	full	preprod	replicated
+dbo.casbin_rule		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.schema_migrations		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.srscompanysoa		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.srscreditmemo		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.srsretailsoa		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.sys_audit_logs		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.sys_menus		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.sys_roles		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.sys_user_companies		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.sys_user_menu_favorites		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.sys_user_roles		TABLE_PRESENCE	full=缺,preprod=有,replicated=缺	缺	有	缺
+dbo.sysdiagrams		TABLE_PRESENCE	full=缺,preprod=有,replicated=有	缺	有	有
+dbo.tblacctglcvmemo		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblacctgljvmemo		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblagentattachments		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblagentattachments	storage_ref	COLUMN_DIFF		缺	nvarchar(1024) null	(无此表)
+dbo.tblagentattachments	original_filename	COLUMN_DIFF		缺	nvarchar(255) null	(无此表)
+dbo.tblagentattachments	content_type	COLUMN_DIFF		缺	nvarchar(128) null	(无此表)
+dbo.tblagentattachments	size_bytes	COLUMN_DIFF		缺	bigint not null	(无此表)
+dbo.tblagentattachments	uploadedby	COLUMN_DIFF		缺	int not null	(无此表)
+dbo.tblagents	franchisecode	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblapplicationjournals	franchisecode	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblapplicationmedhistory	franchisecode	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblapplicationprevillnesses	franchisecode	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblapplications	payorrelationship1	COLUMN_DIFF		tinyint not null	缺	tinyint not null
+dbo.tblapplications	payorrelationship2	COLUMN_DIFF		varchar(100) not null	缺	varchar(100) not null
+dbo.tblapproveclaimbillings		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblauthoritytodeductsettings	confirmationtext	COLUMN_DIFF		varchar(500) not null	varchar(200) not null	varchar(500) not null
+dbo.tblauthoritytodeductsettings	atdtext	COLUMN_DIFF		varchar(500) not null	缺	varchar(500) not null
+dbo.tblbatchclaimsprocessing		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblbatchclaimsprocessingdetails		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblbatchclaimsprocessingdummy		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblbatchclaimsprocessingfundcharging		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblbatchloamapping		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblbatchloamappingdetails		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblbatchloamappingdummydetails		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblbenefitplanjournal		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblbenefitsa	iorta	COLUMN_DIFF		bit not null	缺	bit not null
+dbo.tblbenefitsa	dentalcoverage	COLUMN_DIFF		tinyint not null	缺	tinyint not null
+dbo.tblbenefitsajournal		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblclaimbillings	membertype	COLUMN_DIFF		char(20) not null	char(5) not null	char(20) not null
+dbo.tblclaimbillings	remarks	COLUMN_DIFF		varchar(100) not null	varchar(240) null	varchar(100) not null
+dbo.tblclaimdetails	roomno	COLUMN_DIFF		varchar(20) not null	varchar(50) not null	varchar(20) not null
+dbo.tblclaimdocumentcategories		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblclaimreimrequirements		TABLE_PRESENCE	full=有,preprod=缺,replicated=有	有	缺	有
+dbo.tblclaimsupportingdocuments		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblcompany	streetaddress	COLUMN_DIFF		varchar(100) not null	varchar(200) not null	varchar(100) not null
+dbo.tblcompany_maskingbackup		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblcompanyadvisorysettings	createdby	COLUMN_DIFF		int not null	int not null	缺
+dbo.tblcompanyadvisorysettings	datecreated	COLUMN_DIFF		smalldatetime not null	smalldatetime not null	缺
+dbo.tblcompanybenefitplan	limitsetupothers	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblcompanyclaimstat		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblcompanyclaimstatjournal		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblcompanyclasses	cancellationdays	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblcompanyclasses	dentalinformation	COLUMN_DIFF		bit not null	缺	bit not null
+dbo.tblcompanyclasses	vpdlinkcode	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblcompanyclasses	clinicbased	COLUMN_DIFF		bit not null	缺	bit not null
+dbo.tblcompanyclassesbilling	roomcategory	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblcompanyclassesbillingrefund		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblcompanyclassesvpdlink		TABLE_PRESENCE	full=有,preprod=缺,replicated=有	有	缺	有
+dbo.tblcompanycontractyears	renewalcontractcode	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblcompanycontractyears	autorenewal	COLUMN_DIFF		varchar(50) not null	缺	varchar(50) not null
+dbo.tblcompanydisplaysettings	createdby	COLUMN_DIFF		int not null	int not null	缺
+dbo.tblcompanydisplaysettings	datecreated	COLUMN_DIFF		smalldatetime not null	smalldatetime not null	缺
+dbo.tblcompanyemailtemplate		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblcompanyemailtemplateattachments		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblcompanyjournal	description	COLUMN_DIFF		varchar(200) not null	varchar(300) not null	varchar(200) not null
+dbo.tblcompanymodalfactor	annual	COLUMN_DIFF		numeric(18,4) null	numeric(18,2) not null	numeric(18,4) null
+dbo.tblcompanymodalfactor	semiannual	COLUMN_DIFF		numeric(18,4) null	numeric(18,2) not null	numeric(18,4) null
+dbo.tblcompanymodalfactor	quarterly	COLUMN_DIFF		numeric(18,4) null	numeric(18,2) not null	numeric(18,4) null
+dbo.tbldoctorannouncement	departmentindex	COLUMN_DIFF		varchar(100) not null	varchar(max) not null	varchar(100) not null
+dbo.tbldoctorannouncement	departmentname	COLUMN_DIFF		varchar(240) not null	varchar(max) not null	varchar(240) not null
+dbo.tbldoctorewtdetails		TABLE_PRESENCE	full=有,preprod=缺,replicated=有	有	缺	有
+dbo.tbldoctorewtjournal		TABLE_PRESENCE	full=有,preprod=缺,replicated=有	有	缺	有
+dbo.tblexceptions	sra	COLUMN_DIFF		varchar(100) not null	缺	varchar(100) not null
+dbo.tblexceptions	remarks	COLUMN_DIFF		varchar(240) not null	缺	varchar(240) not null
+dbo.tblfranchiseuserauditlevel		TABLE_PRESENCE	full=有,preprod=缺,replicated=有	有	缺	有
+dbo.tblmemberannouncement	departmentindex	COLUMN_DIFF		varchar(100) not null	varchar(max) not null	varchar(100) not null
+dbo.tblmemberannouncement	departmentname	COLUMN_DIFF		varchar(240) not null	varchar(max) not null	varchar(240) not null
+dbo.tblmemberportalsettings	showconfirm	COLUMN_DIFF		bit not null	缺	bit not null
+dbo.tblmemberportalsettings	dependenttopup	COLUMN_DIFF		bit not null	缺	bit not null
+dbo.tblmemberportalsettingsjournal		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblmembers	cdmpapprovedby	COLUMN_DIFF		int not null	缺	int not null
+dbo.tblmembers	cdmpapproveddate	COLUMN_DIFF		smalldatetime not null	缺	smalldatetime not null
+dbo.tblmembers_maskingbackup		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblmembertermination		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tblmemberuploadbatch	autorenewal	COLUMN_DIFF		varchar(50) not null	缺	varchar(50) not null
+dbo.tblnonpayables		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblportalsettings		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblportalsoa	selectedbatch	COLUMN_DIFF		varchar(500) null	varchar(max) not null	varchar(500) null
+dbo.tblportalsoa	soano	COLUMN_DIFF		varchar(50) not null	varchar(500) null	varchar(50) not null
+dbo.tblportalupload	autorenewal	COLUMN_DIFF		varchar(50) not null	缺	varchar(50) not null
+dbo.tblproductlines	iorta	COLUMN_DIFF		bit not null	缺	bit not null
+dbo.tblproviderannouncement	departmentindex	COLUMN_DIFF		varchar(100) not null	varchar(max) not null	varchar(100) not null
+dbo.tblproviderannouncement	departmentname	COLUMN_DIFF		varchar(240) not null	varchar(max) not null	varchar(240) not null
+dbo.tblsettingsaccounting		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblsettingsagentcommission		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblsettingsmedical	fundchargingvat	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsmedical	loaautoapproveamount	COLUMN_DIFF		numeric(18,2) not null	numeric(18,2) not null	缺
+dbo.tblsettingsmedical	loamappinginbox	COLUMN_DIFF		varchar(250) not null	缺	缺
+dbo.tblsettingsmedical	loamappingarchive	COLUMN_DIFF		varchar(250) not null	缺	缺
+dbo.tblsettingsmedical	loamappingdefaulticd	COLUMN_DIFF		varchar(20) not null	缺	缺
+dbo.tblsettingsmedical	batchclaimsinbox	COLUMN_DIFF		varchar(250) not null	varchar(250) not null	缺
+dbo.tblsettingsmedical	batchclaimsarchive	COLUMN_DIFF		varchar(250) not null	varchar(250) not null	缺
+dbo.tblsettingsnto		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblsettingsreport		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblsettingstreasury		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblsettingsunderwriting	groupmemberage	COLUMN_DIFF		tinyint not null	tinyint not null	缺
+dbo.tblsettingsunderwriting	monthlydays	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	quarterlydays	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	semiannualdays	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	annualdays	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	memcardpreffix	COLUMN_DIFF		varchar(20) not null	varchar(20) not null	缺
+dbo.tblsettingsunderwriting	memberpayeecode	COLUMN_DIFF		int not null	int not null	缺
+dbo.tblsettingsunderwriting	soareportpath	COLUMN_DIFF		varchar(200) not null	varchar(200) not null	缺
+dbo.tblsettingsunderwriting	nextmonthday	COLUMN_DIFF		tinyint not null	tinyint not null	缺
+dbo.tblsettingsunderwriting	vatsale	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	vatoutput	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	homecreditpath	COLUMN_DIFF		varchar(200) not null	varchar(200) not null	缺
+dbo.tblsettingsunderwriting	retailtolerance	COLUMN_DIFF		numeric(18,2) not null	numeric(18,2) not null	缺
+dbo.tblsettingsunderwriting	sobcardimagepath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	sobagreementpath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	sobdetailspath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	sobimageurl	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	ftpsobimageurl	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	ftpsobimageserver	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	ftpsobimageusername	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	ftpsobimagepassword	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	ftpsobimageport	COLUMN_DIFF		smallint not null	smallint not null	缺
+dbo.tblsettingsunderwriting	dbsobagreementpath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	dbsobdetailspath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	billdatefrom1	COLUMN_DIFF		tinyint not null	tinyint not null	缺
+dbo.tblsettingsunderwriting	billdatefrom2	COLUMN_DIFF		tinyint not null	tinyint not null	缺
+dbo.tblsettingsunderwriting	corptolerancerate	COLUMN_DIFF		numeric(18,2) not null	numeric(18,2) not null	缺
+dbo.tblsettingsunderwriting	salesresourcepath	COLUMN_DIFF		varchar(240) null	varchar(240) null	缺
+dbo.tblsettingsunderwriting	franchisingpath	COLUMN_DIFF		varchar(240) not null	varchar(240) not null	缺
+dbo.tblsettingsunderwriting	ftpcompanysob	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	ftplocalsob	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	companysobpath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	membersobpath	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	emailprofilename	COLUMN_DIFF		varchar(50) not null	varchar(50) not null	缺
+dbo.tblsettingsunderwriting	salesportalurl	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	vatsales	COLUMN_DIFF		numeric(6,2) not null	numeric(6,2) not null	缺
+dbo.tblsettingsunderwriting	sftpsobimageserver	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	sftpsobimageusername	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	sftpsobimagepassword	COLUMN_DIFF		varchar(100) not null	varchar(100) not null	缺
+dbo.tblsettingsunderwriting	sftpsobimageport	COLUMN_DIFF		smallint not null	smallint not null	缺
+dbo.tblsettingsunderwriting	globalcredittermmonthly	COLUMN_DIFF		int not null	int not null	缺
+dbo.tblsettingsunderwriting	globalcredittermquarterly	COLUMN_DIFF		int not null	int not null	缺
+dbo.tblsettingsunderwriting	globalcredittermsemiannual	COLUMN_DIFF		int not null	int not null	缺
+dbo.tblsettingsunderwriting	paymentdeadline1	COLUMN_DIFF		smalldatetime not null	smalldatetime not null	缺
+dbo.tblsettingsunderwriting	paymentdeadline2	COLUMN_DIFF		smalldatetime not null	smalldatetime not null	缺
+dbo.tblsettingsunderwriting	dcftemplatepath	COLUMN_DIFF		varchar(150) not null	缺	缺
+dbo.tblsettingsunderwriting	dbmasmembers	COLUMN_DIFF		varchar(20) not null	varchar(30) not null	缺
+dbo.tblsettingsunderwriting	settingcode	COLUMN_DIFF		int identity not null	缺	int identity not null
+dbo.tblsettingsweb	cdmpmedicaldeclarationpath	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblsettingsweb	cdmpcurrentmedicationpath	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblsettingsweb	cdmphealthcoachappointmentspath	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblsettingsweb	cdmpnutritioncounsellingpath	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblsettingsweb	cdmpresourcecenterpath	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblsettingsweb	cdmphomelaboratoryexampath	COLUMN_DIFF		varchar(200) not null	缺	varchar(200) not null
+dbo.tblsoaaccounts	remarks	COLUMN_DIFF		varchar(50) not null	varchar(240) not null	varchar(50) not null
+dbo.tblsoaconsolidateddetails		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tblunconfirmedmembers		TABLE_PRESENCE	full=有,preprod=缺,replicated=缺	有	缺	缺
+dbo.tbluploadbatchclaims		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tbluploadbatchclaims	cancelledby	COLUMN_DIFF		int not null	缺	(无此表)
+dbo.tbluploadbatchclaims	datecancelled	COLUMN_DIFF		smalldatetime not null	缺	(无此表)
+dbo.tbluploadbatchclaims	adjudication	COLUMN_DIFF		tinyint not null	缺	(无此表)
+dbo.tbluploadbatchclaimsdetails		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tbluploadbatchclaimsdummydetails		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tbluploadbatchclaimsdummydetails	claimremarks	COLUMN_DIFF		varchar(250) not null	varchar(240) not null	(无此表)
+dbo.tbluploadbatchclaimsfailed		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.temp		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tempfinal		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.tempfinal1		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.temptbl		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺
+dbo.temptbl1		TABLE_PRESENCE	full=有,preprod=有,replicated=缺	有	有	缺

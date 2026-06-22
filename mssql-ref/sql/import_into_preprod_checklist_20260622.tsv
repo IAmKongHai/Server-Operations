@@ -1,0 +1,52 @@
+category	table	column	definition	note
+NEW_TABLE	dbo.tblbatchloamapping	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblbatchloamappingdetails	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblbatchloamappingdummydetails	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblclaimreimrequirements	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblcompanyclassesvpdlink	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tbldoctorewtdetails	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tbldoctorewtjournal	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblfranchiseuserauditlevel	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblmemberportalsettingsjournal	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblmembertermination	(整表)	-	从完整库新建
+NEW_TABLE	dbo.tblunconfirmedmembers	(整表)	-	从完整库新建
+ADD_COLUMN	dbo.tblagents	franchisecode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblapplicationjournals	franchisecode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblapplicationmedhistory	franchisecode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblapplicationprevillnesses	franchisecode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblapplications	payorrelationship1	tinyint NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblapplications	payorrelationship2	varchar(100) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblauthoritytodeductsettings	atdtext	varchar(500) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblbenefitsa	dentalcoverage	tinyint NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblbenefitsa	iorta	bit NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanybenefitplan	limitsetupothers	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanyclasses	cancellationdays	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanyclasses	clinicbased	bit NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanyclasses	dentalinformation	bit NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanyclasses	vpdlinkcode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanyclassesbilling	roomcategory	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanycontractyears	autorenewal	varchar(50) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblcompanycontractyears	renewalcontractcode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblexceptions	remarks	varchar(240) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblexceptions	sra	varchar(100) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblmemberportalsettings	dependenttopup	bit NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblmemberportalsettings	showconfirm	bit NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblmembers	cdmpapprovedby	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblmembers	cdmpapproveddate	smalldatetime NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblmemberuploadbatch	autorenewal	varchar(50) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblportalupload	autorenewal	varchar(50) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblproductlines	iorta	bit NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsmedical	loamappingarchive	varchar(250) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsmedical	loamappingdefaulticd	varchar(20) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsmedical	loamappinginbox	varchar(250) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsunderwriting	dcftemplatepath	varchar(150) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsunderwriting	settingcode	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsweb	cdmpcurrentmedicationpath	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsweb	cdmphealthcoachappointmentspath	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsweb	cdmphomelaboratoryexampath	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsweb	cdmpmedicaldeclarationpath	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsweb	cdmpnutritioncounsellingpath	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tblsettingsweb	cdmpresourcecenterpath	varchar(200) NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tbluploadbatchclaims	adjudication	tinyint NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tbluploadbatchclaims	cancelledby	int NOT NULL	补字段(NOT NULL已加默认值)
+ADD_COLUMN	dbo.tbluploadbatchclaims	datecancelled	smalldatetime NOT NULL	补字段(NOT NULL已加默认值)

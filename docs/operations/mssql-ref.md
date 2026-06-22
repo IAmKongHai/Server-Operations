@@ -1,5 +1,26 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-22 08:50 CST - 对比三份 medicalassistance 结构，生成把缺失表/字段补进 _preprod 的导入脚本（已事务验证，未执行）
+
+- 服务器：`mssql-ref`（`192.168.2.20`），按生产对待。
+- 操作人：`Claude`
+- 原因：目标是让 `medicalassistance_preprod`（Go 重构版使用中的库）成为结构最完整的超集，把完整库 `medicalassistance`（432 表，仅存在于结构 sql 文件，本机未恢复）有、但 `_preprod` 缺的表和字段补齐。
+- 对比来源（三份，均在 `mssql-ref/sql/`）：
+  - `medicalassistance_20260620_sql.sql`（完整库 full，432 表，UTF-16，SSMS 导出）
+  - `medicalassistance_replicated`（线上库，388 表）与 `medicalassistance_preprod`（线上库，428 表），直连查询。
+- 做了什么（全程只读 + 事务回滚，preprod 零改动）：
+  1. **统一口径对比**：完整库走 sql 解析，两个线上库走 `INFORMATION_SCHEMA.COLUMNS` 直连查询，归一化类型表达（去 identity/default、`numeric(n)`→`numeric(n,0)`）后逐表逐字段比对。结果落 `schema_diff_replicated_vs_preprod_20260620.tsv`、两库列清单 `columns_*_20260621.tsv`。
+  2. **full→preprod 差集**：完整库有、preprod 缺 = 13 表 + 40 列（21 张共有表）；另有 20 处同名列类型不一致（preprod 多为主动改宽，非缺失，不动）。
+  3. **生成导入脚本** `import_into_preprod_20260622.sql`：
+     - 第一部分新建 **11 张表**（排除 2 张脱敏临时表 `tblcompany_maskingbackup`/`tblmembers_maskingbackup`），DDL 直接抠自完整库 sql（含主键、`IF OBJECT_ID IS NULL` 保护、去掉块内 GO）。
+     - 第二部分补 **40 个字段**，缺失的 NOT NULL 列一律加 DEFAULT（数值 `0`、字符 `''`、日期 `'1900-01-01'`），避免对已有数据 ADD 失败。
+  4. **真机验证**：用 `BEGIN TRAN ... ROLLBACK` 在 preprod 上实际执行全脚本（11 建表 + 40 加列）无报错后回滚；复查 preprod 表数仍 428、`tblbatchloamapping` OBJECT_ID 仍 -1，确认零改动。
+- 影响：**仅生成脚本与对比产物，未对任何库执行 DDL**。preprod 结构未变。
+- 关联遗留待办：本次补全清单**正好覆盖** 2026-06-19 SP 改名工程遗留的缺表/缺列例外——缺表 `tblprovidertemplate` 不在本次 13 表内（完整库也无此表，需另查来源），但缺列 `tblagents.franchisecode`、`tblproductlines.iorta`、`tblbenefitsa.iorta`、`tblcompanyclasses.cancellationdays` **均已包含在 40 列补全脚本中**，执行后可解锁对应 SP 改名。
+- 回滚：脚本尚未执行，无需回滚；将来执行前须先备份 preprod（改库守则）。脚本只增不删、可重复执行。
+- 验证结果：PARSEONLY 语法校验通过；事务执行+回滚通过；preprod 表数 428 不变。
+- 踩坑：`mssql-scripter` 对 `medicalassistance_preprod` 稳定卡死（0 字节挂起、CPU 0%、进程睡眠），replicated 正常；已改用 `INFORMATION_SCHEMA` 直连查询替代。详见 `docs/solutions/mssql-ref/workflow-issues/`。
+
 ## 2026-06-19 15:10 CST - insularsalesportal 66 个 SP 跨库引用 _replicated 改名 _preprod（全三库工程收口，5 例外遗留）
 
 - 服务器：`mssql-ref`（`192.168.2.20`），按生产对待，已先备份（见 13:30 记录）。
