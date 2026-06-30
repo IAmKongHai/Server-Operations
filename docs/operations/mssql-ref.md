@@ -1,5 +1,33 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-30 16:35 CST - 安装 Tailscale 客户端（未加入 Tailnet）
+
+- 服务器：`mssql-ref`（`192.168.2.20`），参考/测试数据库 VM，改系统包前仍按需记录。
+- 操作人：`Codex`
+- 原因：用户要求检查并安装 Tailscale，便于后续把该 VM 纳入 Tailscale 网络管理。
+- 影响：
+  - 新增 Tailscale 官方 apt 源与 keyring：
+    - `/etc/apt/sources.list.d/tailscale.list`
+    - `/usr/share/keyrings/tailscale-archive-keyring.gpg`
+  - 安装 `tailscale` 与 `tailscale-archive-keyring` 包；`tailscaled.service` 被 systemd 启用并启动。
+  - 未执行 `tailscale up`，因此该 VM 尚未加入任何 Tailnet，状态仍为 `Logged out`。
+  - 未重启 VM，未改防火墙，未改数据库。
+- 回滚：
+  - 卸载包：`sudo apt purge tailscale tailscale-archive-keyring`
+  - 删除源文件：`sudo rm /etc/apt/sources.list.d/tailscale.list`
+  - 需要彻底清理状态时再删除 `/var/lib/tailscale/`（当前未登录，通常无有效节点状态）。
+- 做了什么：
+  1. 预检查确认 `tailscale` / `tailscaled` 命令不存在，`tailscaled` systemd unit 不存在，`dpkg-query` 无已安装包记录。
+  2. 读取 `/etc/os-release` 确认 Ubuntu codename 为 `jammy`。
+  3. 从 Tailscale 官方源写入 `jammy` 对应 keyring 与 apt source。
+  4. 执行 `sudo apt-get update` 与 `sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tailscale`。
+- 验证结果：
+  - `tailscale version`：`1.98.8`
+  - `systemctl is-enabled tailscaled`：`enabled`
+  - `systemctl is-active tailscaled`：`active`
+  - `tailscale status`：`Logged out.`
+- 备注：安装过程中 apt 提示当前运行内核 `5.15.0-181-generic` 不是已安装的期望版本 `5.15.0-185-generic`，并提示可考虑重启加载新内核；本次未执行任何重启。
+
 ## 2026-06-22 09:38 CST - 补充：对比存储过程，生成把 _preprod 缺的 146 个 SP 补全的脚本（语法验证通过，未执行）
 
 - 服务器：`mssql-ref`（`192.168.2.20`），按生产对待。
