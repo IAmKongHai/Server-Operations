@@ -1,5 +1,41 @@
 # mssql-ref 运维操作时间线
 
+## 2026-06-30 17:00 CST - 设置一次性定时重启以加载新内核
+
+- 服务器：`mssql-ref`（`192.168.2.20`）。
+- 操作人：`Codex`
+- 原因：安装 Tailscale 时 apt 提示 VM 已安装新内核但当前仍运行旧内核；用户确认在明天凌晨 3 点执行一次性重启。
+- 计划重启时间：
+  - `2026-07-01 03:00 CST`
+  - VM 本地时间：`2026-06-30 19:00 UTC`（VM 时区为 `Etc/UTC`）
+- 影响：
+  - VM 会短暂离线。
+  - SQL Server、SSH、Tailscale 会随 VM 重启中断。
+  - 未设置 crontab 或循环任务，仅登记一次性 systemd shutdown。
+- 回滚 / 取消：
+  - 在重启执行前运行 `sudo shutdown -c` 可取消本次定时重启。
+- 重启前预检：
+  - 当前 VM 时间：`Tue Jun 30 09:00:05 AM UTC 2026`
+  - 当前运行内核：`5.15.0-181-generic`
+  - 已安装新内核：`5.15.0-185-generic`
+  - `/run/reboot-required` 存在。
+  - `mssql-server`：`active`
+  - `tailscaled`：`active`
+  - Tailscale IP：`100.124.140.78`
+  - SQL Server 监听：`0.0.0.0:1433` 与 `*:1433`
+  - 从本机测试 `100.124.140.78:1433` TCP 连接成功。
+  - 根分区 `/` 使用率约 `10%`。
+- 做了什么：
+  1. 执行一次性定时重启：
+     ```bash
+     sudo shutdown -r 19:00 "Scheduled one-time reboot to load kernel 5.15.0-185-generic; target time 2026-07-01 03:00 CST"
+     ```
+  2. 命令返回：`Reboot scheduled for Tue 2026-06-30 19:00:00 UTC, use 'shutdown -c' to cancel.`
+  3. 读取 `/run/systemd/shutdown/scheduled`，确认：
+     - `MODE=reboot`
+     - `WALL_MESSAGE=Scheduled one-time reboot to load kernel 5.15.0-185-generic; target time 2026-07-01 03:00 CST`
+- 后续验证计划：重启窗口后确认 `uname -r` 是否变为 `5.15.0-185-generic`，并验证 `mssql-server`、`tailscaled`、`100.124.140.78:1433` 是否恢复。
+
 ## 2026-06-30 16:41 CST - 记录 Tailscale IP 并验证 MSSQL 端口可达
 
 - 服务器：`mssql-ref`（`192.168.2.20`）。
