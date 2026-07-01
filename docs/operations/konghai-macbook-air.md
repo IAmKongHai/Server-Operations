@@ -1,5 +1,43 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-02 00:56 CST - 安装 Apple container 并验证 daohen-diary 容器化兼容性
+
+- 原因：用户希望在本机安装 Apple 开源项目 `apple/container`，并评估 `/Users/konghai/Code_local/Project/daohen-diary` 是否可用它部署。
+- 影响：
+  - 本机安装 `container` CLI 1.0.0 到 `/usr/local/bin/container`，同时安装 `/usr/local/bin/update-container.sh` 与 `/usr/local/bin/uninstall-container.sh`。
+  - 启动 Apple `container` system service，应用数据目录为 `/Users/konghai/Library/Application Support/com.apple.container/`。
+  - 首次启动时安装默认 kernel：`vmlinux-6.18.15-186`。
+  - 测试过程中拉取/构建了若干本机镜像：`alpine:latest`、`daohen-backend:local`、`daohen-frontend:local`、`golang:1.22-bookworm`、`debian:bookworm-slim`、`node:20-alpine`、`nginx:1.27-alpine`。
+  - 未改动生产服务器；未改动本运维仓库以外的服务器环境。
+- 回滚方式：
+  - 停止 system service：`container system stop`。
+  - 保留用户数据卸载：`/usr/local/bin/uninstall-container.sh -k`。
+  - 删除用户数据卸载：`/usr/local/bin/uninstall-container.sh -d`。
+  - 如只清理测试镜像/容器，可用 `container rm`、`container image rm`、`container prune` 按需删除。
+- 做了什么：
+  1. 确认本机满足官方要求：Apple Silicon，macOS 26.5.1，Homebrew 已安装；本运维仓库当前在 `main` 分支且工作区干净。
+  2. 从 GitHub Release 下载官方签名安装包 `container-1.0.0-installer-signed.pkg`。
+  3. 校验安装包 SHA-256：`13f45f26da94c354adcbefe1e8f7631e7f126e93c5d4dd6a5a538aa66b4f479d`，与 GitHub Release asset digest 一致。
+  4. 用 `pkgutil --check-signature` 验证安装包由 `Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)` 签名，且 Apple notarization 可信。
+  5. 通过 macOS 图形安装器完成安装；随后执行 `container system start`，按提示安装默认 kernel。
+  6. 用 `container run --rm docker.io/library/alpine:latest echo container-ok` 验证基础镜像拉取与容器执行链路。
+  7. 检查 `daohen-diary`：项目是 Go 后端 + Svelte/nginx 前端 + SQLite，已有 `Dockerfile`、`Dockerfile.frontend`、`docker-compose.yml`。
+  8. 发现 `daohen-diary` 后端 `Dockerfile` 写死 `GOARCH=amd64`，Apple `container` 在本机默认以 `linux/arm64` 运行，直接启动时报 `Exec format error`；加 `--rosetta` 可临时运行，但不是原生方案。
+  9. 临时修改 `daohen-diary/Dockerfile` 改用 `TARGETOS` / `TARGETARCH` 后重新构建，确认 Apple `container build` 产物为 `GOARCH=arm64`，不加 `--rosetta` 可启动后端并访问 `/api/health`。
+  10. 构建前端镜像成功，但完整模拟 Compose 时，前端 nginx 的 `proxy_pass http://backend:8080/api/` 在 Apple `container` 网络内无法解析 `backend`，nginx 启动失败；说明 Apple `container` 不能直接等价替代 `docker compose up`。
+  11. 按用户要求清理测试后端相关容器和测试网络；保留 Apple `container` builder。
+- 验证结果：
+  - `container --version`：`container CLI version 1.0.0 (build: release, commit: ee848e3)`。
+  - `container system status`：`status running`，`apiserver.version container-apiserver version 1.0.0`。
+  - Alpine 最小容器输出 `container-ok`。
+  - `daohen-diary` 后端在修正架构构建后，`curl http://127.0.0.1:18081/api/health` 返回 `{"ok":true}`。
+  - `daohen-diary/backend` 执行 `go test ./...` 通过。
+  - 清理后 `container ls -a` 仅剩 Apple `container` 的 `buildkit` builder 容器运行。
+- 结论：
+  - Apple `container` 已可在本机使用，适合运行单容器或手工编排的 OCI 镜像。
+  - `daohen-diary` 后端经过 Dockerfile 架构修正后可用 Apple `container` 原生运行。
+  - `daohen-diary` 现有双容器部署仍以 Docker Compose 为准；若要正式支持 Apple `container`，需补充专用启动脚本，并处理前端到后端的服务发现 / nginx upstream 配置。
+
 ## 2026-06-10 22:35 CST
 
 - 原因：本机注册 runner 后运行 CI job 时 CPU 满载发热，用户合盖使用，担心高温烫坏屏幕；且本机 label 已与 mac-mini 漂移（mac-mini 的 4 个 runner 第四 label 已是 `backend-ci`，本机仍是 `macbook` 且注册时用 `--no-default-labels` 去掉了 `self-hosted`，导致接不到改用 `runs-on: [self-hosted, backend-ci]` 的 backend CI job，分担队列的初衷已基本失效）。综合决定彻底下线本机 runner。
