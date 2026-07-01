@@ -1,5 +1,35 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-01 13:07 CST - 修复 worker 漏配 reports 队列（潜伏问题，尚未堆积）
+
+- 服务器：`mas-go-dev`（`192.168.2.22`）
+- 操作人：`Claude`
+- 原因：同日在 `dev-cypresso` 定位到 worker `.env` 里 `WORKER_QUEUES=default:1` 覆盖了代码默认值、导致 Report Center 报表任务卡死（见 `docs/operations/dev-cypresso.md` 2026-07-01 12:25），排查 `mas-go-dev` 是否同病。结果 `mas-go-dev` **同样中招**：worker 只监听 `default`、不监听 `reports`。代码默认队列是 `internal/config/config.go:210` `{"default":1,"reports":1}`，只要不设 `WORKER_QUEUES` 就该监听两个。区别是 `mas-go-dev` 当前 `reports`/`default` 队列都是 0 堆积——不是没问题，而是**还没人在这台上触发过 Report Center 报表任务**，属潜伏雷；一旦有人用报表功能，任务会入 `reports` 队列但无人消费、永久卡 pending。趁修 dev-cypresso 一并根除。
+  - 附带确认：`mas-go-dev` 的 Azurite **不缺 container**——`mas`（及历史 `group-account-contract-ledger`、若干 `test-*`）均已存在、已有 25 个 blob，上传存文件链路正常，无 dev-cypresso 那个 500 问题。故本次只需修 worker 队列一项。
+- 影响：
+  - `/opt/mas-go-dev/backend/.env.docker` 删除 `WORKER_QUEUES=default:1` 一行（文件归 `actions-runner`、保持 `600` 权限）。
+  - 重建 `icare-backend-worker-1` 容器（`.env` 改动须 recreate 才重读 env_file）。
+  - 只重建 worker 一个容器；不动 api / seed / gotenberg / azurite / redis / mas-icare-portal，**不碰 self-hosted GitHub Actions runner、不触发部署流程**。
+- 备份：
+  - `/opt/mas-go-dev/backend/.env.docker.bak.20260701-worker-queues`（以 `actions-runner` 身份 `cp -p` 保留权限/归属）。
+- 回滚方式：
+  ```bash
+  sudo -u actions-runner cp /opt/mas-go-dev/backend/.env.docker.bak.20260701-worker-queues /opt/mas-go-dev/backend/.env.docker
+  sudo -u actions-runner env BACKEND_IMAGE=icare/backend:mas-go-dev-eaeecd6055a799cc662344f419836e99b8878644 \
+    sh -c 'cd /opt/mas-go-dev/backend && docker compose -f backend.compose.yaml up -d --no-deps --no-build worker'
+  ```
+- 变更（按时序）：
+  1. `sudo -u actions-runner cp -p .env.docker .env.docker.bak.20260701-worker-queues`。
+  2. `sudo -u actions-runner sed -i '/^WORKER_QUEUES=default:1$/d' .env.docker`（按整行内容精确删除，非按行号）。
+  3. `diff` 备份与新文件 → 仅少 `WORKER_QUEUES=default:1` 一行。
+  4. 重建 worker：`sudo -u actions-runner env BACKEND_IMAGE=icare/backend:mas-go-dev-eaeecd6055a799cc662344f419836e99b8878644 sh -c 'cd /opt/mas-go-dev/backend && docker compose -f backend.compose.yaml up -d --no-deps --no-build worker'`。
+  - 与 dev-cypresso 的操作差异：配置目录 `/opt/mas-go-dev/backend/`（归 actions-runner，读写都需 `sudo -u actions-runner`）；用 `docker compose` **插件**（v2.24.5，非独立 `docker-compose`）；镜像是本地 tag `icare/backend:mas-go-dev-eaeecd60...`（非 dev-cypresso 的 ghcr tag）。`cd` 必须在 `sudo -u actions-runner sh -c` 上下文里做，否则外层 ec2-user 无权限进目录。
+- 验证：
+  - worker 新日志：`starting worker ... queues="map[default:1 reports:1]" concurrency=1` → `asynq: Starting processing`——已监听 reports ✅。
+  - `docker exec icare-backend-worker-1 env | grep WORKER_QUEUES` → 空（已回退代码默认）。
+  - 容器 `Up`，健康。
+  - 注：`asynq:queues` 集合此刻仍只有 `default`——正常。该集合由**入队方**投递首个任务时才写入，`mas-go-dev` 从未有人投过 `reports` 任务故集合无 `reports`；worker 是否消费取决于其服务器注册（`asynq:servers`），已由启动日志的 `map[default:1 reports:1]` 证实。将来一旦有报表任务入队即会被消费。
+
 ## 2026-06-22 19:05 CST - 给 VM 增加 swap 并为 3 个 runner 加 OOM 后自动恢复
 
 - 服务器：`mas-go-dev`（`192.168.2.22`）
