@@ -1,5 +1,33 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-01 12:54 CST - 修复 Azurite 缺 `mas` container 导致成员导入上传 500
+
+- 服务器：`dev-cypresso`
+- 操作人：`Claude`
+- 原因：公网入口 `https://mas-icare.cypress.sg/`（nginx 反代到本机 `icare-backend-api-1`）上传成员导入 Excel 报 500——`POST /api/v1/admin/group-accounts/7811/member-importing-history/upload`。根因是 iCare backend 往 Azure Blob（本机 `shared-azurite` 模拟器）存文件时，目标 container `mas` 不存在，Azurite 返回 `404 ContainerNotFound`，`internal/modules/groupaccount/service/member_import_upload.go:94` 的 `memberImportStore.Save` 失败 → `ErrMemberImportFileSaveFailed` → handler `handleMemberImportUploadError`（handler.go:4408）映射成 500。这是与同日 worker 队列问题**独立的第二个 bug**：worker 那个卡在异步消费阶段，这个卡在 API **同步存 blob** 阶段，即使 worker 修好、上传接口也会先 500，任务根本入不了队。
+- 现象证据（修复前）：
+  - api 日志：`04:32:13 POST .../upload status:500 latency:1.209s`，但**无 error 详情**——因 `handleMemberImportUploadError` 兜底分支把未识别 error 映射 500 却不打日志，错误被吞。
+  - azurite 日志：每次上传 `PUT /devstoreaccount1/mas/member-importing-history%2F...xlsx` 全部 `404`（6-30 至 7-01 无一例外），时间戳与 500 精确对应。
+  - Azurite 元数据库 `/opt/azurite/__azurite_db_blob__.json` 的 `$CONTAINERS_COLLECTION$` docCount=0、`$BLOBS_COLLECTION$` docCount=0，`__blobstorage__/` 目录为空——**从未成功建过任何 container / 写过任何 blob**。这套 Azurite 是 2026-05-28 新上线的空模拟器，业务 container 需显式创建，但一直没建。
+  - 代码侧确认只需 `mas` 一个 container：`internal/platform/storage/storage.go:24` `DefaultContainer="mas"`，全模块统一用 `cfg.Storage.AzureContainer`（默认 `mas`），api 容器未设 `AZURE_STORAGE_CONTAINER` 覆盖。日志里历史出现的 `group-account-contract-ledger` 是旧路径，现已废弃不用建。
+- 影响：
+  - 仅在 Azurite 里**新增一个空 blob container `mas`**。不改代码、不改配置、不重启任何容器、不动任何现有数据（本来也无数据）。
+  - 创建后上传 PUT 从 404 变 201，文件正常落盘。
+- 回滚：
+  - 如需撤销：在 azurite 容器内对 `mas` 发签名的 `DELETE container` 请求即可（无理由回滚，纯新增）。
+- 变更（按时序）：
+  1. 只读确认：`docker exec shared-azurite node -e` 解析 `__azurite_db_blob__.json` → `$CONTAINERS_COLLECTION$` 为空，`mas` 确实缺失；代码确认 container 名应为 `mas`。
+  2. azurite 容器无 `@azure/storage-blob` SDK，改用其自带 `node` 内置 `crypto`+`http` 手工构造 SharedKey 签名，对 `http://127.0.0.1:10000/devstoreaccount1/mas?restype=container` 发 `PUT container`。凭证为标准 `devstoreaccount1` 账号（连接串内置 key）。首次因签名漏把 `restype=container` query 计入 canonicalizedResource → 403 AuthorizationFailure；修正为在 canonicalizedResource 追加 `\nrestype:container` 后 → **201 Created**。
+  3. 验证 container 落库 + 可写：元数据库 `$CONTAINERS_COLLECTION$` 出现 `mas`；PUT 一个 `__healthcheck_delete_me.txt` → 201，再 DELETE → 202（清理，不留垃圾）。
+- 验证（用户在浏览器实测重传一次，端到端三层全绿）：
+  - **API 同步层**：`04:54:37 POST .../upload status:200 latency:11.873s`（修复前 500 → 200）；审计日志记 `response_status:200`，操作人 KADMIN(userNo 2611)。
+  - **Azurite 存储层**：`04:54:29 PUT .../mas/...NR-PD-7811-...xlsx 201`（落盘）→ `04:54:38 GET ...xlsx 200 6622`（worker 读回 6622B）→ `04:54:50 PUT ...-receipt.xlsx 201`（worker 写回失败回执）。
+  - **Worker 异步层**：`04:55:11 worker task completed jobType=member_import.parse jobID=portal-upload:105920`——`member_import.parse` 走 `default` 队列被 worker 接手并跑完（含 dummymemberno 分配、`sp_uploadmemmapmemberfees`、termination fees 等存储过程）。同时验证了同日 worker 队列修复也生效。
+  - 上传 → 存储 → 入队 → worker 解析 → 写回回执整条链路**首次完整跑通**。
+- 备注：
+  - worker 日志多条 `SLOW SQL >= 1s`、上传接口 latency 11.8s，属**正常现象**——服务在本机、`medicalassistance_preprod` 数据库跨洲，网络往返延迟导致，非故障，不作为问题跟踪。
+  - 上游隐患：Azurite 是空模拟器、container 靠手动创建，VM/容器重建或数据卷重置后 `mas` 会再次消失、上传又 500。根治应在部署/初始化流程里加一步"确保 `mas` container 存在"（如 infra compose 加个 init 容器跑 `az storage container create` 或等价脚本）。属独立任务，本次未做。
+
 ## 2026-07-01 12:25 CST - 修复 worker 漏配 reports 队列（Report Center 报表任务一直卡 pending）
 
 - 服务器：`dev-cypresso`
