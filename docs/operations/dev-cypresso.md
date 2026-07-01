@@ -1,5 +1,35 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-01 12:25 CST - 修复 worker 漏配 reports 队列（Report Center 报表任务一直卡 pending）
+
+- 服务器：`dev-cypresso`
+- 操作人：`Claude`
+- 原因：排查"测试服上传/异步任务不生效"时发现，`icare-backend-worker-1` 只消费 `default` 队列，Report Center 的报表任务全部卡在 `reports` 队列没人消费。根因是 `/home/ec2-user/stacks/icare/.env` 里显式写了 `WORKER_QUEUES=default:1`，覆盖了代码默认值。iCare backend 代码 `internal/config/config.go:210` 的默认队列是 `{"default":1,"reports":1}`（注释：`"reports" is the Report Center async queue (G2)`），只要不设 `WORKER_QUEUES` 就会同时监听两个队列；`envQueueWeights`（config.go:535）解析逻辑无 bug，是环境变量把 `reports` 覆盖没了。这不是代码 bug，是部署 env 配置漏项。回溯本文件 2026-05-28 15:55 那条上线记录第 22 行，当时 worker 日志就已经是 `queues={default:1}`，说明这个漏配从 worker 上线（PR #391）起就一直存在，只是当时 Report Center 还没投用没暴露。
+- 现象证据（修复前）：
+  - `docker exec icare-backend-worker-1 env | grep WORKER_QUEUES` → `WORKER_QUEUES=default:1`。
+  - worker 启动日志：`starting worker ... "queues":{"default":1},"concurrency":1`——不含 reports。
+  - Redis：`asynq:queues` 集合只有 `reports`；`asynq:{reports}:pending=1`，卡着任务 `report:1`（`report.generate`，requestID=1），`pending_since` 约 2026-06-30 15:53 UTC，卡了十几小时无人消费。
+  - 排除项：磁盘根分区 58%（43G 可用）、inode 2%，非磁盘满；`shared-redis` PING=PONG、`QUEUE_PROVIDER=redis_asynq` 均正常；`report.generate` handler 已在代码 `internal/modules/reportcenter/module.go:81` 注册进 worker registry——worker 有能力处理，纯粹是没监听 `reports` 队列。
+- 影响：
+  - `/home/ec2-user/stacks/icare/.env` 删除第 50 行 `WORKER_QUEUES=default:1`（文件保持 `600` 权限，`.env.docker` 符号链接 → `.env` 不变）。
+  - `icare-backend-worker-1` 容器重建（`.env` 改动必须 recreate 才会重读 env_file，restart 不够）。
+  - 不动 api / seed / shared-* 基础设施 / mas-icare-portal / telegram-bot；仅重建 worker 一个容器。
+- 回滚：
+  - `cp /home/ec2-user/stacks/icare/.env.bak.20260701-worker-queues /home/ec2-user/stacks/icare/.env && chmod 600 /home/ec2-user/stacks/icare/.env`，然后按下方"变更"第 4 步同样命令重建 worker 即可恢复只监听 default 的旧状态。
+- 变更（按时序）：
+  1. `cp /home/ec2-user/stacks/icare/.env /home/ec2-user/stacks/icare/.env.bak.20260701-worker-queues`（备份，1411B，600 权限）。
+  2. `sed -i '/^WORKER_QUEUES=default:1$/d' /home/ec2-user/stacks/icare/.env`（按整行内容精确删除，非按行号）。
+  3. `diff` 备份与新文件确认**仅少 `WORKER_QUEUES=default:1` 一行**，其余一字未动。
+  4. 重建 worker：本机 docker 无 `compose` 插件，用独立 `docker-compose` v2.24.5。部署时镜像 tag 由 CI 经 shell 层 `BACKEND_IMAGE` 传入（`.env` 里没有此变量），裸 `up` 会回退到默认 `icare/backend:local`（本机不存在）而失败——须显式带上与 api 相同的 tag：`cd /home/ec2-user/stacks/icare && BACKEND_IMAGE=ghcr.io/cypressoai/icare-backend:eaeecd6055a799cc662344f419836e99b8878644 docker-compose -f backend.compose.yaml up -d --no-deps --no-build worker`。
+- 验证：
+  - worker 新日志：`starting worker ... "queues":{"default":1,"reports":1},"concurrency":1`——已监听 reports ✅。
+  - 卡住的 `report:1` 被立即消费：日志 `worker task failed ... jobType=report.generate jobID=report:1 error="record not found"`——这是**修复生效的证明**，不是新 bug：该孤儿任务卡了十几小时，worker 一起来就取出执行，因对应报表请求记录（requestID=1，测试残留）在 DB 已不存在而正常失败。重点是队列链路已通。
+  - Redis：`asynq:{reports}:pending=0`、`active=0`、`archived=0`；`default:pending=0`；无堆积。
+  - `docker ps`：`icare-backend-worker-1  Up`（重建后），api / 其它容器不受影响。
+- 后续 / 待办：
+  - **强烈建议核查 `mas-go-dev` 上的 worker 是否同样漏配 `WORKER_QUEUES`**——两台环境的 worker 部署形态是对齐的（同一 PR #391 形态），很可能同样只监听 default，Report Center 报表在 mas-go-dev 上会一样卡住。属独立任务，本次未做。
+  - 上游隐患：`.env` 手写 `WORKER_QUEUES=default:1` 的来源未追溯（可能是 5-28 上线时抄模板带进来的）。如未来重新走 CI 部署或从模板重刷 env，注意别再把这行带回来；根治可考虑在部署脚本 / env 模板层显式设 `WORKER_QUEUES=default:1,reports:1` 或干脆不设（依赖代码默认）。
+
 ## 2026-05-28 15:55 CST - iCare backend 上线 worker 容器（PR #391 部署落地）
 
 - 服务器：`dev-cypresso`
