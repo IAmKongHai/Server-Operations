@@ -1,5 +1,27 @@
 # tizi 运维时间线
 
+## 2026-07-01 09:25 CST - 调整并立即执行 S-UI 用户流量重置
+
+- 服务器：`tizi`
+- 操作人：`Codex`
+- 原因：`tizi` VPS 服务商流量重置日期为每月 30 日，需要让 S-UI 用户流量在服务商周期前一天归零；原 root crontab 为每月 1 日 23:59 重置，和服务商周期不一致。用户同时确认改完后立即执行一次重置。
+- 影响：
+  - root crontab 中 S-UI 用户用量归零任务从每月 1 日 23:59 改为每月 29 日 23:59。
+  - 已立即执行一次 `UPDATE clients SET up = 0, down = 0;`，所有 S-UI 用户当前累计 `up/down` 归零。
+  - 未重启 `s-ui`、Nginx 或系统服务，未修改防火墙。
+- 回滚：
+  - 定时任务回滚：`crontab /root/backup/s-ui-traffic-reset/root-crontab.before-reset-date-20260701092524.txt`
+  - 数据回滚：用 `/root/backup/s-ui-traffic-reset/s-ui.db.before-immediate-traffic-reset-20260701092524` 恢复 `/usr/local/s-ui/db/s-ui.db`；注意会覆盖回滚前产生的新流量统计。
+- 变更：
+  - 备份 root crontab：`/root/backup/s-ui-traffic-reset/root-crontab.before-reset-date-20260701092524.txt`
+  - 备份 S-UI 数据库：`/root/backup/s-ui-traffic-reset/s-ui.db.before-immediate-traffic-reset-20260701092524`
+  - 将原任务 `59 23 1 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"` 改为 `59 23 29 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"`
+  - 执行一次：`sqlite3 /usr/local/s-ui/db/s-ui.db 'UPDATE clients SET up = 0, down = 0;'`
+- 验证：
+  - 改动前 `clients` 汇总：`25|124036769780|357822449097`
+  - `crontab -l` 已显示新任务：`59 23 29 * * /usr/bin/sqlite3 /usr/local/s-ui/db/s-ui.db "UPDATE clients SET up = 0, down = 0;"`
+  - 立即重置后 `clients` 汇总：`25|0|0`
+
 ## 2026-06-19 15:00 CST - 安装 vnstat 流量统计（监控方案第一步）
 
 - 服务器：`tizi`
