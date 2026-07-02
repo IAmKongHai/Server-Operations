@@ -1,5 +1,40 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-02 02:45 CST - Redis 端口映射增绑 tailscale IP 并关闭 protected-mode，本机免隧道直连
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Claude`
+- 原因：延续同日 Azurite 的做法（见下条），想在本机（tailnet 内）直连 mas-go-dev 的 Redis 做集成测试排查（查看 asynq 队列、worker 注册、失败统计等），免去每次开 SSH 隧道。原先 `redis` 容器端口只映射到 `127.0.0.1:6379`，VM 外部无法直连。
+- 安全权衡（**经用户确认**）：此 Redis **无密码**（`requirepass` 为空）。用户判断 tailnet 内只有少数开发同事、可信，接受不加密码。**因此这是有意为之的暴露**：tailnet 内任何成员无需认证即可读写/清空（`FLUSHALL`）该 Redis 及其中的 asynq 队列数据。风险边界：仅限 tailnet（未绑 `0.0.0.0`），公网与 PVE 内网 `192.168.2.x` 均连不到；且是开发测试环境、非生产。若日后 tailnet 成员范围扩大或数据敏感度提高，应补 `requirepass`。
+- 关键点 —— 必须关 protected-mode：Redis 7 在「绑定非回环地址 + 无密码」时，protected-mode 默认会**拒绝**非本地连接。故仅改端口映射不够，须在 `command` 显式加 `--protected-mode no`，否则 tailnet 直连会被拒。这是与 Azurite 那次的差异（Azurite 无此机制）。
+- 影响：
+  - `/opt/mas-go-dev/infra/infra.compose.yaml` 的 `redis` 服务：
+    - `command` 由 `["redis-server","--appendonly","yes"]` 改为追加 `"--protected-mode","no"`。
+    - `ports` 段在原 `127.0.0.1:6379:6379` 基础上**新增** `100.109.223.53:6379:6379`（保留回环）。
+  - 以 `actions-runner` 身份 `docker compose up -d` 重建 **redis 一个容器**；`azurite` 保持 Running 未动。
+  - 数据卷 `redis-data` 保留（AOF 持久化），队列数据未丢。
+  - 不碰 api / worker（它们经 Docker DNS 名 `redis:6379` 走 `shared-services` 内网访问），不触发 runner / 部署流程。
+- 备份：
+  - `/opt/mas-go-dev/infra/infra.compose.yaml.bak.20260702-redis`（以 `actions-runner` 身份 `cp -a`，含上一条 azurite 改动，2384 字节）。
+- 回滚方式：
+  ```bash
+  ssh mas-go-dev
+  sudo cp /opt/mas-go-dev/infra/infra.compose.yaml.bak.20260702-redis /opt/mas-go-dev/infra/infra.compose.yaml
+  sudo -u actions-runner docker compose -f /opt/mas-go-dev/infra/infra.compose.yaml up -d
+  ```
+- 变更（按时序）：
+  1. `sudo cp -a infra.compose.yaml infra.compose.yaml.bak.20260702-redis`。
+  2. 用 Python 精确替换整个 `redis` 服务段（按内容匹配，非按行号）：`command` 追加 `--protected-mode no`，`ports` 增绑 tailscale IP，各加一行注释。
+  3. `sudo diff` → 仅 command 1 行改写 + ports 新增 1 行 + 注释 2 行。
+  4. `sudo -u actions-runner docker compose config --quiet` 校验语法 OK。
+  5. `sudo -u actions-runner docker compose up -d` → `redis Recreated/Started`，`azurite Running`（未动）。
+- 验证：
+  - `docker ps` → redis 端口 `100.109.223.53:6379->6379, 127.0.0.1:6379->6379`。
+  - `ss -tlnp` → 宿主同时监听 `100.109.223.53:6379` 与 `127.0.0.1:6379`。
+  - **从本机（无 SSH 隧道）** `redis-cli -h 100.109.223.53 -p 6379 PING` → `PONG` ✅；`INFO server` → Redis 7.4.9；`DBSIZE` → 20 keys；`--scan asynq*` 可见 asynq 队列数据（worker 注册、各队列 processed/failed 统计）。全程只读，未改数据。
+- 遗留 / 待办：
+  - 本机源文件 `~/Code_local/Project/iCare/backend/infra.compose.yaml`（`backend/` 是独立 git 子仓库）已同步 azurite + redis 两处改动，**未提交**；由用户自行开 PR（base 到活跃分支 `develop`）固化。
+
 ## 2026-07-02 02:30 CST - Azurite 端口映射增绑 tailscale IP，本机免隧道直连 Blob
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
@@ -32,7 +67,7 @@
   - **从本机（无任何 SSH 隧道）** 用共享密钥签名请求 `http://100.109.223.53:10000/devstoreaccount1?comp=list` → HTTP 200，列出全部 10 个容器（`group-account-contract-ledger`、`mas`、`temp`、`test-404`、`test-copy-move`、`test-ctype`、`test-presign`、`test-roundtrip`、`test-slash`、`test-traversal`）✅。
   - 本机连接串（tailnet 内直接可用）：`DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM0...;BlobEndpoint=http://100.109.223.53:10000/devstoreaccount1;`。
 - 遗留 / 待办：
-  - 本次只改了 **VM 上**的 `infra.compose.yaml`，**iCare 后端源仓库里的 `backend/infra.compose.yaml` 尚未同步**。若他人从源仓库重新拉起 infra，此 tailscale 绑定会丢。需在 iCare 后端仓库同步同样改动并提 PR（注意 base 到活跃分支 `develop`），才能长期固化。
+  - 本次只改了 **VM 上**的 `infra.compose.yaml`。源文件受 git 管理，在 **`iCare/backend/` 这个独立子仓库**里（`~/Code_local/Project/iCare/backend/infra.compose.yaml`；注意它不属于外层 `iCare` 仓库——外层 `.gitignore` 忽略了 `backend/`，故在外层仓库看不到）。已在该子仓库同步改动、未提交，由用户自行开 PR（base 到 `develop`）固化。
 
 ## 2026-07-01 13:07 CST - 修复 worker 漏配 reports 队列（潜伏问题，尚未堆积）
 
