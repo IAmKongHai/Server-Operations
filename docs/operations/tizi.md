@@ -1,5 +1,23 @@
 # tizi 运维时间线
 
+## 2026-07-02 21:13 CST - 排查 S-UI 与 vnstat 今日流量统计差异
+
+- 服务器：`tizi`
+- 操作人：`Codex`
+- 原因：用户发现 S-UI 面板统计值与 `vnstat` 差异较大；`vnstat` 显示 2026-07-02 当日截至排查时已使用约 74 GiB。
+- 影响：只读排查，未修改 S-UI、Nginx、firewalld、crontab、数据库或系统服务，未重启任何进程。
+- 回滚：本次未改运行状态，不需要回滚。
+- 排查：
+  - `vnstat -d` 显示 `eth0` 当日 `rx 37.70 GiB`、`tx 36.75 GiB`、合计 `74.45 GiB`；`tailscale0` 当日流量约 1 MiB，可忽略。
+  - S-UI 服务为单进程 `/usr/local/s-ui/sui`，管理端监听 `127.0.0.1:2096`，数据面监听 `*:443`；未发现独立 `xray`、`sing-box`、`v2ray` 进程。
+  - S-UI SQLite 表 `stats` 今日按 `resource='user'` 聚合为 `direction 0: 22.96 GiB`、`direction 1: 11.42 GiB`，合计 `34.38 GiB`。
+  - `stats` 同时保存 `user`、`inbound`、`outbound` 三类资源；直接汇总所有行会得到约 `103.12 GiB`，属于重复计数，不应用来对账。
+  - S-UI 日志今日有 `REALITY: processed invalid connection` 约 1249 条、`mux connection closed` 约 4782 条，这些失败/扫描连接和协议开销会被网卡统计计入，但不一定完整进入用户用量。
+- 结论：
+  - `vnstat` 是公网网卡 `eth0` 的双向字节口径。代理转发一次用户流量时，公网网卡通常会同时产生「目标站到服务器」和「服务器到客户端」两段字节，因此 `rx + tx` 天然接近 S-UI 用户流量的两倍。
+  - 本次对账中，S-UI 用户流量 `34.38 GiB * 2 = 68.76 GiB`，与 `vnstat` 的 `74.45 GiB` 差约 `5.69 GiB`；差额主要来自协议开销、失败/扫描连接、Nginx/系统其它流量以及统计刷新时间差。
+- 验证：S-UI 小时级用户流量峰值出现在 14:00-16:00（约 `3.75 GiB`、`4.07 GiB`、`3.94 GiB`），与 `vnstat -h` 同时段网卡峰值（约 `7.95 GiB`、`8.61 GiB`、`8.41 GiB`）基本呈约 2 倍关系。
+
 ## 2026-07-01 09:25 CST - 调整并立即执行 S-UI 用户流量重置
 
 - 服务器：`tizi`
