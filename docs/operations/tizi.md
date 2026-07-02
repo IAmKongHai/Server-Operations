@@ -1,5 +1,20 @@
 # tizi 运维时间线
 
+## 2026-07-02 21:21 CST - 查询 S-UI 当日流量前 5 用户
+
+- 服务器：`tizi`
+- 操作人：`Codex`
+- 原因：用户要求列出 S-UI 今天流量消耗前 5 的用户。
+- 影响：只读查询 S-UI SQLite `stats` 表，未修改 S-UI、Nginx、firewalld、crontab、数据库或系统服务，未重启任何进程。
+- 回滚：本次未改运行状态，不需要回滚。
+- 查询口径：按服务器本地日期 `2026-07-02`，聚合 `/usr/local/s-ui/db/s-ui.db` 中 `stats` 表 `resource='user'` 的 `traffic`，按用户 `tag` 排序取前 5；`direction0`、`direction1` 沿用 S-UI 原始方向字段。
+- 结果：
+  - `konghai家里路由器`：`11.83 GiB`（`direction0 11.05 GiB`，`direction1 0.78 GiB`）
+  - `昭姝-路由器`：`8.75 GiB`（`direction0 2.58 GiB`，`direction1 6.17 GiB`）
+  - `rao-办公室路由器`：`5.99 GiB`（`direction0 4.27 GiB`，`direction1 1.72 GiB`）
+  - `hong家路由器`：`5.60 GiB`（`direction0 3.25 GiB`，`direction1 2.35 GiB`）
+  - `尹朋飞`：`1.06 GiB`（`direction0 1.05 GiB`，`direction1 0.01 GiB`）
+
 ## 2026-07-02 21:13 CST - 排查 S-UI 与 vnstat 今日流量统计差异
 
 - 服务器：`tizi`
