@@ -1,5 +1,29 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-02 11:53 CST - 安装 go-sqlcmd v1.10.0（连 MSSQL 参考库排查用）
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`），Amazon Linux 2023，x86_64
+- 操作人：`Claude`
+- 原因：偶尔需要从 mas-go-dev 直连内网 MSSQL（如 `mssql-ref` `192.168.2.20`）做只读排查，此前机器上没有任何 SQL 客户端。
+- 选型：装微软新版 **go-sqlcmd**（`microsoft/go-sqlcmd` 官方 release 单静态二进制），而非 `mssql-tools18`。理由：单文件、零依赖，不引入 unixODBC/msodbcsql18 仓库、不污染系统，对"偶尔排查用"最省事。代价是**不带 `bcp`**——若日后要批量导入导出再补装 `mssql-tools18`。
+- 影响：
+  - 新增 `/usr/local/bin/sqlcmd`（v1.10.0，0755，root 属主），无其它系统改动，未加 yum 仓库、未装依赖包。
+  - 纯客户端工具安装，不影响任何容器 / runner / 生产服务。
+- 备份 / 回滚方式：无需备份（新增文件而非改配置）。回滚即 `sudo rm /usr/local/bin/sqlcmd`。
+- 变更（按时序）：
+  1. 确认系统 AL2023 / x86_64，机器上无 sqlcmd/bcp、无 mssql 仓库。
+  2. 从 GitHub API 取最新 tag `v1.10.0`，下载 `sqlcmd-linux-amd64.tar.bz2` 到 `/tmp` 并解压（得单个 `sqlcmd` 二进制 + `sqlcmd_debug`）。
+  3. `sudo install -m 0755 /tmp/.../sqlcmd /usr/local/bin/sqlcmd`。
+  4. 清理 `/tmp` 下载与解压临时文件。
+- 验证：
+  - `sqlcmd --version` → `v1.10.0` ✅。
+  - 到 `mssql-ref`（`192.168.2.20:1433`）TCP 端口可达。
+  - 用错误密码探测：sqlcmd 完成 TLS+TDS 握手，服务端返回明确的 `Login failed for user 'mas_ref_owner'`——证明工具、加密（`-C` 信任自签证书）、网络链路全通，换正确密码即可查询。
+- 用法提示：go-sqlcmd 默认强制加密，连自签证书的 MSSQL **必须带 `-C`**（信任服务器证书），否则证书报错：
+  ```bash
+  sqlcmd -S 192.168.2.20 -U mas_ref_owner -P '<密码>' -C -d <库名> -Q "SELECT TOP 10 * FROM ..."
+  ```
+
 ## 2026-07-02 02:45 CST - Redis 端口映射增绑 tailscale IP 并关闭 protected-mode，本机免隧道直连
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
