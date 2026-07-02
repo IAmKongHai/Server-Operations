@@ -1,5 +1,39 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-02 02:30 CST - Azurite 端口映射增绑 tailscale IP，本机免隧道直连 Blob
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Claude`
+- 原因：想在本机（tailnet 内）直连 `mas-go-dev` 的 Azurite Blob 模拟器做集成测试排查，方便用 Azure Storage Explorer / 脚本读写测试容器。原先 `azurite` 容器端口只映射到 `127.0.0.1:10000`，VM 外部（含本机）无法直连，每次都得先手动开 `ssh -L 10000:127.0.0.1:10000 mas-go-dev` 隧道，容易忘、忘了就连不上。容器内部本已 `--blobHost 0.0.0.0`，限制只在宿主端口绑定那一行，故只需在端口映射上增绑 tailscale IP 即可。
+- 影响：
+  - `/opt/mas-go-dev/infra/infra.compose.yaml` 的 `azurite` 服务 `ports` 段，在原 `127.0.0.1:10000:10000` 基础上**新增一行** `100.109.223.53:10000:10000`（保留回环绑定不动）。
+  - 以 `actions-runner` 身份 `docker compose -f infra.compose.yaml up -d` 重建 **azurite 一个容器**；`redis` 保持 Running 未动。
+  - 数据卷 `azurite-data` 保留，测试容器/blob 数据未丢。
+  - **未绑 `0.0.0.0`**：只在 tailnet（`100.109.223.53`）+ 回环监听，PVE 内网 `192.168.2.x` 与公网均连不到。
+  - 不碰 api / worker（它们经 Docker DNS 名 `azurite:10000` 走 `shared-services` 内网访问，与宿主端口映射无关），不触发 runner / 部署流程。
+- 安全说明：Azurite 用的是**公开固定测试密钥**（`devstoreaccount1` / `Eby8vdM0...`，微软官方文档公开），tailnet 内任何成员即可读写 `mas`/`temp` 等**集成测试实际数据**，写删需谨慎。仅因限定在 tailnet 内网、且是开发测试环境，风险可接受。
+- 备份：
+  - `/opt/mas-go-dev/infra/infra.compose.yaml.bak.20260702`（以 `actions-runner` 身份 `cp -a` 保留权限/归属，与原文件同为 2313 字节）。
+- 回滚方式：
+  ```bash
+  ssh mas-go-dev
+  sudo cp /opt/mas-go-dev/infra/infra.compose.yaml.bak.20260702 /opt/mas-go-dev/infra/infra.compose.yaml
+  sudo -u actions-runner docker compose -f /opt/mas-go-dev/infra/infra.compose.yaml up -d
+  ```
+- 变更（按时序）：
+  1. `sudo cp -a infra.compose.yaml infra.compose.yaml.bak.20260702`。
+  2. 用 Python 精确替换 `azurite` 的 `ports` 段（按整段内容匹配，非按行号），新增 `- "100.109.223.53:10000:10000"` 并更新上方注释。
+  3. `sudo diff` 备份与新文件 → 仅注释 1 行改写 + 新增端口 1 行。
+  4. `sudo -u actions-runner docker compose -f infra.compose.yaml config --quiet` 校验语法 OK。
+  5. `sudo -u actions-runner docker compose -f infra.compose.yaml up -d` → `azurite Recreated/Started`，`redis Running`（未动）。
+- 验证：
+  - `docker ps` → azurite 端口为 `100.109.223.53:10000->10000, 127.0.0.1:10000->10000`。
+  - `ss -tlnp` → 宿主同时监听 `100.109.223.53:10000` 与 `127.0.0.1:10000`。
+  - **从本机（无任何 SSH 隧道）** 用共享密钥签名请求 `http://100.109.223.53:10000/devstoreaccount1?comp=list` → HTTP 200，列出全部 10 个容器（`group-account-contract-ledger`、`mas`、`temp`、`test-404`、`test-copy-move`、`test-ctype`、`test-presign`、`test-roundtrip`、`test-slash`、`test-traversal`）✅。
+  - 本机连接串（tailnet 内直接可用）：`DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM0...;BlobEndpoint=http://100.109.223.53:10000/devstoreaccount1;`。
+- 遗留 / 待办：
+  - 本次只改了 **VM 上**的 `infra.compose.yaml`，**iCare 后端源仓库里的 `backend/infra.compose.yaml` 尚未同步**。若他人从源仓库重新拉起 infra，此 tailscale 绑定会丢。需在 iCare 后端仓库同步同样改动并提 PR（注意 base 到活跃分支 `develop`），才能长期固化。
+
 ## 2026-07-01 13:07 CST - 修复 worker 漏配 reports 队列（潜伏问题，尚未堆积）
 
 - 服务器：`mas-go-dev`（`192.168.2.22`）
