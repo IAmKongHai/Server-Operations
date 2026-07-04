@@ -1,5 +1,32 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-04 15:10 CST - 订正：AFK auto-continue 需用 askUserQuestionTimeout 开关，单设 CLAUDE_AFK_TIMEOUT_MS 无效
+
+- 原因：
+  - 用户实测反馈：按上一条（07-04 13:25）配置后，等待超过 4 分钟，AskUserQuestion 选择题仍不自动按默认项继续，即「3 分钟自动继续」功能根本没生效。
+  - 复盘发现上一条的**核心结论错了**：当时以为「环境变量优先级高于设置项」，就把开关 `askUserQuestionTimeout` 删掉、只留 `env.CLAUDE_AFK_TIMEOUT_MS`。但在本机 v2.1.201 上，`CLAUDE_AFK_TIMEOUT_MS` **不是开关、只是时长**，开关没打开时它空转。
+- 影响：
+  - 修改本机个人全局配置 `/Users/konghai/.claude/settings.json`（**不在** Server 运维笔记仓库范围内，无 git 变更；本仓库仅追加本条时间线记录）。
+  - 顶层新增 `askUserQuestionTimeout: "5m"`（打开 auto-continue 功能开关）。
+  - `env` 内保留 `CLAUDE_AFK_TIMEOUT_MS: "180000"`（覆盖 `5m`，把实际等待精确压到 3 分钟，落在 5 分钟 prompt cache TTL 窗口内）。
+  - `env` 内新增 `CLAUDE_AFK_COUNTDOWN_MS: "60000"`（超时前 60 秒开始显示倒计时横幅）。
+- 回滚方式：
+  - 删除顶层 `askUserQuestionTimeout` 与 `env` 里的 `CLAUDE_AFK_TIMEOUT_MS` / `CLAUDE_AFK_COUNTDOWN_MS` 三项，即恢复默认（v2.1.201 默认 `never` = 关闭 auto-continue）。
+- 做了什么：
+  1. 直接从本机 `claude` v2.1.201 二进制反查真实逻辑（`strings` + `grep -a`），确认三点：
+     - 真正的开关是设置项 `askUserQuestionTimeout`（`/config` 里显示为 "Question auto-continue timeout"），枚举 `["never","60s","5m","10m"]`，**默认 `never`**。
+     - 二进制内官方描述原文：`Defaults to never — auto-continue only runs when explicitly set to 60s/5m/10m.`；换算函数对 `never` 与「未设置」都返回 `null`（=功能不启用），此时倒计时组件根本不渲染。
+     - 组件内时长解析为 `t = CLAUDE_AFK_TIMEOUT_MS ?? (askUserQuestionTimeout换算值) ?? 默认`，故功能一旦开启，`CLAUDE_AFK_TIMEOUT_MS` 在 `??` 链排第一，会**覆盖** `5m` 档；另有 `CLAUDE_AFK_COUNTDOWN_MS`（受 `Math.min(countdown, timeout)` 约束）控制倒计时提前量。
+  2. 据此纠正上一条的选型：环境变量优先级确实更高，但它只在「功能已开启」之后才参与计算——**必须同时保留 `askUserQuestionTimeout` 非 `never` 作为开关**，不能只留环境变量。最终采用「`askUserQuestionTimeout: 5m` 开开关 + `CLAUDE_AFK_TIMEOUT_MS: 180000` 覆盖成 3 分钟」组合。
+  3. 环境变量的值必须是**毫秒整数字符串**：`CLAUDE_AFK_COUNTDOWN_MS` 写 `"60000"` 而非 `"60s"`（代码不解析 `60s` 这种字符串，只有 `askUserQuestionTimeout` 那个枚举才接受档位字符串）。
+- 验证结果：
+  - `python3 -c "import json; json.load(open('~/.claude/settings.json'))"` 语法有效；`askUserQuestionTimeout = 5m`、`env` 含 `CLAUDE_AFK_TIMEOUT_MS=180000` + `CLAUDE_AFK_COUNTDOWN_MS=60000` 均已落盘。
+  - 逻辑正确性由二进制反查佐证（开关 → 时长覆盖 → 倒计时三段链路），非仅凭文档推断。
+- 注意事项：
+  - 设置需**新开会话**才加载，当前会话仍是旧行为，实际「3 分钟自动继续 + 60 秒倒计时」要下次开会话验证。
+  - 为何选 3 分钟而非 `5m` 档的深层原因（用户补充）：Claude 服务端 prompt cache TTL 为 5 分钟，若用 `5m` 档，每次 askUser 都恰好等满 5 分钟才自动继续，那一跳几乎必然 cache miss、重读整段上下文；压到 3 分钟可稳落在 TTL 窗口内、命中热缓存。这才是 `CLAUDE_AFK_TIMEOUT_MS` 覆盖 `5m` 的实际收益。
+  - `CLAUDE_AFK_TIMEOUT_MS` 与用于倒计时提前量的 `CLAUDE_AFK_COUNTDOWN_MS` 是两个不同变量，勿混。
+
 ## 2026-07-04 13:25 CST - 配置 Claude Code AFK 超时为 3 分钟并加 AskUserQuestion 声音提醒 hook
 
 - 原因：
