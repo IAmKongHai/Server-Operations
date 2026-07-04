@@ -1,5 +1,35 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-04 23:56 CST - 回收 Docker build cache 并分析 Go build cache 膨胀原因
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Codex`
+- 原因：上一条排查确认 Docker build cache 约 `8.792G` 可回收，用户确认先回收该部分；同时要求继续分析 `/home/actions-runner/.cache/go-build` 为什么涨到约 `65G`，以及后续如何避免无限膨胀。
+- 影响：
+  - 执行 `docker builder prune -af`，删除 BuildKit 本地构建缓存，不影响当前运行容器、镜像和 volume。
+  - 后续 Docker build 首次重建会变慢；被删构建缓存无法原样回滚，但可由后续 build 自动再生成。
+  - 未清理 Go build cache，未重启 runner，未修改 systemd / crontab / workflow。
+- 变更：
+  - 清理前 `docker system df`：`Build Cache 334` 项，`8.792GB`，全部可回收。
+  - `docker builder prune -af` 实际回收 `8.843GB`。
+  - 清理后 `docker system df`：`Build Cache 1` 项，`659B`，`0B` 可回收。
+- 验证：
+  - 根分区从 `120G 100%` 降到 `120G 90%`，可用空间约 `13G`。
+  - inode 从 `95%` 降到 `4%` 使用。
+  - 清出空间后，`mas-go-dev` 与 `mas-go-dev-ci-1` 重新出现 `Runner.Listener`；3 个 runner service 均为 `active (running)`。当时 `mas-go-dev` / `mas-go-dev-ci-1` 已开始承接 Go CI 任务。
+- Go build cache 分析：
+  - Go binary 来自 runner toolcache：`/opt/actions-runner/mas-go-dev-ci-1/_work/_tool/go/1.25.7/x64/bin/go`，版本 `go1.25.7`。
+  - `GOCACHE=/home/actions-runner/.cache/go-build`，`GOMODCACHE=/home/actions-runner/go/pkg/mod`。
+  - Go 源码 `cmd/go/internal/cache/cache.go` 里当前策略是：缓存文件每次使用后最多每小时更新一次 `mtime`，每天最多 trim 一次，只删除至少 `5 days + 1 hour` 未使用的 cache entry。
+  - 本机根分区虽然是 `noatime`，但该 Go 版本使用的是 `mtime` 标记最近使用，不是文件系统 `atime`；`noatime` 不是主因。
+  - `/home/actions-runner/.cache/go-build` 当时约 `65G`、约 `216k` 个文件。按 `mtime` 聚合：`2026-06-28` 约 `1.95G`、`06-29` 约 `14.24G`、`06-30` 约 `8.78G`、`07-01` 约 `9.15G`、`07-02` 约 `12.38G`、`07-03` 约 `1.02G`、`07-04` 约 `16.81G`；超过 7 天的只有 2 个小文件。
+  - 当前 runner 正在跑 iCare backend 的覆盖率测试：`go test ./test/... ./internal/... -coverprofile=coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...`。这种全量覆盖率插桩会生成大量编译产物；多个 runner 共享同一个 `actions-runner` 用户家目录下的 `GOCACHE`，高频 CI 又会持续刷新这些产物的 `mtime`，所以 Go 自带的“5 天未用再删”很难把缓存压下来。
+  - iCare backend workflow 里 `actions/setup-go@v5` 已设置 `cache: false`；问题不是 GitHub Actions 远端 cache，而是 self-hosted runner 本机的 Go build cache。
+- 后续建议（需用户确认后再执行）：
+  1. 立即止血：等当前 Go CI 任务结束后，以 `actions-runner` 身份执行 Go cache 清理，例如用当前 toolcache 里的 Go binary 跑 `go clean -cache -testcache`，或直接清空 `/home/actions-runner/.cache/go-build`。这会让后续 Go 构建变慢，但缓存可再生成。
+  2. 防止复发：在 iCare backend 的重型 CI job 里设置 job-local `GOCACHE`，例如 `GOCACHE=${{ runner.temp }}/go-build`，让覆盖率测试产物随 job temp 生命周期回收，代价是减少跨 job 编译缓存复用。
+  3. 服务器兜底：增加一个 systemd timer（或经确认后再用 crontab）定期检查 `/home/actions-runner/.cache/go-build` 和根分区占用，超过阈值时跑 `go clean -cache -testcache`，并可顺手跑 `docker builder prune -af --filter until=168h`。
+
 ## 2026-07-04 23:50 CST - 只读排查 GitHub Actions runner 假活，根因为根盘 100%
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
