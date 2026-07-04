@@ -1,5 +1,30 @@
 # pve 运维操作时间线
 
+## 2026-07-05 00:16 CST - 在线扩容 mas-go-dev 系统盘到 300G
+
+- 服务器：`pve`（VM `130/mas-go-dev`）
+- 操作人：`Codex`
+- 原因：`mas-go-dev` 根盘 120G 已被 GitHub Actions runner 的 Go / Docker 缓存逼近打满；用户确认按上一条评估方案扩容到 300G，以保留 CI cache、避免频繁清理影响构建速度。
+- 影响：
+  - VM `130/mas-go-dev` 的 `scsi0` 从 `120G` 在线扩容到 `300G`。
+  - 宿主机、VM、runner、Docker 容器均未重启。
+  - `nvme-data` thin pool 实际 Data 使用率仍为 `34.19%`；`vm-130-disk-1` 逻辑大小变为 `300G`，该 thin volume Data 使用率约 `39.99%`。
+- 备份：
+  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/130.conf.before`
+  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/130.status.before`
+  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/pvesm.status.before`
+  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/lvs.before`
+- 变更：
+  1. 在 PVE 保存 VM 配置、状态、storage 与 LVM thin 状态到上述目录。
+  2. 执行 `qm resize 130 scsi0 +180G`，PVE 将 `nvme-data/vm-130-disk-1` 从 `120.00 GiB` 扩到 `300.00 GiB`。
+  3. PVE 输出 thin provisioning 警告：thin volume 逻辑大小总和约 `<1000.02 GiB`，略超过 `nvme-data` thin pool 大小 `<934.67 GiB` 与 VG 大小 `<953.87 GiB`。这是预期风险，后续需监控实际 Data 使用率，避免 thin pool 真的写满。
+- 验证：
+  - `qm config 130`：`scsi0: nvme-data:vm-130-disk-1,discard=on,iothread=1,size=300G`。
+  - `pvesm status`：`nvme-data` active，Data 使用率 `34.19%`，Available 约 `644984330 KiB`。
+  - `lvs`：`nvme-data/vm-130-disk-1` `300.00g`，Data 使用率 `39.99%`。
+  - guest 内已同步完成分区和 XFS 扩容，详见 `docs/operations/mas-go-dev.md` 同时间记录。
+- 回滚说明：磁盘与 XFS 已向前扩容，不能直接无损缩回。若后续出现问题，应基于备份配置与当前状态排查修复，不要尝试直接缩盘。
+
 ## 2026-07-05 00:12 CST - 只读评估 mas-go-dev VM 系统盘扩容方案
 
 - 服务器：`pve`（VM `130/mas-go-dev`）

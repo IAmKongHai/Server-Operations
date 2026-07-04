@@ -1,5 +1,27 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-05 00:16 CST - 在线扩展根分区与 XFS 到 300G
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Codex`
+- 原因：PVE 侧已按确认方案将 VM `130` 的 `scsi0` 从 120G 扩到 300G；需要在 guest 内扩展根分区与 XFS 文件系统，让新增容量可用。
+- 影响：
+  - `/dev/sda1` 从 `120G` 在线扩展到 `300G`。
+  - 根文件系统 `/` 从 `120G` 扩到 `300G`，可用空间约 `189G`，使用率从扩容前约 `93%` 降到 `38%`。
+  - 未重启 VM，未重启 runner，未重启 Docker 或业务容器。
+- 变更：
+  1. 扩容前 guest 已识别整盘 `/dev/sda` 为 `300G`，但 `/dev/sda1` 仍为 `120G`。
+  2. 执行 SCSI rescan 与 `partprobe`；`fdisk` 显示 GPT backup table 不在磁盘末尾，这是磁盘刚扩容后的预期状态。
+  3. 执行 `sudo growpart /dev/sda 1`，`/dev/sda1` 从 `251633631` sectors 扩到 `629120991` sectors。
+  4. 执行 `sudo xfs_growfs /`，XFS data blocks 从 `31454203` 扩到 `78640123`。
+- 验证：
+  - `lsblk`：`sda` `300G`，`sda1` `300G`，`sda127` `1M`，`sda128` `10M`。
+  - `df -hT /`：`/dev/sda1` `xfs`，`300G`，已用约 `112G`，可用约 `189G`，使用率 `38%`。
+  - 再次 `fdisk -l /dev/sda` 不再出现 GPT PMBR / backup GPT mismatch 警告。
+  - 3 个 runner service 均为 `active`：`mas-go-dev`、`mas-go-dev-ci-1`、`mas-go-dev-ci-2`。
+  - `docker system df`：Build Cache 又有约 `953.8MB` 可回收，属 CI 后续重新生成缓存，当前空间充足无需处理。
+- 回滚说明：XFS 与分区已在线扩展，不能直接无损缩回；如后续需要调整容量，应另行规划迁移或重建磁盘。
+
 ## 2026-07-05 00:08 CST - 只读确认 Go testcache 可复用，清 testcache 不适合做磁盘治理
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
