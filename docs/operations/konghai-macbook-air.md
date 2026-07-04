@@ -1,5 +1,30 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-04 13:25 CST - 配置 Claude Code AFK 超时为 3 分钟并加 AskUserQuestion 声音提醒 hook
+
+- 原因：
+  - `AskUserQuestion` 选择题默认无应答超时太短，无人值守时会卡住、有人值守时又想给足看题思考时间。
+  - 希望 Claude 弹选择题时能播放声音，提醒用户回终端处理。
+- 影响：
+  - 修改本机个人全局配置 `/Users/konghai/.claude/settings.json`（**不在** Server 运维笔记仓库范围内，无 git 变更）。
+  - 新增 `env.CLAUDE_AFK_TIMEOUT_MS = "180000"`（3 分钟），控制 AskUserQuestion 选择题无应答后自动按默认项继续的等待时长；只影响选择题，权限确认 / 计划审批不受它控制。
+  - 新增 `PreToolUse` hook（matcher `AskUserQuestion`），每次弹选择题前播放 `firstblood.caf`；复用现成脚本 `/Users/konghai/hooks/play_completion_sound.sh`，与 Stop 完成音 `xm3828.mp3` 区分。
+- 回滚方式：
+  - 删除 `settings.json` 中的 `env.CLAUDE_AFK_TIMEOUT_MS`（恢复默认；本机为 v2.1.201，默认关闭 auto-continue）。
+  - 删除 `PreToolUse` 里 matcher 为 `AskUserQuestion` 的 hook 块。
+- 做了什么：
+  1. 查官方文档确认 `CLAUDE_AFK_TIMEOUT_MS`（单位毫秒，需 v2.1.198+）与 `askUserQuestionTimeout`（枚举 `never/60s/5m/10m`，需 v2.1.200+）；本机 v2.1.201 均满足。
+  2. 选型：`askUserQuestionTimeout` 缺 `3m` 档，`5m` 会必然击穿 5 分钟 prompt cache TTL（无人值守时每次 askUser 都等满 5m→冷启动，又慢又贵），`60s` 又太急看不完题；最终用 `env + CLAUDE_AFK_TIMEOUT_MS = 180000` 精确取 3 分钟（3min < 5min TTL，不必然击穿缓存）。环境变量优先级高于设置项，故同时删掉先前误加的 `askUserQuestionTimeout` 避免误导。
+  3. 声音 hook 选型：Claude Code 无 `AskUserQuestion` 专属 hook 事件；实测 `PreToolUse + matcher=AskUserQuestion` 能精准命中弹窗（证明 AskUserQuestion 确是工具，可被 PreToolUse 捕获，纠正了「它只是 UI 交互、抓不到」的说法）。未用语义更泛的 `Notification`（实测其 `notification_type=permission_prompt` 是权限确认触发，会误响）。
+  4. 用临时探针 hook（写 `/tmp/hook-probe.log`）实测验证命中后，换成正式播放声音；用户试听候选音效后选定 `firstblood.caf`。
+- 验证结果：
+  - `python3 -m json.tool settings.json` 语法有效。
+  - 探针日志证实弹 AskUserQuestion 时 `PreToolUse matcher=AskUserQuestion FIRED` 命中。
+  - 当场多次调 AskUserQuestion，用户确认能听到 `firstblood.caf` 提醒音，hook 工作正常。
+- 注意事项：
+  - 声音 hook 为动态生效（当前会话即触发）；但 `env.CLAUDE_AFK_TIMEOUT_MS` 需**新开会话**才加载，当前会话仍是旧行为。
+  - 3 分钟只是「不必然」击穿缓存：若弹窗前那次请求已用掉 TTL 里三四分钟，叠加 3min 等待仍可能越过 5min 线；彻底根治方向是无人值守长任务事先用 plan mode 敲定方案、不产生 askUser 决策点。
+
 ## 2026-07-02 00:56 CST - 安装 Apple container 并验证 daohen-diary 容器化兼容性
 
 - 原因：用户希望在本机安装 Apple 开源项目 `apple/container`，并评估 `/Users/konghai/Code_local/Project/daohen-diary` 是否可用它部署。
