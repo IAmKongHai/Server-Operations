@@ -1,5 +1,25 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-04 15:40 CST - 定论：AFK auto-continue 触发条件是「终端失焦」而非「键盘空闲」，实测 180s 生效
+
+- 原因：
+  - 按 15:10 那条把配置改对（`askUserQuestionTimeout: 5m` + `CLAUDE_AFK_TIMEOUT_MS: 180000`）、并**新开会话**后，用户干等 4 分钟，AskUserQuestion 仍不自动继续，连倒计时横幅都不出现。
+  - 一度怀疑「文件手写不生效 / schema 被 `.catch` 吞掉 / key 只能经 `/config` 写」。经排查全部证伪，最终定位到真正的触发条件与测试姿势有关。
+- 影响：
+  - 纯排查 + 结论沉淀，无配置改动（配置在 15:10 已定），本仓库仅追加本条记录。
+- 做了什么（关键排查链）：
+  1. **证实配置已读到**：`/config` 界面里 "Question auto-continue timeout" 显示为 `5m`（不是 `never`），说明手写到用户级 `~/.claude/settings.json` 顶层**已被 runtime 正确采纳**，功能开关是开的。→ 推翻了「手写无效 / Scope 只认 /config」的猜测。
+  2. **证实 env 已注入**：当前新会话的子进程环境里 `CLAUDE_AFK_TIMEOUT_MS=180000`、`CLAUDE_AFK_COUNTDOWN_MS=60000` 均在。
+  3. **反查二进制定位真因**：倒计时 hook `VFc({enabled,timeoutMs,...})` 的 `useEffect` 首行 `if(!e)return`；`enabled` 由 `askUserQuestionTimeout` 换算值（`5m`→300000，truthy）决定，确应启用。但计时推进依赖**空闲基准** `c.current`，组件内 `if(W2e()===true) c.current=当下`（聚焦即不断重置基准，计时永远归零）。
+  4. **`W2e()` 的真身**：`W2e()=Hvr`，`Hvr` 由 `Pvr(e)` 设置，而唯一调用点是终端焦点事件处理器 `Pno(e){Dno=e?"focused":"blurred";Pvr(e)}`。即 **AFK 的「用户在场」判据 = 终端窗口是否聚焦，与键盘敲击无关**。另有 `_0()=qt.lastInteractionTime`、阈值 `Dun=60000` 作为兜底活跃判定。
+  5. **按正确姿势重测**：弹出 AskUserQuestion 后**立即切走窗口让终端失焦**，不手动选择。
+- 验证结果：
+  - 失焦后计时正常推进，工具在 **180s** 返回 `No response after 180s — the user may be away from keyboard`，**自动继续成功**。180s 正是 `CLAUDE_AFK_TIMEOUT_MS=180000` 的值，证明它成功覆盖了 `5m` 档，且「demo/测试 override」在**交互式会话**里同样生效（前提是终端失焦）。
+- 注意事项 / 复用经验：
+  - **触发条件是「终端失去焦点」，不是「没敲键盘」**。人离开但窗口仍聚焦时，idle 基准被焦点状态持续重置，等再久也不触发、倒计时也不出——前两次测试失败的唯一原因就在此。验证或依赖此功能时，必须让 Claude Code 终端真正失焦（切到别的 App / 桌面）。
+  - 若用 tmux / 部分终端复用器 / 某些 SSH 场景，xterm focus reporting（焦点上报）可能传不进来，`Pno` 收不到 blurred，这套 AFK 在那种环境下不会触发。本机原生终端切走窗口可正常上报失焦。
+  - 前述 15:10 那条的配置方案（开关 + env 覆盖 + 倒计时提前量）经本次实测确认**完全正确**，无需再改。
+
 ## 2026-07-04 15:10 CST - 订正：AFK auto-continue 需用 askUserQuestionTimeout 开关，单设 CLAUDE_AFK_TIMEOUT_MS 无效
 
 - 原因：
