@@ -1,5 +1,23 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-05 00:08 CST - 只读确认 Go testcache 可复用，清 testcache 不适合做磁盘治理
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Codex`
+- 原因：用户进一步确认 iCare backend coverage CI 产生的 Go testcache 下次是否真的用不上；若用不上才考虑每次 CI 结束自动清理测试结果缓存。
+- 影响：本次仅读取 VM 上 Go 1.25.7 的帮助文本与源码，不执行测试、不清理缓存、不修改 VM 配置。
+- 结论：
+  - 当前 coverage 测试结果缓存**不是确定用不上**。Go 1.25.7 文档与源码明确把 `-coverprofile` 列为 cacheable test flag；`-coverpkg` / `-covermode` 影响 test binary / build action ID，若源码、测试输入、环境变量、文件输入和相关 flag 一致，后续运行可以命中 testcache，并恢复测试输出与 coverage profile。
+  - 因此不应把“每次 CI 完自动 `go clean -testcache`”作为常规优化；这会牺牲可复用的测试结果缓存。
+  - `go clean -testcache` 也不是释放磁盘空间的有效手段：Go 源码 `cmd/go/internal/clean/clean.go` 中它只是写 `testexpire.txt`，让旧测试结果过期，并不会遍历删除大块 cache 文件。真正占 `65G+` 的主要是 Go build cache 编译产物。
+- 关键依据：
+  - `cmd/go/internal/test/test.go`：package list mode 下 successful package test results 可缓存；cacheable test flags 包含 `-coverprofile`。
+  - `cmd/go/internal/test/test.go`：`saveOutput` 会在 `testCoverProfile != ""` 时把 coverage profile 存入 cache key。
+  - `cmd/go/internal/clean/clean.go`：`-testcache` “expire all test results”，实现是写 `testexpire.txt`，不是删除整个 build cache。
+- 后续判断：
+  - 如果目标是保留 CI 速度，正确方向不是每次清 testcache，而是扩容 VM 磁盘，并保留 Go module cache 与大部分 Go build cache。
+  - 仍可做阈值兜底：当根分区接近打满时再执行有损性能的缓存清理，避免 runner 再次假活。
+
 ## 2026-07-04 23:56 CST - 回收 Docker build cache 并分析 Go build cache 膨胀原因
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
