@@ -1,5 +1,34 @@
 # pve 运维操作时间线
 
+## 2026-07-05 00:12 CST - 只读评估 mas-go-dev VM 系统盘扩容方案
+
+- 服务器：`pve`（VM `130/mas-go-dev`）
+- 操作人：`Codex`
+- 原因：`mas-go-dev` 根盘因 GitHub Actions runner 的 Go / Docker 缓存接近打满；用户要求从宿主机侧查看磁盘情况并决定扩容方案。
+- 影响：本次仅做只读检查，未执行 `qm resize`、未改 VM 配置、未改 guest 分区 / 文件系统、未重启 VM 或宿主机。
+- 宿主机存储现状：
+  - `qm list`：VM `130/mas-go-dev` running，当前 `BOOTDISK=120G`。
+  - `pvesm status`：
+    - `nvme-data` 为 `lvmthin`，总量约 `934.7GiB`，Data 使用率 `34.19%`，可用约 `615GiB`。
+    - `local-lvm` 为 `lvmthin`，总量约 `350.8GiB`，Data 使用率 `3.45%`，但 `mas-go-dev` 当前不在该池。
+  - `qm config 130`：系统盘为 `scsi0: nvme-data:vm-130-disk-1,discard=on,iothread=1,size=120G`；`agent: enabled=1` 但 guest agent 不运行（AL2023 既有限制）。
+  - `lvs`：`nvme-data/vm-130-disk-1` thin volume 逻辑大小 `120G`，Data 使用率 `99.99%`，与 guest 根盘已满吻合。
+- guest 只读确认：
+  - `lsblk`：`/dev/sda` `120G`，`/dev/sda1` 为根分区，`xfs`，挂载 `/`；`/dev/sda128` EFI 与 `/dev/sda127` BIOS boot 位于磁盘开头，`/dev/sda1` 在后面，扩容后可继续向后增长。
+  - `df -hT /`：`/dev/sda1` `120G`，已用约 `118G`，可用约 `2.5G`，使用率 `98%`。
+  - guest 内已有 `/usr/bin/growpart` 与 `/usr/sbin/xfs_growfs`。
+- 方案判断：
+  - 建议将 VM `130` 系统盘从 `120G` 扩到 `300G`（即 `qm resize 130 scsi0 +180G`）。
+  - 理由：当前要保留 Go build/test cache 来换 CI 时间，不能依赖频繁清 cache；`nvme-data` 实际仍有约 `615GiB` 可用，在线扩容不会立刻占用 180G 实体空间。
+  - 风险：`nvme-data` 是 thin pool，扩到 `300G` 后各 VM 的逻辑磁盘总量会略高于池物理容量，必须以后监控 `nvme-data` Data% 实际使用率；但当前实际使用率约 34%，短期风险可控。
+- 建议执行步骤（需用户确认后再做）：
+  1. 在 PVE 备份 VM 配置：`qm config 130 > /root/130.conf.bak.20260705-before-disk-resize`。
+  2. 在线扩容 PVE 侧磁盘：`qm resize 130 scsi0 +180G`。
+  3. 在 guest 内确认内核识别到 `/dev/sda` 新大小；如未识别，再执行 SCSI rescan 或安排短维护窗口重启 VM。
+  4. 在 guest 内扩分区与 XFS：`sudo growpart /dev/sda 1 && sudo xfs_growfs /`。
+  5. 验证 `df -hT /`、`lsblk`、runner service / CI 状态、`pvesm status`。
+- 回滚说明：磁盘扩容与 XFS 扩容基本不可无损缩回；如执行后发现问题，应按备份配置和当时状态定位修复，而不是尝试直接缩盘。执行前应确认接受“只能向前扩”的性质。
+
 ## 2026-06-19 16:20 CST - mas-win 响应慢排查：解除内存超卖，固定 6G
 
 - 服务器：`pve`（VM `120/mas-win`、`110/mssql-ref`、`140/fnos-nas`）
