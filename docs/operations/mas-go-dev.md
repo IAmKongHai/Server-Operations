@@ -1,5 +1,26 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-04 23:50 CST - 只读排查 GitHub Actions runner 假活，根因为根盘 100%
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Codex`
+- 原因：用户询问 VM 上的 self-hosted GitHub Actions runner 是否已经死掉。
+- 影响：本次仅做只读排查，未重启 runner、未清理文件、未改 Docker / systemd / 应用配置。
+- 结论：
+  - 3 个 runner systemd service 均显示 `active (running)`，但并不代表健康。
+  - `mas-go-dev` 与 `mas-go-dev-ci-1` 只剩 `runsvc.sh` + `RunnerService.js`，没有稳定的 `Runner.Listener`；`mas-go-dev-ci-2` 当时仍有一个 `Runner.Listener`，但日志同样出现过反复退出。
+  - 直接根因是根分区 `/dev/sda1` 已满：`120G` 用满、只剩 `16K`，inode 使用率 `95%`。runner 写 `_diag/Runner_*.log` 时持续报 `System.IO.IOException: No space left on device`，导致 listener 退出后反复重拉，属于“systemd 假活 / runner 不可靠”。
+- 只读排查结果：
+  - `/home` 约 `67G`，其中 `/home/actions-runner/.cache` 约 `65G`，全部集中在 Go build cache：`/home/actions-runner/.cache/go-build`。
+  - `/var` 约 `34G`，主要是 `/var/lib/docker`：`volumes` 约 `17G`、`overlay2` 约 `16G`、Docker build cache 约 `8.792G` 可回收。
+  - `/opt/actions-runner` 约 `8.0G`，其中 3 个 runner 的 `_diag` 合计约 `523M`，不是主因。
+  - `/var/log` 约 `319M`，journal 约 `287.8M`，容器 json 日志约 `7M`，不是主因。
+- 回滚方式：本次无服务器变更，无需回滚。
+- 后续建议（需用户确认后再执行）：
+  1. 优先清理 `/home/actions-runner/.cache/go-build`，这是最大且最像可再生缓存的占用。
+  2. 视情况执行 Docker build cache 清理（`docker builder prune` / `docker buildx prune`），预计可回收约 `8.8G`。
+  3. 清出空间后重查 3 个 runner 是否都恢复 `Runner.Listener`；如未恢复，再确认是否重启 runner service。
+
 ## 2026-07-02 11:53 CST - 安装 go-sqlcmd v1.10.0（连 MSSQL 参考库排查用）
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`），Amazon Linux 2023，x86_64
