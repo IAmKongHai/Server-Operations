@@ -1,5 +1,31 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-05 14:35 CST - 为 Azurite 配置 CORS（浏览器预览 blob）并固化脚本
+
+- 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
+- 操作人：`Claude`
+- 原因：用户在浏览器预览 azurite 上的 blob 文件失败，报 CORS 错误。需要给 azurite blob 服务开启 CORS，允许浏览器跨源直连预览/上传。
+- 关键结论（避坑）：
+  - **Azurite 没有 `--cors` 命令行选项**。原始方案建议在 `azurite-blob` 启动命令后加 `--cors "*"`，实测导致容器崩溃循环（日志 `The option "cors" is unknown`），且 `--cors` 也不是顶层命令参数。已 context7 查官方文档确认：CORS **只能**通过 `Set Blob Service Properties` REST API 在运行时写入服务属性。
+  - CORS 规则持久化在 `azurite-data` volume 里，`up -d --force-recreate` 重建容器不丢；但 `docker compose down -v` 或删 volume 会丢，需重跑设置脚本。
+- 影响：
+  - azurite blob 服务新增一条 CORS 规则：`AllowedOrigins=*`、全 HTTP 方法、全 headers、`MaxAgeInSeconds=3600`。
+  - 期间因错误方案 azurite 容器崩溃循环约 1 分钟，已回滚恢复；api/worker 经 `azurite:10000` 的连接短暂中断后自动重连，无数据丢失。
+  - 新增运维脚本 `/opt/mas-go-dev/infra/set-cors.sh`（属主 `actions-runner`，可执行）。
+- 变更时序：
+  1. 备份 `infra.compose.yaml` → `infra.compose.yaml.bak.20260705`。
+  2. （错误尝试）在 command 加 `--cors "*"` 并 recreate → azurite 崩溃循环 → **立即回滚**备份文件并 recreate，服务恢复。
+  3. 用一次性 `python:3.12-slim` 容器 + `azure-storage-blob` SDK（经 `shared-services` 网络 DNS 名 `azurite` 访问，SDK 自动 SharedKey 签名）调用 `set_service_properties(cors=...)` 写入 CORS 规则。
+  4. 把该步骤固化为 `/opt/mas-go-dev/infra/set-cors.sh`（幂等，内部同样借一次性 python 容器；裸 curl 因缺 SharedKey 签名返回 403，故不用 curl 直发）。
+- 验证：
+  - OPTIONS 预检（`Origin: http://example.com`）返回 `HTTP/1.1 200 OK` + `Access-Control-Allow-Origin: http://example.com` + `Access-Control-Allow-Methods: GET`。
+  - `set-cors.sh` 独立执行输出「已写入 1 条 CORS 规则」+ 预检头校验通过。
+  - `infra.compose.yaml` 已还原为改动前内容（command 无 `--cors`），azurite `Up` 正常。
+- 回滚说明：
+  - compose 文件已在步骤 2 回滚，与改动前一致，无残留。
+  - 如需移除 CORS：用 SDK/脚本调用 `set_service_properties(cors=[])` 置空即可（运行时属性，不涉及 compose）。
+  - 若 volume 被删导致规则丢失：重跑 `sudo -u actions-runner bash /opt/mas-go-dev/infra/set-cors.sh`。
+
 ## 2026-07-05 00:16 CST - 在线扩展根分区与 XFS 到 300G
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）
