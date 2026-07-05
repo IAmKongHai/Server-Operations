@@ -21,6 +21,7 @@
   - OPTIONS 预检（`Origin: http://example.com`）返回 `HTTP/1.1 200 OK` + `Access-Control-Allow-Origin: http://example.com` + `Access-Control-Allow-Methods: GET`。
   - `set-cors.sh` 独立执行输出「已写入 1 条 CORS 规则」+ 预检头校验通过。
   - `infra.compose.yaml` 已还原为改动前内容（command 无 `--cors`），azurite `Up` 正常。
+  - 用户浏览器强刷后确认 blob 文件可正常预览，CORS 报错消失（端到端验证通过）。
 - 回滚说明：
   - compose 文件已在步骤 2 回滚，与改动前一致，无残留。
   - 如需移除 CORS：用 SDK/脚本调用 `set_service_properties(cors=[])` 置空即可（运行时属性，不涉及 compose）。
