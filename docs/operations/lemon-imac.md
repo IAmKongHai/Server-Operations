@@ -1,5 +1,20 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-08 00:47 CST - 只读排查 lemon shard 因重复 maxWorkers 参数失败
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户反馈 `frontend-mas` workflow run `28882843047` 中 `lemon-imac` 上的 `Frontend Tests 5/6` 和 `6/6` 直接失败。
+- 影响：仅读取 GitHub Actions run 元数据、远端 runner `_diag` 日志和本地复现命令；未修改远端 runner、未重启服务。
+- 结论：
+  - 失败不是 runner 环境问题，而是 workflow 命令问题。
+  - `package.json` 的 `test:ci` 已固定 `--maxWorkers=2`，workflow 额外追加 `--maxWorkers=1` 后，Vitest 收到两个值并立即报错：`Expected a single value for option "--maxWorkers <workers>", received [2, 1]`。
+  - 在 `frontend-mas` PR 分支中已改为由 `VITEST_MAX_WORKERS` 环境变量控制，默认仍为 2，lemon shard 设置为 1，避免重复 CLI 参数。
+- 验证：
+  - `npm run check:ci-workflows` 通过。
+  - `actionlint -ignore 'label ".*" is unknown' .github/workflows/sonar.yml` 通过。
+  - 本地用 `VITEST_MAX_WORKERS=1 npm run test:ci -- --shard=6/6` 进入正常测试执行阶段，不再出现重复 `--maxWorkers` 解析错误；验证进程随后手动中断，未等待完整测试跑完。
+
 ## 2026-07-08 00:18 CST - 复测第二个 runner slot 对 frontend-mas 分片耗时的影响
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
