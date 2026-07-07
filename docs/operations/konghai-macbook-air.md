@@ -1,5 +1,21 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-07 23:35 CST - 安装 actionlint 用于 GitHub Actions workflow 静态检查
+
+- 原因：用户希望本机可直接检查 GitHub Actions workflow，例如 `frontend-mas/.github/workflows/sonar.yml` 的 shard / runner label 配置。
+- 影响：
+  - 通过 Homebrew 安装 `actionlint` 1.7.12。
+  - Homebrew 同时安装依赖 `shellcheck` 0.11.0。
+  - Homebrew 自动执行了一次 cleanup，清理本机 Homebrew 缓存和旧日志；未修改任何仓库文件。
+- 回滚方式：
+  - `brew uninstall actionlint`
+  - 如不再需要 shell 脚本检查依赖，也可 `brew uninstall shellcheck`。
+- 验证结果：
+  - `actionlint -version` 返回 1.7.12。
+  - 对 `frontend-mas/.github/workflows/sonar.yml` 执行 `actionlint -ignore 'label ".*" is unknown'` 通过。
+- 注意事项：
+  - 该仓库使用多个 self-hosted runner 自定义标签；裸跑 `actionlint` 会报 `mac-mini-sonar`、`lemon-imac`、`mas-go-dev`、`frontend-sonar-ci` 等 label unknown。若要把 actionlint 纳入常规检查，应在仓库内补 `actionlint.yaml` 声明自定义 runner labels，或在命令中忽略这类误报。
+
 ## 2026-07-04 15:40 CST - 定论：AFK auto-continue 触发条件是「终端失焦」而非「键盘空闲」，实测 180s 生效
 
 - 原因：

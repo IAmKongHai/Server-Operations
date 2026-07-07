@@ -1,5 +1,25 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-07 23:35 CST - 只读分析 frontend-mas PR 测试分片在 lemon-imac 上串行排队
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户反馈 `frontend-mas` SonarQube workflow 改成 6 片后，`lemon-imac` 只有 1 个 runner，两个 lemon shard 串行排队，整体可能更慢；需要只读确认瓶颈。
+- 影响：仅读取 GitHub Actions run 元数据与远端系统状态；未新增 runner，未修改 workflow，未重启服务。
+- 观察结果：
+  - workflow run `28877788298` 最终 `completed/success`，总耗时约 9 分 36 秒。
+  - `Frontend Tests 6/6 (lemon-imac)` 从 run 创建后约 6 秒开始，job 总耗时约 246 秒，其中测试约 130 秒。
+  - `Frontend Tests 5/6 (lemon-imac)` 等待约 257 秒才开始，job 总耗时约 302 秒，其中测试约 259 秒。
+  - mac-mini 四个 shard 并发开始，最慢的是 `Frontend Tests 3/6 (mac-mini)`，job 总耗时约 430 秒，其中测试约 356 秒。
+  - 结论：当前新增的第 6 片没有真正并发，因为 `lemon-imac` 只有 1 个 runner slot；关键路径变成 lemon 两片串行，总体被拉到约 9.5 分钟。
+- 远端状态：
+  - `lemon-imac` 为 8 logical CPUs，内存 8GB。
+  - 测试后系统无 swap in/out，但 compressor 使用明显；执行期间 load average 曾接近 19。
+  - runner 仍为单实例 `actions.runner.cypressoai.lemon-imac`，状态正常。
+- 后续建议：
+  - 最稳妥的短期优化是改成 5 片：mac-mini 跑 1-4/5，lemon-imac 跑 5/5，避免 lemon 单 runner 上排队。
+  - 若坚持 6 片，则需要给 `lemon-imac` 增加第二个 runner slot，但 8GB 内存下应先用一轮 PR 验证并发两个 Vitest job 是否真的变快，避免 CPU / 内存争用抵消收益。
+
 ## 2026-07-07 22:51 CST - 配置裸跑 macOS ARM GitHub Actions runner
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
