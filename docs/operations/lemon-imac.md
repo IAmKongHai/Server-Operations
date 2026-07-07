@@ -1,5 +1,38 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-07 23:51 CST - 新增第二个 GitHub Actions runner slot
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：`frontend-mas` PR workflow 已把测试切成 6 片，其中 2 片调度到 `lemon-imac`；单 runner slot 会导致这 2 片串行排队，需要增加第二个 runner slot 做并发验证。
+- 影响：
+  - 新增 runner 目录：`/Users/for-konghai/actions-runner/lemon-imac-2`。
+  - 新增短 work 目录：`/Users/for-konghai/gha/li2`。
+  - 新增并启动 macOS LaunchAgent：`actions.runner.cypressoai.lemon-imac-2`，配置文件位于 `/Users/for-konghai/Library/LaunchAgents/actions.runner.cypressoai.lemon-imac-2.plist`。
+  - GitHub 组织 `cypressoai` 新增 runner `lemon-imac-2`，runner group 为 `Default`。
+  - `lemon-imac` 与 `lemon-imac-2` 共享标签：`self-hosted`、`macos`、`arm64`、`lemon-imac`、`macos-arm64`；现有 `runs-on: [self-hosted, lemon-imac]` 可同时匹配两个 slot。
+  - 未安装 Docker，未修改既有 `lemon-imac` runner，未重启 iMac。
+- 备份：
+  - 新增安装，无既有文件需要备份。
+  - 注册 token 仅在命令进程中临时使用，未写入文档或磁盘。
+- 回滚方式：
+  1. `cd /Users/for-konghai/actions-runner/lemon-imac-2 && ./svc.sh stop && ./svc.sh uninstall`
+  2. 用 GitHub removal token 执行 `./config.sh remove --token <removal-token>`（token 可由 `gh api -X POST orgs/cypressoai/actions/runners/remove-token --jq .token` 获取）。
+  3. 删除 `/Users/for-konghai/actions-runner/lemon-imac-2` 与 `/Users/for-konghai/gha/li2`。
+- 变更时序：
+  1. 预检确认远端不存在 `lemon-imac-2` 目录、work 目录、LaunchAgent 或 GitHub runner 记录。
+  2. 复用现有 `lemon-imac` runner 目录内已下载的 `actions-runner-osx-arm64-2.335.1.tar.gz`，复制到新目录。
+  3. 用 SHA-256 `e1a9bc7a3661e06fa0b129d15c2064fe65dc81a431001d8958a9db1409b73769` 校验通过后解压。
+  4. 执行 `config.sh --unattended` 注册 runner，名称 `lemon-imac-2`、work folder `/Users/for-konghai/gha/li2`、标签与第一 slot 对齐。
+  5. 执行 `svc.sh install` 与 `svc.sh start` 安装并启动 LaunchAgent。
+- 验证：
+  - GitHub API 显示 `lemon-imac` 与 `lemon-imac-2` 均为 `status=online`、`busy=false`、`os=macos`。
+  - 两个 runner 的标签完全一致，均包含 `lemon-imac`。
+  - 远端存在两个 `Runner.Listener run --startuptype service` 进程，分别来自 `lemon-imac` 与 `lemon-imac-2` 目录。
+  - `lemon-imac-2` 日志显示 `Connected to GitHub`、`Current runner version: '2.335.1'`、`Listening for Jobs`。
+- 后续：
+  - 用下一轮 PR run 验证 `Frontend Tests 5/6` 与 `6/6` 是否同时落到两个 slot，以及 8GB 内存下并发是否实际缩短总时长。
+
 ## 2026-07-07 23:35 CST - 只读分析 frontend-mas PR 测试分片在 lemon-imac 上串行排队
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
