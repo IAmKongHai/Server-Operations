@@ -1,5 +1,21 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-08 01:54 CST - 观察 frontend-tests-ci 共享池首次 4 分片调度效果
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户提供 `frontend-mas` workflow run `28886024783`，需要确认 4 个 `Frontend Tests` shard 被 `mac-mini` 与 `lemon-imac` 两台设备共同领取是否符合预期，并评估速度与缓存 / 网络流量影响。
+- 影响：仅读取 GitHub Actions run 元数据和 job 日志；未修改 runner、workflow 或服务。
+- 观察结果：
+  - `Frontend Tests 4/4` 落到 `lemon-imac-2`，job 约 375 秒，其中 `npm ci` 约 14 秒、Vitest 约 327 秒。
+  - `Frontend Tests 1/4`、`2/4`、`3/4` 分别落到 `mac-mini-sonar-4`、`mac-mini-sonar-1`、`mac-mini-sonar-2`。
+  - 本轮从最早 job start 到 workflow failure 约 562 秒；失败点在 `Frontend Tests 2/4` 的 `CreateLoaModal.test.tsx` 偶发超时，发生于 `mac-mini-sonar-1`，不是 `lemon-imac` 环境错误。
+  - `npm ci` 在各 shard 上约 11-15 秒，说明持久化 self-hosted runner 的本机 npm tarball cache 已经有效命中，依赖安装网络消耗不是当前最大信号。
+- 结论：
+  - 4 个 shard 被两台设备领取是共享 `frontend-tests-ci` label 后的预期行为；GitHub Actions 会把 matrix job 独立派发到任意满足 `[frontend-tests-ci, macos, arm64]` 的空闲 runner slot。
+  - 共享池更适合降低多 PR 并发时的排队时间，不保证单个 PR 的 wall time 一定变短；单次耗时仍受最慢 shard 和 flaky test 影响。
+  - 跨机器会降低缓存局部性：`mac-mini` 与 `lemon-imac` 不共享 git object cache、Node tool cache、npm cache 或工作目录。当前更值得优化的网络流量点是 `Frontend Tests` 的 `actions/checkout`，可考虑只让测试 job 使用 shallow fetch，并保留 Sonar job 的 `fetch-depth: 0`。
+
 ## 2026-07-08 01:22 CST - 为 lemon-imac runner 加入 frontend-tests-ci 共享测试池
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
