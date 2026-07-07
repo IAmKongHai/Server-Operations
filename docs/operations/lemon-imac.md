@@ -1,5 +1,21 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-08 01:22 CST - 为 lemon-imac runner 加入 frontend-tests-ci 共享测试池
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户明确目标是降低 3 个同事频繁开 PR 时的整体 CI 排队时间，而不是只优化单个 PR 的执行时间。精确表达“mac-mini 接任务则 4 片、lemon-imac 接任务则 2 片”不是 GitHub Actions 原生调度能力；改用共享 runner label 让两台机器都能接 `Frontend Tests` shard。
+- 影响：
+  - GitHub 组织 `cypressoai` 中 `lemon-imac` 与 `lemon-imac-2` 新增自定义标签 `frontend-tests-ci`。
+  - `frontend-mas` PR 分支保留 4 片 `Frontend Tests`，但 `runs-on` 改为 `[frontend-tests-ci, macos, arm64]`，因此 4 个 shard 可被 `mac-mini-sonar-1..4` 或 `lemon-imac` / `lemon-imac-2` 任意空闲 slot 领取。
+  - 未修改远端 runner 文件，未重启 iMac 或 runner 服务。
+- 回滚方式：
+  - 从 `lemon-imac` 与 `lemon-imac-2` 的 GitHub runner labels 中移除 `frontend-tests-ci`。
+  - `frontend-mas/.github/workflows/sonar.yml` 恢复为 `[mac-mini-sonar, macos, arm64]`。
+- 验证：
+  - GitHub API 显示 `lemon-imac` 与 `lemon-imac-2` 均包含 `frontend-tests-ci`、`macos`、`arm64`。
+  - `frontend-mas` workflow 校验通过：`npm run check:ci-workflows`、`actionlint -ignore 'label ".*" is unknown' .github/workflows/sonar.yml`、YAML parse。
+
 ## 2026-07-08 01:13 CST - 确认混合分片收益不足，frontend-mas 回退到 mac-mini 4 片
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
@@ -16,7 +32,7 @@
   - `maxWorkers=1` 降低了 lemon 单 job 内并发，但显著拉长 lemon shard 耗时；收益不如保留默认 `maxWorkers=2`。
 - 结论：
   - `lemon-imac` 与 `mac-mini` 混合分担同一个 Vitest shard 池收益不稳定，主要受异构机器性能、Vitest 文件级分片不均衡和每片重复安装/启动成本影响。
-  - 已在 `frontend-mas` PR 分支把 `sonar.yml` 回退为 mac-mini 4 片：`Frontend Tests 1/4..4/4` 仅跑 `[mac-mini-sonar, macos, arm64]`。
+  - 已在 `frontend-mas` PR 分支把 `sonar.yml` 回退为 4 片：`Frontend Tests 1/4..4/4`，随后在 01:22 进一步改为通过 `[frontend-tests-ci, macos, arm64]` 共享 runner 池调度。
   - 已把 `package.json` 的 `test:ci` 恢复为固定 `--maxWorkers=2`，移除 `VITEST_MAX_WORKERS` 实验入口。
 - 验证：
   - `npm run check:ci-workflows` 通过。
