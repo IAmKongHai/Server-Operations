@@ -27,6 +27,7 @@ server/
 | `tizi`         | 代理              | 主代理服务器                                                                                     |
 | `rao-tizi`     | 代理（备用）      | `tizi` 的备用代理                                                                                |
 | `mac-mini`     | 本地              | 家里的 Mac mini                                                                                  |
+| `lemon-imac`   | 本地 / 测试       | Tailscale 内网 iMac，作为 macOS ARM GitHub Actions self-hosted runner                             |
 | `nas`          | 本地 / 数据       | 家用 NAS，跑 SQL Server（`mas-old-sql2022-fts-nas` 等）及历史业务数据库                          |
 | `pve`          | 本地 / 测试       | Proxmox VE 虚拟化宿主，计划承载开发测试 VM                                                       |
 | `mssql-ref`    | 本地 / 数据       | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库（`192.168.2.20`）                            |
