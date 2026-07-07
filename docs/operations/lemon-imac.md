@@ -1,5 +1,24 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-08 00:18 CST - 复测第二个 runner slot 对 frontend-mas 分片耗时的影响
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：新增 `lemon-imac-2` 后，用户重新允许 `frontend-mas` workflow run `28877788298`，需要观察两个 lemon shard 是否并发以及总耗时是否改善。
+- 影响：仅读取 GitHub Actions run 元数据和远端系统状态；未修改 runner、workflow 或服务。
+- 观察结果：
+  - 重新跑的 workflow 最终 `completed/success`，按本轮最早 job start 到汇总 job complete 计算约 7 分 27 秒；上一轮单 lemon slot 约 9 分 36 秒。
+  - `Frontend Tests 6/6 (lemon-imac)`：job 约 216 秒，测试约 163 秒。
+  - `Frontend Tests 5/6 (lemon-imac)`：job 约 344 秒，测试约 291 秒。
+  - `Frontend Tests 3/6 (mac-mini)` 仍是最慢 mac-mini shard：job 约 431 秒，测试约 365 秒。
+  - 两个 lemon shard 这轮没有像上一轮那样串行排队；`lemon-imac-2` 在 `6/6` 完成后空闲，`lemon-imac` 继续跑较慢的 `5/6`。
+- 远端状态：
+  - 并发期间 `lemon-imac` load average 曾超过 20；测试后仍约 15。
+  - 未见 swap in/out，但内存 compressor 使用明显，说明 8GB 内存下并发两个 Vitest job 有资源压力。
+- 结论：
+  - 第二个 runner slot 解决了 lemon 两片排队，但整体收益有限，主要瓶颈转为分片不均衡和机器资源竞争。
+  - 继续增加 runner slot 不建议；下一步更应该优化分片策略或降低每个 job 的重复安装/启动成本。
+
 ## 2026-07-07 23:51 CST - 新增第二个 GitHub Actions runner slot
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
