@@ -1,5 +1,28 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-08 01:13 CST - 确认混合分片收益不足，frontend-mas 回退到 mac-mini 4 片
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：`frontend-mas` workflow run `28883967948` 合并 `VITEST_MAX_WORKERS=1` 后再次验证，用户反馈整体仍无明显改善，希望拆开 `lemon-imac` 与 `mac-mini` 的工作，不再混合切同一套测试分片。
+- 影响：
+  - 仅读取 GitHub Actions run 元数据并修改 `frontend-mas` PR 分支 workflow；未修改远端 runner、未重启服务。
+  - `lemon-imac` 两个 runner slot 仍保留在线，可供后续单独 workflow / 独立 job 使用。
+- 观察结果：
+  - 本轮 run `completed/success`，按本轮最早 job start 到汇总 job complete 约 571 秒。
+  - `Frontend Tests 5/6 (lemon-imac)`：job 约 555 秒，测试约 502 秒。
+  - `Frontend Tests 6/6 (lemon-imac)`：job 约 315 秒，测试约 263 秒。
+  - `Frontend Tests 3/6 (mac-mini)`：job 约 456 秒，测试约 387 秒。
+  - `maxWorkers=1` 降低了 lemon 单 job 内并发，但显著拉长 lemon shard 耗时；收益不如保留默认 `maxWorkers=2`。
+- 结论：
+  - `lemon-imac` 与 `mac-mini` 混合分担同一个 Vitest shard 池收益不稳定，主要受异构机器性能、Vitest 文件级分片不均衡和每片重复安装/启动成本影响。
+  - 已在 `frontend-mas` PR 分支把 `sonar.yml` 回退为 mac-mini 4 片：`Frontend Tests 1/4..4/4` 仅跑 `[mac-mini-sonar, macos, arm64]`。
+  - 已把 `package.json` 的 `test:ci` 恢复为固定 `--maxWorkers=2`，移除 `VITEST_MAX_WORKERS` 实验入口。
+- 验证：
+  - `npm run check:ci-workflows` 通过。
+  - `actionlint -ignore 'label ".*" is unknown' .github/workflows/sonar.yml` 通过。
+  - YAML 解析通过。
+
 ## 2026-07-08 00:47 CST - 只读排查 lemon shard 因重复 maxWorkers 参数失败
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
