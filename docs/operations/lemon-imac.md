@@ -1,5 +1,19 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-08 02:23 CST - 只读盘点 frontend-mas runner 本地缓存现状
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户询问 frontend test runner 的缓存方案是在 workflow 侧还是 runner 侧配置，以及 `lemon-imac` 与 `mac-mini` 当前缓存现状。
+- 影响：仅读取 workflow 配置和本机 runner 目录大小；未修改 runner、workflow、缓存目录或服务。
+- 观察结果：
+  - `frontend-mas/.github/workflows/sonar.yml` 未使用 `actions/cache`，`actions/setup-node` 未配置 `cache: npm`；依赖安装通过 `npm ci --prefer-offline --no-audit --fund=false` 使用本机 npm cache。
+  - `lemon-imac` 两个 runner slot 分别使用 `/Users/for-konghai/gha/li` 与 `/Users/for-konghai/gha/li2`，工作目录互相隔离。
+  - 用户级 npm cache `/Users/for-konghai/.npm` 约 `184M`，由同一 macOS 用户下的两个 runner slot 共享。
+  - 两个 slot 各自有独立 Node tool cache：`_tool/node/24.18.0/arm64`，各自约 `195M`。
+  - 两个 slot 的 `iCare-frontend-mas` workspace 各自保留 `.git` 约 `29M`、`node_modules` 约 `752-754M`。
+- 结论：当前缓存主要是 self-hosted runner 的本机持久缓存，不是 GitHub 远端 cache；同机共享的是用户级 npm tarball cache，workspace / Node tool cache 仍按 runner slot 独立。
+
 ## 2026-07-08 01:54 CST - 观察 frontend-tests-ci 共享池首次 4 分片调度效果
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）

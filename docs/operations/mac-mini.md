@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-07-08 02:23 CST - 只读盘点 frontend-mas runner 本地缓存现状
+
+- 原因：用户询问 frontend test runner 的缓存方案是在 workflow 侧还是 runner 侧配置，以及 `lemon-imac` 与 `mac-mini` 当前缓存现状。
+- 影响：仅读取 workflow 配置和本机 runner 目录大小；未修改 runner、workflow、缓存目录或服务。
+- 观察结果：
+  - `frontend-mas/.github/workflows/sonar.yml` 未使用 `actions/cache`，`actions/setup-node` 未配置 `cache: npm`；依赖安装通过 `npm ci --prefer-offline --no-audit --fund=false` 使用本机 npm cache。
+  - `mac-mini` 四个 runner slot 分别使用 `/Users/konghai/gha/s1..s4`，工作目录互相隔离。
+  - 用户级 npm cache `/Users/konghai/.npm` 约 `9.5G`，由同一 macOS 用户下的四个 runner slot 共享。
+  - 四个 slot 各自有独立 Node tool cache：`_tool/node/24.16.0/arm64`，每个 runner root 的 `_tool` 约 `730M`。
+  - 四个 slot 的 `iCare-frontend-mas` workspace 各自保留 `.git` 约 `130-134M`；`s2..s4` 当前保留 `node_modules` 约 `755-765M`，`s1` 当前未见可统计的 `node_modules`。
+- 结论：当前缓存主要是 self-hosted runner 的本机持久缓存，不是 GitHub 远端 cache；同机共享的是用户级 npm tarball cache，workspace / Node tool cache 仍按 runner slot 独立。
+
 ## 2026-07-08 01:22 CST - 为 mac-mini sonar runner 加入 frontend-tests-ci 共享测试池
 
 - 原因：`frontend-mas` PR 的 `Frontend Tests` 是合并排队主要瓶颈。单纯把一个 PR 的测试拆到 `mac-mini` + `lemon-imac` 混合 6 片收益不稳定；新策略改为提升整体吞吐量：保留 4 片测试，但让 `mac-mini` 4 个 slot 与 `lemon-imac` 2 个 slot 共同接同一类 frontend test shard。
