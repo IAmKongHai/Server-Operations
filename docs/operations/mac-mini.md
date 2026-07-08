@@ -1,5 +1,29 @@
 # mac-mini 运维时间线
 
+## 2026-07-08 18:09 CST - 收敛 frontend-mas CI 到 mac-mini 双 runner
+
+- 原因：排查 `iCare-frontend-mas` PR #1036 的 `Frontend Tests` flaky。失败 run 中 `frontend-tests-ci` 同时调度到 `lemon-imac`、`lemon-imac-2`、`mac-mini-sonar-1..2`，而 `lemon-imac` 只有 8GB 内存；在 `maxWorkers=4` 下 jsdom/AntD 测试明显变慢并触发默认 `waitFor/findBy` 1s 等待边界，出现断言/元素查找 flaky。
+- 影响：
+  - `mac-mini` 仅保留 `mac-mini-sonar-1`、`mac-mini-sonar-2` 两个 GitHub Actions runner 在线。
+  - `mac-mini-sonar-3`、`mac-mini-sonar-4` 的 LaunchAgent 已 `disable` 并 `bootout`，不删除 runner 目录、不移除 GitHub runner 注册、不改 token。
+  - `frontend-mas` 分支 `feature/CYP-1241-test-ci-maxworkers-6` 已把 PR frontend test shard 从 4 片收敛到 2 片，并让 shard 只匹配 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，避免继续落到 `lemon-imac`；汇总 `Frontend Tests` job 改到 `mas-go-dev`，避免空 echo job 排队占 Mac runner。
+- 备份：
+  - 操作前 `launchctl print gui/501/actions.runner.cypressoai.mac-mini-sonar-{1,2,3,4}` 已读出当前 plist 路径、工作目录、stdout/stderr 路径和运行状态。
+  - 操作前 GitHub API 显示 `mac-mini-sonar-1..4` 均为 `online` 且 `busy=false`，标签均包含 `mac-mini-sonar,macos,arm64,backend-ci,frontend-sonar-ci,frontend-tests-ci`。
+- 回滚方式：
+  - 重新启用 runner3/4：`launchctl enable gui/501/actions.runner.cypressoai.mac-mini-sonar-3`、`launchctl enable gui/501/actions.runner.cypressoai.mac-mini-sonar-4`。
+  - 再拉起服务：`launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-3.plist`、`launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-4.plist`；如已加载但未运行，可用 `launchctl kickstart -k gui/501/actions.runner.cypressoai.mac-mini-sonar-3` 和 `-4`。
+  - 仓库侧回滚：把 `frontend-mas/.github/workflows/sonar.yml` 的 frontend test shard 恢复为 4 片和原 runner 标签。
+- 做了什么：
+  - 通过 GitHub run 日志确认失败 run `28932383075` 中 2/4 在 `mac-mini-sonar-2` 失败、4/4 在 `lemon-imac` 失败，失败点分别是 `BenefitPlanCreateInnerIllnessLimitsDrawer.test.tsx:246` 的 `saveMutate` 等待未满足、`SpecializationTemplatePage.test.tsx:220` 找不到 `Change` 按钮。
+  - 本地在 `frontend-mas` 运行两个失败测试文件，`maxWorkers=4` 下 15 个测试全部通过；再运行 `npm run test:ci -- --shard=1/2`，489 个文件、3025 个测试通过。
+  - 执行 `launchctl disable gui/501/actions.runner.cypressoai.mac-mini-sonar-{3,4}` 和对应 `launchctl bootout`，停用 runner3/4。
+- 验证结果：
+  - `mac-mini` 本机 `launchctl list` 仅剩 `actions.runner.cypressoai.mac-mini-sonar-1`、`actions.runner.cypressoai.mac-mini-sonar-2`。
+  - `ps` 仅显示 runner1/2 的 `runsvc.sh` 与 `Runner.Listener`，无 runner3/4 进程。
+  - `launchctl print-disabled gui/501` 显示 runner1/2 为 `enabled`，runner3/4 为 `disabled`。
+  - GitHub API 显示 `mac-mini-sonar-1`、`mac-mini-sonar-2` 为 `online`，`mac-mini-sonar-3`、`mac-mini-sonar-4` 为 `offline`。
+
 ## 2026-07-08 02:23 CST - 只读盘点 frontend-mas runner 本地缓存现状
 
 - 原因：用户询问 frontend test runner 的缓存方案是在 workflow 侧还是 runner 侧配置，以及 `lemon-imac` 与 `mac-mini` 当前缓存现状。
