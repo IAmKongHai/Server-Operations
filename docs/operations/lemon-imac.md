@@ -1,5 +1,27 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-09 02:18 +08 - 决策：保持 4 片共享 runner 池观察数日
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户确认不再拆分 mac / lemon 两组 job，先保持当前方案运行几天，以真实 PR 队列吞吐量判断是否值得进一步调整。
+- 当前方案（已选择）：
+  - `Frontend Tests` 保持 4 个 shard：`1/4..4/4`。
+  - `runs-on: [frontend-tests-ci, macos, arm64]`，由 `mac-mini` 与 `lemon-imac-1` / `lemon-imac-2` 组成共享池，6 个 runner 中随机 4 个领取当前 PR 的测试 shard。
+  - 每个 shard 统一使用 `VITEST_MAX_WORKERS=2`；因此 `lemon-imac-1` / `lemon-imac-2` 当前接到 shard 时也是 `maxWorkers=2`。
+  - 优点：保持调度弹性，空闲 runner 可无缝接后续 PR，更贴近“60 分钟完成多少个 SonarQube Analysis”的整体吞吐目标。
+  - 代价：不能按最终落到的机器动态调整 worker；`lemon-imac` 上单 shard 可能比 `mac-mini` 慢，单 PR wall time 可能受慢 shard 影响。
+- 备选方案（暂不采用）：
+  - 拆成 mac / lemon 两组 `Frontend Tests` job。
+  - mac job 使用 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]` 和 `VITEST_MAX_WORKERS=2`。
+  - lemon job 使用 `[lemon-imac, frontend-tests-ci, macos, arm64]` 和 `VITEST_MAX_WORKERS=1`。
+  - 优点：可以单独把 `lemon-imac` 每 shard `maxWorkers` 降到 1，降低 8GB 机器上的内存压力。
+  - 代价：需要固定拆分 shard / job，无法继续保持 6 个 runner 随机抢 4 个 shard 的单一共享池；也会增加分片和调度复杂度。
+- 观察口径：
+  - 以 60 分钟内完成的 `SonarQube Analysis` PR run 数量作为主要量化指标，数量越大说明整体队列吞吐越好。
+  - 同时记录失败类型：真实测试失败、flaky timeout、runner 排队、SonarQube gate 失败要分开看，不混为“CI 慢”。
+  - 若 `lemon-imac` 相关 shard 持续成为长尾或 flaky 来源，再重新评估备选方案。
+
 ## 2026-07-09 02:12 +08 - frontend-mas CI 收敛为 4 片共享 runner 池并处理今晚 PR
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
