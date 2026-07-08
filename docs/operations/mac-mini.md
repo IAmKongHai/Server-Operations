@@ -1,5 +1,28 @@
 # mac-mini 运维时间线
 
+## 2026-07-09 00:10 CST - 收敛 frontend-mas CI 队列吞吐到 mac-only 四 runner
+
+- 原因：继续优化 `iCare-frontend-mas` `SonarQube Analysis` 的整体队列吞吐，指标改为同一配置下并发触发两条 PR run 后折算的 `SonarQube Analysis/hour`，重点优化 `Frontend Tests` 阶段而不是单条 run 的最短耗时。
+- 影响：
+  - `mac-mini` 最终保留 `mac-mini-sonar-1..4` 四个 GitHub Actions runner 在线。
+  - `frontend-mas` 最终候选配置：`Frontend Tests` 4 shards，全部跑 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，每 shard `VITEST_MAX_WORKERS=2`，即 mac-mini 总 Vitest workers=8。
+  - `lemon-imac` / `lemon-imac-2` 不参与最终 `Frontend Tests` shard；保留其 runner 在线但不在最终 workflow 中引用。
+  - 前端分支 `optimize/CYP-1246-frontend-ci-queue` / `optimize/CYP-1246-frontend-ci-queue-b` 均推送到最终 commit `122e7088`，用于 PR 双跑验证。
+- 回滚方式：
+  - 如需回到双 runner 四 worker方案：`launchctl disable gui/501/actions.runner.cypressoai.mac-mini-sonar-{3,4}` 后 `launchctl bootout gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-{3,4}.plist`，并把 workflow 的 `VITEST_MAX_WORKERS` 改回 `4`。
+  - 如需恢复 lemon 混合实验：把 workflow 拆成 mac shards `1..4/6`（`VITEST_MAX_WORKERS=2`）和 lemon shards `5..6/6`（`VITEST_MAX_WORKERS=1`）。
+- 做了什么：
+  - 复测 mac-only 4 runner × 2 workers × 4 shards：run `28948596797` / `28948599595` 双绿，吞吐 `7.045/h`。
+  - 测试 mac-only 4 runner × 2 workers × 8 shards：首次 run `28949983957` / `28949988495` 一绿一红；修复 `BenefitPlanCreateInnerIllnessLimitsDrawer.test.tsx` 高负载等待边界后，run `28951878491` / `28951882286` 双绿但吞吐仅 `6.44/h`，低于 4 shards。
+  - 复测 mac-only 4 shards 最新状态：run `28953384903` / `28953388341` 双绿，吞吐 `6.723/h`。
+  - 测试 mac + lemon 混合 6 shards：run `28954798224` / `28954802865` 双绿，吞吐 `6.642/h`；`lemon-imac` 的 `5/6` shard 两次约 12 分钟，形成长尾。
+  - 最终回到 mac-only 4 shards 并验证：run `28956235734` / `28956241233` 双绿，批次窗口 1005 秒，吞吐 `7.164 SonarQube Analysis/hour`。
+- 验证结果：
+  - `mac-mini` `launchctl list` 显示 `actions.runner.cypressoai.mac-mini-sonar-1..4` 均在线；`launchctl print-disabled gui/501` 显示四个 service 均 enabled。
+  - GitHub runner API 显示 `mac-mini-sonar-1..4`、`lemon-imac`、`lemon-imac-2` 均 online 且空闲。
+  - 最终 workflow 校验 `npm run check:ci-workflows` 通过。
+  - 最终结论：当前最高实测方案是 `mac-mini 4 runner × 每 shard 2 workers × 4 shards`。8 shards 单条 run 可更快，但 GitHub 调度会优先消化同一 run 的剩余 shards，B run 等待变长；lemon 混合池能让 B 更早起跑，但 8GB lemon shard 长尾抵消收益。
+
 ## 2026-07-08 21:58 CST - 验证 frontend-mas CI 双 runner 四 worker 吞吐
 
 - 原因：用户希望以“60 分钟内完成多少个 `SonarQube Analysis`”作为 CI 配置优劣指标，并要求同一方案至少同时触发两条 `SonarQube Analysis`，验证真实队列吞吐；目标配置为 `mac-mini` 2 个 runner，每个 frontend test shard 使用 `maxWorkers=4`，总计 8 个 Vitest worker。
