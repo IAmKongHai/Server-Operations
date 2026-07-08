@@ -6,14 +6,14 @@
 - 影响：
   - `mac-mini` 仅保留 `mac-mini-sonar-1`、`mac-mini-sonar-2` 两个 GitHub Actions runner 在线。
   - `mac-mini-sonar-3`、`mac-mini-sonar-4` 的 LaunchAgent 已 `disable` 并 `bootout`，不删除 runner 目录、不移除 GitHub runner 注册、不改 token。
-  - `frontend-mas` 分支 `feature/CYP-1241-test-ci-maxworkers-6` 已把 PR frontend test shard 从 4 片收敛到 2 片，并让 shard 只匹配 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，避免继续落到 `lemon-imac`；汇总 `Frontend Tests` job 改到 `mas-go-dev`，避免空 echo job 排队占 Mac runner。
+  - `frontend-mas` 分支 `feature/CYP-1241-test-ci-maxworkers-6` 保留 PR frontend test 4 片，但让 shard 只匹配 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，在两个在线 mac-mini runner 上分批执行，避免继续落到 `lemon-imac`；汇总 `Frontend Tests` job 改到 `mas-go-dev`，避免空 echo job 排队占 Mac runner。
 - 备份：
   - 操作前 `launchctl print gui/501/actions.runner.cypressoai.mac-mini-sonar-{1,2,3,4}` 已读出当前 plist 路径、工作目录、stdout/stderr 路径和运行状态。
   - 操作前 GitHub API 显示 `mac-mini-sonar-1..4` 均为 `online` 且 `busy=false`，标签均包含 `mac-mini-sonar,macos,arm64,backend-ci,frontend-sonar-ci,frontend-tests-ci`。
 - 回滚方式：
   - 重新启用 runner3/4：`launchctl enable gui/501/actions.runner.cypressoai.mac-mini-sonar-3`、`launchctl enable gui/501/actions.runner.cypressoai.mac-mini-sonar-4`。
   - 再拉起服务：`launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-3.plist`、`launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-4.plist`；如已加载但未运行，可用 `launchctl kickstart -k gui/501/actions.runner.cypressoai.mac-mini-sonar-3` 和 `-4`。
-  - 仓库侧回滚：把 `frontend-mas/.github/workflows/sonar.yml` 的 frontend test shard 恢复为 4 片和原 runner 标签。
+  - 仓库侧回滚：把 `frontend-mas/.github/workflows/sonar.yml` 的 frontend test runner 标签恢复为原 `[frontend-tests-ci, macos, arm64]`；如需恢复 4 个 mac-mini runner 同机并发，再启用 runner3/4。
 - 做了什么：
   - 通过 GitHub run 日志确认失败 run `28932383075` 中 2/4 在 `mac-mini-sonar-2` 失败、4/4 在 `lemon-imac` 失败，失败点分别是 `BenefitPlanCreateInnerIllnessLimitsDrawer.test.tsx:246` 的 `saveMutate` 等待未满足、`SpecializationTemplatePage.test.tsx:220` 找不到 `Change` 按钮。
   - 本地在 `frontend-mas` 运行两个失败测试文件，`maxWorkers=4` 下 15 个测试全部通过；再运行 `npm run test:ci -- --shard=1/2`，489 个文件、3025 个测试通过。
@@ -23,6 +23,7 @@
   - `ps` 仅显示 runner1/2 的 `runsvc.sh` 与 `Runner.Listener`，无 runner3/4 进程。
   - `launchctl print-disabled gui/501` 显示 runner1/2 为 `enabled`，runner3/4 为 `disabled`。
   - GitHub API 显示 `mac-mini-sonar-1`、`mac-mini-sonar-2` 为 `online`，`mac-mini-sonar-3`、`mac-mini-sonar-4` 为 `offline`。
+  - 最终验证 run `28935448141` 通过：`Frontend Tests 1/4..4/4`、`Typecheck`、`SonarQube Scan`、汇总 `Frontend Tests` 均为 `success`；实际测试 shard 使用 `--maxWorkers=4 --shard=N/4`，两个在线 mac-mini runner 分批执行。
 
 ## 2026-07-08 02:23 CST - 只读盘点 frontend-mas runner 本地缓存现状
 
