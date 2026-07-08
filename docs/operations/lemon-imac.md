@@ -1,5 +1,31 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-09 02:12 +08 - frontend-mas CI 收敛为 4 片共享 runner 池并处理今晚 PR
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：6 片方案会增加重复启动/安装开销并拉长关键路径；用户明确要求回到 4 片，让 `mac-mini` 与 `lemon-imac` 共 6 个 runner 中随机 4 个领取当前 PR 的 `Frontend Tests`，其余空闲 runner 接后续 PR。
+- 影响：
+  - `frontend-mas` PR `#1042` 将 `.github/workflows/sonar.yml` 收敛为单个 `frontend-tests-shards` matrix：`Frontend Tests 1/4..4/4`。
+  - `runs-on` 改为 `[frontend-tests-ci, macos, arm64]`，让 `mac-mini` 与 `lemon-imac-1` / `lemon-imac-2` 都能参与抢占 shard。
+  - 每个 shard 通过 workflow 环境变量设置 `VITEST_MAX_WORKERS=2`；`package.json` 的 `test:ci` 支持 `${VITEST_MAX_WORKERS:-4}`，本地默认仍可用 4。
+  - 取消过时的 6 片 run，避免继续占用 runner。
+- 观察结果：
+  - `#1043` 备用吞吐测试 PR 在 4 片共享池下完成成功，run `28962561762` 耗时 `9m37s`。
+  - `#1042` 转 ready 后最新 required run `28963719147` 完成成功，耗时 `14m15s`；四个 shard 分别约 `8m33s`、`10m11s`、`6m44s`、`5m31s`。
+  - `#1044` 先在旧 mac-only / `maxWorkers=4` 配置下出现多处无关 flaky；更新到合并后的 `develop` 后，run `28964670159` 在 4 片共享池 + `VITEST_MAX_WORKERS=2` 下完成成功。
+- PR 处理：
+  - `#1042` 已 squash merge，merge commit `5db5de315479d4170773117340ee39b372750ef0`。
+  - `#1043` 已关闭，远端备用分支 `optimize/CYP-1246-frontend-ci-queue-b` 已删除。
+  - `#1044` 已 squash merge，merge commit `594dccd6cb75911f5d128d818d02e98998f4a21c`。
+  - 处理完成时 `iCare-frontend-mas` 无 open PR。
+- 回滚方式：
+  - 如需回退共享池策略，可在 `frontend-mas` 恢复为 `runs-on: [mac-mini-sonar, frontend-tests-ci, macos, arm64]` 或固定 mac-only label。
+  - 如需回退 worker 策略，可把 workflow 的 `VITEST_MAX_WORKERS` 改回 1/4，或把 `package.json` 的 `test:ci` 恢复固定 `--maxWorkers=4`。
+- 验证：
+  - `npm run check:ci-workflows` 在 CI 配置分支通过。
+  - `#1042`、`#1044` 的 GitHub required checks 均通过，包括 `Frontend Tests`、`Typecheck`、`SonarQube Scan` 与 `SonarQube Code Analysis`。
+
 ## 2026-07-09 01:12 +08 - 重命名第一 GitHub Actions runner 并让两个 lemon slot 参与 Frontend Tests
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
