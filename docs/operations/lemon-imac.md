@@ -1,5 +1,34 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-09 01:12 +08 - 重命名第一 GitHub Actions runner 并让两个 lemon slot 参与 Frontend Tests
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Codex`
+- 原因：用户希望统一 runner 命名，将第一 slot 从 `lemon-imac` 改为 `lemon-imac-1`，并让 `lemon-imac-1` / `lemon-imac-2` 都参与 `frontend-mas` 的 `Frontend Tests`；同时要求 lemon 机器上的每个 shard 单独使用 `maxWorkers=1`。
+- 影响：
+  - GitHub 组织 `cypressoai` 中旧 runner `lemon-imac` 已移除并重新注册为 `lemon-imac-1`。
+  - 远端 runner 目录从 `/Users/for-konghai/actions-runner/lemon-imac` 改为 `/Users/for-konghai/actions-runner/lemon-imac-1`；`lemon-imac-2` 保持不变。
+  - 当前两个 LaunchAgent 为 `actions.runner.cypressoai.lemon-imac-1` 与 `actions.runner.cypressoai.lemon-imac-2`。
+  - 两个 runner 均保留标签 `self-hosted`、`macos`、`arm64`、`lemon-imac`、`macos-arm64`、`frontend-tests-ci`。
+  - `frontend-mas/.github/workflows/sonar.yml` 改为两组 `Frontend Tests` job：`mac-mini` 跑 `1-4/6`，每 shard `VITEST_MAX_WORKERS=2`；`lemon-imac` 跑 `5-6/6`，每 shard `VITEST_MAX_WORKERS=1`。
+- 备份：
+  - 远端旧 runner 配置备份到 `/Users/for-konghai/actions-runner/backups/lemon-imac-rename-20260709-010840`，包含 `.runner`、`.credentials`、`.credentials_rsaparams`、`.service` 和旧 LaunchAgent plist。
+- 回滚方式：
+  - runner 回滚：停止并卸载 `actions.runner.cypressoai.lemon-imac-1`，用 GitHub removal token 移除注册记录，再用备份目录中的配置或重新注册为 `lemon-imac`。
+  - workflow 回滚：把 `frontend-mas/.github/workflows/sonar.yml` 恢复到 mac-only 4 shard 配置，或回退到 `frontend-mas` 提交 `122e7088`。
+- 变更时序：
+  1. 生成 GitHub Actions removal token 与 registration token，未写入文档或磁盘。
+  2. 备份旧 `lemon-imac` runner 的本地配置和 LaunchAgent plist。
+  3. 停止并卸载旧 `actions.runner.cypressoai.lemon-imac`，执行 runner removal；卸载阶段 `launchctl` 曾返回 `Unload failed: 5: Input/output error`，后续验证旧服务与旧 plist 均已不再存在。
+  4. 移动目录为 `/Users/for-konghai/actions-runner/lemon-imac-1`，重新注册 runner 名称 `lemon-imac-1`，work folder 仍为 `/Users/for-konghai/gha/li`。
+  5. 安装并启动新 LaunchAgent `actions.runner.cypressoai.lemon-imac-1`。
+  6. 修改 `frontend-mas` workflow，通过拆分 mac / lemon 两组 job 实现按机器设置不同的 `VITEST_MAX_WORKERS`。
+- 验证：
+  - `launchctl list` 显示 `actions.runner.cypressoai.lemon-imac-1` 与 `actions.runner.cypressoai.lemon-imac-2` 均已运行。
+  - GitHub API 显示 `lemon-imac-1` 与 `lemon-imac-2` 均为 `status=online`、`busy=false`，且均包含 `lemon-imac` 与 `frontend-tests-ci` 标签。
+  - `frontend-mas` 执行 `npm run check:ci-workflows` 通过。
+  - 已推送 `frontend-mas` 提交 `3c2ee55d`，触发 SonarQube Analysis runs `28961475050` 与 `28961475025`；新 job 名称已出现 `Frontend Tests 1-4/6 (mac)` 和 `Frontend Tests 5-6/6 (lemon)`，备用分支的两个 lemon shard 已开始执行。
+
 ## 2026-07-08 02:23 CST - 只读盘点 frontend-mas runner 本地缓存现状
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
