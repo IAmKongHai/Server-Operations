@@ -1,5 +1,26 @@
 # mac-mini 运维时间线
 
+## 2026-07-08 21:58 CST - 验证 frontend-mas CI 双 runner 四 worker 吞吐
+
+- 原因：用户希望以“60 分钟内完成多少个 `SonarQube Analysis`”作为 CI 配置优劣指标，并要求同一方案至少同时触发两条 `SonarQube Analysis`，验证真实队列吞吐；目标配置为 `mac-mini` 2 个 runner，每个 frontend test shard 使用 `maxWorkers=4`，总计 8 个 Vitest worker。
+- 影响：
+  - `mac-mini` 保持仅 `mac-mini-sonar-1`、`mac-mini-sonar-2` 在线，`mac-mini-sonar-3`、`mac-mini-sonar-4` 继续禁用。
+  - `frontend-mas` 分支 `optimize/CYP-1246-frontend-ci-queue` 和 `optimize/CYP-1246-frontend-ci-queue-b` 均推送到 commit `48c4d457`，用于并发触发 PR CI。
+  - workflow 目标状态为 4 个 frontend test shard 跑在 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，`VITEST_MAX_WORKERS=4`。
+- 回滚方式：
+  - runner 侧如需恢复 4 runner 并发，执行 `launchctl enable gui/501/actions.runner.cypressoai.mac-mini-sonar-{3,4}`，再 `launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-{3,4}.plist` 或 `launchctl kickstart -k`。
+  - 仓库侧可把 `frontend-mas/.github/workflows/sonar.yml` 回滚到前一版 shard/worker 配置，或恢复到仅按 `[frontend-tests-ci, macos, arm64]` 调度。
+- 做了什么：
+  - 修复两处高负载下暴露的测试 flaky：LOA diagnosis drawer 延迟 open callback 清空草稿，以及 Inner/Illness Limits drawer 提交前 AntD Form/useWatch 状态尚未同步。
+  - 本地验证 `BenefitPlanCreateInnerIllnessLimitsDrawer.test.tsx` 单文件 7 个测试通过；`VITEST_MAX_WORKERS=4 npm run test:ci -- --shard=2/4` 通过，247 个文件、1579 个测试通过。
+  - 顺序推送两个 PR 分支，触发并发 run `28947113047` 和 `28947119750`。
+- 验证结果：
+  - `mac-mini` 本机 `launchctl list` 仅显示 `actions.runner.cypressoai.mac-mini-sonar-1`、`actions.runner.cypressoai.mac-mini-sonar-2`；`launchctl print-disabled gui/501` 显示 runner3/4 为 disabled。
+  - run `28947113047` 成功：A run 创建于 `2026-07-08T13:39:47Z`，完成于 `13:49:57Z`。
+  - run `28947119750` 成功：B run 创建于 `2026-07-08T13:39:54Z`，完成于 `13:57:21Z`。
+  - 双 run 批次窗口 1055 秒，折算吞吐为 `6.825 SonarQube Analysis/hour`；8 个 frontend shard 全部成功，`frontend_test_step_sum_seconds=1436`，最大 frontend job 排队 864 秒。
+  - 队列行为符合预期：A run 先占用两个 mac-mini frontend runner，A 释放 slot 后 B 的 shard 无缝接上；B 初期 queued 不是 runner 卡死，而是双 runner 容量限制下的正常排队。
+
 ## 2026-07-08 18:09 CST - 收敛 frontend-mas CI 到 mac-mini 双 runner
 
 - 原因：排查 `iCare-frontend-mas` PR #1036 的 `Frontend Tests` flaky。失败 run 中 `frontend-tests-ci` 同时调度到 `lemon-imac`、`lemon-imac-2`、`mac-mini-sonar-1..2`，而 `lemon-imac` 只有 8GB 内存；在 `maxWorkers=4` 下 jsdom/AntD 测试明显变慢并触发默认 `waitFor/findBy` 1s 等待边界，出现断言/元素查找 flaky。
