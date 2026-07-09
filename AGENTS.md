@@ -87,6 +87,7 @@
 | `dev-cypresso` | iCare 项目集成测试服务器                                                               | 否（测试环境，但仍需备份后再改）  |
 | `tizi`         | 主代理服务器                                                                           | **是**（挂了影响日常翻墙）        |
 | `rao-tizi`     | `tizi` 的备用代理                                                                      | 是                                |
+| `tizi-cyp`     | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                        | **是**（代理节点，按生产对待）    |
 | `mac-mini`     | 家里的 Mac mini                                                                        | 否                                |
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
 | `pve`          | Proxmox VE 虚拟化宿主，计划承载开发测试 VM；当前可通过 `ssh pve` 以 root 密钥登录    | 否（测试环境，但仍需备份后再改）  |
