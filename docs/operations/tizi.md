@@ -1,5 +1,31 @@
 # tizi 运维时间线
 
+## 2026-07-10 02:02 CST - 用户分享链接改用域名 tz.skysms.xyz
+
+- 服务器：`tizi`
+- 操作人：`Grok`
+- 原因：域名 `tz.skysms.xyz` 已指向公网 `74.211.103.83`；此前 S-UI 未配置 External 地址，复制链接多为裸 IP 或面板 Host（`127.0.0.1` / Tailscale IP），需手动改域名，运维成本高。与 `tizi-cyp`（`cyp-tz.skysms.xyz`）对齐做法。
+- 影响：
+  - 入站 `vless-reality` 的 **`addrs`（External）** 设为 `tz.skysms.xyz:443`。
+  - `out_json.server` 由 `74.211.103.83` 改为 `tz.skysms.xyz`。
+  - **全部 25 个** 用户 `links` 主机名统一改为 `tz.skysms.xyz`（原先分布：公网 IP / `127.0.0.1` / `100.90.28.83`）。
+  - 曾 `systemctl restart s-ui`（配置 addrs 时）；数据面短暂中断约数秒。后续仅改 links 未再重启。
+  - REALITY 密钥、UUID、面板 `webListen`、订阅监听、firewalld **未改**。
+  - **已在客户端用旧链接的用户不受影响**（仍连原 IP/主机）；重新复制链接后才是域名。
+- 备份：`/root/backup/tizi-share-domain-20260710020042/s-ui.db.before`
+- 回滚：
+  ```bash
+  cp -a /root/backup/tizi-share-domain-20260710020042/s-ui.db.before /usr/local/s-ui/db/s-ui.db
+  systemctl restart s-ui
+  ```
+- 验证：
+  - DNS：`tz.skysms.xyz` → `74.211.103.83`
+  - `addrs` / `out_json.server` = `tz.skysms.xyz`
+  - 25 个 client links 主机均为 `tz.skysms.xyz`
+  - `s-ui` active，`*:443` 监听
+- 面板维护：Inbounds → `vless-reality` → External 保留 Server=`tz.skysms.xyz` Port=`443`；清空会回退为「打开面板时的 Host」。
+
+
 ## 2026-07-02 21:21 CST - 查询 S-UI 当日流量前 5 用户
 
 - 服务器：`tizi`
