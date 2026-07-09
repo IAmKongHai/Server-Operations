@@ -1,5 +1,26 @@
 # tizi-cyp 运维时间线
 
+## 2026-07-10 00:51 CST - 复核基线：发现 Tailscale 已就绪，部署计划对齐 tizi
+
+- 服务器：`tizi-cyp`
+- 操作人：`Grok`
+- 原因：制定/刷新代理节点部署计划前只读复核；对照 `tizi` 采集结果更新 `docs/plans/2026-07-09-001-ops-tizi-cyp-proxy-deploy-plan.md`。
+- 影响：
+  - **只读**，未改系统配置、服务、防火墙。
+  - 发现 Tailscale 已安装并 online（包装于 2026-07-09 16:37 UTC）：节点名 `tizi-cyp`，IPv4 `100.88.178.78`，版本 `1.98.8`；MagicDNS `tizi-cyp.taila93443.ts.net`。
+  - BBR + fq 已在 `/etc/sysctl.d/` 固化；运行时 `tcp_congestion_control=bbr`、`default_qdisc=fq`。
+  - 仍未安装：firewalld、S-UI、vnstat、epel-release；时区仍为 UTC；hostname 仍为 `cute-fiber-1.localdomain`。
+  - 监听面仅 `22/tcp`（sshd）与 tailscaled 本地端口；公网无 443/2095 代理服务。
+- 备份：无（只读）。
+- 回滚方式：无需回滚。
+- 验证：
+  - `ssh tizi-cyp` BatchMode 成功
+  - `tailscale ip -4` → `100.88.178.78`
+  - `systemctl is-active tailscaled` → active；`firewalld` / `s-ui` 未装
+- 后续：按更新后的部署计划分阶段执行（A 基线 → B firewalld → C S-UI → D 面板绑 TS → E vnstat → F 文档/cron），危险步骤仍需先确认。
+
+
+
 ## 2026-07-09 13:56 CST - 禁用 SSH 密码登录
 
 - 服务器：`tizi-cyp`
