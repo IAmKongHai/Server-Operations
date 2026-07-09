@@ -1,9 +1,10 @@
 # tizi-cyp 代理节点部署计划
 
-> 状态：**决策已锁定，待执行**（SSH 密钥/禁密码、Tailscale、BBR 已就绪；S-UI / firewalld / vnstat 未装）  
+> 状态：**已执行完成（2026-07-10）**  
 > 计划建立：2026-07-09  
 > 基线复核：2026-07-10（只读采集 `tizi` + `tizi-cyp`）  
 > 决策确认：2026-07-10（见 §8）  
+> 实施完成：2026-07-10 01:17 CST（详见 `docs/operations/tizi-cyp.md`）  
 > 目标服务器：`tizi-cyp`（`89.208.242.203`，AlmaLinux 9.7）  
 > 参考模板：`tizi`（主代理）+ `rao-tizi`（备用代理）上已验证的 S-UI 运维形态
 
