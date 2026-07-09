@@ -1,5 +1,32 @@
 # tizi-cyp 运维时间线
 
+## 2026-07-10 01:35 CST - 用户分享链接改用域名 cyp-tz.skysms.xyz
+
+- 服务器：`tizi-cyp`
+- 操作人：`Grok`
+- 原因：已将 `cyp-tz.skysms.xyz` A 记录指向公网 `89.208.242.203`；希望面板复制/生成的客户端联机地址使用域名而非裸 IP。
+- 影响：
+  - S-UI 入站 `vless-reality` 的 **`addrs`（External / 对外地址）** 设为 `cyp-tz.skysms.xyz:443`。
+  - `out_json.server` 同步为域名（JSON 导出一致）。
+  - 已有用户 `test-cyp` 的 `links` 主机名由 IP 改为域名。
+  - **之后在面板新建/编辑用户时**，只要入站 `addrs` 保留，生成链接会继续用该域名（不依赖你从哪个 Host 打开面板）。
+  - 短暂重启 `s-ui`（数据面约数秒中断）；REALITY 密钥、UUID、面板监听未改。
+- 备份：`/root/backup/tizi-cyp-20260710/s-ui.db.before-domain-*`
+- 回滚：
+  ```bash
+  cp -a /root/backup/tizi-cyp-20260710/s-ui.db.before-domain-XXXXXX /usr/local/s-ui/db/s-ui.db
+  systemctl restart s-ui
+  ```
+- 验证：
+  - DNS：`cyp-tz.skysms.xyz` → `89.208.242.203`
+  - `addrs` / `out_json.server` 均为 `cyp-tz.skysms.xyz`
+  - `test-cyp` 链接主机为 `cyp-tz.skysms.xyz`
+  - `s-ui` active，`*:443` 仍监听
+- 面板操作提示（以后维护）：
+  - Inbounds → `vless-reality` → **External / Addresses / 外部地址** 中应保留一行：Server=`cyp-tz.skysms.xyz`，Port=`443`。
+  - 若清空该列表，S-UI 会回退为「用你打开面板时的 Host 生成链接」；本机面板在 Tailscale IP 上打开时，回退会得到 `100.88.178.78`（不可给外网用户）。
+
+
 ## 2026-07-10 01:17 CST - 完成代理节点部署（S-UI + firewalld + vnstat）
 
 - 服务器：`tizi-cyp`
