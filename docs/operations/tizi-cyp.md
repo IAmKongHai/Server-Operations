@@ -1,5 +1,31 @@
 # tizi-cyp 运维时间线
 
+## 2026-07-09 13:56 CST - 禁用 SSH 密码登录
+
+- 服务器：`tizi-cyp`
+- 操作人：`Grok`
+- 原因：公钥登录已可用，关闭密码认证以降低暴力破解与密码泄露后的登录风险。
+- 影响：
+  - `/etc/ssh/sshd_config` 中 `PasswordAuthentication yes` → `no`。
+  - 生效配置（`sshd -T`）：`passwordauthentication no`，`kbdinteractiveauthentication no`，`pubkeyauthentication yes`，`permitrootlogin yes`。
+  - 仅保留公钥登录；root 仍可通过密钥登录。
+  - 未改端口、防火墙、`PermitRootLogin`、PAM 策略；`systemctl reload sshd`（未 restart）。
+- 备份：`/etc/ssh/sshd_config.bak.20260709`（改前完整副本）。
+- 回滚方式：
+  ```bash
+  cp -a /etc/ssh/sshd_config.bak.20260709 /etc/ssh/sshd_config
+  sshd -t && systemctl reload sshd
+  ```
+- 变更时序：
+  1. 备份 `sshd_config`
+  2. 将 `PasswordAuthentication` 改为 `no`，`sshd -t` 校验
+  3. `systemctl reload sshd`
+  4. 分别验证密钥成功、密码失败
+- 验证：
+  - 密钥：`ssh -o BatchMode=yes tizi-cyp 'echo KEY_OK'` → 成功
+  - 密码：仅密码方式连接 → `Permission denied (publickey,gssapi-keyex,gssapi-with-mic)`（协商结果中已无 `password`）
+- 备注：服务器端 root 密码本身仍可存在于系统账户，但 SSH 不再接受密码认证。
+
 ## 2026-07-09 13:53 CST - 部署本机 ed25519 公钥，启用 `ssh tizi-cyp`
 
 - 服务器：`tizi-cyp`
@@ -20,4 +46,4 @@
 - 验证：
   - `ssh -o BatchMode=yes tizi-cyp 'echo OK; whoami; hostname'` → `OK` / `root` / `cute-fiber-1.localdomain`
   - 系统：AlmaLinux 9.7，内核 `5.14.0-611.55.1.el9_7.x86_64`，公网 `eth0` = `89.208.242.203/22`
-- 备注：初始 root 密码仅用于一次性装钥，未写入仓库；建议后续在密码管理器中轮换，并视需要再收紧 `sshd`（例如禁用密码登录）。
+- 备注：初始 root 密码仅用于一次性装钥，未写入仓库；后续已在同日记录中禁用 SSH 密码登录。
