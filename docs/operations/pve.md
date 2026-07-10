@@ -6,7 +6,7 @@
 - 操作人：`Grok`（用户授权直接修复）
 - 原因：办公室访问家里 MSSQL 走 DERP 极慢；用户指出 `km-landui` 为公网辅助打洞机。
 - 做了什么：
-  1. 确认 `km-landui`（`43.228.79.237:28285`）已运行 `derper`（`:443`，STUN `3478`，cert `derp.local`），但 tailnet **未接入 derpMap**，当前客户端仍用官方 `km`。
+  1. 确认 `km-landui`（`43.228.79.237:28285`）已运行 `derper`（`:443`，STUN `3478`，cert `derp.local`）。后续核实 ACL **已有** derpMap（Region `900`），但因证书不合格未真正生效（见 `docs/operations/km-landui.md`）。
   2. 重启 `pve`/`mssql-ref`/`本机` tailscaled 未能单独恢复 direct。
   3. 发现 `mac-mini` 已与办公室 **direct**，而 `pve`/`mssql-ref` 同绑 `PORT=41641` 时打洞失败。
   4. 修改并重启：

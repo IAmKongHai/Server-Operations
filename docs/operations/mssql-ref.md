@@ -8,7 +8,7 @@
 - 根因细化：
   - 家里多台节点（`pve` / `mssql-ref` 等）原先都绑定默认 `PORT=41641`，同公网出口 `112.117.237.252` 下对称 NAT（`MappingVariesByDestIP`）时容易打洞失败。
   - 对照：同网的 `mac-mini` 已能与办公室客户端 **direct**，证明链路本身可打通。
-  - `km-landui`（`43.228.79.237`）上已有 `derper`（`:443` + STUN `3478`，hostname `derp.local`），但 **tailnet ACL 未配置 derpMap**，客户端实际仍连官方 `km` 区，本次未依赖它完成修复。
+  - `km-landui`（`43.228.79.237`）上已有 `derper`（`:443` + STUN `3478`，hostname `derp.local`）；ACL 虽有 derpMap，但 **证书不合格导致未生效**（见 `docs/operations/km-landui.md`）。本次未依赖它，靠独立 UDP 端口打洞完成修复。
 - 变更：
   1. 重启 `mssql-ref` / `pve` / 本机 `tailscaled` 尝试恢复（单独重启不够）。
   2. 将 `mssql-ref` 的 `/etc/default/tailscaled` 中 `PORT` 改为 **`41642`**，并 `systemctl restart tailscaled`。
@@ -27,7 +27,7 @@
   ssh mssql-ref 'sudo sed -i "s/^PORT=.*/PORT=\"41641\"/" /etc/default/tailscaled && sudo systemctl restart tailscaled'
   ```
 - 后续可选：
-  - 在 Tailscale ACL 注册 `km-landui` 自定义 DERP（`derp.local` / `43.228.79.237:443` + STUN 3478，自签需 `InsecureForTests` 或换真证书），作为 direct 失败时的低延迟中继。
+  - 若仍需 `km-landui` 自定义 DERP：域名 + Let's Encrypt（不要 `derp.local` 自签），见 `docs/operations/km-landui.md`。
   - 给 `mas-go-dev` 等家宽节点也分配互不冲突的 `PORT`，减少再踩坑。
 
 ## 2026-07-10 10:48 CST - 客户端感觉库极慢：SQL 本体正常，问题在 Tailscale DERP
