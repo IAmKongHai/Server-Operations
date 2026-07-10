@@ -1,5 +1,18 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-10 10:48 CST - 客户端感觉库极慢：SQL 本体正常，问题在 Tailscale DERP
+
+- 服务器：`mssql-ref`（`192.168.2.20` / TS `100.124.140.78`）
+- 操作人：`Grok` + 用户确认
+- 原因：用户反馈内网 MSSQL 极慢；从 PVE 宿主机起做只读排查后，用户确认是 Tailscale 未直连。
+- 影响：只读排查，未改 SQL / 系统 / 网络配置，未重启。
+- 验证（guest 侧正常）：
+  - `mssql-server` active，进程 `sqlservr` RSS 约 13Gi，guest 内存 12/17Gi used、swap 0，load ~0。
+  - 磁盘 `/` 12%、`/restore` 45%；无 guest memory/io pressure 异常。
+  - 活跃 1433 连接多数来自 Tailscale 客户端；局域网侧仅见 `mas-go-dev`（`192.168.2.22`）。
+- 根因与完整证据链见 `docs/operations/pve.md` 与 `docs/operations/konghai-macbook-air.md` 同时间条目。
+- 回滚：无变更。
+
 ## 2026-06-30 17:00 CST - 设置一次性定时重启以加载新内核
 
 - 服务器：`mssql-ref`（`192.168.2.20`）。

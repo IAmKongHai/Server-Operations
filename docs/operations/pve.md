@@ -1,5 +1,30 @@
 # pve 运维操作时间线
 
+## 2026-07-10 10:48 CST - 排查内网 MSSQL 极慢：根因是 Tailscale 未直连、走 DERP(km)
+
+- 服务器：`pve`（关联 `mssql-ref` / 客户端 MacBook Air）
+- 操作人：`Grok` + 用户确认
+- 原因：用户反馈今天内网 MSSQL（`mssql-ref` / `192.168.2.20`）非常慢；从 `ssh pve` 开始只读排查。
+- 结论：**不是 SQL Server 或 PVE 磁盘/CPU 故障**；客户端到库的路径全部经 **Tailscale DERP 中继（昆明 `km`）**，`direct connection not established`，RTT 常年 100ms–1.3s 量级，对 chatty 的 TDS 协议会放大成“库很慢”。
+- 关键证据：
+  - **PVE → VM 局域网正常**：`ping 192.168.2.20` 约 `0.18–0.35 ms`。
+  - **客户端 → 库极差**：本机 `192.168.6.111`（非 `192.168.2.0/24`），路由到 `192.168.2.20` 走 `utun4`（Tailscale）；`ping 192.168.2.20` 平均约 `462 ms`；用户侧 `ping 100.124.140.78` 平均约 `515 ms`（max `1326 ms`）。
+  - **`tailscale ping` 明确失败直连**：`pong ... via DERP(km)`，结尾 `direct connection not established`（对 `pve` / `mssql-ref` 皆如此）。
+  - **两端 netcheck**：`UDP: true`，但 `MappingVariesByDestIP: true`、`PortMapping:` 空（无 UPnP/NAT-PMP），打洞困难，落 DERP。
+  - **客户端 DERP 到昆明本身偏高**：本机 `Nearest DERP: Kunming` 延迟约 `113 ms`；PVE 侧到 km 仅约 `4.6 ms` → 总 RTT ≈ 客户端到 DERP + DERP 到家宽 叠加抖动。
+  - **SQL 本体健康**：`mssql-ref` load ~0，`mssql-server` active，guest 内存约 12/17Gi 使用、swap 0，无 guest memory pressure；当前无 OOM/磁盘 SMART 异常。
+  - **连接画像**：1433 活跃连接大多来自 Tailscale `100.x`（如 `100.92.181.15` MacBook Air、`100.123.10.109` Gulhi Mac mini、`100.115.69.120` dev-cypresso），局域网仅见 `192.168.2.22`（`mas-go-dev`）。
+- 宿主机顺带观察（非本次主因，但偏紧）：
+  - 物理内存 31Gi，三台在跑 VM 静态配置约 `18.4+6+8 ≈ 32.4 GiB`，宿主 available 仅约 `1.5 GiB`，swap 已用约 `772 MiB`；page cache 很薄。
+  - 当前瞬时 load / memory pressure 不高；历史上 2026-06-19 曾因超卖导致 `mas-win` 换页变慢（已固定 6G 关 balloon）。
+- 影响：只读排查，未改 PVE / VM / Tailscale / SQL 配置，未重启任何服务。
+- 回滚：无配置变更。
+- 建议后续（需另开窗口、有确认再做）：
+  1. 客户端与家宽两侧排查 NAT：尽量 UPnP/NAT-PMP，或给路由器开稳定 UDP 端口转发给 Tailscale；避免对称 NAT（`MappingVariesByDestIP`）。
+  2. 在同一局域网时优先直连 `192.168.2.20:1433`，勿强行走 Tailscale 子网路由；当前 PVE `PrimaryRoutes` 含 `192.168.2.16/28`。
+  3. 验证直连恢复：`tailscale ping mssql-ref` / `tailscale ping pve` 应出现 `via <公网IP:端口>` 而非 `via DERP(km)`，RTT 应降到几十毫秒以内（同城/同网更低）。
+  4. 中长期：PVE 物理内存仍偏紧，加内存或继续控制 VM 常驻集合，避免再出现宿主换页。
+
 ## 2026-07-05 00:16 CST - 在线扩容 mas-go-dev 系统盘到 300G
 
 - 服务器：`pve`（VM `130/mas-go-dev`）

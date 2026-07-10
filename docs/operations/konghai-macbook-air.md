@@ -1,5 +1,20 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-10 10:48 CST - MSSQL 感觉极慢：本机经 Tailscale DERP(km) 访问，未建立直连
+
+- 设备：本机 `macbook-air`（Tailscale `100.92.181.15`），局域网 `192.168.6.111/24`（网关 `192.168.6.1`）。
+- 原因：访问 `mssql-ref`（`192.168.2.20` / `100.124.140.78`）极慢；用户确认根因是 **Tailscale 隧道未打通直连**。
+- 影响：只读排查；本机与远端均未改配置。
+- 关键现象：
+  - 到 `192.168.2.20` 的路由走 `utun4`（Tailscale 子网路由），不走本地默认网关。
+  - `ping 100.124.140.78`：avg 约 `515 ms`，max 约 `1326 ms`，偶发 timeout 感（用户截图）。
+  - `tailscale status`：`mssql-ref` / `pve` 均为 `active; relay "km"`。
+  - `tailscale ping mssql-ref` / `pve`：全部 `via DERP(km)`，`direct connection not established`。
+  - `tailscale netcheck`：`MappingVariesByDestIP: true`，`PortMapping` 空，Nearest DERP Kunming ~`113 ms`。
+- 对照：PVE 宿主机同网段 ping `192.168.2.20` 仅约 `0.2 ms`；`mssql-ref` 上 SQL 服务与 guest 资源正常。详见 `docs/operations/pve.md` 同时间条目。
+- 回滚：无变更。
+- 恢复直连后自检：`tailscale ping mssql-ref` 应出现 direct 路径；再 `ping 100.124.140.78` / 连 `1433` 验证延迟是否回到正常。
+
 ## 2026-07-07 23:35 CST - 安装 actionlint 用于 GitHub Actions workflow 静态检查
 
 - 原因：用户希望本机可直接检查 GitHub Actions workflow，例如 `frontend-mas/.github/workflows/sonar.yml` 的 shard / runner label 配置。
