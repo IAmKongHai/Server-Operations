@@ -1,5 +1,28 @@
 # pve 运维操作时间线
 
+## 2026-07-10 11:00 CST - Tailscale 打洞修复：为 pve/mssql 分配独立 UDP 端口
+
+- 服务器：`pve`（并联动 `mssql-ref`）
+- 操作人：`Grok`（用户授权直接修复）
+- 原因：办公室访问家里 MSSQL 走 DERP 极慢；用户指出 `km-landui` 为公网辅助打洞机。
+- 做了什么：
+  1. 确认 `km-landui`（`43.228.79.237:28285`）已运行 `derper`（`:443`，STUN `3478`，cert `derp.local`），但 tailnet **未接入 derpMap**，当前客户端仍用官方 `km`。
+  2. 重启 `pve`/`mssql-ref`/`本机` tailscaled 未能单独恢复 direct。
+  3. 发现 `mac-mini` 已与办公室 **direct**，而 `pve`/`mssql-ref` 同绑 `PORT=41641` 时打洞失败。
+  4. 修改并重启：
+     - `mssql-ref`：`/etc/default/tailscaled` → `PORT="41642"`
+     - `pve`：`/etc/default/tailscaled` → `PORT="41643"`
+- 结果：
+  - **`mssql-ref` 已 direct**，办公室 `ping 100.124.140.78` ~8–10ms，`:1433` 建连 ~10ms 级。
+  - **`pve` 当时仍多为 relay `km`**（子网路由 `192.168.2.16/28` 路径不如 TS IP 稳）；连 SQL 建议走 `100.124.140.78` / `mssql-ref`。
+- 影响：仅 `tailscaled` 短暂重启；未改 VM、SQL、防火墙其它规则。
+- 回滚：
+  ```bash
+  ssh pve 'sed -i "s/^PORT=.*/PORT=\"41641\"/" /etc/default/tailscaled && systemctl restart tailscaled'
+  ssh mssql-ref 'sudo sed -i "s/^PORT=.*/PORT=\"41642\"/" /etc/default/tailscaled && sudo systemctl restart tailscaled'  # 或改回 41641
+  ```
+- 详见 `docs/operations/mssql-ref.md` 同时间条目。
+
 ## 2026-07-10 10:48 CST - 排查内网 MSSQL 极慢：根因是 Tailscale 未直连、走 DERP(km)
 
 - 服务器：`pve`（关联 `mssql-ref` / 客户端 MacBook Air）

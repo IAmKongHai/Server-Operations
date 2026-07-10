@@ -1,5 +1,16 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-07-10 11:00 CST - MSSQL 访问恢复：mssql-ref 已 Tailscale direct（~8–10ms）
+
+- 设备：本机 `macbook-air`（`100.92.181.15`，办公室 `192.168.6.111`）
+- 原因：上午 DERP 中继导致库极慢；已在家宽侧为节点分配独立 UDP 端口后打通 direct。
+- 本机动作：`tailscale down/up` 重连、多次 `tailscale ping` 强制探测；未改本机持久配置。
+- 验证：
+  - `tailscale status`：`mssql-ref ... active; direct 112.117.237.252:41364`
+  - `ping 100.124.140.78` ≈ **8–10 ms**（修复前平均 300–500ms+，峰值 1s+）
+  - 连库建议：`100.124.140.78:1433` 或 MagicDNS `mssql-ref`（走 peer direct）；`192.168.2.20` 仍经 `pve` 子网路由，可能慢一截。
+- 完整变更见 `docs/operations/mssql-ref.md` / `docs/operations/pve.md` 同时间条目。
+
 ## 2026-07-10 10:48 CST - MSSQL 感觉极慢：本机经 Tailscale DERP(km) 访问，未建立直连
 
 - 设备：本机 `macbook-air`（Tailscale `100.92.181.15`），局域网 `192.168.6.111/24`（网关 `192.168.6.1`）。

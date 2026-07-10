@@ -1,5 +1,35 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-10 11:00 CST - 修复 Tailscale 未直连：独立 UDP 端口 41642 后建立 direct
+
+- 服务器：`mssql-ref`（TS `100.124.140.78` / LAN `192.168.2.20`）
+- 操作人：`Grok`（用户授权直接修复）
+- 原因：办公室客户端访问 MSSQL 极慢；根因是 Tailscale 未打洞成功、全程 DERP(km)，RTT 数百毫秒～1s+。
+- 根因细化：
+  - 家里多台节点（`pve` / `mssql-ref` 等）原先都绑定默认 `PORT=41641`，同公网出口 `112.117.237.252` 下对称 NAT（`MappingVariesByDestIP`）时容易打洞失败。
+  - 对照：同网的 `mac-mini` 已能与办公室客户端 **direct**，证明链路本身可打通。
+  - `km-landui`（`43.228.79.237`）上已有 `derper`（`:443` + STUN `3478`，hostname `derp.local`），但 **tailnet ACL 未配置 derpMap**，客户端实际仍连官方 `km` 区，本次未依赖它完成修复。
+- 变更：
+  1. 重启 `mssql-ref` / `pve` / 本机 `tailscaled` 尝试恢复（单独重启不够）。
+  2. 将 `mssql-ref` 的 `/etc/default/tailscaled` 中 `PORT` 改为 **`41642`**，并 `systemctl restart tailscaled`。
+  3. 将 `pve` 的 `PORT` 改为 **`41643`**（避免继续与默认 41641 类节点冲突；见 `docs/operations/pve.md`）。
+- 影响：
+  - `tailscaled` 短暂重连（数秒）；SQL Server 进程未重启，LAN 访问不受影响。
+  - 办公室 → `100.124.140.78` 建立 **direct**（`via 112.117.237.252:41364`）。
+- 验证（修复后，办公室 MacBook Air）：
+  - `tailscale status`：`mssql-ref ... active; direct 112.117.237.252:41364`
+  - `tailscale ping mssql-ref`：`via 112.117.237.252:41364 in 8ms`（不再是 `via DERP(km)`）
+  - `ping 100.124.140.78`：稳定约 **8–10 ms**
+  - TCP `100.124.140.78:1433` 建连平均约 **9–16 ms**（修复前常 500ms–1s+）
+  - 经子网路由的 `192.168.2.20:1433` 仍依赖 `pve`（当时仍偏 DERP），建连约 **70–100 ms**，已比修复前明显好转；**连库优先用 TS IP `100.124.140.78` 或 MagicDNS `mssql-ref` 以走 direct**。
+- 回滚：
+  ```bash
+  ssh mssql-ref 'sudo sed -i "s/^PORT=.*/PORT=\"41641\"/" /etc/default/tailscaled && sudo systemctl restart tailscaled'
+  ```
+- 后续可选：
+  - 在 Tailscale ACL 注册 `km-landui` 自定义 DERP（`derp.local` / `43.228.79.237:443` + STUN 3478，自签需 `InsecureForTests` 或换真证书），作为 direct 失败时的低延迟中继。
+  - 给 `mas-go-dev` 等家宽节点也分配互不冲突的 `PORT`，减少再踩坑。
+
 ## 2026-07-10 10:48 CST - 客户端感觉库极慢：SQL 本体正常，问题在 Tailscale DERP
 
 - 服务器：`mssql-ref`（`192.168.2.20` / TS `100.124.140.78`）
