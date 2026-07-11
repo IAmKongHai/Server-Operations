@@ -1,5 +1,20 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-11 15:32 CST - 排查 iCare backend 部署因 MSSQL Tailnet 链路超时失败（只读）
+
+- 服务器：`dev-cypresso`
+- 操作人：`Codex`
+- 原因：GitHub Actions run `29144084042` 部署 commit `a5f37276fde1dd7dd08357893f63a3868ea2a4a1` 失败；用户已延长后端超时时间，但 Job 仍在 migrate 阶段退出。
+- 影响：本次仅做只读检查与连通性探测，未改配置、未重启服务、未重跑 Job。失败发生在部署的 `migrate -> seed-check -> seed` 前置流水线，尚未执行旧 api/worker 的停止、删除或重建；线上仍运行旧镜像 `487253c4d814aa2a3aff638b02bbefcf36349f9d`，API healthy、worker running，`RestartCount=0`。
+- 根因 / 证据：
+  - Job 于 `15:15:28 CST` 报 `dial tcp 100.124.140.78:1433: i/o timeout`，目标为 `DB_HOST=100.124.140.78`、`DB_NAME=medicalassistance_preprod`；所以延长应用层超时只能增加等待时间，不能解决 TCP 建连失败。
+  - `dev-cypresso` 的 `tailscaled` 为 active，路由正确走 `tailscale0`，但最初 `tailscale ping 100.124.140.78` 与 1433 TCP 探测均超时；日志从 `15:15:18 CST` 起连续记录 `open-conn-track: timeout opening`。
+  - API 从 `15:28 CST` 起的 `policy sync: reload failed` 与 Job 相同，均为到 `100.124.140.78:1433` 的连接超时；健康检查仍返回 200，不能代表数据库链路可用。
+  - 对端只读核验见 `docs/operations/mssql-ref.md` 同时间条目：SQL Server 正常监听 1433、资源充足。本次事件收敛为 `dev-cypresso -> mssql-ref` 的短暂单向 Tailscale/NAT 数据路径中断，而非 SQL Server 停止或后端代码异常。
+- 验证：排查期间链路自行恢复，`tailscale ping` 变为 `via 89.208.242.203:50249 in 237ms`，`100.124.140.78:1433` TCP 随后可达；API 成功完成两次 `casbin_rule` 查询（约 1.0–1.8s）。未采取修复动作。
+- 回滚：无服务器变更，无需回滚。
+- 后续：可直接重试该 GitHub Actions Job；若再次出现单向断联，先保留两端 `tailscaled` 日志与 `tailscale ping` 结果，再经用户确认后考虑重启 `mssql-ref` 的 `tailscaled`（会短暂中断该节点 Tailnet 连接，不重启 SQL Server）。
+
 ## 2026-07-01 12:54 CST - 修复 Azurite 缺 `mas` container 导致成员导入上传 500
 
 - 服务器：`dev-cypresso`

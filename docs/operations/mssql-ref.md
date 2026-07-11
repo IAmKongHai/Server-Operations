@@ -1,5 +1,16 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-11 15:32 CST - 协助排查 dev-cypresso 到 MSSQL 的短暂 Tailnet 单向断联（只读）
+
+- 服务器：`mssql-ref`（TS `100.124.140.78` / LAN `192.168.2.20`）
+- 操作人：`Codex`
+- 原因：`dev-cypresso` 的 iCare backend GitHub Actions 部署在 migrate 阶段连接本机 SQL Server `100.124.140.78:1433` 超时。
+- 影响：仅只读检查，未改 Tailscale、SQL Server、网络或防火墙，也未重启任何服务。
+- 检查结果：`tailscaled` active；SQL Server 进程正常，监听 `0.0.0.0:1433` 与 `*:1433`；本机到 `127.0.0.1:1433`、自身 Tailnet IP `100.124.140.78:1433` 均可连接；内存可用约 4.5Gi、根分区使用 12%。因此排除 SQL Server 停止、端口未监听和资源耗尽。
+- 链路现象：异常期间 `mssql-ref -> dev-cypresso` 的 Tailscale ping 第二次可经 `32.192.186.193:41641` 响应，而 `dev-cypresso -> mssql-ref` 初始持续超时，呈单向性。随后 `dev-cypresso` 侧自行恢复到 direct `89.208.242.203:50249`，1433 TCP 恢复可达；推断为短暂 Tailscale/NAT 数据路径异常。
+- 回滚：无变更，无需回滚。
+- 后续：如复发，先在两端保存 `tailscale ping`、`tailscale status`、`journalctl -u tailscaled` 证据；在用户确认后，优先尝试仅重启本机 `tailscaled`，SQL Server 不需重启。
+
 ## 2026-07-10 11:00 CST - 修复 Tailscale 未直连：独立 UDP 端口 41642 后建立 direct
 
 - 服务器：`mssql-ref`（TS `100.124.140.78` / LAN `192.168.2.20`）
