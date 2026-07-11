@@ -1,5 +1,18 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-11 15:39 CST - 重试 iCare backend 部署成功（MSSQL Tailnet 链路恢复后）
+
+- 服务器：`dev-cypresso`
+- 操作人：`用户`（重试 GitHub Actions）/ `Codex`（只读验证）
+- 原因：上一轮部署因 `dev-cypresso -> mssql-ref:1433` 的短暂 Tailscale 单向断联，在 migrate 阶段超时失败；链路自行恢复后重试同一 Job。
+- 影响：GitHub Actions 已将 `icare-backend-api-1` 与 `icare-backend-worker-1` 切换至镜像 `ghcr.io/cypressoai/icare-backend:a5f37276fde1dd7dd08357893f63a3868ea2a4a1`。本条仅记录用户已完成的部署，并做只读核验；Codex 未修改配置或手动启停服务。
+- 验证：
+  - API：`running`、`healthy`，启动于 `15:37:27 CST`，`RestartCount=0`。
+  - worker：`running`，启动于 `15:37:28 CST`，`RestartCount=0`；日志显示监听 `default` 和 `reports` 队列。
+  - API/worker 启动日志均已成功连接 `100.124.140.78` 上的 `medicalassistance_preprod`；API 还成功连接 `maswebkit`、`insularsalesportal`。
+  - 从宿主机复测 `100.124.140.78:1433` TCP 可达。
+- 回滚：如需回退，应通过 GitHub Actions 部署先前已验证的镜像版本；本次未在服务器上执行手动回滚操作。
+
 ## 2026-07-11 15:32 CST - 排查 iCare backend 部署因 MSSQL Tailnet 链路超时失败（只读）
 
 - 服务器：`dev-cypresso`
