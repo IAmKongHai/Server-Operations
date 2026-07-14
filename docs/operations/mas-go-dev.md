@@ -1,5 +1,33 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-14 18:05 CST - portal 容器 nginx client_max_body_size 100M
+
+- 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
+- 操作人：`Grok`
+- 原因：本机无宿主机 nginx；`mas-icare-portal` 容器内 nginx 反代 `/api/`，默认 `client_max_body_size 1m`，大文件上传会被 413。与 `dev-cypresso` 对齐提高到 `100M`。
+- 影响：
+  - 容器 `mas-icare-portal`：`/etc/nginx/nginx.conf`（http 块）与 `/etc/nginx/conf.d/default.conf`（server 块）均写入 `client_max_body_size 100M;`。
+  - 仅容器内 `nginx -s reload`，未 recreate 容器、未改 compose / 镜像。
+  - 未装宿主机 nginx（`nginx` 命令不存在）。
+- 备份：
+  - 容器内 `/etc/nginx/nginx.conf.bak.20260714`
+  - 容器内 `/etc/nginx/conf.d/default.conf.bak.20260714`
+  - 备份随容器生命周期；镜像重建后整份配置被覆盖。
+- 变更时序：
+  1. 容器内备份两份 conf。
+  2. `default.conf` 在 `server_name` 后插入 `client_max_body_size 100M;`；`nginx.conf` 在 `keepalive_timeout` 后插入同指令。
+  3. `nginx -t` 通过后 `nginx -s reload`。
+- 验证：
+  - `docker exec mas-icare-portal nginx -T | grep client_max_body_size` → `100M`（http + server 各一处）。
+  - `curl http://127.0.0.1:5174/healthz` → `200 ok`。
+- 回滚：
+  ```bash
+  ssh mas-go-dev 'docker exec -u root mas-icare-portal sh -c "cp /etc/nginx/nginx.conf.bak.20260714 /etc/nginx/nginx.conf; cp /etc/nginx/conf.d/default.conf.bak.20260714 /etc/nginx/conf.d/default.conf; nginx -t && nginx -s reload"'
+  ```
+- 备注：
+  - **非持久**：下次 runner 滚动 `mas-icare-portal` 会回到镜像默认 1m。永久方案需改 frontend-mas 镜像内 nginx 模板（或部署时挂载 conf）。
+  - 镜像当时为 `icare/mas-portal:mas-go-dev-68f9b69aa4761cb6a1b634cb2430d38404fd0565`。
+
 ## 2026-07-14 11:42 CST - CYP-1302：SIT 后端 api/worker 设 TZ=Asia/Manila
 
 - 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）

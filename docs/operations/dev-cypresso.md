@@ -1,5 +1,37 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-14 18:05 CST - nginx 全局 client_max_body_size 100M
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`
+- 原因：大文件上传（如成员导入 Excel）在默认 `client_max_body_size 1m` 下会被 nginx 直接 413；将上传体上限提高到 `100M`。
+- 影响：
+  - 宿主机 `/etc/nginx/nginx.conf` 的 `http` 块新增 `client_max_body_size 100M;`，作用于全部 vhost（含 `api-icare` / `mas-icare` / `hr-icare` 等）。
+  - 既有 `sonar.cypresso.ai.conf` 里 server 级 `100m` 不变。
+  - 容器 `mas-icare-portal` 的 `/etc/nginx/conf.d/default.conf` 同步加了 server 级 `client_max_body_size 100M;`（直接打 5174 时也生效）。
+  - 仅 `reload`，无 restart；连接不中断。
+- 备份：
+  - `/etc/nginx/nginx.conf.bak.20260714`
+  - 容器内 `/etc/nginx/conf.d/default.conf.bak.20260714`（随容器生命周期，镜像重建后失效）
+- 变更时序：
+  1. 备份宿主机 `nginx.conf`。
+  2. 在 `http` 块 `keepalive_timeout 65;` 后插入 `client_max_body_size 100M;`。
+  3. `sudo nginx -t` 通过后 `systemctl reload nginx`。
+  4. 容器内 portal 同步改 `default.conf` 并 `nginx -s reload`。
+- 验证：
+  - `nginx -t` 通过（既有 warning：`conflicting server name "_" on 0.0.0.0:80, ignored`）。
+  - `systemctl is-active nginx` → `active`。
+  - `nginx -T` 可见全局 `client_max_body_size 100M;`；portal 容器内亦可见 `100M`。
+- 回滚：
+  ```bash
+  ssh dev-cypresso 'sudo cp /etc/nginx/nginx.conf.bak.20260714 /etc/nginx/nginx.conf && sudo nginx -t && sudo systemctl reload nginx'
+  # portal 容器（若仍为当时实例）：
+  # docker exec -u root mas-icare-portal sh -c 'cp /etc/nginx/conf.d/default.conf.bak.20260714 /etc/nginx/conf.d/default.conf && nginx -t && nginx -s reload'
+  ```
+- 备注：
+  - portal 容器内改动会在下次 runner 重建镜像/容器后丢失；若需永久生效，应把 `client_max_body_size` 写进 frontend-mas 镜像的 nginx 模板。
+  - 宿主机全局配置不受 portal 重建影响。
+
 ## 2026-07-14 11:41 CST - CYP-1302：后端 api/worker 设 TZ=Asia/Manila
 
 - 服务器：`dev-cypresso`
