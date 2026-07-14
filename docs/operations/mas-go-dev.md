@@ -1,5 +1,30 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-14 11:42 CST - CYP-1302：SIT 后端 api/worker 设 TZ=Asia/Manila
+
+- 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
+- 操作人：`Grok`（对应 Jira `CYP-1302` 第 2 项，SIT 环境）
+- 原因：与 `dev-cypresso` / `mssql-ref` 对齐，SIT 后端 `time.Now()` 使用 PHT 墙钟。
+- 影响：
+  - `/opt/mas-go-dev/backend/.env.docker` 追加 `TZ=Asia/Manila`（属主仍为 `actions-runner`，600）。
+  - 仅 `force-recreate` `icare-backend-api-1` + `icare-backend-worker-1`；未动 seed / gotenberg / infra（azurite/redis）/ portal / runner。
+  - 镜像未变：`icare/backend:mas-go-dev-cadac74a9171f69298f23eb0fb61d85823d7eae0`。
+  - API 短暂不可用约 30s。
+- 备份：
+  - `/opt/mas-go-dev/backend/.env.docker.bak.20260714-tz-manila`。
+- 变更时序：
+  1. 以 `actions-runner` 备份并追加 `TZ=Asia/Manila`（`diff` 仅此新增）。
+  2. `BACKEND_IMAGE=<当前 api 镜像> docker compose -f backend.compose.yaml up -d --no-deps --no-build --force-recreate api worker`。
+- 验证：
+  - api / worker：`TZ=Asia/Manila`，本地 `date` 为 PST（+0800），`date -u` 为 UTC。
+  - `icare-backend-api-1` healthy；worker running。
+  - 同批已在本机用 `sqlcmd` 验证 `mssql-ref` 的 `GETDATE()` 为 PHT 墙钟（见 `docs/operations/mssql-ref.md` 同日条目）。
+- 回滚：
+  ```bash
+  ssh mas-go-dev 'sudo -u actions-runner bash -c "cp /opt/mas-go-dev/backend/.env.docker.bak.20260714-tz-manila /opt/mas-go-dev/backend/.env.docker && chmod 600 /opt/mas-go-dev/backend/.env.docker && cd /opt/mas-go-dev/backend && BACKEND_IMAGE=icare/backend:mas-go-dev-cadac74a9171f69298f23eb0fb61d85823d7eae0 docker compose -f backend.compose.yaml up -d --no-deps --no-build --force-recreate api worker"'
+  ```
+- 备注：`.env.docker` 为 VM 本地维护，runner 同步 compose 时一般不覆盖此文件；若 CI 或人工用 example 重写 env，需保留 `TZ=Asia/Manila`。代码口径改动仍在应用仓。
+
 ## 2026-07-05 14:35 CST - 为 Azurite 配置 CORS（浏览器预览 blob）并固化脚本
 
 - 服务器：`mas-go-dev`（`100.109.223.53` / 原 `192.168.2.22`）

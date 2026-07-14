@@ -1,5 +1,32 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-14 11:41 CST - CYP-1302：后端 api/worker 设 TZ=Asia/Manila
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（对应 Jira `CYP-1302` 第 2 项）
+- 原因：治后端约 507 处 `time.Now()` 使用 UTC 宿主/容器时区的问题，使 Go 进程本地墙钟与 `mssql-ref` PHT 约定一致。
+- 影响：
+  - `/home/ec2-user/stacks/icare/.env` 追加 `TZ=Asia/Manila`（`.env.docker` 仍为指向 `.env` 的符号链接）。
+  - 仅 `force-recreate` `icare-backend-api-1` + `icare-backend-worker-1`；未动 seed / gotenberg / shared-* / portal / telegram-bot。
+  - 镜像未变：`ghcr.io/cypressoai/icare-backend:cadac74a9171f69298f23eb0fb61d85823d7eae0`。
+  - API 短暂不可用约 30s（health 从 starting → healthy）。
+- 备份：
+  - `/home/ec2-user/stacks/icare/.env.bak.20260714-tz-manila`（改前完整副本，600 权限）。
+- 变更时序：
+  1. 备份 `.env`。
+  2. 文件末尾追加注释 + `TZ=Asia/Manila`（`diff` 仅此新增，无其它字段改动）。
+  3. `BACKEND_IMAGE=<当前 api 镜像> docker-compose -f backend.compose.yaml up -d --no-deps --no-build --force-recreate api worker`（必须带 `BACKEND_IMAGE`，否则会回退到不存在的 `icare/backend:local`）。
+- 验证：
+  - `docker exec icare-backend-api-1` / `worker`：`TZ=Asia/Manila`，`date` 为 PST（+0800）本地墙钟，`date -u` 为 UTC。
+  - `icare-backend-api-1`：`Up ... (healthy)`；worker `Up`。
+- 回滚：
+  ```bash
+  ssh dev-cypresso 'cp /home/ec2-user/stacks/icare/.env.bak.20260714-tz-manila /home/ec2-user/stacks/icare/.env && chmod 600 /home/ec2-user/stacks/icare/.env && cd /home/ec2-user/stacks/icare && BACKEND_IMAGE=ghcr.io/cypressoai/icare-backend:cadac74a9171f69298f23eb0fb61d85823d7eae0 docker-compose -f backend.compose.yaml up -d --no-deps --no-build --force-recreate api worker'
+  ```
+- 备注：
+  - `TZ` 写在本地 `.env`，CI 滚动部署只要继续 `env_file: .env.docker` 且不覆盖该文件即可保留。若以后用模板重写 `.env`，需把 `TZ=Asia/Manila` 写回（建议同步进仓库 `.env.docker.example`）。
+  - 仅改 `TZ` **不能**单独闭环 CYP-1302：代码侧 `NowFunc` 的 `.UTC()`、读路径 RFC3339 带 `Z` 等仍待改（ticket 第 3–5 项）。
+
 ## 2026-07-11 15:39 CST - 重试 iCare backend 部署成功（MSSQL Tailnet 链路恢复后）
 
 - 服务器：`dev-cypresso`

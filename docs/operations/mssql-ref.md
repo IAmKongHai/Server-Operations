@@ -1,5 +1,34 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-14 11:40 CST - CYP-1302：主机时区改 Asia/Manila 并重启 SQL Server
+
+- 服务器：`mssql-ref`（`192.168.2.20` / TS `100.124.140.78`）
+- 操作人：`Grok`（对应 Jira `CYP-1302` 第 1 项，用户明确要求改时区并重启 SQL Server）
+- 原因：iCare 参考库与老 MAS 对齐，库内 `datetime` 一律存菲律宾本地墙钟（PHT）。原先 OS 时区 `Etc/UTC`，`GETDATE()` 写 UTC，与 17k 历史审计行的 PHT 语义混在同一列。
+- 影响：
+  - OS 时区：`Etc/UTC` → `Asia/Manila`（PST, +0800）。
+  - `mssql-server` 短暂重启（约数秒～十几秒）；1433 重新监听后业务可连。
+  - 未改 schema / 数据 / 防火墙 / Tailscale。
+- 备份：时区为可逆 `timedatectl` 配置，无需文件备份；改前状态已记录（`Time zone: Etc/UTC`，本地时间与 UTC 一致）。
+- 变更时序：
+  1. 改前只读：`timedatectl` = `Etc/UTC`，`mssql-server` active。
+  2. `sudo timedatectl set-timezone Asia/Manila`。
+  3. `sudo systemctl restart mssql-server`（ticket 明确要求重启后 OS 时区才对 `GETDATE()` 生效）。
+  4. 确认 `ss` 上 `0.0.0.0:1433` / `*:1433` 重新监听，errorlog 显示引擎完成启动。
+- 验证：
+  - `timedatectl`：`Time zone: Asia/Manila (PST, +0800)`；本地约 `11:40`，UTC 约 `03:40`。
+  - `/etc/localtime` → `/usr/share/zoneinfo/Asia/Manila`；`/etc/timezone` = `Asia/Manila`。
+  - 经 `mas-go-dev` 上 `sqlcmd` 连 `192.168.2.20:1433`：
+    - `CURRENT_TIMEZONE()` = `(UTC+08:00) Kuala Lumpur, Singapore`（Linux `Asia/Manila` 映射到 Windows 等价 UTC+8 时区名，与 ticket 所述 `Singapore Standard Time` 同偏移；菲律宾无夏令时）。
+    - `GETDATE()` ≈ `2026-07-14 11:40`（PHT 墙钟）。
+    - `GETUTCDATE()` ≈ `2026-07-14 03:40`（UTC）。
+- 回滚：
+  ```bash
+  ssh mssql-ref 'sudo timedatectl set-timezone Etc/UTC && sudo systemctl restart mssql-server'
+  ```
+  回滚后新写入的 `GETDATE()` 会再变回 UTC 墙钟；已写入的 PHT 行不会自动回退。
+- 备注：本条只完成 CYP-1302 运维侧第 1 项。后端容器 `TZ` 见 `dev-cypresso.md` / `mas-go-dev.md` 同日条目；代码口径（GORM `NowFunc`、读写 Format 等）仍待应用仓库改动。
+
 ## 2026-07-11 15:32 CST - 协助排查 dev-cypresso 到 MSSQL 的短暂 Tailnet 单向断联（只读）
 
 - 服务器：`mssql-ref`（TS `100.124.140.78` / LAN `192.168.2.20`）
