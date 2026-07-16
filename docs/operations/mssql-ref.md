@@ -1,5 +1,30 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-16 14:51 CST - 清空两张 oauth 历史/备份大表以省开发环境空间
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Grok`
+- 原因：用户要求清空以下两张大体量表，节省开发/参考环境存储：
+  - `authprovidermasweb.dbo.oauth_access_tokens_old`（约 510 万行历史）
+  - `maswebkit.dbo.oauth_access_tokens_Backup`（约 512 万行备份）
+- 影响：
+  - 上述两表数据已全部删除（`TRUNCATE`），行数归零。
+  - **未动** `authprovidermasweb.dbo.oauth_access_tokens`（当前表，清空前/后均为 4 行）。
+  - 无 FK 引用这两张表；未重启 SQL Server；未 shrink 数据文件。
+  - 注意：`TRUNCATE` 释放的是库内页，**磁盘上 .mdf 文件尺寸不会自动变小**；`authprovidermasweb` data 仍约 10.7 GB，`maswebkit` data 仍约 5.9 GB。若要真正回收宿主机磁盘，需另做 `DBCC SHRINKFILE`（本次未做）。
+- 备份：参考/测试库上的历史 token 备份表；用户明确要求清空。未另做 .bak（原 Backup 表本身即快照副本，且 `oauth_access_tokens` 当前表保留）。
+- 回滚方式：
+  - 无法从本机自动恢复已截断行；若仍需要历史 token，须从外部 `.bak` / 其它环境恢复。
+  - 表结构仍在，应用若只依赖当前 `oauth_access_tokens` 不受影响。
+- 变更时序：
+  1. 清空前行数：`_old` = 5,104,639；`Backup` = 5,122,679；当前 `oauth_access_tokens` = 4。
+  2. 确认无 FK 引用这两张表。
+  3. `TRUNCATE TABLE authprovidermasweb.dbo.oauth_access_tokens_old;`
+  4. `TRUNCATE TABLE maswebkit.dbo.oauth_access_tokens_Backup;`
+- 验证：
+  - 两表 `COUNT(*)` 均为 **0**。
+  - `authprovidermasweb.dbo.oauth_access_tokens` 仍为 **4** 行。
+
 ## 2026-07-16 14:19 CST - 只读溯源 oauth_access_tokens_Backup 原表与同构表
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
