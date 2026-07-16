@@ -1,5 +1,18 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-16 13:45 CST - 只读查询 maswebkit.dbo.oauth_access_tokens_Backup 行数
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Grok`
+- 原因：用户要求确认库 `maswebkit` 表 `dbo.oauth_access_tokens_Backup` 当前有多少行。
+- 影响：仅只读 `COUNT_BIG(*)`，未改 schema / 数据 / 服务 / 网络。
+- 备份：无变更，无需备份。
+- 回滚方式：无变更，无需回滚。
+- 变更时序：
+  1. `ssh mssql-ref`，用 `sa` + `/opt/mssql-tools18/bin/sqlcmd -C` 连接本地 SQL Server。
+  2. 在库 `maswebkit` 执行：`SELECT COUNT_BIG(*) FROM dbo.oauth_access_tokens_Backup;`
+- 验证：查询成功返回 **5,122,679** 行。
+
 ## 2026-07-14 11:40 CST - CYP-1302：主机时区改 Asia/Manila 并重启 SQL Server
 
 - 服务器：`mssql-ref`（`192.168.2.20` / TS `100.124.140.78`）
