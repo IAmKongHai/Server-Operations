@@ -1,5 +1,27 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-16 14:19 CST - 只读溯源 oauth_access_tokens_Backup 原表与同构表
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Grok`
+- 原因：用户询问是否有与 `maswebkit.dbo.oauth_access_tokens_Backup` 字段完全相同的表，以及“Backup”原表在哪里。
+- 影响：仅只读比对 `sys.columns` / 行数 / id 交集，未改 schema / 数据 / 服务。
+- 备份：无变更，无需备份。
+- 回滚方式：无变更，无需回滚。
+- 结论：
+  1. **字段完全一致**（列名、类型、max_length、precision、scale、nullable、顺序）的表有 2 张，均在 `authprovidermasweb`：
+     - `authprovidermasweb.dbo.oauth_access_tokens`
+     - `authprovidermasweb.dbo.oauth_access_tokens_old`
+  2. `maswebkit` 库内除 Backup 本身外，**没有**同构表；全实例也只有上述三张相关表。
+  3. **原表在 auth 库**：`authprovidermasweb.dbo.oauth_access_tokens`（现表几乎空，大历史在 `_old`）。
+  4. 行数：Backup `5,122,679`；`_old` `5,104,639`；当前 `oauth_access_tokens` `4`。
+  5. Backup 中 `5,104,417` 个 id 落在 `_old`，`18,262` 个 id 不在 `_old`；与当前表 id 交集为 `0`。
+  6. 存储特征：Backup 为 **HEAP**（无 PK/索引，创建于 `2025-12-02`，像 `SELECT INTO` 跨库备份）；`_old` 保留原 PK 名 `PK_oauth_access_tokens` 与业务索引名；当前表为 `2026-05-20` 重建，索引名带 `_copy1`。
+  7. `created_on` 范围：Backup `2023-07-01`～`2025-11-28`；`_old` 同起点到 `2026-05-20`；当前 `2026-07-11`～`2026-07-16`。
+- 推断时间线（只读证据）：
+  - 约 2025-12-02：从 auth 的 oauth 表拷贝到 `maswebkit.dbo.oauth_access_tokens_Backup`。
+  - 约 2026-05-20：auth 侧把大表改名为 `oauth_access_tokens_old`，并重建空的 `oauth_access_tokens` 继续承接新登录。
+
 ## 2026-07-16 13:48 CST - 只读检查 maswebkit 是否存在 dbo.oauth_access_tokens
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
