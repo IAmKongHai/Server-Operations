@@ -1,5 +1,17 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-16 13:48 CST - 只读检查 maswebkit 是否存在 dbo.oauth_access_tokens
+
+- 服务器：`mssql-ref`（`192.168.2.20`）
+- 操作人：`Grok`
+- 原因：用户询问 `maswebkit` 库内是否存在表 `dbo.oauth_access_tokens`。
+- 影响：仅只读查询 `sys.tables`，未改 schema / 数据 / 服务。
+- 备份：无变更，无需备份。
+- 回滚方式：无变更，无需回滚。
+- 验证：
+  - `sys.tables` 精确匹配 `oauth_access_tokens`：**不存在**。
+  - 名称含 `oauth_access_token` 的表仅有：`dbo.oauth_access_tokens_Backup`。
+
 ## 2026-07-16 13:45 CST - 只读查询 maswebkit.dbo.oauth_access_tokens_Backup 行数
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
