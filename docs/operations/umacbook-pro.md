@@ -1,5 +1,47 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-17 20:37 CST - 安装 org 级 2 个 GitHub Actions runner slot
+
+- 服务器：`umacbook-pro`（Tailscale `100.113.23.49`，主机名 `UdeMacBook-Pro.local`）
+- 操作人：`Grok`
+- 原因：用户确认 org `cypressoai`，机器名 `umacbook-pro`，2 个 slot，每个 runner 按 2 workers 规划；labels 待统筹，先上线不进共享 job 池。
+- 影响：
+  - 新增 self-hosted runner：`umacbook-pro-1`、`umacbook-pro-2`（agentId 35 / 36）。
+  - LaunchAgent 开机自启：
+    - `actions.runner.cypressoai.umacbook-pro-1`
+    - `actions.runner.cypressoai.umacbook-pro-2`
+  - 目录约定：
+    - runner 程序：`~/actions-runner/umacbook-pro-{1,2}/`
+    - 短路径 workFolder：`~/gha/u1`、`~/gha/u2`（规避 macOS GNUPGHOME 路径过长问题）
+  - 当前 labels（两 slot 相同）：`self-hosted`、`macos`、`arm64`、`macos-arm64`、`umacbook-pro`
+  - **未**打 `frontend-tests-ci` / `frontend-sonar-ci` / `backend-ci` / `mac-mini-sonar`，因此**不会**领取现有 frontend/backend/sonar 队列 job。
+  - runner 版本：`2.335.1`（osx-arm64）。
+  - 机器侧：8GB 内存 / Apple M1 / 8 逻辑核；未装 Homebrew / Node（job 内由 `actions/setup-node` 等按需安装）。
+  - `.path` 当前仅为 `/usr/bin:/bin:/usr/sbin:/sbin`（无 `/opt/homebrew/bin`）。
+- 关于「每个 runner 两个 workers」：
+  - GitHub runner 本身不配置 Vitest worker 数；`VITEST_MAX_WORKERS=2` 在 **workflow / package.json** 侧生效。
+  - 两 slot 同时跑 frontend test 时，理论峰值 2 job × 2 workers = 4 Vitest workers，与 `lemon-imac`（同为 8GB）压力量级接近。
+- 备份：无（全新安装，无旧配置可备份）。
+- 回滚方式：
+  1. `cd ~/actions-runner/umacbook-pro-{1,2} && ./svc.sh stop && ./svc.sh uninstall`
+  2. `gh api -X POST orgs/cypressoai/actions/runners/remove-token --jq .token` 取 token 后 `./config.sh remove --token <token>`
+  3. 可选删除目录 `~/actions-runner/umacbook-pro-{1,2}`、`~/gha/u{1,2}`
+- 变更时序：
+  1. 下载 runner `v2.335.1` 到两份 slot 目录。
+  2. `gh api -X POST orgs/cypressoai/actions/runners/registration-token` 取注册 token（未落盘、未写文档）。
+  3. `./config.sh --unattended` 注册到 org，labels 见上，workFolder 短路径。
+  4. `./svc.sh install && ./svc.sh start` 装 LaunchAgent 并启动。
+  5. 清理 `~/actions-runner/_stage`。
+- 验证：
+  - `launchctl list`：两服务 Started（exit 0）。
+  - `ps`：两个 `Runner.Listener` 以 `service` 模式运行。
+  - GitHub API：`umacbook-pro-1` / `umacbook-pro-2` 均为 `status=online`、`busy=false`，labels 与注册一致。
+- 后续（labels 统筹，待决策后再改）：
+  - 方案 A：加入 `frontend-tests-ci` 共享池（与 mac-mini / lemon 一起抢 Frontend Tests shard）。
+  - 方案 B：独立池，workflow `runs-on` 显式含 `umacbook-pro`（可单独设 `VITEST_MAX_WORKERS=2`）。
+  - 方案 C：先只接轻量 job（如 typecheck），再观察 8GB 下双 slot 稳定性。
+  - 若要跑 Sonar Scanner：可能需装 Homebrew + gpg，并把 `/opt/homebrew/bin` 写入各 slot `.path` 后重启服务。
+
 ## 2026-07-17 20:16 CST - 纳管新机：SSH 密钥登录 + 快捷别名
 
 - 服务器：`umacbook-pro`（Tailscale `100.113.23.49`，主机名 `UdeMacBook-Pro.local`）
