@@ -1,5 +1,24 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-17 21:37 CST - 重启后恢复检查：runner 已 online
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Grok`
+- 原因：用户反馈机器曾不明原因重启，现已恢复，要求做最终检查。
+- 影响：本次**仅只读排查**，未改 runner / LaunchAgent / labels / workflow。
+- 观察结果：
+  - 最近一次 boot：`2026-07-17 07:46 CST`（此前还有 `2026-07-16 22:49` 一次 reboot 记录）。
+  - 当前 uptime 约 13h51m；登录用户 `for-konghai`。
+  - LaunchAgent：`actions.runner.cypressoai.lemon-imac-1`、`lemon-imac-2` 均在 `launchctl list` 中。
+  - 进程：两个 `Runner.Listener`（service 模式）+ 对应 `RunnerService.js`（node20）在跑；**无** active `Runner.Worker` / vitest。
+  - GitHub API：`lemon-imac-1` / `lemon-imac-2` 均为 `status=online`、`busy=false`。
+  - labels 完整：`self-hosted,macos,arm64,lemon-imac,macos-arm64,frontend-tests-ci`。
+  - 磁盘：`/` 约 13G 已用 / 44G 可用（23%）；内存 8G。
+  - load average 偏高（约 16–22），**主因是 Spotlight 索引**（`mds` / 多个 `mdworker_shared` 占 CPU 前列），不是 CI job。重启后 Spotlight 重建索引属常见现象，预计会随索引完成回落。
+  - 备注：`ps` 显示 Listener 启动时间约当日 21:16；若 boot 在 07:46 而 GUI/用户会话更晚才可用，LaunchAgent 可能延迟到会话就绪后才拉起（macOS 用户级 LaunchAgent 依赖登录会话）。
+- 结论：runner 服务与 org 注册状态正常，可继续参与 `frontend-tests-ci` 共享池；无需人为干预。若 load 长时间不降且影响 job，可再查 Spotlight 是否卡在某路径。
+- 回滚：无（只读）。
+
 ## 2026-07-09 02:18 +08 - 决策：保持 4 片共享 runner 池观察数日
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）

@@ -1,5 +1,25 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-17 21:37 CST - 加入 frontend-tests-ci 共享池（方案 A）
+
+- 服务器：`umacbook-pro`（Tailscale `100.113.23.49`）
+- 操作人：`Grok`
+- 原因：用户确认方案 A，让 `umacbook-pro-1/2` 与 mac-mini / lemon 一起承接 `Frontend Tests` shard。
+- 影响：
+  - 通过 GitHub API 给 runner id `35`、`36` 追加自定义 label `frontend-tests-ci`（不替换既有 labels）。
+  - 当前 labels：`self-hosted`、`macos`、`arm64`、`macos-arm64`、`umacbook-pro`、`frontend-tests-ci`。
+  - 匹配 `runs-on: [frontend-tests-ci, macos, arm64]` 的 job 现可调度到本机两个 slot。
+  - **未**改 workflow；worker 数仍由 workflow/`VITEST_MAX_WORKERS` 控制（规划每 job 2 workers）。
+  - 未重启 runner 服务（label 变更对 idle runner 即时生效）。
+- 回滚方式：
+  - `gh api -X DELETE orgs/cypressoai/actions/runners/{35,36}/labels/frontend-tests-ci` 移除该 label；或 PUT 全量 labels 覆盖为不含 `frontend-tests-ci` 的集合。
+- 验证：
+  - GitHub API：`umacbook-pro-1` / `umacbook-pro-2` 均为 `online`，labels 含 `frontend-tests-ci`。
+  - 同池当前 online 成员：`mac-mini-sonar-1..4`、`lemon-imac-1/2`、`umacbook-pro-1/2`（共 8 slot）。
+- 后续观察：
+  - 关注 8GB 机双 slot 并发 + `VITEST_MAX_WORKERS=2` 是否 flaky / 长尾。
+  - 若压力过大，可先撤 `frontend-tests-ci` 或只保留单 slot 在池内。
+
 ## 2026-07-17 20:37 CST - 安装 org 级 2 个 GitHub Actions runner slot
 
 - 服务器：`umacbook-pro`（Tailscale `100.113.23.49`，主机名 `UdeMacBook-Pro.local`）
