@@ -1,5 +1,26 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-17 10:10 CST - 清理 /tmp 缓存并预建磁盘 Buildx cache 目录
+
+- 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
+- 操作人：`Grok`
+- 原因：接上条排查；用户确认直接清理以恢复 runner。
+- 影响：
+  - 删除 `/tmp` 上 Buildx 双份 cache、`go-build*`/`go-link*`、`node-compile-cache`、残留 `cgo-gcc-input-*.c`。
+  - **未**重启 runner / 容器 / 服务。
+  - 预建 `/var/cache/buildx`（属主 `actions-runner:actions-runner`，775），供后续 workflow 把 Buildx local cache 迁出 tmpfs。
+  - 同步在 `dev-cypresso` 预建 `/var/cache/buildx`（属主 `ec2-user`，该机 runner 以 ec2-user 运行）。
+  - 应用仓 `iCare/backend/.github/workflows/deploy.yml` 本地已改路径（`/tmp/.buildx-cache-*` → `/var/cache/buildx/icare-backend*`），由用户自行开 PR 合入后生效。
+- 备份：无（删除的是可再生缓存）。
+- 回滚：无必要；cache 会在下次 deploy 重建。
+- 变更时序：
+  1. `sudo rm -rf /tmp/go-build* /tmp/go-link* /tmp/.buildx-cache-mas-go-dev /tmp/.buildx-cache-mas-go-dev-new /tmp/.buildx-cache-backend* /tmp/node-compile-cache /tmp/cgo-gcc-input-*.c`
+  2. `sudo mkdir -p /var/cache/buildx && chown actions-runner:actions-runner`
+- 验证：
+  - `df -h /tmp`：528K / 3.9G（**1%**，清理前 100%）。
+  - `free -h`：swap 已用从约 **4.3G → 451M**（tmpfs 释放后内存压力明显下降）。
+  - 根盘仍约 85G 可用。
+
 ## 2026-07-17 10:05 CST - 排查 runner 报磁盘满：根因是 /tmp(tmpfs) 100% 满
 
 - 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
