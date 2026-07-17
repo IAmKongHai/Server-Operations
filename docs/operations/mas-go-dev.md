@@ -1,5 +1,17 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-17 10:30 CST - job 通过后复查 /tmp 并清空残留
+
+- 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
+- 操作人：`Grok`
+- 原因：用户确认失败 job 已重跑通过，要求再查 `/tmp` 并清空。
+- 影响：仅删 `/tmp` 下可再生成残留（`useradmin-sig*`、`goimports`、`hsperfdata_*` 等）；未动 runner socket / systemd-private。
+- 现状与验证：
+  - 复查时 `/tmp` 已仅 **528K（1%）**，无 buildx/go-build 大目录（上轮清理 + 新 deploy 未再往 `/tmp` 写 cache）。
+  - 清空后：`df -h /tmp` → **0 / 3.9G（0%）**。
+  - 新 Buildx cache 已在磁盘：`/var/cache/buildx/icare-backend-mas-go-dev` **1.4G**（说明新 `deploy.yml` 路径生效）。
+- 回滚：无。
+
 ## 2026-07-17 10:10 CST - 清理 /tmp 缓存并预建磁盘 Buildx cache 目录
 
 - 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
