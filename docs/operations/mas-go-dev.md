@@ -1,5 +1,32 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-17 10:05 CST - 排查 runner 报磁盘满：根因是 /tmp(tmpfs) 100% 满
+
+- 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
+- 操作人：`Grok`
+- 原因：self-hosted runner 报磁盘满；只读排查当前磁盘与 CI 占用。
+- 影响：本次**仅排查、未做清理或改配置**。
+- 现状（只读）：
+  - 根盘 `/`（`/dev/sda1` xfs 300G）：已用 216G / 可用 85G（**72%**，**未满**）。
+  - **`/tmp` 为 tmpfs，仅 3.9G，已用 3.9G / 可用 0（100% 满）**——真正触发 “No space left on device” 的挂载点。
+  - `/tmp` 主要占用（属主均为 `actions-runner`）：
+    - `/tmp/.buildx-cache-mas-go-dev` **1.4G**
+    - `/tmp/.buildx-cache-mas-go-dev-new` **1.4G**（与上一份并存，说明 rotate 未完成或并发写）
+    - 多个 `/tmp/go-build*` + `go-link*` 合计约 **1.2G**
+    - 合计把 3.9G tmpfs 顶满
+  - 根因链路：`deploy.yml` 把 Docker Buildx local cache 写在 `/tmp/.buildx-cache-mas-go-dev{,-new}`（`cache-from`/`cache-to type=local` + rotate）；Go 编译默认也把 `GOCACHE`/临时文件落在 `/tmp`。三台 runner 服务共享同一 `/tmp`，且 tmpfs 占物理内存。
+  - Runner 服务状态：`mas-go-dev` / `mas-go-dev-ci-1` / `mas-go-dev-ci-2` 均为 `active running`；近期 job 中 **Lint / SonarQube Scan Failed**（如 2026-07-17 01:59–02:00 UTC 一带）。
+  - 内存侧：物理内存 7.7G，swap 已用约 4.3G；tmpfs 满时会进一步挤压可用内存。
+  - Docker 侧（根盘，非本次直接原因）：build cache ~14.5G；三个已退出的 buildx builder volume 各约 5–6G；可后续再清理。
+- 验证：
+  - `df -h / /tmp`：根盘 72% 可用 85G；`/tmp` 100% 可用 0。
+  - `sudo du -sh /tmp/.buildx-cache* /tmp/go-build*` 与 workflow 中 cache 路径一致。
+- 回滚：无（只读）。
+- 备注 / 建议修复（**待用户确认后再做**）：
+  1. 紧急：清理 `/tmp` 中 buildx 双份 cache 的旧份、陈旧 `go-build*`/`go-link*`（可立刻腾出约 2–3G，恢复 CI 写临时文件）。
+  2. 中期：把 Buildx local cache 从 `/tmp` 迁到根盘路径（如 `/var/cache/buildx/...` 或 `/opt/mas-go-dev/buildx-cache/`），避免 RAM 型 tmpfs 上限。
+  3. 可选：为 runner 设 `TMPDIR`/`GOCACHE` 到磁盘目录；`docker builder prune` / 删除退出的 buildx volume 回收根盘空间。
+
 ## 2026-07-14 18:05 CST - portal 容器 nginx client_max_body_size 100M
 
 - 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
