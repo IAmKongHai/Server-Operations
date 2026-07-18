@@ -1,5 +1,20 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-18 09:30 CST - 只读确认 preprod 迁移状态与双路径并发 migrate
+
+- 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）
+- 操作人：`Grok`
+- 原因：配合排查 iCare-backend `Deploy to mas-go-dev` migrate applock 失败（run `29587500204`）。
+- 影响：**只读**。用 `mas_ref_owner` + `sqlcmd` 查 `medicalassistance_preprod`；未重启 `mssql-server`、未改数据。
+- 验证：
+  - 本机同时监听 LAN 与 Tailscale；SIT Server 的 `DB_HOST=100.124.140.78` 与 mas-go-dev 的 `192.168.2.20` 指向同一实例。
+  - `dbo.schema_migrations`：`version=26`，`dirty=0`。
+  - `mas_ref_owner` 无 `VIEW SERVER PERFORMANCE STATE`，`sys.dm_tran_locks` / sessions 查询被拒（不影响根因判断）。
+  - SQL Server 服务自 2026-07-14 起持续 active。
+- 根因摘要：Deploy to Server 与 Deploy to mas-go-dev 并发 `migrate up` 争用 golang-migrate 的 Session applock。
+- 回滚：无。
+- 详见：`docs/solutions/mas-go-dev/workflow-issues/concurrent-migrate-applock-with-server-deploy-2026-07-18.md`
+
 ## 2026-07-16 14:51 CST - 清空两张 oauth 历史/备份大表以省开发环境空间
 
 - 服务器：`mssql-ref`（`192.168.2.20`）

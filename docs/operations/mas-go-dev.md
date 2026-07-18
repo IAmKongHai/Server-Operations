@@ -1,5 +1,28 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-18 09:30 CST - 只读排查 Deploy to mas-go-dev migrate applock 失败
+
+- 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）+ 关联 `mssql-ref`
+- 操作人：`Grok`
+- 原因：用户要求排查
+  [Actions run 29587500204 / job 87909063494](https://github.com/cypressoai/iCare-backend/actions/runs/29587500204/job/87909063494)
+  （`Deploy to mas-go-dev` 失败）。
+- 影响：**只读**，未重启容器 / runner / SQL Server，未改配置、未 force 迁移。
+- 结论：
+  - 失败点：`deploy_seed.sh` → `migrate up`，错误为 SQL Server `sp_releaseapplock`（Resource `3979484786`，Session 锁未持有）。
+  - **根因**：同一次 run 内 `Deploy to Server` 与 `Deploy to mas-go-dev` 几乎同时对 **同一库**
+    `medicalassistance_preprod` 跑 golang-migrate。
+    - mas-go-dev：`192.168.2.20`
+    - Server：`100.124.140.78`（`mssql-ref` Tailscale，与 LAN 同机）
+  - 时间重叠（UTC）：Server migrate `14:27:40.679` 起；mas-go-dev migrate `14:27:42.850` 起，`14:27:42.875` 失败；Server `14:27:44.320` `no change` 后 seed 成功。
+  - 库现状：`schema_migrations` → `version=26`，`dirty=0`；失败镜像上手工 `migrate up` → `no change`。
+  - 当前容器仍为上一成功 deploy 镜像 `icare/backend:mas-go-dev-1a82aa14…`（CYP-1334 run），healthz 正常；**未**滚到失败 commit `099d4908…` 的本地 tag。
+- 备份 / 回滚：无变更。
+- 建议（需改应用仓 workflow，未在本仓库执行）：
+  - 对共享 preprod 的 migrate 加 concurrency / 串行化两个 deploy job；或拆库；或 migrate 退避重试。
+  - 短期可在无其它 seed 时重跑 `Deploy to mas-go-dev`。
+- 方案沉淀：`docs/solutions/mas-go-dev/workflow-issues/concurrent-migrate-applock-with-server-deploy-2026-07-18.md`
+
 ## 2026-07-17 10:30 CST - job 通过后复查 /tmp 并清空残留
 
 - 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）
