@@ -1,5 +1,37 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-19 23:59 CST - 排查最近一次重启原因：macOS Tahoe 26.5.2 自动更新
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`，硬件 `iMac21,2`）
+- 操作人：`Grok`
+- 原因：用户要求检查这台机器最后一次重启的原因。
+- 影响：本次**仅只读排查**，未改系统设置 / runner / LaunchAgent。
+- 结论（重启原因）：
+  - **macOS 系统软件更新自动安装**，不是 panic / 断电 / 人为 `reboot`。
+  - 产品：`macOS Tahoe 26.5.2`（build `25F84`，product key `MSU_UPDATE_25F84_patch_26.5.2_minor`）
+  - 升级路径：`26.5.1 (25F80)` → `26.5.2 (25F84)`
+  - 自动更新已开：`willAutoInstall:1`、`autoUpdatesEnabled:1`，并已 `queuedForInstallTonight:1`（Install Tonight 夜间安装）
+- 时间线（均 CST / +08）：
+  1. `2026-07-18 19:08`：`softwareupdated` 选中后台下载产品 `MSU_UPDATE_25F84_patch_26.5.2_minor`
+  2. `2026-07-18 22:07`：`SUOSUInstallTonightManager` 将 `macOS Tahoe 26.5.2 25F84` 排入今晚安装队列
+  3. `2026-07-19 01:18`：Tonight observer 触发；`SUOSUScheduler: DISARMED`
+  4. `2026-07-19 01:19`：登出进入 post-logout apply（`logoutNoReturn`）
+  5. `2026-07-19 01:19:56`：`Software Update` 进入 post-logout 模式，`Applying MSU update`；`UpdateBrainService` 执行 `handle_MSUApplyUpdate`
+  6. `2026-07-19 01:20:59`：`Rebooting (success = 1)`；`softwareupdate --history` 记录安装时间同为 `2026/07/19 01:20:59`
+  7. `last`：`shutdown 01:20` → `reboot 01:27`；`kern.boottime` = `Sun Jul 19 01:27:52 2026`
+  8. `2026-07-19 01:29`：新系统上 `softwareupdated` 启动日志：`Previous System Version : 26.5.1 (25F80), Current System Version : 26.5.2 (25F84)`；`InstallHistory` 写入 `macOS 26.5.2`
+- 辅助证据：
+  - DiagnosticReports：`com.apple.MobileSoftwareUpdate.UpdateBrainService_2026-07-19-012038_*.diag`（preboot personalization / stage boot objects，约写盘 2.1GB）
+  - DiagnosticReports：`shutdown_stall_2026-07-19-012110_*.shutdownStall`（关机阶段卡顿，系统更新安装时常见，**不是 kernel panic**）
+  - `/Library/Logs/DiagnosticReports/` 无 panic 报告
+  - `last` 中 7/16 的 session 标记为 `crash`（另一次事件）；本次 7/19 为正常 `shutdown` + `reboot`
+- 当前状态（排查时）：
+  - `sw_vers`：`macOS 26.5.2` / build `25F84`
+  - uptime 约 22.5h（自 01:27 boot）
+  - LaunchAgent：`actions.runner.cypressoai.lemon-imac-1` / `lemon-imac-2` 均在；两个 `Runner.Listener`（service）在跑（约 23:45 随用户会话拉起）
+  - 磁盘：`/` 约 12G 已用 / 62G 可用；load 约 2–5，较 7/17 重启后 Spotlight 高峰已回落
+- 回滚：无（只读）。若希望避免 CI runner 机在夜间自动重启，可在「系统设置 → 通用 → 软件更新」关闭自动安装 macOS 更新（或改计划窗口）；改设置前需用户确认。
+
 ## 2026-07-17 21:37 CST - 重启后恢复检查：runner 已 online
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
