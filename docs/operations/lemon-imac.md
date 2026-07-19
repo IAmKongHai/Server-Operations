@@ -1,5 +1,26 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-20 00:08 CST - 验证：for-konghai 自动登录已开启
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Grok`（用户已在 GUI 完成设置，本侧只读复核）
+- 原因：用户希望重启后 runner 自动上线，已在系统设置里为 `for-konghai` 打开自动登录，要求检查是否生效。
+- 影响：本次**仅只读验证**，未重启机器、未改 runner / LaunchAgent。
+- 验证结果（均通过）：
+  - `sysadminctl -autologin status` → **`Automatic login user: for-konghai`**
+  - `defaults read ... autoLoginUser` → **`for-konghai`**
+  - `/etc/kcpassword` 存在（`root:wheel` `600`，mtime `2026-07-20 00:07`）—— macOS 自动登录凭据文件已落盘
+  - **FileVault is Off**（与自动登录兼容；若以后打开 FileVault，自动登录会被系统关掉）
+  - 当前 console 会话：`for-konghai` 自 `2026-07-19 23:45` 起仍在线
+  - LaunchAgent：`lemon-imac-1` / `lemon-imac-2` 均在 `launchctl list`；两个 `Runner.Listener` 在跑
+- 预期行为（下次 reboot / 系统更新后）：
+  1. 开机后自动以 `for-konghai` 进入桌面（无需人工点登录窗）
+  2. 用户级 LaunchAgent `RunAtLoad` 拉起两个 runner
+  3. GitHub 侧应变为 `status=online`，可接 `frontend-tests-ci` job
+- 未做：故意重启验证（会影响正在跑的 CI / 会话）；若需端到端确认，可约窗口 `sudo reboot` 后 SSH 看 `launchctl list | grep runner` 与进程启动时间是否贴近 `kern.boottime`。
+- 回滚：系统设置关闭自动登录，或 `sysadminctl -autologin off`。
+- 备注：自动登录开启后，物理接触机器即可进入该账户桌面；适合专用 runner 机。
+
 ## 2026-07-20 00:03 CST - 结论：重启后 runner 需 GUI 登录才拉起；自动登录当前关闭
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
