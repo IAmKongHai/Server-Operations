@@ -1,5 +1,34 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-20 00:03 CST - 结论：重启后 runner 需 GUI 登录才拉起；自动登录当前关闭
+
+- 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）
+- 操作人：`Grok`
+- 原因：用户询问「自动重启后、人工登录账户前，runner 能否正常工作」，并希望重启后 runner 自动上线。
+- 影响：本次**仅只读排查**，未改自动登录 / LaunchAgent / runner。
+- 结论（当前行为）：
+  - **不能。** 两个 runner 以 **用户级 LaunchAgent** 安装，不是 LaunchDaemon；未登录 `for-konghai` 的 GUI 会话时不会启动。
+  - 安装路径：`~/Library/LaunchAgents/actions.runner.cypressoai.lemon-imac-{1,2}.plist`（`svc.sh install` 标准方式）
+  - plist 关键项：`RunAtLoad=true`、`SessionCreate=true`、`ProcessType=Interactive`、`UserName=for-konghai`
+  - **Automatic login is OFF**（`sysadminctl -autologin status`）
+  - **FileVault is Off**（因此后续可开自动登录；若以后打开 FileVault，macOS 会强制关掉自动登录）
+  - `/Library/LaunchDaemons/` 下无 actions.runner 条目
+- 实证（2026-07-19 系统更新重启）：
+  - `kern.boottime`：`01:27`
+  - 上一轮 Listener 日志在 `01:21` 随关机结束（`_diag/Runner_20260718-*.log`）
+  - 新 Listener 进程与 `stdout.log` 均从 **`23:45`** 才重新 `Listening for Jobs`（UTC `15:45`）
+  - 空窗约 **22 小时**：机器已 boot，但 runner 离线，直到人工 GUI 登录后 LaunchAgent 才拉起
+- 对照：
+  - `mac-mini`：同样是用户 LaunchAgent；因 FileVault On 无法自动登录，靠长期保持 console 已登录（少 reboot）
+  - `umacbook-pro`：同样 LaunchAgent + 自动登录 OFF
+- 若要实现「重启后自动接 CI」的推荐方案（待用户确认后再改）：
+  1. **首选**：为 `for-konghai` 开启 **自动登录**（本机 FileVault 已关，技术上可行）
+  2. 保持「登录后不注销」；可选关闭睡眠 / 启用防止 App Nap（CI 机常见）
+  3. 不优先改 LaunchDaemon：官方 `svc.sh` 装的是 LaunchAgent；Daemon 在无 GUI 会话时可能踩 keychain / 权限 / 交互会话问题，且 frontend vitest 对用户环境更友好
+- 开启自动登录的代价：开机后 console 直接进入桌面，物理接触机器即可用该账户；适合放在相对可信环境的专用 runner 机
+- 回滚：关自动登录 → `sysadminctl -autologin off`（或系统设置）
+- 验证口径（改完后）：模拟重启或等下次更新重启 → 登录前用 SSH 看 `launchctl list | grep runner` 与 GitHub runner `status=online`，无需人工点登录窗
+
 ## 2026-07-19 23:59 CST - 排查最近一次重启原因：macOS Tahoe 26.5.2 自动更新
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`，硬件 `iMac21,2`）
