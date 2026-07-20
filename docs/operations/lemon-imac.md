@@ -1,5 +1,17 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-20 20:01 CST - U5 npm 预热：frontend-mas lock 可 offline 装齐
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：缓存基线 R6 / G4；此前 `prefer-offline` 预热后体积仍 ~188M，需证明 cache **完整**。
+- 做了什么：
+  - `npm cache clean --force` 后对 develop 版 `package-lock` 全量 `npm ci --prefer-online`（899 packages）。
+  - 实测 `~/.npm` ≈ **143M**、`_cacache` content files ≈ **866**（npm 11 对该 lock 的完整体积，非 GB 级）。
+  - 验证：`npm ci --prefer-offline --offline` **PASS**（9s，无 registry）。
+- 说明：mac-mini `~/.npm` 9.5G 为历史多项目堆积；单 lock 达标以 **offline 可装齐** 为准（计划 R6 已修订）。
+- 参考：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`
+
 ## 2026-07-20 19:48 CST - CI 缓存基线：per-slot GOCACHE + 共享 GOMODCACHE
 
 - 服务器：`lemon-imac`

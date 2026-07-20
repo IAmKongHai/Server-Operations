@@ -1,5 +1,14 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-20 20:01 CST - U6 清理陈旧 tool：部署 runner go 1.25.0
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：U6/R7；`mas-go-dev` 部署 runner `_work/_tool/go` 仅残留 **1.25.0**（与 go.mod 1.25.7 不一致）。
+- 做了什么：`rm -rf /opt/actions-runner/mas-go-dev/_work/_tool/go/1.25.0`（~240M）。
+- 验证：ci-1/ci-2 仅 `1.25.7`；部署 runner go tool 目录空，下次 setup-go 会拉 1.25.7。
+- 影响：下次走 `mas-go-dev` label 的 job 可能多一次 Go 工具下载（一次性）。
+
 ## 2026-07-20 19:48 CST - CI 缓存基线：清 128G go-build + per-slot GOCACHE
 
 - 服务器：`mas-go-dev`

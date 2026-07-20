@@ -1,5 +1,13 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-20 20:01 CST - U5 npm 预热：frontend-mas lock 可 offline 装齐
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：同 lemon R6/G4。
+- 做了什么：全量 `npm ci` 回填后 `~/.npm` ≈ **149M**、content ≈ **866**；`npm ci --offline` **PASS**（8s）。
+- 参考：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`
+
 ## 2026-07-20 19:55 CST - 重启 umacbook-pro-1/2（缓存基线生效确认）
 
 - 服务器：`umacbook-pro`

@@ -38,7 +38,7 @@ self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-go-dev-ci，
 | R3 | `npm` 继续用 **主机级 `~/.npm`** + workflow `npm ci --prefer-offline`；**不**启用 `setup-node`/`setup-go` 的 GitHub remote cache。 |
 | R4 | mas-go-dev 上 `actions-runner` 用户的 go-build 从 ~125GB **瘦身到可维护水位**（目标个位数～十几 GB 量级，或至少释放数十 GB 并建立复膨胀门槛）。 |
 | R5 | mac-mini 既有 per-slot `GOCACHE` 保留；可选将 **4 份 `GOMODCACHE` 收敛为全机共享**；对过大 go-build 有修剪策略。 |
-| R6 | lemon/umac 的 npm cache 经预热或自然跑热后，体积应明显高于冷启动（目标：至少数百 MB～GB 级，而非 ~100–200MB）。 |
+| R6 | lemon/umac 的 npm cache 对 **当前 `frontend-mas` package-lock** 预热完整：`npm ci --offline` 可装齐 899 packages。说明：npm 11 对该 lock 的完整 `_cacache` 实测约 **140–160MB**（~866 content files）；mac-mini `~/.npm` 9.5G 为历史多项目堆积，**不是**单 lock 达标尺。 |
 | R7 | 清理各 slot `_tool` 中 **明确过期** 的 Go/Node 次要版本（确认当前 job 使用版本后）。 |
 | R8 | `docs/runbooks/ci-runner-pools.md` 增加 **缓存基线 checklist**；各机 `docs/operations/<host>.md` 追加时间线；Server 仓 `main` commit。 |
 | R9 | （可选但本计划「全量」包含）iCare-backend：条件安装 golangci-lint、更新 sonar 注释中过时的「单实例」表述。 |
@@ -332,10 +332,11 @@ GOMODCACHE=<host-shared>/go-mod
 
 **Test scenarios:**
 
-- Happy: 预热后 `~/.npm` 显著大于预热前（>> 200MB）。  
+- Happy: 预热后对当前 package-lock 执行 `npm ci --offline` 成功（完整 cacache）。  
+- Note: npm 11 下该 lock 完整体积约 140–160MB，不以 GB 为尺（见 R6 修订）。  
 - Failure: 无网络/锁文件变更 → 记录失败不阻断其他单元。
 
-**Verification:** R6。
+**Verification:** R6 / G4（offline 装齐）。
 
 ---
 
@@ -433,7 +434,7 @@ GOMODCACHE=<host-shared>/go-mod
 | G1 隔离 | 每 multi-slot 主机：slot 间 GOCACHE 路径不同 |
 | G2 共享 | 同主机 GOMODCACHE 路径一致（mac 收敛后） |
 | G3 磁盘 | mas go-build 不再处于 ~125GB 级 |
-| G4 流量代理指标 | lemon/umac `~/.npm` 预热后体积上升；或 frontend job 日志无大量 http fetch |
+| G4 流量代理指标 | lemon/umac `npm ci --offline` 对 frontend-mas lock 成功（完整 cacache）；CI 可用 `--prefer-offline` |
 | G5 文档 | runbook + 4 机 operations + commit |
 | G6 CI | 抽样 backend Sonar/Lint 与 frontend shard 成功（可自然触发或 workflow_dispatch） |
 
@@ -443,11 +444,14 @@ GOMODCACHE=<host-shared>/go-mod
 
 ## Definition of Done
 
-- [ ] U1–U6 完成或明确跳过原因写入计划/时间线  
-- [ ] U8 完成（文档与 commit 强制）  
-- [ ] U7 完成或「跳过」有记录  
-- [ ] G1–G5 满足；G6 至少有一轮成功抽样  
-- [ ] 无未还原的失败中断状态（service online、`.env` 有效）
+- [x] U1–U6 完成或明确跳过原因写入计划/时间线  
+- [x] U8 完成（文档与 commit 强制）  
+- [x] U7 完成或「跳过」有记录（PR #1094 merged）  
+- [x] G1–G5 满足；G6 至少有一轮成功抽样（run 29739587770 Lint@ci-1 Sonar@ci-2）  
+- [x] 无未还原的失败中断状态（service online、`.env` 有效）  
+
+**执行完成注记（2026-07-20）：**  
+U1–U4/U8 主机与文档已落地；U5 以 offline `npm ci` 证明 lock 完整缓存（lemon ~143M / umac ~149M，见 R6 修订）；U6 已清 mas-go-dev 部署 runner `_tool/go/1.25.0` 与 ci 上旧版本；U7 = iCare-backend#1094。
 
 ---
 
