@@ -96,6 +96,37 @@ ps eww -p "$pid" | tr ' ' '\n' | grep '^PATH='
 - mas-go-dev `gnupg2-minimal` 缺 dirmngr：`docs/solutions/mas-go-dev/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
 - 2026-07-20 lemon / umacbook 补齐 gnupg + `.path`：见各机 `docs/operations/*.md`
 
+### 缓存基线（减公网流量 / 防 CYP-322）
+
+self-hosted **不要**开 `setup-go` / `setup-node` 的 GitHub remote `cache`；依赖本机磁盘。
+
+| 缓存 | 策略 | 注入位置 |
+|------|------|----------|
+| `GOCACHE` | **每 slot 独立目录**（同机 multi-slot 必须） | 各 runner `.env` |
+| `GOMODCACHE` | **每主机共享一份** | 各 runner `.env` 指向同一路径 |
+| npm | **每主机** `~/.npm`；workflow 用 `npm ci --prefer-offline` | 默认 home |
+| tool-cache | 每 slot `workFolder/_tool`（setup-go/node/sonar 自动） | 不可共享 |
+| 修剪门槛 | 单 slot go-build **>20GB** 或 mas 合计 **>30GB** → `GOCACHE=... go clean -cache`（无 Worker 时） | runbook / 运维 |
+
+**贴 label 前额外确认：**
+
+```bash
+# .env 应含（路径按主机调整）
+grep -E 'GOCACHE|GOMODCACHE' ~/actions-runner/<slot>/.env
+# multi-slot：GOCACHE 必须不同，GOMODCACHE 应相同
+```
+
+参考计划：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`。
+
+当前主机约定（2026-07-20 落地）：
+
+| 主机 | GOCACHE | GOMODCACHE |
+|------|---------|------------|
+| mac-mini slot N | `~/actions-runner/mac-mini-sonar-N/cache/go-build` | `~/gha/cache/go-mod`（共享） |
+| lemon-imac slot N | `~/actions-runner/lemon-imac-N/cache/go-build` | `~/go/pkg/mod` |
+| umacbook-pro slot N | `~/actions-runner/umacbook-pro-N/cache/go-build` | `~/go/pkg/mod` |
+| mas-go-dev-ci-N / mas-go-dev | `/opt/actions-runner/<name>/cache/go-build` | `/home/actions-runner/go/pkg/mod` |
+
 ## 标签运维命令
 
 ```bash
@@ -117,3 +148,4 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 - 后端注释：`cypressoai/iCare-backend` PR #1083
 - 2026-07-20 org 侧 label 扩容（见各机 `docs/operations/*.md` 时间线）
 - 2026-07-20 lemon-imac / umacbook-pro 补齐 gnupg + runner `.path`；backend 去掉 `skipSignatureVerification`（runner 基线修复，非 workflow 旁路）
+- 2026-07-20 四机缓存基线：per-slot `GOCACHE`、共享 `GOMODCACHE`、mas 清 ~128G go-build；计划 `docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`；backend PR #1094

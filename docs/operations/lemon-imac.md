@@ -1,5 +1,19 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-20 19:48 CST - CI 缓存基线：per-slot GOCACHE + 共享 GOMODCACHE
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（ce-work U2）
+- 原因：双 slot 原共享默认 `~/Library/Caches/go-build`，接 `backend-ci` 并发有 race 风险。
+- 影响：
+  - `.env` 增加 `GOCACHE=~/actions-runner/lemon-imac-N/cache/go-build`（空目录起热）、`GOMODCACHE=~/go/pkg/mod`。
+  - idle 后重启 `lemon-imac-1/2` service。
+  - 旧 `~/Library/Caches/go-build` 未强制删除（orphan，可后清）。
+- 备份：`~/actions-runner/lemon-imac-*/.env.bak.*`
+- 回滚：还原 `.env.bak` 后 `./svc.sh stop && start`。
+- 验证：两 slot GOCACHE 路径不同、GOMODCACHE 相同。
+- 参考：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`
+
 ## 2026-07-20 18:55 CST - backend-ci 基线：安装 gnupg + 暴露 Homebrew 到 runner PATH
 
 - 服务器：`lemon-imac`

@@ -1,5 +1,16 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-20 19:48 CST - CI 缓存基线：per-slot GOCACHE + 共享 GOMODCACHE
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（ce-work U3）
+- 原因：与 lemon 同构；双 slot 原共享默认 go-build。
+- 影响：`.env` per-slot `GOCACHE` + `GOMODCACHE=~/go/pkg/mod`；idle 后重启两 slot。
+- 备份：`~/actions-runner/umacbook-pro-*/.env.bak.*`
+- 回滚：还原 `.env.bak` 后重启 service。
+- 验证：两 slot Listener online；GOCACHE 路径不同。
+- 参考：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`
+
 ## 2026-07-20 18:55 CST - backend-ci 基线：安装 gnupg + 暴露 Homebrew 到 runner PATH
 
 - 服务器：`umacbook-pro`

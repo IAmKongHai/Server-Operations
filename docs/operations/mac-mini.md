@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-07-20 19:48 CST - CI 缓存基线：共享 GOMODCACHE + 修剪 per-slot go-build
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（ce-work U4）
+- 原因：四 slot 各有一份 ~1.5G `GOMODCACHE` 重复；go-build 单 slot 已 21–28GB。
+- 影响：
+  - 种子 `~/gha/cache/go-mod`（自 slot1 rsync），四 slot `.env` 的 `GOMODCACHE` 统一指向该路径；`GOCACHE` 仍 per-slot。
+  - 对四 slot 执行 `go clean -cache`（阈值 >20GB），go-build 清空后靠 job 回填。
+  - 重启 `mac-mini-sonar-1..4`。
+  - 清理 login 用户闲置 `~/Library/Caches/go-build`（~3.4G）。
+- 备份：`~/actions-runner/mac-mini-sonar-*/.env.bak.*`
+- 回滚：还原 `.env.bak`（旧 per-slot go-mod 目录可能仍在但权限杂乱，优先用共享路径）。
+- 验证：四 slot `GOMODCACHE` 相同、`GOCACHE` 各异；LaunchAgent Started。
+- 参考：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`
+
 ## 2026-07-20 13:45 CST - CI 池：加入 frontend-quality-ci（重活仍钉 mac-mini-sonar）
 
 - 服务器：`mac-mini`

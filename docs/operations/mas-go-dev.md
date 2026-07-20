@@ -1,5 +1,19 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-20 19:48 CST - CI 缓存基线：清 128G go-build + per-slot GOCACHE
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`（ce-work U1）
+- 原因：共享 `~/.cache/go-build` 膨胀至 ~128GB；ci-1/ci-2 同 HOME 无隔离，存在 CYP-322 同类竞态。
+- 影响：
+  - 删除 `/home/actions-runner/.cache/go-build`（重建空目录）；磁盘 199G used → **71G used / 230G avail**。
+  - `mas-go-dev-ci-1/2` 与 `mas-go-dev` 的 `.env` 注入 per-slot `GOCACHE` + 共享 `GOMODCACHE=/home/actions-runner/go/pkg/mod`。
+  - 重启三 runner service；日志显示当时 **SonarQube Scan** 与 **Deploy to mas-go-dev** job 被 cancel（重启窗口）。
+- 备份：`/opt/actions-runner/*/.env.bak.20260720-113130`
+- 回滚：还原 `.env.bak.*` 后 `sudo ./svc.sh stop && start`。
+- 验证：三 Listener 在线；`.env` 含不同 GOCACHE。
+- 参考：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`
+
 ## 2026-07-20 13:45 CST - CI 池：部署 runner 与质量 runner 分离
 
 - 服务器：`mas-go-dev`
