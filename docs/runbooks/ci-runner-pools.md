@@ -63,6 +63,39 @@
 - umacbook-pro 为个人本：合盖/断网会掉线，只作吞吐扩容，不当唯一关键路径。
 - lemon / umacbook 的 Go 由 job 内 `setup-go` 安装；本机 login PATH 可能没有 `go`/`node`，属正常。
 
+## 上线 checklist（贴 `backend-ci` / `frontend-quality-ci` 前）
+
+共享池 label = **能力承诺**。未达标不要贴 label；也不要在业务仓 workflow 里用 `skipSignatureVerification: true` 迁就缺工具的 runner。
+
+Sonar Scanner CLI（`SonarSource/sonarqube-scan-action` 默认）会做 GPG 签名校验；任意承接 Sonar 的 self-hosted runner 必须满足：
+
+| 检查项 | macOS | Linux（AL2023 等） |
+|--------|-------|-------------------|
+| 完整 GnuPG | `brew install gnupg` → `gpg` + `dirmngr` | 完整 `gnupg2`（不要只用 `gnupg2-minimal`） |
+| runner service PATH 可见 gpg | 各 slot `.path` **含** `/opt/homebrew/bin`（SSH login shell 有 brew ≠ service 有） | `.path` 含 `/usr/bin`（通常默认已有） |
+| 短 workFolder（macOS） | `.runner` 的 `workFolder` 用短路径（如 `~/gha/u1`），避免 `GNUPGHOME` socket `File name too long` | 一般无此限制 |
+| CGO / 编译器（backend） | Xcode CLT / `gcc` 可用 | `gcc` + glibc-devel（或 job 内可 `sudo dnf install`） |
+| 验证 | 对 **Runner.Listener 真实 PATH** 执行 `command -v gpg`；可选 `gpg --recv-keys` 拉 SonarSource 公钥 | 同左 |
+
+验证示例（在目标机上）：
+
+```bash
+# 用 runner 目录 .path，而不是交互 shell PATH
+export PATH="$(cat ~/actions-runner/<slot>/.path)"
+command -v gpg && gpg --version | head -1
+command -v dirmngr
+
+# 重启 service 后核对进程环境
+pid=$(pgrep -f "actions-runner/<slot>/bin/Runner.Listener" | head -1)
+ps eww -p "$pid" | tr ' ' '\n' | grep '^PATH='
+```
+
+相关历史：
+
+- mac-mini PATH / 短 workFolder：`docs/solutions/mac-mini/integration-issues/sonarqube-scanner-cli-cache-never-hits-4part-version-2026-06-09.md`
+- mas-go-dev `gnupg2-minimal` 缺 dirmngr：`docs/solutions/mas-go-dev/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
+- 2026-07-20 lemon / umacbook 补齐 gnupg + `.path`：见各机 `docs/operations/*.md`
+
 ## 标签运维命令
 
 ```bash
@@ -83,3 +116,4 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 - 前端 workflow：`cypressoai/iCare-frontend-mas` PR #1185
 - 后端注释：`cypressoai/iCare-backend` PR #1083
 - 2026-07-20 org 侧 label 扩容（见各机 `docs/operations/*.md` 时间线）
+- 2026-07-20 lemon-imac / umacbook-pro 补齐 gnupg + runner `.path`；backend 去掉 `skipSignatureVerification`（runner 基线修复，非 workflow 旁路）

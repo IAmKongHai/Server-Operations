@@ -1,5 +1,24 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-20 18:55 CST - backend-ci 基线：安装 gnupg + 暴露 Homebrew 到 runner PATH
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：贴 `backend-ci` 后 Sonar Scanner 默认 GPG 校验失败。上线时已注明「跑 Sonar 需装 brew+gpg 并写 `.path`」，此前未完成。
+- 影响：本机安装完整 `gnupg`（Homebrew 2.5.21，含 `dirmngr`）；`umacbook-pro-1/2` 的 `.path` 前置 `/opt/homebrew/bin` 并重启 service。
+- 备份：
+  - `~/actions-runner/umacbook-pro-1/.path.bak.<timestamp>`
+  - `~/actions-runner/umacbook-pro-2/.path.bak.<timestamp>`
+- 回滚方式：还原对应 `.path.bak.*` 后 `./svc.sh stop && ./svc.sh start`。
+- 变更时序：
+  1. `NONINTERACTIVE=1 brew install gnupg`
+  2. 两 slot `.path` 改为 `/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`（workFolder 已是短路径 `~/gha/u{1,2}`，未改）
+  3. 先重启 idle 的 `umacbook-pro-2`；`umacbook-pro-1` 当时有 `Runner.Worker`，等 job 结束后再重启
+- 验证：
+  - `PATH=$(cat .path) command -v gpg` → `/opt/homebrew/bin/gpg`，`gpg (GnuPG) 2.5.21`
+  - 两 slot Listener 在线
+- 参考：`docs/runbooks/ci-runner-pools.md` 上线 checklist
+
 ## 2026-07-20 13:45 CST - CI 池：frontend-quality-ci + backend-ci
 
 - 服务器：`umacbook-pro`

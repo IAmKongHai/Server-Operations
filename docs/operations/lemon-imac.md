@@ -1,5 +1,25 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-20 18:55 CST - backend-ci 基线：安装 gnupg + 暴露 Homebrew 到 runner PATH
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：贴 `backend-ci` 后 Sonar Scanner 默认 GPG 校验失败（`GPG is not available`）。业务仓一度用 `skipSignatureVerification: true` 绕过，应在 runner 侧根治。
+- 影响：本机安装完整 `gnupg`（Homebrew 2.5.21，含 `dirmngr`）；`lemon-imac-1/2` 的 `.path` 前置 `/opt/homebrew/bin` 并重启 service。
+- 备份：
+  - `~/actions-runner/lemon-imac-1/.path.bak.<timestamp>`
+  - `~/actions-runner/lemon-imac-2/.path.bak.<timestamp>`
+- 回滚方式：还原对应 `.path.bak.*` 后 `./svc.sh stop && ./svc.sh start`；可选 `brew uninstall gnupg`（一般无需）。
+- 变更时序：
+  1. `NONINTERACTIVE=1 brew install gnupg`
+  2. 两 slot `.path` 改为 `/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`
+  3. `lemon-imac-1/2` 均 `./svc.sh stop && ./svc.sh start`（当时 idle）
+- 验证：
+  - `PATH=$(cat .path) command -v gpg` → `/opt/homebrew/bin/gpg`
+  - `gpg --version` → `gpg (GnuPG) 2.5.21`；`dirmngr` 同目录可用
+  - LaunchAgent 两 slot Started
+- 参考：`docs/runbooks/ci-runner-pools.md` 上线 checklist
+
 ## 2026-07-20 13:45 CST - CI 池：frontend-quality-ci + backend-ci
 
 - 服务器：`lemon-imac`
