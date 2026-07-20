@@ -1,5 +1,19 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-20 13:45 CST - CI 池：部署 runner 与质量 runner 分离
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：统一调度；避免 Deploy to mas-go-dev 与 PR 质量活抢同一角色。
+- 影响：
+  - `mas-go-dev`（id 26）：仅 `mas-go-dev` 部署标签，**无** quality/tests。
+  - `mas-go-dev-ci-1/2`（id 28/29）：新增 `frontend-quality-ci`；id 29 补 `backend-ci`。
+  - 前端 Typecheck / 汇总 / PR Sonar / Lint 改为 `frontend-quality-ci`，可落到 ci runner，**不再**用部署 runner 的 `mas-go-dev` label。
+- 回滚：删 label；workflow 改回旧 `runs-on`。
+- 验证：见 `docs/runbooks/ci-runner-pools.md` 快照表。
+
+
+
 ## 2026-07-18 09:30 CST - 只读排查 Deploy to mas-go-dev migrate applock 失败
 
 - 服务器：`mas-go-dev`（`192.168.2.22` / TS `100.109.223.53`）+ 关联 `mssql-ref`

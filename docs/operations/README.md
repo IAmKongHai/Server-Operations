@@ -7,6 +7,14 @@
 - `docs/operations/`：持续追加日常操作记录，例如停容器、改 restart policy、迁移服务、调整磁盘、临时扩容。
 - `docs/solutions/`：沉淀可复用的故障复盘、解决方案、最佳实践。
 
+## CI runner 池
+
+跨机器的 GitHub Actions label 与 job 调度约定见：
+
+```text
+docs/runbooks/ci-runner-pools.md
+```
+
 ## 路径约定
 
 ```text

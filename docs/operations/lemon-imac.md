@@ -1,5 +1,17 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-20 13:45 CST - CI 池：frontend-quality-ci + backend-ci
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：分担 PR 质量与后端 Lint/Sonar；8GB 机不进 Coverage / 完整 branch Sonar。
+- 影响：`lemon-imac-1/2`（id 32/31）追加 `frontend-quality-ci`、`backend-ci`；保留 `frontend-tests-ci`。
+- 备注：本机 login 可能无 go/node；job 内 setup-go / setup-node 安装。
+- 回滚：DELETE 对应 labels。
+- 参考：`docs/runbooks/ci-runner-pools.md`
+
+
+
 ## 2026-07-20 00:08 CST - 验证：for-konghai 自动登录已开启
 
 - 服务器：`lemon-imac`（Tailscale `100.81.246.93`，主机名 `iMac.lan`）

@@ -1,5 +1,16 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-20 13:45 CST - CI 池：frontend-quality-ci + backend-ci
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：PR 吞吐扩容；合盖掉线风险仍在，不当唯一路径。
+- 影响：`umacbook-pro-1/2`（id 35/36）追加 `frontend-quality-ci`、`backend-ci`；保留 `frontend-tests-ci`。
+- 回滚：DELETE 对应 labels。
+- 参考：`docs/runbooks/ci-runner-pools.md`
+
+
+
 ## 2026-07-17 21:37 CST - 加入 frontend-tests-ci 共享池（方案 A）
 
 - 服务器：`umacbook-pro`（Tailscale `100.113.23.49`）

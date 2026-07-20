@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-07-20 13:45 CST - CI 池：加入 frontend-quality-ci（重活仍钉 mac-mini-sonar）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：统一 PR 质量池与测试分片池；Coverage / 完整 Sonar 仍仅 32GB 本机。
+- 影响：`mac-mini-sonar-1..4`（id 22–25）追加 `frontend-quality-ci`；保留 `frontend-tests-ci` / `backend-ci` / `mac-mini-sonar`。
+- 回滚：`gh api -X DELETE orgs/cypressoai/actions/runners/{22..25}/labels/frontend-quality-ci`
+- 参考：`docs/runbooks/ci-runner-pools.md`
+
+
+
 ## 2026-07-09 00:10 CST - 收敛 frontend-mas CI 队列吞吐到 mac-only 四 runner
 
 - 原因：继续优化 `iCare-frontend-mas` `SonarQube Analysis` 的整体队列吞吐，指标改为同一配置下并发触发两条 PR run 后折算的 `SonarQube Analysis/hour`，重点优化 `Frontend Tests` 阶段而不是单条 run 的最短耗时。

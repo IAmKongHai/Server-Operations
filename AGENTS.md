@@ -107,7 +107,7 @@
   - `/Users/for-konghai/actions-runner/umacbook-pro-{1,2}/` — GitHub Actions runner 程序与配置
   - `/Users/for-konghai/gha/u{1,2}/` — 对应 slot 的短路径 workFolder
   - LaunchAgent：`actions.runner.cypressoai.umacbook-pro-{1,2}`
-  - 当前 labels：`self-hosted,macos,arm64,macos-arm64,umacbook-pro,frontend-tests-ci`（已进 Frontend Tests 共享池）
+  - 当前 labels：`self-hosted,macos,arm64,macos-arm64,umacbook-pro,frontend-tests-ci,frontend-quality-ci,backend-ci`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
 - `mas-go-dev` 上的目录约定：
   - `/opt/mas-go-dev/backend/` — iCare backend 部署目录，每次 PR 由 runner 同步 `backend.compose.yaml`、构建镜像并滚动 `api` + `worker` 容器；`.env.docker` 在此本地维护（600 权限），仓库内对应 `backend/.env.docker.example`
   - `/opt/mas-go-dev/frontend-mas/` — iCare frontend-mas 部署目录，同上由 runner 维护

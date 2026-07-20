@@ -1,5 +1,20 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-20 13:45 CST - CI 池：dev-cypresso 仅保留部署标签
+
+- 服务器：`dev-cypresso`（runner `ip-172-31-42-99.ec2.internal` id 17）
+- 操作人：`Grok`
+- 原因：统一 self-hosted 调度；质量门禁（Lint/Sonar/Tests）迁出部署机，提高部署链路稳定性与 PR 吞吐。
+- 影响：
+  - runner id 17 **保持** `dev-cypresso-ci`，**未**增加 `frontend-quality-ci` / `frontend-tests-ci` / `backend-ci`。
+  - 前端 PR Lint 不再 `runs-on: dev-cypresso-ci`（见 frontend-mas PR #1185）。
+  - set-vars / build-push / Deploy to Server 仍仅此池。
+- 回滚：workflow 改回 `dev-cypresso-ci`；或给 id 17 临时加回质量 label（不推荐）。
+- 验证：`gh api orgs/cypressoai/actions/runners/17/labels` 仅含部署相关自定义 label `dev-cypresso-ci`。
+- 参考：`docs/runbooks/ci-runner-pools.md`
+
+
+
 ## 2026-07-14 18:05 CST - nginx 全局 client_max_body_size 100M
 
 - 服务器：`dev-cypresso`
