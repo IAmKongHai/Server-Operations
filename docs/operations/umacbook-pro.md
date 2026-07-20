@@ -1,5 +1,15 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-20 19:55 CST - 重启 umacbook-pro-1/2（缓存基线生效确认）
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（goal 收尾）
+- 原因：计划要求本轮对 1/2 各做一次 stop/start，确认 per-slot `GOCACHE` / 共享 `GOMODCACHE` 由 service 重新加载。
+- 影响：两 slot 短暂离线后重新上线；当时无 `Runner.Worker`，未取消 job。
+- 回滚：无需；配置未改，仅 service 重启。
+- 变更时序：idle 确认 → `./svc.sh stop && start` 于 `umacbook-pro-1` 再 `umacbook-pro-2`。
+- 验证：两 LaunchAgent Started；两 `Runner.Listener` 运行；`.env` 仍为 per-slot GOCACHE + `GOMODCACHE=~/go/pkg/mod`。
+
 ## 2026-07-20 19:48 CST - CI 缓存基线：per-slot GOCACHE + 共享 GOMODCACHE
 
 - 服务器：`umacbook-pro`
