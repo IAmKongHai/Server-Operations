@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-07-21 10:44 CST - 只读：四 slot 全忙 Frontend Tests 时 fseventsd
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户要求再看一眼；本轮本机 4 个 `mac-mini-sonar-*` 全部 busy。
+- 影响：无变更。
+- 做了什么：进程快照 + 45s/2s 采样 load / fseventsd / mds / vitest forks；Worker 日志核对 Install 耗时。
+- 当时状态（10:44–10:45 CST）：
+  - **4 Worker** 同时跑 `Frontend Tests`：s1=3/4、s2=1/4、s3=2/4、s4=3/4（两 run 重叠可见双份 3/4）。
+  - 均为 `vitest run --maxWorkers=2` → 合计 **4 vitest + 8 forks**；node 族 CPU 合计约 **770–890%**；load **9.5–11.2**（10 核满载）。
+  - **fseventsd：45s 内几乎全程 0.0%**（偶见 0.2–0.6）；**mds 多数 0**，偶见 ~2%。
+  - **npm ci**（本轮 4 路重叠安装，02:42:32–02:43:00 UTC）：s1 **17.6s**、s2 **16.2s**、s3 **16.7s**、s4 **9.2s**（并发写盘略慢于单路 7–12s，仍属热 cache）。
+- 验证结果：即使 **4 shard 同机 Vitest 满载**，在已禁用 Spotlight 的前提下 **fseventsd 不再是 CPU 瓶颈**；瓶颈是 **node/vitest 本身**。昨天截图里 fseventsd ~98% 更可能是未关索引前或别的写盘洪峰场景，与当前配置下的稳态不同。
+- 回滚方式：无。
+
 ## 2026-07-21 10:39 CST - 只读：用户重跑 job 后二次采样 fseventsd
 
 - 服务器：`mac-mini`
