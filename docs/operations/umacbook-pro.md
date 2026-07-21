@@ -1,5 +1,14 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-21 11:24 CST - 拉起 ToDesk 供 GUI 配置 Spotlight 隐私
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：同 lemon；用户 GUI 将 `/Users/for-konghai/` 加入 Spotlight 搜索隐私。
+- 影响：`open -a ToDesk`（GUI 已在跑，再 activate）。Session 采样 `myid=254880455`（`for-konghai`）。
+- 回滚：无必要。
+- 验证：ToDesk_Service + ToDesk / Session 进程存在。
+
 ## 2026-07-21 11:01 CST - 只读：双 slot Frontend Tests 运行中 Spotlight 争用
 
 - 服务器：`umacbook-pro`

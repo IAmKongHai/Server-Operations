@@ -1,5 +1,14 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 11:24 CST - 拉起 ToDesk 供 GUI 配置 Spotlight 隐私
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：共享机不能整卷关 Spotlight；用户将在 GUI 把 `/Users/for-konghai/` 加入搜索隐私（仅 runner 账号家目录）。需 ToDesk 远程操作。
+- 影响：`open -a ToDesk`；控制台用户为 `zhangli`，ToDesk GUI 以 `zhangli` 运行为主。采样时 Session `myid=126978008`。
+- 回滚：无必要；ToDesk 本就常驻服务。
+- 验证：ToDesk_Service + ToDesk GUI/Session 进程存在。
+
 ## 2026-07-21 11:01 CST - 只读：双 slot Frontend Tests 运行中 Spotlight 争用
 
 - 服务器：`lemon-imac`
