@@ -1,5 +1,27 @@
 # mac-mini 运维时间线
 
+## 2026-07-21 10:30 CST - 只读：CI 运行中核对 fseventsd/mds 与 npm ci / vitest
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读排查）
+- 原因：用户已排除 Spotlight 整盘索引后 mds 基本消失，但仍关心 fseventsd；需在 runner 实际跑 job 时核对 prefer-offline 与 `vitest run` 是否生效。
+- 影响：无变更（只读）。
+- 做了什么：
+  1. SSH 采样进程 / load / 内存 / 磁盘 / `~/.npm` / 四 slot workFolder。
+  2. 从 `mac-mini-sonar-2/3` 当前 Worker 日志读 `Install Dependencies` 耗时。
+  3. `mdutil -s` 确认索引状态；`mdfind` 在 `~/gha` 下无 node_modules 索引命中。
+- 当时状态（约 10:30 CST）：
+  - 主机 uptime ~1h37m（当日早些时候重启过）；load ~5.5–5.8（10 核）。
+  - 4 个 Listener 在线；**仅 slot2 + slot3 有 Worker**（Frontend Tests `shard=1/4` 与 `3/4`）。
+  - 实测命令：`vitest run ... --maxWorkers=2 --shard=N/4`（run-once，非 watch）。
+  - **npm ci**：两 slot 均 `npm ci --prefer-offline --no-audit --fund=false`，elapsed **~12.0–12.3s**，exit 0 → 本机 `~/.npm` 热缓存生效。
+  - **fseventsd / mds**：Vitest 阶段连续采样 **~0% CPU**（对比用户昨日截图 fseventsd ~98% 的峰值场景；本次未撞上双 slot 同时 `npm ci` 的写盘洪峰窗口，install 已在 10:25 结束）。
+  - Spotlight：`mdutil` 显示 `/` 与 Data 卷 **Indexing and searching disabled**。
+  - `~/.npm` **9.5G**（`_cacache` 8.2G）；各 slot `node_modules` ~777–783M；workdir `~/gha/s1..s4` 各约 2.3G。
+  - Data 卷 1.8T 已用 1.3T / 可用 468G（75%）。
+- 验证结果：与 frontend-mas 配置一致——prefer-offline 热路径约 12s；CI 为 `vitest run`；mds 已压住；**当前 Vitest 中 fseventsd 不占 CPU**。若仍见 fseventsd 飙高，更可能集中在 **多 slot 并发 `npm ci` 解压** 或 4 shard 同时写盘，而非 Vitest watch。
+- 回滚方式：无（只读）。
+
 ## 2026-07-20 19:48 CST - CI 缓存基线：共享 GOMODCACHE + 修剪 per-slot go-build
 
 - 服务器：`mac-mini`
