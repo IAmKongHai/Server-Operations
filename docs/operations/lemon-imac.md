@@ -1,5 +1,14 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 11:58 CST - 用户确认重启，但无 sudo 未能执行 reboot
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（用户明确要求「直接重启」）
+- 原因：屏幕共享提示密码错误（用户确认密码正确）；ToDesk 不可用；需重启恢复远程。
+- 影响：尝试 `sudo -n /sbin/reboot` 与 `/sbin/reboot` 均失败（password required / Operation not permitted）。**机器未重启**。
+- 回滚：无。
+- 后续：需用户在可交互 SSH 下执行 `sudo reboot`，或配置临时 NOPASSWD 后再由代理执行。
+
 ## 2026-07-21 11:48 CST - 无 sudo 下 kickstart 屏幕共享；ToDesk 仍不可用
 
 - 服务器：`lemon-imac`
