@@ -1,5 +1,20 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-21 11:01 CST - 只读：双 slot Frontend Tests 运行中 Spotlight 争用
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（只读；mac-mini runner 仍 offline）
+- 原因：用户重跑 job 后确认 umac 上 mds/`fseventsd` 与 CI 争用。
+- 影响：无变更。
+- 当时状态：
+  - **双 slot busy**：`umacbook-pro-2` → Frontend Tests **1/4**（`~/gha/u2`）；`umacbook-pro-1` → **2/4**（`~/gha/u1`）。
+  - 均为 `vitest run --maxWorkers=2`；load **~12.7 / 20 / 24**（8 核 / 8GB）。
+  - **npm ci** 各约 **14.2s**（热 prefer-offline）。
+  - **Spotlight 仍 Indexing enabled**；`mds_stores` **~35–38%**、`mds` **~18%**、多个 mdworker 合计更高；**fseventsd ~0%**。
+  - CPU 合计约 node **~461%** vs mds 族 **~210%**——索引与测试并排抢核，比 lemon 采样时更显眼。
+- 验证结果：确认 **mds 族是额外税**；关索引预期能把 ~1–2 核还给 Vitest（需用户确认后再改）。
+- 回滚方式：无。
+
 ## 2026-07-21 10:55 CST - 只读：Spotlight 仍开启 + CI 时 mds 与 vitest 争用
 
 - 服务器：`umacbook-pro`

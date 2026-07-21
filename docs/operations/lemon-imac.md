@@ -1,5 +1,20 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 11:01 CST - 只读：双 slot Frontend Tests 运行中 Spotlight 争用
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（只读；mac-mini runner 仍 offline）
+- 原因：用户重跑 job 后确认 lemon 上 mds/`fseventsd` 与 CI 争用情况。
+- 影响：无变更。
+- 当时状态：
+  - **双 slot busy**：`lemon-imac-1` → Frontend Tests **3/4**（`~/gha/li`）；`lemon-imac-2` → **4/4**（`~/gha/li2`）。
+  - 均为 `vitest run --maxWorkers=2`；load **~22**（8 核 / 8GB）。
+  - **npm ci** 各约 **15.3–15.5s**（热 prefer-offline）。
+  - **Spotlight 仍 Indexing enabled**；采样：`mds_stores` **~72–86%**、`mds` **~11–13%**、多个 mdworker；**fseventsd ~0.1%**。
+  - CPU 合计约 node **~390%** vs mds 族 **~60%+**（mds_stores 瞬时更高时进 top）。
+- 验证结果：与 mac-mini 改前同类——**瓶颈是 mds 索引，不是 fseventsd**；8GB 双 shard 时索引与 Vitest 明显抢核。
+- 回滚方式：无。
+
 ## 2026-07-21 10:55 CST - 只读：Spotlight 仍开启 + mds 占 CPU（对照 mac-mini）
 
 - 服务器：`lemon-imac`
