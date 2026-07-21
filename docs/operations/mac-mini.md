@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-07-21 12:24 CST - 恢复 mac-mini-sonar-1..4
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：lemon/umac 已完成 Spotlight 隐私排除验证；用户要求恢复 mac-mini runner，结束临时分流。
+- 影响：四 slot 重新 online，可再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等匹配 job。
+- 备份：无配置改动。
+- 回滚：`for n in 1 2 3 4; do cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh stop; done`
+- 做了什么：对 `mac-mini-sonar-1..4` 依次 `./svc.sh start`；本机均为 Started，4 个 `Runner.Listener` 在跑。
+- 验证结果：本机 status Started；GitHub API 见同条后续确认 online。
+
 ## 2026-07-21 10:55 CST - 临时停止 mac-mini-sonar-1..4（分流 CI 到 lemon/umac）
 
 - 服务器：`mac-mini`
