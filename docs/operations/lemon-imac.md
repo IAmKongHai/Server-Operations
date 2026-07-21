@@ -1,5 +1,19 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 11:48 CST - 无 sudo 下 kickstart 屏幕共享；ToDesk 仍不可用
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：用户 ToDesk / 屏幕共享均进不去，考虑重启；先找其它办法。
+- 影响：
+  - 确认 `com.apple.screensharing` 本就 running；曾有来自 `100.92.181.15` 的 5900 ESTABLISHED。
+  - `launchctl kickstart -k system/com.apple.screensharing` **成功**（screensharingd 新 pid，runs=3）。
+  - `launchctl kickstart -k system/com.youqu.todesk.service` **仍 Operation not permitted**；无 `myid` Session。
+  - 无 passwordless sudo；`asuser` + System Events restart 失败；**未能执行 reboot**。
+  - 本机信息：LAN `10.0.0.129`，ComputerName「张李的iMac」，LocalHostName `zhanglideiMac`；人类账号 `zhangli` / `for-konghai`。
+- 回滚：无。
+- 验证：screensharingd 运行中；ToDesk 仍无可用设备码。
+
 ## 2026-07-21 11:31 CST - 尝试重启 ToDesk（无 sudo，未完整成功）
 
 - 服务器：`lemon-imac`
