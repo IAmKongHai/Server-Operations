@@ -1,5 +1,19 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-21 13:08 CST - 只读确认与 dev-cypresso 的 Tailscale 路径为 DERP 中继
+
+- 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）
+- 操作人：`Grok`
+- 原因：配合排查 `dev-cypresso` → 本机高延迟。
+- 影响：**只读**。跑 `tailscale netcheck` / `status`，未改服务或网络。
+- 验证：
+  - 本机 Nearest DERP：**Kunming**（~4.5ms）；`MappingVariesByDestIP: true`。
+  - 到 `dev-cypresso`：`active; relay "iad"`，`CurAddr` 空（无 direct）。
+  - 到 `mas-go-dev`：`active; direct 192.168.2.22:41641`（同 LAN 正常）。
+- 结论：跨洋 peer（美东 AWS ↔ 国内家宽）未打洞成功，流量经 DERP，RTT ~250ms+ 属预期；**已在 Tailscale 内**，不是公网裸连。
+- 回滚：无。
+- 详见：`docs/operations/dev-cypresso.md` 同日条目。
+
 ## 2026-07-18 09:30 CST - 只读确认 preprod 迁移状态与双路径并发 migrate
 
 - 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）

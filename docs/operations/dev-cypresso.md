@@ -1,5 +1,26 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-21 13:08 CST - 只读排查到 mssql-ref 的高延迟（Tailscale DERP 中继）
+
+- 服务器：`dev-cypresso`（`ip-172-31-42-99.ec2.internal` / TS `100.115.69.120`）
+- 操作人：`Grok`
+- 原因：用户反馈 `ssh dev-cypresso` 到达 `mssql-ref` 延迟很高（截图 ping `100.124.140.78` avg ~375ms），怀疑未走 Tailscale。
+- 影响：**只读**。未改 Tailscale 配置、防火墙或路由。
+- 结论：
+  1. **已走 Tailscale**：`ip route get 100.124.140.78` → `dev tailscale0 table 52 src 100.115.69.120`；本机有 `tailscale0`（`100.115.69.120`）。
+  2. **不是 direct 直连**，而是 DERP 中继：`tailscale status` 对 `mssql-ref` 显示 `active; relay "km"`（Kunming）；对端视角为 `relay "iad"`（Ashburn）。`CurAddr` 为空。
+  3. 地理分布导致中继 RTT 必然高：
+     - `dev-cypresso` 在 AWS（公网 `32.192.186.193`），Nearest DERP **Ashburn**（~2ms），到 `km` ~227ms。
+     - `mssql-ref` 在家宽（出口 `112.117.237.237`），Nearest DERP **Kunming**（~4.5ms）；且 `MappingVariesByDestIP: true`，不利于 UDP 打洞。
+  4. 复测 ping `100.124.140.78`：~249–253ms，0% loss；ping LAN `192.168.2.20` 从本机不可达（预期，未 accept subnet routes）。
+  5. 对照：同家网 `mas-go-dev` → `mssql-ref` TS ~1–23ms、LAN ~0.4ms（直连正常）。
+- 备份：无变更。
+- 回滚：无变更。
+- 可选后续（未做，需确认）：
+  - 排查/放行两端 UDP（含 AWS SG 入站 ephemeral + 家宽 NAT），争取 direct。
+  - 业务侧优先经家网节点（`mas-go-dev` / `pve`）访问 `192.168.2.20`，避免跨洋 DERP。
+  - 评估 exit node / subnet router 路径是否更优（当前 health：`--accept-routes is false`）。
+
 ## 2026-07-20 13:45 CST - CI 池：dev-cypresso 仅保留部署标签
 
 - 服务器：`dev-cypresso`（runner `ip-172-31-42-99.ec2.internal` id 17）
