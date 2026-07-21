@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-07-21 10:39 CST - 只读：用户重跑 job 后二次采样 fseventsd
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户重启若干 CI job，要求再核对 fseventsd / npm ci / vitest。
+- 影响：无变更。
+- 做了什么：90s 间隔 3s 采样 load / Worker / node 合计 CPU / fseventsd / mds；读四 slot 最新 Worker 日志的 Install 耗时；对照 GitHub runner busy 与 `iCare-frontend-mas` 进行中的 Sonar run。
+- 当时状态（10:39–10:41 CST）：
+  - 本机仅 **`mac-mini-sonar-3` busy**，跑 `Frontend Tests 1/4`（PR CYP-1428 / run 侧 in_progress；同 run 其它 shard 落在共享池其它机器）。
+  - 命令：`vitest run ... --maxWorkers=2 --shard=1/4`（run-once）。
+  - **npm ci**：slot3 本轮 **7.06s** exit 0；slot1 重跑 **10.79s** 后 job **Canceled**；slot2 上一次为 Sonar 路径 Checkout 失败后 Install 异常（exit 127），**Failed**。
+  - **90s 内 fseventsd 全程 ~0.0%**；mds 偶发尖峰 23% / 8.7% / 4.5%，多数采样 0。
+  - load ~3.0–3.4；Vitest 两 worker 合计约 200–250% CPU 属正常。
+- 验证结果：重跑后仍看不到「fseventsd 吃满」；热 `npm ci` 更短（7–11s）。本机此轮并发只有 1 个 frontend test job，**未形成多 slot 同时解压** 的最坏写盘窗口。
+- 回滚方式：无。
+
 ## 2026-07-21 10:30 CST - 只读：CI 运行中核对 fseventsd/mds 与 npm ci / vitest
 
 - 服务器：`mac-mini`
