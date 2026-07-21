@@ -1,5 +1,19 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 11:31 CST - 尝试重启 ToDesk（无 sudo，未完整成功）
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：用户本机 `ssh lemon-imac` 连不上，需 ToDesk 远程进 GUI；要求重启 ToDesk。
+- 影响：
+  - 代理侧 SSH（Tailscale `100.81.246.93` / `for-konghai`）**可连通**。
+  - `for-konghai` **无 passwordless sudo**，无法 `kill` `zhangli`/`root` 的 ToDesk 进程，也无法 `launchctl kickstart system/com.youqu.todesk.service`。
+  - 已 `open -a ToDesk` 以 `for-konghai` 拉起 GUI（pid 曾见 70863），**未出现**带 `myid=` 的 Session。
+  - 仍在跑：`zhangli` 的 `ToDesk -AutoRun YES`、root 的 `ToDesk_Service`（launchd `com.youqu.todesk.service`，state=running，曾见 `immediate reason=inefficient`）。
+- 回滚：无破坏性变更；多一个 `for-konghai` 的 ToDesk GUI 进程可忽略或 GUI 里退出。
+- 验证：进程与本机 127.0.0.1:35600/37600/37601 LISTEN 存在；**无可用设备码 Session**。
+- 后续可选（需用户确认其一）：本机 GUI 以 admin 重启 ToDesk；提供 sudo；或 **reboot** lemon-imac（会影响 zhangli 会话与 lemon runner）。
+
 ## 2026-07-21 11:24 CST - 拉起 ToDesk 供 GUI 配置 Spotlight 隐私
 
 - 服务器：`lemon-imac`
