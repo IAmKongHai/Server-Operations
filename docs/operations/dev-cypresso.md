@@ -1,5 +1,30 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-21 14:15 CST - 决议：维持 tizi-cyp 跳板；TS direct / Peer Relay 作备选
+
+- 服务器：`dev-cypresso`（链路决策，涉及家宽 / `mssql-ref` / `tizi-cyp` / `km-landui`）
+- 操作人：`Grok` / 用户确认
+- 原因：评估能否把第二跳 `tizi-cyp`→`mssql-ref` 从 DERP 升级为 TS `direct`；用户决定 **保持现状**。
+- 影响：**无变更**。继续使用姿势 1（`DB_HOST=100.88.178.78` → `tizi-cyp` socat → `100.124.140.78:1433`）。
+- 调研摘要：
+  1. **现状路径（保留）**  
+     `dev-cypresso` --TS direct ~61ms--> `tizi-cyp:1433` --TS DERP ~185ms--> `mssql-ref:1433`  
+     第一跳稳定；端到端 ~240–260ms；API healthy。
+  2. **方案 B（真 TS direct）不可靠 — 不实施**  
+     - 家宽 OpenWrt（Kwrt）`miniupnpd` 配置 enabled，但进程 **not running**（STUN `stun.miwifi.com` 失败后 EXITING）；LAN SSDP 响应 0。  
+     - WAN 为运营商 **CGNAT** `100.65.11.174`（`100.64/10`）；TS STUN 见 `112.117.237.237` 且 `MappingVariesByDestIP: true`。  
+     - UPnP 最多映射家路由这一层，**打不穿运营商外层 CGNAT**。  
+     - 用户明确：**不修 miniupnpd**。  
+     - 家宽另跑 Passwall/xray，多数流量出口显示 `89.208.242.203`（`tizi-cyp`）；TS UDP 仍走物理线 `112.117.x`。
+  3. **方案 A（km-landui Peer Relay）— 备选，未部署**  
+     - `km-landui`：`43.228.79.237`，Ubuntu 22.04，**未装 Tailscale**。  
+     - RTT：`mssql-ref`→`km-landui` 公网 ~4.4ms；`tizi-cyp`↔`km-landui` ~176ms 稳定。  
+     - 做法：装 TS → `tailscale set --relay-server-port=<udp>` → ACL grant `tailscale.com/cap/relay`（`src` 限家侧节点，忌 `*`）。  
+     - 预期：`tizi-cyp`→`mssql-ref` 显示 `peer-relay`（非 `direct`），吞吐/稳定性通常优于公共 DERP `km`；RTT 仍约 ~180ms 级（地理下限）。  
+     - 触发条件（任选）：DERP 抖动不可接受、SQL 吞吐不够、或将来要惠及更多连家宽的 peer。
+- 回滚：现状即稳态，无需回滚。
+- 参考：`docs/operations/tizi-cyp.md`（跳板部署）、`docs/operations/mssql-ref.md` / 家宽相关条目。
+
 ## 2026-07-21 13:32 CST - iCare DB 经 tizi-cyp 跳板访问 mssql-ref（姿势 1）
 
 - 服务器：`dev-cypresso`

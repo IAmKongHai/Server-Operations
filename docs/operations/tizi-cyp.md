@@ -1,5 +1,16 @@
 # tizi-cyp 运维时间线
 
+## 2026-07-21 14:15 CST - 决议：第二跳暂不改；Peer Relay 备选记入日志
+
+- 服务器：`tizi-cyp`（第二跳 underlay 决策）
+- 操作人：`Grok` / 用户确认
+- 原因：用户评估后保持 `mssql-ref-proxy` + DERP 现状；不推进家宽 UPnP / km-landui Peer Relay。
+- 影响：**无变更**。`mssql-ref-proxy` 继续仅监听 `100.88.178.78:1433`。
+- 备选（未做）：
+  - **km-landui Peer Relay（方案 A）**：在 `43.228.79.237` 装 Tailscale 并 `--relay-server-port`，供 `tizi-cyp`↔家宽 hard NAT 时走自建 UDP 中继。详见 `docs/operations/dev-cypresso.md` 同日「决议」条目。
+  - **家宽真 direct（方案 B）**：因 CGNAT + miniupnpd 未运行且用户不修，搁置。
+- 回滚：无。
+
 ## 2026-07-21 13:30 CST - 部署 mssql-ref Tailscale 跳板（姿势 1）
 
 - 服务器：`tizi-cyp`（TS `100.88.178.78` / 公网 `89.208.242.203`）

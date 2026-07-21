@@ -1,5 +1,17 @@
 # mssql-ref 运维操作时间线
 
+## 2026-07-21 14:15 CST - 链路决议：继续经 tizi-cyp 跳板；不修家宽 UPnP
+
+- 服务器：`mssql-ref`（及家宽 underlay）
+- 操作人：`Grok` / 用户确认
+- 原因：评估 TS direct / Peer Relay 后维持现状。
+- 影响：**无变更**。入站仍 `0.0.0.0:1433`；SIT 经 `tizi-cyp` `100.88.178.78` 跳板访问。
+- 网络结论（只读）：
+  - 本机 TS：`MappingVariesByDestIP: true`，`PortMapping` 空；到 `tizi-cyp` 为 DERP。
+  - 家宽 OpenWrt `miniupnpd` **未运行**（用户决定 **不修**）；WAN CGNAT `100.65.11.174`，STUN 外层 `112.117.237.237`。
+  - **备选**：`km-landui` Peer Relay（未部署），见 `docs/operations/dev-cypresso.md` 2026-07-21 14:15。
+- 回滚：无。
+
 ## 2026-07-21 13:08 CST - 只读确认与 dev-cypresso 的 Tailscale 路径为 DERP 中继
 
 - 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）
