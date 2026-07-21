@@ -1,5 +1,18 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-21 12:08 CST - 只读：重发 Frontend Tests 运行中
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（只读）
+- 原因：用户已在 GUI 排除 `/Users/for-konghai/`；重发 job 后对照。
+- 影响：无变更。
+- 当时状态：
+  - 双 slot busy：`Frontend Tests 3/4`（u1 vitest 中）+ `1/4`（u2 刚起 Worker/Install）。
+  - **fseventsd≈0**；**mds_stores 仍约 50%**、mds 数 %（mds 族合计 ~53），低于排除前双 slot 时 ~210%，但未像 lemon 一样归零。
+  - node 合计 ~200%+；load ~6.9。
+  - npm ci（u1）约 **9s**。
+- 验证结果：有改善；若 mds_stores 持续偏高可再确认隐私列表是否含整个 `/Users/for-konghai/`、是否需等索引收敛。
+
 ## 2026-07-21 11:24 CST - 拉起 ToDesk 供 GUI 配置 Spotlight 隐私
 
 - 服务器：`umacbook-pro`

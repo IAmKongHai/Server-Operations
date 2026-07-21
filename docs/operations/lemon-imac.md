@@ -1,5 +1,18 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 12:08 CST - 只读：隐私排除后 Frontend Tests 运行中（mds≈0）
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（只读）
+- 原因：用户重发 job 后对照 Spotlight 排除 `/Users/for-konghai/` 的效果。
+- 影响：无变更。
+- 当时状态：
+  - 双 slot busy：`Frontend Tests 4/4`（li）+ `2/4`（li2）；`vitest run --maxWorkers=2`。
+  - load ~3.6（8 核）；**CPU 前列全是 node/vitest**。
+  - **sums：node≈445%，mds 族≈0，fseventsd≈0**（对比排除前 mds_stores 可占数十～百 %）。
+  - npm ci 热路径约 **10s** 量级（Install→Run Tests 间隔）。
+- 验证结果：隐私排除后 CI 阶段 **Spotlight 不再与 Vitest 争核**，与 mac-mini 修好后表现一致。
+
 ## 2026-07-21 12:06 CST - 重启后验证：runner 正常 + Spotlight 已排除 for-konghai
 
 - 服务器：`lemon-imac`
