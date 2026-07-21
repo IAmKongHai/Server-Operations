@@ -1,5 +1,21 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 10:55 CST - 只读：Spotlight 仍开启 + mds 占 CPU（对照 mac-mini）
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（只读基线；mac-mini runner 已临时停止以便分流 CI）
+- 原因：mac-mini 上已确认关 Spotlight 后 mds/`fseventsd` 不再成问题；核对 lemon 是否同样有索引开销。
+- 影响：无变更。
+- 做了什么：`mdutil -s`、进程采样、load / 内存 / 磁盘、runner 状态。
+- 当时状态：
+  - **Spotlight：`/` 与 Data 均为 Indexing enabled**（与 mac-mini 已 disabled 相反）。
+  - load ~**18–22**（8 核 / 8GB）；top 见 `mds_stores` **~108%**、`mds` 数 %、多个 `mdworker_shared` 曾合计数十 %。
+  - `fseventsd` 当时不高（~1% 级），主矛盾更像 **mds 索引**。
+  - runner：`lemon-imac-1/2` Listener 在线、采样时无 Worker；workdir `~/gha/li` `~/gha/li2`；`~/.npm` ~140M。
+  - Data 卷约 164/228G 已用（81%）。
+- 验证结果：**存在与 mac-mini 改前同类的 Spotlight 问题**；若用户确认，可按 mac-mini 做法关索引/加隐私排除（**未擅自改**）。
+- 回滚方式：无。
+
 ## 2026-07-20 20:01 CST - U5 npm 预热：frontend-mas lock 可 offline 装齐
 
 - 服务器：`lemon-imac`

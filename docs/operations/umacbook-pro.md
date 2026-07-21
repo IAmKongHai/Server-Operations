@@ -1,5 +1,21 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-21 10:55 CST - 只读：Spotlight 仍开启 + CI 时 mds 与 vitest 争用
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（只读基线；mac-mini runner 已临时停止以便分流 CI）
+- 原因：同 lemon——对照 mac-mini 关 Spotlight 后的结论，核对本机是否同类问题。
+- 影响：无变更。
+- 做了什么：`mdutil -s`、top、runner/vitest 进程、内存磁盘。
+- 当时状态：
+  - **Spotlight：`/` 与 Data 均为 Indexing enabled**。
+  - load ~**26–31**（8 核 / 8GB，up 162 天）。
+  - 已有 job：`umacbook-pro-2` 跑 `vitest run --maxWorkers=2 --shard=2/4`（`~/gha/u2`）；同时 **mds ~20%+、mds_stores ~30%+、十余个 mdworker** 与 node 争 CPU。
+  - `fseventsd` 当时 ~0–0.1%；瓶颈在 **mds 族 + vitest**。
+  - runner 1/2 Listener 在线；`~/.npm` ~141M；Data 约 140/228G（74%）。
+- 验证结果：**确认同类 Spotlight 问题**，且在 CI 运行时与测试抢核更明显。关索引需用户确认后操作。
+- 回滚方式：无。
+
 ## 2026-07-20 20:01 CST - U5 npm 预热：frontend-mas lock 可 offline 装齐
 
 - 服务器：`umacbook-pro`

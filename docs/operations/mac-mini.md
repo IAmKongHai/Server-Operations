@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-07-21 10:55 CST - 临时停止 mac-mini-sonar-1..4（分流 CI 到 lemon/umac）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：排查 lemon-imac / umacbook-pro 上是否同样有 Spotlight/`fseventsd` 问题；需让用户重跑的 Frontend Tests 落到那两台，避免继续被 mac-mini 抢走。
+- 影响：本机 4 个 org runner 离线，不再领取 `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` / `mac-mini-sonar` 等 job；队列会落到 lemon-imac / umacbook-pro / mas-go-dev（按 label 匹配）。**未** `disable` LaunchAgent（仍为 enabled），仅 `svc.sh stop`。
+- 备份：无配置改动；plist 与 runner 目录完整保留。
+- 回滚方式：四 slot 分别 `cd ~/actions-runner/mac-mini-sonar-N && ./svc.sh start`（N=1..4），或登录会话内 `launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-N.plist`。
+- 做了什么：
+  1. 确认无 `Runner.Worker` 后，对 `mac-mini-sonar-1..4` 依次执行 `./svc.sh stop`（均 Reported Stopped）。
+  2. 本机 `ps` 无 Listener/Worker；`./svc.sh status` 均为 Stopped。
+- 验证结果：本机服务已停。GitHub API 可能延迟数分钟才从 online→offline（stop 后立即查时部分 slot 仍显示 online）。
+- 备注：lemon / umac 基线见同日 `docs/operations/lemon-imac.md` / `umacbook-pro.md`——两机 **Spotlight 仍为 Indexing enabled**，空闲/半忙时已有 `mds`/`mds_stores`/`mdworker` 占 CPU。
+
 ## 2026-07-21 10:44 CST - 只读：四 slot 全忙 Frontend Tests 时 fseventsd
 
 - 服务器：`mac-mini`
