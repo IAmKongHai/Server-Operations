@@ -1,5 +1,13 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-21 12:11 CST - 再次 open ToDesk 供用户复查 Spotlight 隐私
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：重发 job 后 mds_stores 仍偏高；用户要 GUI 再检查 `/Users/for-konghai/` 隐私排除。
+- 影响：`open -a ToDesk`；`for-konghai` 新 GUI pid；Session `myid=254880455` 已在。
+- 回滚：用户查完可再退 GUI。
+
 ## 2026-07-21 12:08 CST - 只读：重发 Frontend Tests 运行中
 
 - 服务器：`umacbook-pro`
