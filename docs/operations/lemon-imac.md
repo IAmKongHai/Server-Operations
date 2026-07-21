@@ -1,5 +1,20 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-21 12:06 CST - 重启后验证：runner 正常 + Spotlight 已排除 for-konghai
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（只读验证）；重启与 Spotlight GUI 由用户完成
+- 原因：用户本机 `sudo reboot` 后 ToDesk 恢复，已将 `/Users/for-konghai/` 加入 Spotlight 搜索隐私并退出 ToDesk GUI；发 job 前确认 runner。
+- 影响：无代理侧变更。
+- 验证结果：
+  - uptime ~**7 min**（重启成功）；console 用户 `for-konghai`。
+  - runner：`lemon-imac-1/2` 本机 `./svc.sh status` = **Started**，Listener 在跑；GitHub API 均为 **online / busy=false**。
+  - labels 仍含 `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` / `lemon-imac` 等。
+  - Spotlight：整卷仍 **Indexing enabled**（符合「不整卷关闭」）；`mdfind -onlyin ~/gha` / `~/actions-runner` 对关键名 **无结果**（隐私排除生效迹象）。
+  - 重启后短暂见 `fseventsd`/`mds_stores` 偏高，属其它路径/系统重建索引常见现象；CI 路径应已不进 for-konghai 家目录索引。
+  - ToDesk_Service 仍可能在后台（系统服务）；用户已退 GUI 省资源。
+- 备注：`mac-mini-sonar-1..4` 仍为用户先前要求的 **offline**；本轮 job 预期落 lemon + umac。
+
 ## 2026-07-21 11:58 CST - 用户确认重启，但无 sudo 未能执行 reboot
 
 - 服务器：`lemon-imac`
