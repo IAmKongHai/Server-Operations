@@ -1,5 +1,32 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-21 13:32 CST - iCare DB 经 tizi-cyp 跳板访问 mssql-ref（姿势 1）
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`
+- 原因：直连 `100.124.140.78` DERP 差；改走 `tizi-cyp` TS 跳板（见 `docs/operations/tizi-cyp.md` 同日）。
+- 影响：
+  - `/home/ec2-user/stacks/icare/.env`：`DB_HOST` / `WEBKIT_DB_HOST` / `SALESPORTAL_DB_HOST`  
+    `100.124.140.78` → **`100.88.178.78`**
+  - `force-recreate` `icare-backend-api-1` + `icare-backend-worker-1`（镜像未变：`fe0323ce2ca4635a9c54e8ddab6e0d738f8a499b`）
+  - 未动 portal / shared-* / seed
+- 备份：`/home/ec2-user/stacks/icare/.env.bak.20260721-tizi-cyp-proxy`
+- 变更时序：
+  1. `tizi-cyp` 上 `mssql-ref-proxy` active 且仅 TS 监听。
+  2. 备份 `.env` 后改三个 `*_HOST`。
+  3. `BACKEND_IMAGE=<当前> docker-compose -f backend.compose.yaml up -d --no-deps --no-build --force-recreate api worker`
+- 验证：
+  - 日志：`database connected` ×3，host 均为 `100.88.178.78`（preprod / maswebkit / insularsalesportal）
+  - API health → `healthy`；真实请求 200（如 contract-cutoffs latency ~0.6–1s）
+  - TCP：`100.88.178.78:1433` 热建连 ~61ms；直连 `100.124.140.78` 仍 ~0.6–1s
+- 回滚：
+  ```bash
+  ssh dev-cypresso 'cp /home/ec2-user/stacks/icare/.env.bak.20260721-tizi-cyp-proxy /home/ec2-user/stacks/icare/.env && chmod 600 /home/ec2-user/stacks/icare/.env && cd /home/ec2-user/stacks/icare && BACKEND_IMAGE=ghcr.io/cypressoai/icare-backend:fe0323ce2ca4635a9c54e8ddab6e0d738f8a499b docker-compose -f backend.compose.yaml up -d --no-deps --no-build --force-recreate api worker'
+  ```
+- 备注：
+  - 若 CI/手动部署用模板重写 `.env` 且仍写 `100.124.140.78`，会冲掉跳板；需把模板/ secret 同步为 `100.88.178.78`，或部署后补丁。
+  - 单条 SQL 仍可能 ≥1s（多 RTT × ~245ms 路径），属路径物理限制。
+
 ## 2026-07-21 13:08 CST - 只读排查到 mssql-ref 的高延迟（Tailscale DERP 中继）
 
 - 服务器：`dev-cypresso`（`ip-172-31-42-99.ec2.internal` / TS `100.115.69.120`）

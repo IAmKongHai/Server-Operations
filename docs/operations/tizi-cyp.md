@@ -1,5 +1,29 @@
 # tizi-cyp 运维时间线
 
+## 2026-07-21 13:30 CST - 部署 mssql-ref Tailscale 跳板（姿势 1）
+
+- 服务器：`tizi-cyp`（TS `100.88.178.78` / 公网 `89.208.242.203`）
+- 操作人：`Grok`（用户确认采用姿势 1，放弃公网 1433）
+- 原因：`dev-cypresso` → `mssql-ref` 直连走 DERP，延迟/抖动差；`dev-cypresso` → `tizi-cyp` 为 **TS direct ~61ms**，借跳板稳定第一跳。
+- 影响：
+  - 新增 systemd 服务 `mssql-ref-proxy.service`（enabled）。
+  - **仅**监听 `100.88.178.78:1433`（Tailscale），**未**绑公网；`tailscale0` 已在 firewalld `trusted` zone。
+  - 后端：`TCP 100.124.140.78:1433`（`mssql-ref`）。
+  - 实现：`socat`（本机已装）；`MemoryMax=256M`，避免拖垮 S-UI。
+  - 说明文件：`/root/mssql-ref-proxy.README`
+- 备份：无覆盖既有文件；unit 为新增。
+- 回滚：
+  ```bash
+  ssh tizi-cyp 'systemctl disable --now mssql-ref-proxy && rm -f /etc/systemd/system/mssql-ref-proxy.service && systemctl daemon-reload'
+  # 同时把 dev-cypresso DB_*_HOST 改回 100.124.140.78 并 recreate api/worker
+  ```
+- 验证：
+  - `systemctl is-active mssql-ref-proxy` → `active`
+  - `ss -lntp`：`100.88.178.78:1433` socat；公网无 1433
+  - 从 `dev-cypresso` TCP 建连：proxy 热路径 ~61ms vs direct ~650–950ms
+  - `sqlcmd` 可连上同一实例 `mssql-ref`
+- 备注：第二跳 `tizi-cyp`→`mssql-ref` 仍为 DERP ~185ms；端到端 RTT 约 240–260ms，收益主要在第一跳稳定与建连。
+
 ## 2026-07-10 01:35 CST - 用户分享链接改用域名 cyp-tz.skysms.xyz
 
 - 服务器：`tizi-cyp`
