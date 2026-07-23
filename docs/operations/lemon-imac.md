@@ -1,5 +1,38 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-23 18:19 CST - 停止双 slot runner + 磁盘满排查
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：磁盘满；用户要求停止本机 runner 并排查占用。
+- 影响：`lemon-imac-1` / `lemon-imac-2` **Stopped**，org `cypressoai` 上这两台 self-hosted 不再接 job；其它 runner 池不受影响。
+- 备份：无配置改动；仅 `./svc.sh stop`。
+- 回滚方式：在 `for-konghai` 会话下分别执行：
+  - `cd ~/actions-runner/lemon-imac-1 && ./svc.sh start`
+  - `cd ~/actions-runner/lemon-imac-2 && ./svc.sh start`
+  （启动前建议先腾出磁盘，否则 job 易写盘失败。）
+- 变更时序：
+  1. `df`：整盘 **228Gi，Avail ≈116Mi，Capacity 100%**；Data 卷 `diskutil` Capacity Consumed **≈218.7GB**。
+  2. `./svc.sh stop` 两 slot → 状态均为 **Stopped**；无 `Runner.Listener` 残留。
+  3. 可见占用（`for-konghai` 可读部分，Users 合计约 **105G**，其中 for-konghai **≈100G**）：
+     | 路径 | 约占用 | 说明 |
+     | --- | --- | --- |
+     | `~/actions-runner/lemon-imac-1/cache/go-build` | **42G** | `.env` 中 `GOCACHE=.../cache/go-build` |
+     | `~/actions-runner/lemon-imac-2/cache/go-build` | **31G** | 同上，slot2 |
+     | `~/Library/Caches/go-build` | **14G** | 默认/非 slot GOCACHE 残留 |
+     | `~/gha/li` + `~/gha/li2` | **4G + 3G** | workFolder（checkout / node_modules 等） |
+     | `~/go/pkg`、`setup-pnpm`、`.sonar`、`.npm` | 合计约 **3G** | mod / 工具链 |
+     | `/Applications` | **23G** | 本机 GUI 软件（非 runner） |
+     | `/Library` + `/private/var` + Data/System | 约 **18G** | 系统与开发组件 |
+  4. **Go build cache 合计约 87G**，是 runner 账号下最主要可回收空间。
+  5. `zhangli` 的 Desktop/Documents/Downloads/Library 等对 `for-konghai` 为 **Operation not permitted**（TCC），`du` 只见 **≈4.9G** 可读部分；Data 卷仍有约数十 GB 无法从当前账号归因（可能含 `zhangli` 隐私目录或系统元数据 `.Spotlight-V100` / `.fseventsd` 等）。
+- 验证：两 slot `./svc.sh status` = Stopped；`df` 仍 100%（本次未清缓存）。
+- 建议清理（**未执行**，需用户确认后再做）：
+  1. 删 slot GOCACHE：`rm -rf ~/actions-runner/lemon-imac-{1,2}/cache/go-build/*`（可回收 **~73G**）
+  2. 删默认 go-build：`rm -rf ~/Library/Caches/go-build`（**~14G**）
+  3. 可选：清空 workFolder `~/gha/li` / `~/gha/li2` 下残留 workspace（**~7G**）
+  4. 若仍不足：用 `zhangli` 登录或授予 Full Disk Access 后再扫个人库
+
 ## 2026-07-21 12:08 CST - 只读：隐私排除后 Frontend Tests 运行中（mds≈0）
 
 - 服务器：`lemon-imac`
