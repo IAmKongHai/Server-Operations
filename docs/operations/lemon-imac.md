@@ -1,5 +1,20 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-23 19:02 CST - A+B：清空 go-build + 恢复 runner（CYP-1547）
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：coverage 持久 GOCACHE 盘满（slot 42G+31G + orphan 14G）；A+B 全池治理，修剪策略改为 **2 天**。
+- 影响：
+  - 删除 orphan `~/Library/Caches/go-build`（~14G）
+  - 清空 per-slot `~/actions-runner/lemon-imac-{1,2}/cache/go-build`（~73G；文件 mtime 均 ≤2 天，无法仅靠 2 天年龄修剪，按 >20GB 门槛整目录清空）
+  - `df` Avail **6.2Gi → 93Gi**
+  - `./svc.sh start` 两 slot → **Started**
+- 备份：无（cache 可再生）
+- 回滚：无需；cache 会由后续 lint/非 coverage job 回填
+- 关联：Jira **CYP-1547**；iCare-backend PR coverage job-local `GOCACHE=${{ runner.temp }}/go-build-cover`；runbook `docs/runbooks/ci-runner-pools.md`；`scripts/prune-gocache.sh`
+- 验证：两 slot `./svc.sh status` = Started；go-build 目录 0B
+
 ## 2026-07-23 18:24 CST - 清空 gha workFolder + go-build 膨胀根因
 
 - 服务器：`lemon-imac`

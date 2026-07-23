@@ -1,5 +1,19 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-23 19:05 CST - A+B：清空 go-build / orphan（CYP-1547）
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：与 lemon 同类：per-slot go-build **41G+36G** + orphan `~/Library/Caches/go-build` **15G**；全池 A+B 治理。
+- 影响：
+  - 首轮清理时双 slot **Runner.Worker busy**，已等待 idle 后再清（不杀 job）
+  - 删除 orphan + 清空两 slot `cache/go-build`（mtime 均 ≤2 天，按 >20GB 整目录清空）
+  - Listener 保持 **Started**（未停池）
+- 备份：无
+- 回滚：cache 可再生
+- 关联：**CYP-1547**；`scripts/prune-gocache.sh`；runbook 2 天策略
+- 验证：见同轮 `disk-after` 摘要；listeners 仍 Started
+
 ## 2026-07-21 12:11 CST - 再次 open ToDesk 供用户复查 Spotlight 隐私
 
 - 服务器：`umacbook-pro`

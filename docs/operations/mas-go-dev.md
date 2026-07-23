@@ -1,5 +1,19 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-23 19:01 CST - A+B：清空 ci-1/ci-2 go-build（CYP-1547）
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：`mas-go-dev-ci-1/2` go-build **77G+72G**（mtime 均 ≤2 天）；与 lemon/umac 同类 coverage 膨胀。
+- 影响：
+  - 确认无 `Runner.Worker` 后清空 `/opt/actions-runner/mas-go-dev-ci-{1,2}/cache/go-build`
+  - `mas-go-dev` 部署 slot go-build 本已 0；`df` 根盘 **74% → 25%**（Avail **80G → 228G**）
+  - 三 Listener 保持运行
+- 备份：无
+- 回滚：cache 可再生
+- 关联：**CYP-1547**；coverage job-local GOCACHE（backend PR）；runbook **2 天**修剪
+- 验证：两 ci go-build 0；Listeners 在跑
+
 ## 2026-07-20 20:01 CST - U6 清理陈旧 tool：部署 runner go 1.25.0
 
 - 服务器：`mas-go-dev`

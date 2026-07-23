@@ -104,9 +104,12 @@ self-hosted **不要**开 `setup-go` / `setup-node` 的 GitHub remote `cache`；
 |------|------|----------|
 | `GOCACHE` | **每 slot 独立目录**（同机 multi-slot 必须） | 各 runner `.env` |
 | `GOMODCACHE` | **每主机共享一份** | 各 runner `.env` 指向同一路径 |
+| coverage GOCACHE | **job-local**：`${{ runner.temp }}/go-build-cover`（iCare-backend `sonar.yml` 全量 atomic+coverpkg 步骤） | workflow step `env`；**不**写持久 slot 目录 |
 | npm | **每主机** `~/.npm`；workflow 用 `npm ci --prefer-offline` | 默认 home |
 | tool-cache | 每 slot `workFolder/_tool`（setup-go/node/sonar 自动） | 不可共享 |
-| 修剪门槛 | 单 slot go-build **>20GB** 或 mas 合计 **>30GB** → `GOCACHE=... go clean -cache`（无 Worker 时） | runbook / 运维 |
+| 修剪策略 | **2 天**：删 go-build 内 `mtime > 2` 的文件；若单 slot 仍 **>20GB**（或 mas 合计 **>30GB**）→ 整目录清空 / `go clean -cache`（**无 Worker 时**） | `scripts/prune-gocache.sh` + 运维时间线 |
+
+**为何 coverage 必须 job-local：** 全量 `-covermode=atomic -coverpkg=./cmd/...,./internal/...` 为插桩变体单独建 cache key，对象大且随每个 commit 追加；Go 默认约 5 天未用才 trim，高频 CI 下持久 GOCACHE 会涨到数十 GB/slot（见 2026-07 lemon/umac/mas 盘满复盘）。
 
 **贴 label 前额外确认：**
 
@@ -114,9 +117,17 @@ self-hosted **不要**开 `setup-go` / `setup-node` 的 GitHub remote `cache`；
 # .env 应含（路径按主机调整）
 grep -E 'GOCACHE|GOMODCACHE' ~/actions-runner/<slot>/.env
 # multi-slot：GOCACHE 必须不同，GOMODCACHE 应相同
+
+# 无 Worker 时修剪（2 天 + 20GB 门槛）
+# mac：
+./scripts/prune-gocache.sh ~/actions-runner/<slot>/cache/go-build
+# 删迁移前 orphan（runner 已改 per-slot 后）：
+rm -rf ~/Library/Caches/go-build
+# mas-go-dev：
+sudo -u actions-runner bash -lc './scripts/prune-gocache.sh /opt/actions-runner/mas-go-dev-ci-N/cache/go-build'
 ```
 
-参考计划：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`。
+参考计划：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`；Jira **CYP-1547**（parent CYP-853）。
 
 当前主机约定（2026-07-20 落地）：
 

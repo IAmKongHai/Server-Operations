@@ -1,5 +1,14 @@
 # mac-mini 运维时间线
 
+## 2026-07-23 18:55 CST - 只读：go-build 近空，无清理（CYP-1547 全池核对）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：A+B 实施前四机复测；mac-mini 四 slot `cache/go-build` 各 **8.0K**（仅 trim 元数据），盘 Avail **~552Gi**，**无同样膨胀**。
+- 影响：无变更；策略文档统一为 2 天修剪 + coverage job-local GOCACHE。
+- 验证：四 Listener Started；当时有 Worker（承接 CI），未动 cache。
+- 关联：**CYP-1547**
+
 ## 2026-07-21 12:24 CST - 恢复 mac-mini-sonar-1..4
 
 - 服务器：`mac-mini`
