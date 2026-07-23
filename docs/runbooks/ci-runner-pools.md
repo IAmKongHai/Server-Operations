@@ -104,7 +104,7 @@ self-hosted **不要**开 `setup-go` / `setup-node` 的 GitHub remote `cache`；
 |------|------|----------|
 | `GOCACHE` | **每 slot 独立目录**（同机 multi-slot 必须） | 各 runner `.env` |
 | `GOMODCACHE` | **每主机共享一份** | 各 runner `.env` 指向同一路径 |
-| coverage GOCACHE | **job-local**：`${{ runner.temp }}/go-build-cover`（iCare-backend `sonar.yml` 全量 atomic+coverpkg 步骤） | workflow step `env`；**不**写持久 slot 目录 |
+| coverage GOCACHE | **job-local**：`${{ runner.temp }}/go-build-cover` + 同目录侧 `TMPDIR=.../go-tmp`（iCare-backend `sonar.yml` 全量 atomic+coverpkg） | workflow step `env`；**不**写持久 slot；避免 mas `/tmp` tmpfs 打满 |
 | npm | **每主机** `~/.npm`；workflow 用 `npm ci --prefer-offline` | 默认 home |
 | tool-cache | 每 slot `workFolder/_tool`（setup-go/node/sonar 自动） | 不可共享 |
 | 修剪策略 | **2 天**：删 go-build 内 `mtime > 2` 的文件；若单 slot 仍 **>20GB**（或 mas 合计 **>30GB**）→ 整目录清空 / `go clean -cache`（**无 Worker 时**） | `scripts/prune-gocache.sh` + 运维时间线 |
