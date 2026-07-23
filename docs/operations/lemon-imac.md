@@ -1,5 +1,38 @@
 # lemon-imac 运维操作时间线
 
+## 2026-07-23 18:24 CST - 清空 gha workFolder + go-build 膨胀根因
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：用户要求先清 `~/gha/li` + `~/gha/li2` 腾约 7G，并研究 GOCACHE 为何涨到数十 GB。
+- 影响：
+  - 已清空 workFolder 内容（保留空目录 `~/gha/li`、`~/gha/li2`）；下次 job 会重新 checkout / 装 `_tool`。
+  - **未**动 go-build / runner service（runner 仍 Stopped）。
+- 备份：无（workspace 可再生）。
+- 回滚：无需；job 会重建 workFolder。
+- 变更时序：
+  1. 清理前：`li` 4.0G + `li2` 3.0G（checkout/`node_modules` + 各 ~731M `_tool`）。
+  2. `find ... -mindepth 1 -maxdepth 1 | rm -rf` 清空两目录。
+  3. 清理后：两目录 **0B**；`df` Avail **113Mi → 6.3Gi**（约 **+6.2G**，APFS 与原先 du 量级一致）。
+- go-build 膨胀结论（只读）：
+  | 路径 | 体积 | 文件数 | 创建时间 | 备注 |
+  | --- | --- | --- | --- | --- |
+  | `~/actions-runner/lemon-imac-1/cache/go-build` | **42G** | ~156k | 2026-07-20 19:32（空目录起热） | per-slot `GOCACHE` |
+  | `~/actions-runner/lemon-imac-2/cache/go-build` | **31G** | ~137k | 同上 | per-slot |
+  | `~/Library/Caches/go-build` | **14G** | ~85k | 2026-07-20 13:50 | 迁 per-slot 前默认路径，**已 orphan**（采样 mtime 全是 7/20） |
+  1. **增速极快**：per-slot 落地仅约 **71 小时**，slot1 ≈ **14 GB/天**、slot2 ≈ **10.5 GB/天**；两 slot 合计 ~73G，已远超 runbook 单 slot **>20GB** 修剪门槛，且 **无人执行过** `go clean -cache`。
+  2. **Go 自带淘汰几乎不起作用**：两 slot 缓存 mtime 全在 **0–3 天** 内（`>3d` / `>7d` = 0）；Go 默认约 **5 天未用才 trim**，高频 backend-ci 持续写入/触摸条目，短窗口内不会自动瘦身。
+  3. **覆盖率编译是放大器**：Worker 日志反复出现  
+     `go test ./test/... ./internal/... -coverprofile=coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...`  
+     全包 `atomic` 插桩会为覆盖率变体单独建 cache key；`*-d` 对象平均约 **1.1MB**、峰值 **6–12MB**，一次全量 Sonar/coverage job 即可写入大量大对象。
+  4. **双 slot 隔离是设计成本**：为防 CYP-322 竞态，两 slot `GOCACHE` 互不共享 → 同样 workload **磁盘近似 ×2**（共享的是 `GOMODCACHE=~/go/pkg/mod` ~1.4G，不是 go-build）。
+  5. **14G orphan 未清**：2026-07-20 切 per-slot 时故意未删 `~/Library/Caches/go-build`，至今仍占盘。
+- 验证：`du -sh ~/gha/li ~/gha/li2` = 0B；`df` Avail 6.3Gi；runner 仍 Stopped。
+- 后续可选（需确认后再做）：
+  1. 删 orphan：`rm -rf ~/Library/Caches/go-build`（+14G，无副作用）。
+  2. 修剪 slot GOCACHE：`GOCACHE=... go clean -cache` 或 `rm -rf .../cache/go-build/*`（+73G；冷启动后首几次 backend job 变慢）。
+  3. 运维：按 runbook 定期检查单 slot >20GB；或 job-local `GOCACHE=${{ runner.temp }}/go-build` 让覆盖率产物随 temp 回收（mas-go-dev 已讨论过同类方案）。
+
 ## 2026-07-23 18:19 CST - 停止双 slot runner + 磁盘满排查
 
 - 服务器：`lemon-imac`
