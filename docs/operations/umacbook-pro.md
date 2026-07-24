@@ -1,5 +1,22 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-07-24 17:38 CST - 只读：主机与双 runner 健康检查
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（只读）
+- 原因：用户要求确认机器与 self-hosted runner 是否正常。
+- 影响：无变更。
+- 当时状态：
+  - 主机：SSH 可达；macOS **15.7.2**；uptime **166 天**；Data 盘约 **103/228G（55%）、剩余 ~88G**；8 核 / 8GB，load **~14–19**（双 slot 跑 job 时正常偏高）。
+  - LaunchAgent：`actions.runner.cypressoai.umacbook-pro-{1,2}` 均为 **Started**；`Runner.Listener` + `runsvc` 在跑；runner 版本本地 **2.336.0**。
+  - 双 slot **Busy**：采样时 u1 先后 `SonarQube Scan` → `Lint`；u2 `SonarQube Scan`；job renew / 日志上传成功。
+  - GitHub API（`orgs/cypressoai/actions/runners`）：两台最终均为 **online + busy**（中途 umacbook-pro-1 曾短暂显示 offline，属 broker 长连接取消后的瞬时态）。
+  - Labels：`self-hosted,macos,arm64,macos-arm64,umacbook-pro,frontend-tests-ci,frontend-quality-ci,backend-ci`。
+  - 网络：`github.com` ping 通、HTTPS 200；偶发 `BrokerServer` `SocketException/Operation canceled` 后自动 backoff 重连并继续接 job。
+  - workFolder：`~/gha/u1` ~13G、`~/gha/u2` ~3.6G。
+- 验证结果：**机器与 runner 正常**；高负载来自并发 CI（Sonar Java / go link / test），非故障。
+- 回滚方式：无。
+
 ## 2026-07-23 19:05 CST - A+B：清空 go-build / orphan（CYP-1547）
 
 - 服务器：`umacbook-pro`
