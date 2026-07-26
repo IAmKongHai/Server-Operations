@@ -1,5 +1,23 @@
 # nas 运维时间线
 
+## 2026-07-26 21:56 CST - Finder 连不上且无密码框：认证失败 + 清钥匙串
+
+- 服务器：`nas` / 本机 Mac
+- 操作人：`Grok`
+- 原因：用户用 `smb://konghai@192.168.2.8` 仍失败，Finder 弹「连接服务器 192.168.2.8 时出现问题 / 请检查服务器名称或 IP」，**不出现密码输入框**。
+- 影响：本机删除了一条钥匙串 SMB 凭据；**NAS 侧无变更**。
+- 做了什么：
+  1. 读 macOS 统一日志（`NetAuthSysAgent` / `mount_smbfs`）。
+  2. 核对 NAS `share_service.log`、VFS 模块、`smb.custom.conf` / `1000.share.conf`。
+  3. 删除本机钥匙串中 `srvr=192.168.2.8` / `acct=konghai` / `ptcl=smb` 的旧条目（创建于 2024-02-28，修改于 2026-05-01）。
+- 当时状态：
+  - 协议可达：`GetServerInfo` 成功；Negotiate 正常（NTLM/SPNEGO）；`OpenSession failed **80 EAUTH**`（认证错误）。Finder 把 EAUTH 显示成「检查服务器名称或 IP」，**不是网络不可达**。
+  - 旧钥匙串凭据被 Finder 静默使用 → 认证失败 → 直接报错，跳过密码框。
+  - 今日 NAS：`20:19`→`20:44` 内核升级重启（`6.18.18-trim` → `6.18.18.c877-trim`）；`20:44` 重建 7 个共享；用户在面板约 `21:28`/`21:31` 开关过 SMB（`appcgi.share.smb.set`）。
+  - **配置隐患**：全局与每个共享 `vfs objects` 含 **`trim`，但系统无 `trim.so`**（仅有 `trim_perms.so`）。认证通过后挂载共享仍可能失败，需后续处理（改 conf 或补模块；改 conf 须确认且可能被飞牛面板覆盖）。
+- 结论：当前 Finder 报错主因是 **认证失败（EAUTH）+ 过期钥匙串**；已清本机 SMB 钥匙串。请用户再连一次，应出现密码框；若密码正确仍挂不上共享，再处理缺失的 `trim` VFS。
+- 回滚：钥匙串条目已删，下次成功登录会重新写入。
+
 ## 2026-07-26 21:35 CST - 只读：SMB 服务与连通性排查
 
 - 服务器：`nas`（`konghai-nas`，LAN `192.168.2.8`，Tailscale `100.67.194.17`）
