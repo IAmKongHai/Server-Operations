@@ -1,5 +1,29 @@
 # nas 运维时间线
 
+## 2026-07-26 22:09 CST - 修复 SMB：移除缺失的 VFS 模块 `trim`
+
+- 服务器：`nas`（`konghai-nas` / `192.168.2.8`）
+- 操作人：`Grok`
+- 原因：密码正确仍无法连接；Finder 报检查 IP。实测认证成功后 tree connect 失败。
+- 根因：`smb.custom.conf` 与共享 conf 的 `vfs objects` 含 **`trim`**，但系统无 `/usr/lib/x86_64-linux-gnu/samba/vfs/trim.so`（仅有 `trim_perms.so`）。smbd 日志：`vfs_init_custom failed for trim` → `vfs_init failed for service IPC$` / 各共享。
+- 影响：修复前所有 SMB 共享（含 IPC$）不可用；修复后当前启用的共享可挂载。
+- 备份：
+  - `/etc/samba/smb.custom.conf.bak.20260726220847`
+  - `/etc/samba/users/1000.share.conf.bak.20260726220847`
+- 做了什么：
+  1. 用账号 `konghai` 验证 passdb 存在、密码可过 NTLM。
+  2. `smb.custom.conf`：`vfs objects = trim_perms full_audit trim` → `trim_perms full_audit`。
+  3. `1000.share.conf`：去掉各共享里的 `trim`。
+  4. `smbcontrol all reload-config`（smbd 保持 active）。
+- 验证：
+  - `smbclient -L` / 挂载 `影视-1` 列目录成功（电影、美剧等）。
+  - 本机 Mac：`smbutil view` 列出 `影视-1`；`mount_smbfs` 挂载成功。
+- 备注：
+  - 今日约 22:05 面板将 share mode 设为 mode:3，**当前仅启用共享 `影视-1`**（原先 7 个共享被收成 1 个）。其余目录需在飞牛「文件共享 / SMB」里重新勾选。
+  - 飞牛面板若再次「保存 SMB 设置」，可能把 `trim` 写回 conf；若复现，对照本条再删或补齐 `trim.so` 包。
+  - **勿在文档中记录明文密码。**
+- 回滚：恢复上述两个 `.bak.20260726220847` 后 `smbcontrol all reload-config`（回滚后会再次因缺 `trim.so` 而挂载失败）。
+
 ## 2026-07-26 21:56 CST - Finder 连不上且无密码框：认证失败 + 清钥匙串
 
 - 服务器：`nas` / 本机 Mac
