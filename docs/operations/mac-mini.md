@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-07-28 13:18 CST - 只读：确认 `com.apple.Virtualization.VirtualMachine` 归属
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户点名进程 `com.apple.Virtualization.VirtualMachine`，怀疑是某个 App 的虚拟机。
+- 影响：无变更。
+- 结论：该进程是 **Apple Virtualization.framework 的 XPC 服务**，当前唯一客户端是 **Docker Desktop**（不是 UTM / VMware / 独立 Win 虚机）。
+- 证据：
+  - PID **1495**（自 7/21 起常驻，约 8% 内存 / ~2.6GiB RSS）：路径 `.../Virtualization.framework/.../com.apple.Virtualization.VirtualMachine`
+  - `lsof` 打开：`Docker.app/.../linuxkit/kernel`、`desktop.img`、`~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw`（逻辑上限约 926G，实际占用约 **172G**）、Rosetta for Linux
+  - 配对进程 PID **1463** `com.docker.virtualization`：`--cpus 8 --memoryMiB 24576`，父进程为 `com.docker.backend`
+- 用途：给 Docker 容器提供 Linux 内核环境；关 Docker Desktop 后该 VirtualMachine 进程应随之退出。
+
 ## 2026-07-28 13:10 CST - 只读排查：本机「虚拟机程序」用途
 
 - 服务器：`mac-mini`
@@ -8,7 +21,7 @@
 - 影响：无变更。
 - 发现：
   1. **VMware Fusion** + 虚机 `~/虚拟机/Windows 11 x64.vmwarevm`：本意跑 Windows 11（挂载 `Nano 11 （Chinese）.iso`）以使用仅 Windows 软件；共享目录 `~/虚拟机/虚拟机共享` 含通达信、能旺 ERP、杏雨梨云、Maycad、钱包/回单等。**当前未运行**。磁盘仅 ~8.5MB（空稀疏盘，未装成系统）；最近一次开机（2026-01-31）失败，错误为 **x86 虚机与 Arm 主机不兼容**（Apple Silicon Mac mini）。ISO 已不在 `Downloads`。
-  2. **Docker Desktop**（`com.docker.virtualization` LinuxKit 虚机）：常驻，8 vCPU / 24GiB；承载 SonarQube、AcquiLang Postgres、cypresso-okr、richer Grafana/Postgres 等 compose 服务。
+  2. **Docker Desktop**（`com.docker.virtualization` LinuxKit 虚机）：常驻，8 vCPU / 24GiB；承载 SonarQube、AcquiLang Postgres、cypresso-okr、richer Grafana/Postgres 等 compose 服务。活动名单进程即 `com.apple.Virtualization.VirtualMachine`（见上条）。
 - 验证：`vmrun list` → 0 running；`docker ps` 见 sonarqube / acquilang / okr / richer 等 Up。
 
 ## 2026-07-28 13:01 CST - 临时停止 mac-mini-sonar-1..4（用户占用主机，约 3 小时）
