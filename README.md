@@ -27,6 +27,7 @@ server/
 | `tizi`         | 代理              | 主代理服务器                                                                                     |
 | `rao-tizi`     | 代理（备用）      | `tizi` 的备用代理                                                                                |
 | `tizi-cyp`     | 代理              | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                                  |
+| `tizi-ddy`     | 代理              | 代理节点（`80.251.215.131`，Debian 13，3x-ui 面板）                                              |
 | `mac-mini`     | 本地              | 家里的 Mac mini                                                                                  |
 | `lemon-imac`   | 本地 / 测试       | Tailscale 内网 iMac，作为 macOS ARM GitHub Actions self-hosted runner                             |
 | `nas`          | 本地 / 数据       | 家用 NAS，跑 SQL Server（`mas-old-sql2022-fts-nas` 等）及历史业务数据库                          |

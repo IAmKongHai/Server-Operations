@@ -88,6 +88,7 @@
 | `tizi`         | 主代理服务器                                                                           | **是**（挂了影响日常翻墙）        |
 | `rao-tizi`     | `tizi` 的备用代理                                                                      | 是                                |
 | `tizi-cyp`     | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                        | **是**（代理节点，按生产对待）    |
+| `tizi-ddy`     | 代理节点（`80.251.215.131`，Debian 13，3x-ui）                                         | **是**（代理节点，按生产对待）    |
 | `mac-mini`     | 家里的 Mac mini                                                                        | 否                                |
 | `umacbook-pro` | Tailscale 网内 MacBook Pro（`100.113.23.49`，主机名 `UdeMacBook-Pro.local`，M1 / 8GB），跑 org `cypressoai` self-hosted runner `umacbook-pro-1/2`；`ssh umacbook-pro` 以 `for-konghai` 登录 | 否（CI runner 机，改 runner / LaunchAgent 前仍需确认） |
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
