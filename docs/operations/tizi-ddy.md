@@ -1,5 +1,36 @@
 # tizi-ddy 运维时间线
 
+## 2026-07-28 10:58 CST - 对齐 tizi-cyp：建 VLESS+REALITY inbound，关闭订阅
+
+- 服务器：`tizi-ddy`
+- 操作人：`Grok`
+- 原因：按 `tizi-cyp` 数据面形态启用代理；用户明确**不支持订阅**。
+- 影响：
+  - **Inbound `ddy-tizi`**（tag `in-443-tcp`）：VLESS + REALITY，监听 `*:443`，网络 TCP，flow `xtls-rprx-vision`。
+  - **REALITY**（密钥本机新生成，**不**复制 cyp）：
+    - SNI / serverNames：`assets-xbxweb.xbox.com`
+    - dest / target：`assets-xbxweb.xbox.com:443`
+    - uTLS fingerprint：`chrome`
+    - shortIds：`""` + 一组随机 hex（与 cyp 双 shortId 形态一致）
+  - **测试客户端**：`test-ddy`（仅测试号，无流量上限/过期）
+  - **External 地址**：`shareAddrStrategy=custom`，`shareAddr=80.251.215.131`（尚无 ddy 域名；cyp 对应 `cyp-tz.skysms.xyz`）
+  - **订阅关闭**：`subEnable=false`，`subClashEnable=false`，`subJsonEnable=false`，`subListen=127.0.0.1`；进程不再监听 `2096`；公网 `2096` 不通。
+  - **面板时区**：`timeLocation=Asia/Tehran`（与 tizi / tizi-cyp 一致；系统时区仍为 `Asia/Shanghai`）。
+- 备份：`/root/backup/tizi-ddy-20260728/`（`settings-before.json`、`x-ui.db.after-inbound`、`reality-keys.txt`、`test-ddy.sharelink` 等，root 600）。
+- 回滚方式：
+  - 删 inbound：面板删除或 API `POST /panel/api/inbounds/del/1`
+  - 停数据面：`systemctl stop x-ui` 或仅 disable inbound
+  - 恢复 DB：从 `x-ui.db.initial` / `x-ui.db.after-inbound` 拷回后 `systemctl restart x-ui`
+- 验证：
+  - `ss -lntp`：`*:443` xray；`100.75.133.13:2095` 面板；**无** `2096`
+  - 公网 `80.251.215.131:443` 通；`:2096` 不通
+  - `panel/api/inbounds/list` → 1 条 `ddy-tizi` enable
+  - settings：`subEnable=false`，`webListen=100.75.133.13`
+- 备注：
+  - 分享链接 / REALITY 私钥 / UUID **不入库**；见服务器备份目录或面板「复制链接」。
+  - 与 cyp 差异：面板栈 3x-ui/xray vs S-UI/sing-box；对外域名 cyp 已有 `cyp-tz.skysms.xyz`，ddy 暂用公网 IP。
+  - 正式用户请在面板另建 client，勿长期共用 `test-ddy`。
+
 ## 2026-07-28 10:25 CST - 完成代理节点基线部署（3x-ui + ufw + BBR + vnstat）
 
 - 服务器：`tizi-ddy`（公网 `80.251.215.131` / Tailscale `100.75.133.13`）
@@ -16,7 +47,7 @@
   - **SSH**：`PasswordAuthentication no`（密钥已验证可用）；备份见 `/root/backup/tizi-ddy-20260728/`。
   - **vnstat**：监控 `eth0` + `tailscale0`，已 active。
   - **fail2ban**：安装脚本顺带启用（3x-ui IP Limit 用）。
-  - 公网暴露面：`22` +（预留）`443`；**尚无**代理 inbound 监听 `443`（需在 3x-ui 面板创建 VLESS/REALITY 等）。
+  - 公网暴露面：`22` + `443`（inbound 见同日 10:58 条目）。
 - 备份：`/root/backup/tizi-ddy-20260728/`（`sshd_config*`、`ufw-*`、`x-ui.db.initial`、`install-result.env` 等）。
 - 回滚方式（按需）：
   - 停面板/代理：`systemctl disable --now x-ui`
@@ -36,7 +67,7 @@
   - 面板初始账号/密码/API Token/WebBasePath **不写入仓库**；见服务器 `/etc/x-ui/install-result.env`（mode 600）及本机密码管理器。
   - 用户称「已安装证书」：本机未发现 `/root/cert` 或 acme 域名证书；面板刻意走 Tailscale HTTP。若 inbound 要用域名 TLS/REALITY，在 3x-ui 面板内配置即可。
   - 与 `tizi-cyp` 差异：OS=Debian 13 / 面板=3x-ui(xray) / 防火墙=ufw；角色同为**扩容代理节点**。
-  - 后续建议：在面板建首个 inbound（如 VLESS+REALITY `:443`）、确认订阅 listen、按需加流量重置 cron。
+  - 后续：inbound/订阅已在同日 10:58 完成；可按需加流量重置 cron、配置 ddy 域名 External。
 
 ## 2026-07-28 10:21 CST - 纳入 SSH 别名 `tizi-ddy` 并只读复核
 
