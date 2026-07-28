@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-07-28 13:01 CST - 临时停止 mac-mini-sonar-1..4（用户占用主机，约 3 小时）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户需要本机桌面使用，要求暂停 org runner 约 3 小时。
+- 影响：`mac-mini-sonar-1..4` 离线，不再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job；匹配任务会落到 lemon-imac / umacbook-pro / mas-go-dev（按 label）。**未** disable LaunchAgent，仅 `svc.sh stop`。
+- 备份：无配置改动；plist 与 runner 目录完整保留。
+- 回滚 / 手动提前恢复：
+  ```bash
+  for n in 1 2 3 4; do cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh start; done
+  # 若不想等定时任务，可取消 at job：
+  atrm 1   # 仅当 atq 仍显示 job 1 时
+  ```
+- 做了什么：
+  1. 确认无 `Runner.Worker` 后，对 `mac-mini-sonar-1..4` 依次 `./svc.sh stop`（均为 Stopped）；`ps` 无 Listener/Worker。
+  2. 写入 `/tmp/mac-mini-runner-resume.sh`，用 `at now + 3 hours` 预约 **2026-07-28 16:01 CST** 自动 `svc.sh start` 四 slot；日志 `/tmp/mac-mini-runner-resume.log`；`atq` job **1**。
+- 验证结果：本机四 slot status Stopped；`atq` 显示 job 1 @ 16:01。GitHub online→offline 可能延迟数分钟。
+
 ## 2026-07-23 18:55 CST - 只读：go-build 近空，无清理（CYP-1547 全池核对）
 
 - 服务器：`mac-mini`
