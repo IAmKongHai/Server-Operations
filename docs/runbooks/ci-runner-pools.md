@@ -155,6 +155,7 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 
 ## 相关变更
 
+- mac-mini 四 slot 启停 / 定时恢复（**禁止用 `at`**）：[`mac-mini-runner-start-stop.md`](./mac-mini-runner-start-stop.md)；取证 `docs/solutions/mac-mini/workflow-issues/macos-at-disabled-do-not-schedule-runner-resume-with-at-2026-07-28.md`
 - 前端 workflow：`cypressoai/iCare-frontend-mas` PR #1185
 - 后端注释：`cypressoai/iCare-backend` PR #1083
 - 2026-07-20 org 侧 label 扩容（见各机 `docs/operations/*.md` 时间线）

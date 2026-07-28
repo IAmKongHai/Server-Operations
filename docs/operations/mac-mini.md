@@ -1,5 +1,38 @@
 # mac-mini 运维时间线
 
+## 2026-07-28 19:37 CST - 临时停止 mac-mini-sonar-1..4（用户占用主机）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户需要本机桌面使用，要求暂停 org runner。
+- 影响：`mac-mini-sonar-1..4` 离线，不再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job；匹配任务会落到 lemon-imac / umacbook-pro / mas-go-dev（按 label）。**未** disable LaunchAgent，仅 `svc.sh stop`。
+- 备份：无配置改动；plist 与 runner 目录完整保留。
+- 回滚 / 手动恢复：
+  ```bash
+  ssh mac-mini '~/bin/mac-mini-runner-resume.sh'
+  # 或
+  for n in 1 2 3 4; do (cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh start); done
+  ```
+- 做了什么：确认无 `Runner.Worker` 后，对 `mac-mini-sonar-1..4` 依次 `./svc.sh stop`（均为 Stopped）；`ps` 无 Listener/Worker。
+- 验证结果：本机四 slot status Stopped。GitHub online→offline 可能延迟数分钟。
+- 启停 runbook：`docs/runbooks/mac-mini-runner-start-stop.md`
+
+## 2026-07-28 18:36 CST - 恢复 mac-mini-sonar-1..4；确认 `at` 定时未生效
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户 13:01 用 `at` 预约 16:01 自动恢复，到点未执行；手动恢复并落盘教训。
+- 影响：四 slot 重新 online；安装固定脚本 `~/bin/mac-mini-runner-resume.sh`（日志 `~/Library/Logs/mac-mini-runner-resume.log`）；取消残留 `at` job。
+- 根因：macOS 默认 **`com.apple.atrun` Disabled**，`at` 只入队不执行；另 `svc.sh` 必须 `cd` 到 runner 根再调用。
+- 做了什么：
+  1. 对 `mac-mini-sonar-1..4` 分别 `cd` + `./svc.sh start` → Started；4 个 `Runner.Listener` 在跑。
+  2. GitHub API：`mac-mini-sonar-1..4` 均为 `online`。
+  3. 写入 `~/bin/mac-mini-runner-resume.sh`；`atrm` 清理 job。
+- 文档：
+  - 取证：`docs/solutions/mac-mini/workflow-issues/macos-at-disabled-do-not-schedule-runner-resume-with-at-2026-07-28.md`
+  - 启停 runbook：`docs/runbooks/mac-mini-runner-start-stop.md`
+- **红线**：以后定时恢复 runner **不要用 `at`**，用 crontab / launchd。
+
 ## 2026-07-28 13:18 CST - 只读：确认 `com.apple.Virtualization.VirtualMachine` 归属
 
 - 服务器：`mac-mini`
@@ -33,14 +66,16 @@
 - 备份：无配置改动；plist 与 runner 目录完整保留。
 - 回滚 / 手动提前恢复：
   ```bash
+  # 推荐（固定脚本，见 18:36 条目）
+  ~/bin/mac-mini-runner-resume.sh
+  # 或
   for n in 1 2 3 4; do cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh start; done
-  # 若不想等定时任务，可取消 at job：
-  atrm 1   # 仅当 atq 仍显示 job 1 时
   ```
 - 做了什么：
   1. 确认无 `Runner.Worker` 后，对 `mac-mini-sonar-1..4` 依次 `./svc.sh stop`（均为 Stopped）；`ps` 无 Listener/Worker。
   2. 写入 `/tmp/mac-mini-runner-resume.sh`，用 `at now + 3 hours` 预约 **2026-07-28 16:01 CST** 自动 `svc.sh start` 四 slot；日志 `/tmp/mac-mini-runner-resume.log`；`atq` job **1**。
 - 验证结果：本机四 slot status Stopped；`atq` 显示 job 1 @ 16:01。GitHub online→offline 可能延迟数分钟。
+- **事后**：16:01 **未执行**——macOS 默认禁用 `atrun`。见当日 18:36 恢复条目与 `docs/solutions/mac-mini/workflow-issues/macos-at-disabled-do-not-schedule-runner-resume-with-at-2026-07-28.md`。
 
 ## 2026-07-23 18:55 CST - 只读：go-build 近空，无清理（CYP-1547 全池核对）
 
