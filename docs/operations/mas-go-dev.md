@@ -1,5 +1,35 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-07-28 16:51 CST - 紧急磁盘清理：buildx 残骸 + Docker build cache + go-build 修剪
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：用户报 runner 再次把磁盘搞满；紧急排查与回收可再生占用。
+- 排查现状（清理前）：
+  - 根盘 `/`：`103G/300G`（**35%**，Avail **198G**）——**当时未满**；今日 Worker 日志无 ENOSPC。
+  - `/tmp` tmpfs：`1.2G/3.9G`（**30%**），主要为残留 `go-build*` / `go-link*` / `node-compile-cache`。
+  - Docker：Build Cache **22.65GB** 全可回收；3 个已退出 2–6 周的 buildx builder volume 合计 **~16.9G**；Images 另有 ~2.5G 可回收。
+  - go-build：`ci-1` **7.9G**、`ci-2` **11G**、部署 slot **0**；无 `Runner.Worker`。
+  - 三 Listener / 业务容器（api/worker/portal/redis/azurite 等）均正常。
+- 影响：
+  - 清理后根盘 **48G used / 253G avail（16%）**；`/tmp` **144M（4%）**。
+  - 下次 Docker build 会冷启动重建 buildkit cache（预计多几分钟）。
+  - go-build 按 runbook **mtime >2 天**修剪，近期编译缓存保留。
+- 备份：无（删除均为可再生 cache / 已退出 builder 状态）。
+- 回滚：cache 与 buildx 状态会在下次 CI/deploy 自动重建；无需回滚。
+- 变更时序：
+  1. 确认无 `Runner.Worker`。
+  2. `sudo rm -rf /tmp/go-build* /tmp/go-link* /tmp/node-compile-cache`。
+  3. `docker rm -f` 三个 exited buildx builder 容器，并 `docker volume rm` 对应 `*_state` 卷（~17G）。
+  4. `sudo docker builder prune -af`（回收 **22.79GB**）。
+  5. `sudo docker image prune -f`（回收 dangling **242MB**）。
+  6. `find …/cache/go-build -type f -mtime +2 -delete`：`ci-1` 7.9G→**4.7G**，`ci-2` 11G→**4.6G**。
+- 验证：
+  - `df -h / /tmp`：根盘 16% / Avail 253G；`/tmp` 4%。
+  - `docker system df`：Build Cache **0**；Volumes 仅 azurite/redis/uploads（~41MB）。
+  - 三 runner service `active`；业务容器仍 Up/healthy。
+- 备注：历史 ENOSPC 多在根盘真满（7 月初）或 `/tmp` tmpfs 打满（7-17）；本次根盘尚有空间，但 Docker buildx 残骸 + 22G build cache 已是下次打满的主要隐患，已先清。
+
 ## 2026-07-23 19:01 CST - A+B：清空 ci-1/ci-2 go-build（CYP-1547）
 
 - 服务器：`mas-go-dev`
