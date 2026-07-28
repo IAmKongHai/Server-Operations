@@ -1,5 +1,29 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-28 17:56 CST - EBS 扩至 250G 后 guest 侧 growpart + xfs_growfs
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（用户已在云侧把卷扩到 250G）
+- 原因：用户确认 EBS 已扩到 250G，要求检查是否在系统内生效。
+- 排查现状（guest 侧补全前）：
+  - 整盘 `nvme0n1`：**250G**（云侧已生效）
+  - 分区 `nvme0n1p1` 与 XFS `/` 仍为 **100G**；末尾约 **150G Free Space** 未用
+  - `fdisk` 提示 GPT PMBR / backup GPT 不在磁盘末尾（扩容后预期状态）
+  - 根盘使用率约 **75–76%**（75–76G / 100G）
+- 影响：
+  - 在线扩展分区与文件系统，**无重启**、未改服务/容器
+  - 扩后：`/` **250G**，已用约 **77G**，可用约 **174G**，使用率 **31%**
+- 备份：无（仅扩大容量，未改数据）
+- 回滚：XFS / 分区 online 扩展后不能无损缩回；若需缩容须另做迁移/重建
+- 变更时序：
+  1. 确认 `lsblk`：盘 250G、分区 100G
+  2. `sudo growpart /dev/nvme0n1 1` → p1 变为 250G
+  3. `sudo xfs_growfs -d /` → data blocks `26211323` → `65532923`
+- 验证：
+  - `df -hT /`：`/dev/nvme0n1p1` xfs **250G** / Used 77G / Avail 174G / **31%**
+  - `lsblk`：`nvme0n1` 与 `nvme0n1p1` 均为 **250G**
+  - `parted … print free`：无尾部 Free Space，p1 占满至 250GiB
+
 ## 2026-07-21 14:15 CST - 决议：维持 tizi-cyp 跳板；TS direct / Peer Relay 作备选
 
 - 服务器：`dev-cypresso`（链路决策，涉及家宽 / `mssql-ref` / `tizi-cyp` / `km-landui`）
