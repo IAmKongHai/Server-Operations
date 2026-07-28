@@ -25,3 +25,22 @@ It reads existing `vnstat` data over SSH, calculates billing-cycle usage, shows 
 The day of month when a VPS provider resets a server's traffic allowance.
 
 For proxy traffic monitoring, this reset day defines the accounting cycle; calendar-month `vnstat -m` totals are not treated as authoritative when the provider's billing cycle starts on a different day.
+
+## 代理节点（tizi 族）
+
+### 扩容代理节点
+只承载代理数据面与管理面板、不接 litellm/Nginx 业务反代的 VPS。公网通常只暴露 SSH 与代理端口（多为 443）；面板只经 Tailscale 访问。
+
+*Avoid:* 把备用 litellm 入口机与纯代理节点混为一谈（例如 `rao-tizi` 兼业务入口时角色不同）。
+
+### 入站（代理）
+代理服务端上的一条「门」：监听地址/端口、协议与传输（如 VLESS+REALITY）、伪装目标等。一门可挂多个客户端。S-UI 称入站；3x-ui 侧栏「入站」同义。
+
+### 客户端（代理用户）
+使用某条入站的身份与额度：UUID/密钥、Flow、流量与过期。必须关联至少一条入站才有可用连接串。S-UI「用户」与 3x-ui「客户端」对应。
+
+### 分享地址（share address）
+写入客户端分享链接 `@` 之后、端口之前的主机名或 IP。应使用对外域名；若落成公网 IP 或 Tailscale IP，客户端仍可能连通但运维成本高且易误发。
+
+### REALITY Flow
+VLESS + REALITY 场景下客户端流控取值。需要 vision 时必须显式配置（常见为 `xtls-rprx-vision`）；面板默认「无」会导致有链接却无法正常代理。
