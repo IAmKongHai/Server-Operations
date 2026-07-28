@@ -1,5 +1,27 @@
 # tizi-ddy 运维时间线
 
+## 2026-07-28 11:15 CST - 分享链接永久使用域名 ddy-tizi.skysms.xyz
+
+- 服务器：`tizi-ddy`
+- 操作人：`Grok`
+- 原因：分享链接默认出现 `@80.251.215.131` / Tailscale IP，希望统一为 `ddy-tizi.skysms.xyz`，避免每次手改。
+- 影响：
+  - **DNS**：`ddy-tizi.skysms.xyz` → `80.251.215.131`（已生效）。
+  - **现有 inbound `ddy-tizi`**：`shareAddrStrategy=custom`，`shareAddr=ddy-tizi.skysms.xyz`；复制链接 `@` 后即为域名。
+  - **Hosts**：面板 Hosts 组绑定域名 `ddy-tizi.skysms.xyz` 到全部 inbound（当前 id=1）。
+  - **面板 webDomain / subDomain**：设为 `ddy-tizi.skysms.xyz`（订阅仍关闭；作 public host 兜底）。
+  - **运维脚本**（新建 inbound 后一键对齐）：`/root/bin/xui-set-share-domain.sh`  
+    会把**所有** inbound 的 share 改为 custom+域名，并重建 Hosts 绑定全部 inboundIds。
+- 说明（3x-ui 行为）：
+  - 新建 inbound 默认策略是 `node`/`listen`，分享 host 会落到面板访问地址（本机常为 Tailscale IP），**没有**全局「默认 External 域名」开关。
+  - 想免手改 IP：创建时表单选 **Share Address Strategy = Custom**，填 `ddy-tizi.skysms.xyz`；或创建后执行上述脚本。
+- 备份：无新增敏感项；配置在 x-ui DB / settings。
+- 回滚：inbound 改回 `shareAddrStrategy=node` 并清空 `shareAddr`；Hosts 删除域名组；`webDomain` 置空。
+- 验证：
+  - `panel/api/clients/links/test-ddy` → `@ddy-tizi.skysms.xyz:443`
+  - `inbounds/options` → `shareAddr=ddy-tizi.skysms.xyz` / `custom`
+  - `getent hosts ddy-tizi.skysms.xyz` → `80.251.215.131`
+
 ## 2026-07-28 10:58 CST - 对齐 tizi-cyp：建 VLESS+REALITY inbound，关闭订阅
 
 - 服务器：`tizi-ddy`
@@ -13,7 +35,7 @@
     - uTLS fingerprint：`chrome`
     - shortIds：`""` + 一组随机 hex（与 cyp 双 shortId 形态一致）
   - **测试客户端**：`test-ddy`（仅测试号，无流量上限/过期）
-  - **External 地址**：`shareAddrStrategy=custom`，`shareAddr=80.251.215.131`（尚无 ddy 域名；cyp 对应 `cyp-tz.skysms.xyz`）
+  - **External 地址**：后改为域名 `ddy-tizi.skysms.xyz`（见同日 11:15 条目）
   - **订阅关闭**：`subEnable=false`，`subClashEnable=false`，`subJsonEnable=false`，`subListen=127.0.0.1`；进程不再监听 `2096`；公网 `2096` 不通。
   - **面板时区**：`timeLocation=Asia/Tehran`（与 tizi / tizi-cyp 一致；系统时区仍为 `Asia/Shanghai`）。
 - 备份：`/root/backup/tizi-ddy-20260728/`（`settings-before.json`、`x-ui.db.after-inbound`、`reality-keys.txt`、`test-ddy.sharelink` 等，root 600）。
