@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-07-28 13:10 CST - 只读排查：本机「虚拟机程序」用途
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户忘记本机虚拟机相关程序在做什么，要求确认用途。
+- 影响：无变更。
+- 发现：
+  1. **VMware Fusion** + 虚机 `~/虚拟机/Windows 11 x64.vmwarevm`：本意跑 Windows 11（挂载 `Nano 11 （Chinese）.iso`）以使用仅 Windows 软件；共享目录 `~/虚拟机/虚拟机共享` 含通达信、能旺 ERP、杏雨梨云、Maycad、钱包/回单等。**当前未运行**。磁盘仅 ~8.5MB（空稀疏盘，未装成系统）；最近一次开机（2026-01-31）失败，错误为 **x86 虚机与 Arm 主机不兼容**（Apple Silicon Mac mini）。ISO 已不在 `Downloads`。
+  2. **Docker Desktop**（`com.docker.virtualization` LinuxKit 虚机）：常驻，8 vCPU / 24GiB；承载 SonarQube、AcquiLang Postgres、cypresso-okr、richer Grafana/Postgres 等 compose 服务。
+- 验证：`vmrun list` → 0 running；`docker ps` 见 sonarqube / acquilang / okr / richer 等 Up。
+
 ## 2026-07-28 13:01 CST - 临时停止 mac-mini-sonar-1..4（用户占用主机，约 3 小时）
 
 - 服务器：`mac-mini`
