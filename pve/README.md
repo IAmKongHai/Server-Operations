@@ -389,27 +389,29 @@ IIS / 应用：
 
 | 站点 | 端口 | 路径 | 状态 |
 | --- | ---: | --- | --- |
-| `MAS-API` | `9020` | `C:\MAS\Apps\MAS-API` | Started |
+| `MAS-API` | `9020` | `C:\MAS\Apps\MAS-API` | Started（管理端 `MASWebInsular`） |
 | `MAS-WEB` | `9021` | `C:\MAS\Apps\MAS-WEB` | Started |
-| `MemberPortal` | `9022` | `C:\MAS\Apps\MemberPortal` | Started（B1 仅前端） |
-| `HRLinkPortal` | `9023` | `C:\MAS\Apps\HRLinkPortal` | Started（B1 仅前端） |
+| `MemberPortal` | `9022` | `C:\MAS\Apps\MemberPortal` | Started |
+| `HRLinkPortal` | `9023` | `C:\MAS\Apps\HRLinkPortal` | Started |
+| `MAS-Webkit-API` | `4859` | `C:\MAS\Apps\MAS-Webkit-API` | Started（Companion/Webkit `TopLogic.WebApi`） |
 
 访问入口：
 
 ```text
 http://192.168.2.21:9021/   # MAS-WEB（管理门户）
-http://192.168.2.21:9022/   # MemberPortal 登录页
-http://192.168.2.21:9023/   # HRLink 参考占位页；Swagger: /swagger
+http://192.168.2.21:9022/   # MemberPortal
+http://192.168.2.21:9023/   # HRLink；Swagger: /swagger
+http://192.168.2.21:4859/   # Webkit API（无默认页，根路径 403）
 ```
 
 部署说明：
 
-- 应用发布包来源：iCare repo `docs/MAS-old-c#/old-C#-code/`
-- VM 内部署副本：`C:\MAS\Apps\MAS-API`、`C:\MAS\Apps\MAS-WEB`、`C:\MAS\Apps\MemberPortal`、`C:\MAS\Apps\HRLinkPortal`
+- 应用发布包来源：iCare repo `docs/MAS-old-c#/old-C#-code/`（含 `MAS-Webkit-API`，原生产站名 `MASAPIProd`）
+- VM 内部署副本：`C:\MAS\Apps\MAS-API`、`MAS-WEB`、`MemberPortal`、`HRLinkPortal`、`MAS-Webkit-API`
 - 原始配置备份：`Web.config.orig` / `appsettings.json.orig` / `web.config.orig`
-- 数据库连接指向 `mssql-ref`：`192.168.2.20,1433`（仅 MAS-API；两个门户 B1 不直连库）
+- 数据库连接指向 `mssql-ref`：`192.168.2.20,1433`（`MAS-API` 与 `MAS-Webkit-API`）
 - `MAS-WEB` 的 `serverlink` 指向 `http://192.168.2.21:9020/`
-- MemberPortal / HRLink 的 API 占位指向 `http://192.168.2.21:9020/`（**不是**真实 Webkit `:4859`，业务登录预期失败）
+- MemberPortal `MemberPortalAPI` / HRLink `IHCWebkitAPI` 指向 `http://192.168.2.21:4859/`（Webkit，**不是**管理端 9020）
 - 环境开关已按 NAS 旧部署对齐到 preprod / client-prod 形态：
   - `MAS-WEB`：`env=client-prod`
   - `MAS-API`：`prodEnv=true`、`uatEnv=false`

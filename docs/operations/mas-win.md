@@ -1,5 +1,38 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 10:55 CST - 部署 MAS-Webkit-API（TopLogic.WebApi :4859）
+
+- 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）
+- 操作人：`Grok`
+- 原因：为 HR Link / MAP 提供参考环境用的 **Webkit / Companion API**（生产站名 `MASAPIProd`，主程序 `TopLogic.WebApi.dll`），替代此前把门户指到管理端 `MAS-API:9020` 的 B1 占位。
+- 影响：
+  - 新增 IIS 站点 **`MAS-Webkit-API:4859`**、AppPool `MAS-Webkit-API`、防火墙入站 `4859`。
+  - 部署路径：`C:\MAS\Apps\MAS-Webkit-API`（来源 iCare `docs/MAS-old-c#/old-C#-code/MAS-Webkit-API`）。
+  - `Web.config` 本地化：SQL → `192.168.2.20,1433` / `mas_ref_owner`；`CATALOG_A=medicalassistance_preprod`；`BaseUrl=http://192.168.2.21:4859/`；上传目录 → `C:\MAS\Data\Webkit\...`；去掉 URL Rewrite 段（Server Core 未装 Rewrite 模块，否则 500.19）。
+  - `HRLinkPortal` `appsettings.json` 的 `IHCWebkitAPI` → `http://192.168.2.21:4859/`。
+  - `MemberPortal` `Web.config` 的 `MemberPortalAPI` → `http://192.168.2.21:4859/`。
+  - **未**从生产机拷文件；未改 Azure / 生产。
+- 回滚方式：
+  - 删除站点/AppPool `MAS-Webkit-API` 与目录 `C:\MAS\Apps\MAS-Webkit-API`。
+  - 恢复 `appsettings.json.bak.webkit-20260729`、`Web.config.bak.webkit-20260729`（MemberPortal / HRLink）。
+  - 配置原件：`Web.config.orig`。
+- 做了什么：
+  1. 修正本地目录名尾部空格后打包 `MAS-Webkit-API`。
+  2. PVE 临时 HTTP 传入 Windows Staging，解压到 `C:\MAS\Apps\MAS-Webkit-API`。
+  3. 本地化配置 + 建站 4859。
+  4. 门户 API 基址改指 4859。
+- 验证结果：
+  - 站点 `MAS-Webkit-API` **Started**，`*:4859` 监听。
+  - `GET http://192.168.2.21:4859/` → **403**（API 无默认页，符合预期）。
+  - `POST /login` → **400** JSON `parameters null or missing`（路由已工作，缺加密参数）。
+  - `POST /checkpasswordexpirycompany` 明文测试 → **500** `CryptographicException: Length of the data to decrypt is invalid`（路由已进入业务逻辑，明文非 CryptLib 密文，预期失败）。
+  - 现有 `9020`–`9023` 仍可用（HRLink 根路径仍 200）。
+- 已知限制：
+  - 真登录需 CryptLib 加密字段 + 有效 OAuth client（`authprovidermas` 等库与 `oauth_clients` 数据）。
+  - 配置仍引用 `authprovidermas`、`apicachemas`；与 mas-win 管理端常用的 `authprovidermasweb` 可能不同，业务登录前需核对 mssql-ref 库是否齐全。
+  - 无 `Global.asax`（发布包未带）；当前路由已能响应。
+  - OTP 微服务仍未部署。
+
 ## 2026-07-28 15:05 CST - 部署 MemberPortal(9022) + HRLinkPortal(9023)（B1 仅前端）
 
 - 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）
