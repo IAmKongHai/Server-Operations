@@ -1,5 +1,20 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 14:08 CST - 覆盖部署 HRLink 真实 SPA 前端
+
+- 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）
+- 操作人：`Grok`
+- 原因：`http://192.168.2.21:9023/` 仍是 B1 占位 `index.html`（wwwroot 仅 1 文件），用户无法看到真实 Insular HR Link 登录 UI。
+- 影响：
+  - 用完整包 `HRLinkPortalProdv2`（wwwroot 275 文件）覆盖 `C:\MAS\Apps\HRLinkPortal`。
+  - 短暂停止 `HRLinkPortal` 站点/应用池以释放日志文件锁。
+  - `IHCWebkitAPI` 保持 `http://192.168.2.21:4859/`；上传路径本地化；关闭 HTTPS 跳转。
+- 回滚：无完整镜像备份；可从 iCare 包重新部署或恢复占位页（不推荐）。
+- 验证：
+  - `GET /` → 200，title **Insular HR Link**，入口 `assets/index.19d8eae8.js`。
+  - `GET /assets/index.19d8eae8.js` → 200，约 536KB。
+  - 浏览器强制刷新（Ctrl+F5）后应见真实前端而非 Reference Environment 占位文案。
+
 ## 2026-07-29 10:55 CST - 部署 MAS-Webkit-API（TopLogic.WebApi :4859）
 
 - 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）
