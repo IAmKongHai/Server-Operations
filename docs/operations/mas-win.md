@@ -1,5 +1,18 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 14:51 CST - 修复 HRLink 误连 cloudkit.toplogic.com.ph
+
+- 服务器：`mas-win`（`192.168.2.21`）
+- 操作人：`Grok`
+- 原因：登录 HR Link 时后端报 `No such host is known. (cloudkit.toplogic.com.ph:6030)`。排查发现 `web.config` 将 `ASPNETCORE_ENVIRONMENT=Development`，ASP.NET Core 用 `appsettings.Development.json` **覆盖**了 `appsettings.json` 里已改好的 `http://192.168.2.21:4859/`。
+- 影响：
+  - `ASPNETCORE_ENVIRONMENT` 改为 **Production**。
+  - `appsettings.json` / `appsettings.Development.json` 的 `IHCWebkitAPI` 均改为 `http://192.168.2.21:4859/`。
+  - Login ClientId/Secret 恢复为发布包生产值（供 OAuth 对 Webkit）；OTP 仍指本机无效地址。
+  - 回收 `HRLinkPortal` 应用池。
+- 验证：站点 9023 仍 200；4859 `/login` 仍返回 API JSON 400（路由存活）。用户需再试登录；若仍失败再查 `authprovidermas` / CryptLib / OAuth client 数据。
+- 回滚：改回 Development + Development.json 中 cloudkit 地址（不推荐）。
+
 ## 2026-07-29 14:08 CST - 覆盖部署 HRLink 真实 SPA 前端
 
 - 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）
