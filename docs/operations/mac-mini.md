@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-07-29 09:27 CST - 恢复 mac-mini-sonar-1..4
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户要求启动本机 org runner。
+- 影响：`mac-mini-sonar-1..4` 重新 online，可领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job。
+- 备份：无配置改动；沿用已有 LaunchAgent 与 `~/bin/mac-mini-runner-resume.sh`。
+- 回滚 / 再次停止：
+  ```bash
+  for n in 1 2 3 4; do (cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh stop); done
+  ```
+- 做了什么：执行 `ssh mac-mini '~/bin/mac-mini-runner-resume.sh'`，四 slot 均为 Started；4 个 `Runner.Listener` 在跑。
+- 验证结果：
+  - 本机：`svc.sh status` → Started（PID 47565 / 47582 / 47599 / 47616）
+  - GitHub API：`mac-mini-sonar-1..4` 均为 `online`；其中 `mac-mini-sonar-2` 已 busy
+- 启停 runbook：`docs/runbooks/mac-mini-runner-start-stop.md`
+
 ## 2026-07-28 19:37 CST - 临时停止 mac-mini-sonar-1..4（用户占用主机）
 
 - 服务器：`mac-mini`
