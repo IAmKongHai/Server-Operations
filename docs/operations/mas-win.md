@@ -1,5 +1,20 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 15:20 CST - 验证 HRLink 浏览器登录成功（Dashboard）
+
+- 服务器：`mas-win`（`192.168.2.21:9023`）+ `MAS-Webkit-API:4859`
+- 操作人：`Grok`
+- 原因：用户反馈登录卡住；此前 API 已通但 ego-browser UI 验证未完成。
+- 做了什么（只读验证，无配置变更）：
+  - 复现：裸 `POST /api/auth` 若不带正确 **HMAC app-sign**，`HttpContentHashMiddleware` 抛 500（空 body）。
+  - app-sign 算法（前端 `Ly` / CryptoJS）：密钥未登录时为 ContentHashing `DefaultKey`=`[660JVJTe}tM`；`keyB64=Base64(Utf8(key))`，`app-sign=Base64(HmacSHA256(bodyJson, keyB64))`。
+  - 正确签名后 `POST http://192.168.2.21:9023/api/auth` → **200**，`success=true`，`fullname=San Jose, Lourence T`，`companyname=ABC COMPANY`，`subscriptionno=3917`，Set-Cookie `__Hst-Spa-HR`。
+  - 浏览器：Pinia `auth_user.loginUsernamePassword` + `router.push('/dashboard?from=login')` 成功进入 Dashboard。
+  - 可见数据：POLICY PERIOD、Member Enrollment、Recent Upload Members（含 batch 3199 等）、Event Logs 区。
+- 性能注意：Webkit `GET /me` 偶发 **20–40s**，页面会长时间显示 `LOADING ...`；登录总耗时约 20s+ 属后端慢，不是前端死循环。
+- 自动化坑：`wait()` 单位是**秒**；`wait(10000)` 会假死。Vue 登录表单绑定 `r.username/r.password`，纯 DOM 赋值可能不触发 v-model；表单成功后需 `router.push`。
+- 回滚：无（只读）。
+
 ## 2026-07-29 15:05 CST - 修复 HRLink 登录：auth DB + 密码过期
 
 - 服务器：`mas-win` / `mssql-ref`
