@@ -1,5 +1,21 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 16:20 CST - MemberPortal store 全量本地回退 + 账号2 登录耗时验证
+
+- 服务器：`mas-win` / `MemberPortal:9022`
+- 操作人：`Grok`
+- 原因：用户强刷后仍见 store 500；Dashboard 极慢。要求用账号 `qnetir@outlook.com` 验证。
+- 验证（HTTP，非浏览器填表）：
+  - `SignInUser` ≈ **22s** → success（email 匹配）
+  - `ContinueSignIn` ≈ **0s** → success
+  - 登录后首页 Dashboard HTML ≈ **22s**
+  - `GET /member/member-ledger/details` ≈ **22s** → success，会员 `BAHADOR, DAVOUD` / memberno `02826174`
+  - 端到端约 **65s**（主要耗在 Webkit `/login` + `/me` + `v7/memberdetails`）
+- store：将 `StoreFallbackModule` 改为**所有** `/framework/common/store` 请求直接返回本地 `default-profile.png`（不再尝试外网），验证任意 base64url → **200 image/png**。
+- 登录 UI 注意：两步登录——先 `#txtCheckEmail` + `#btnSignInCheck`，再显示密码 `#txtPassword` + `#btnSignIn`。
+- ego-browser 自动化中途用户接管 task space，未完成 UI 全程；API 路径已证实可登。
+- 回滚：还原 `App_Code/StoreFallbackModule.cs` / 去掉 modules 项，回收 AppPool。
+
 ## 2026-07-29 16:05 CST - 修复 MemberPortal store 500 与 Dashboard 日期 JS 崩溃
 
 - 服务器：`mas-win` / `MemberPortal:9022`
