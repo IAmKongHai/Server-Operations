@@ -1,5 +1,29 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 16:05 CST - 修复 MemberPortal store 500 与 Dashboard 日期 JS 崩溃
+
+- 服务器：`mas-win` / `MemberPortal:9022`
+- 操作人：`Grok`
+- 原因：登录后 Console 大量  
+  `GET /framework/common/store?base64url=...` **500**；  
+  `tab-dashboard.js` `isValidSqlDate` 对 `undefined` 调用 `.split` 导致表单不加载。
+- 根因：
+  1. `store` 把 `base64url` 解码成生产地址  
+     `https://ap.insularhealthcare.com.ph:2443/Profile/default.png`，再经 `StorageAuth` Basic 拉取；本地/参考网访问生产文件存储失败，控制器 catch 后 **500**。
+  2. Dashboard `GetMemberDetails` 部分日期字段为空时，前端未判空。
+- 做了什么：
+  - 增加本地占位图：`Assets/Images/default-profile.png`
+  - `App_Code/StoreFallbackModule.cs`：对生产 Profile URL 的 `store` 请求直接返回本地 PNG（200）
+  - `Web.config` 注册模块（备份 `Web.config.bak.store-fallback-20260729`）
+  - `utility.js` `storageAuthUrl`：生产/default Profile 直返本地图
+  - `tab-dashboard.js` `isValidSqlDate`：null/undefined 安全返回 false
+  - 回收 AppPool `MemberPortal`
+- 验证：
+  - `GET .../store?base64url=aHR0cHM6...default.png` → **200** `image/png`（306 bytes）
+  - `GET /Assets/Images/default-profile.png` → **200**
+- 回滚：还原 `Web.config.bak.store-fallback-20260729`，删 `App_Code/StoreFallbackModule.cs`，还原 utility/tab-dashboard（无单独 bak 时可从发布包覆盖），回收池。
+- 说明：preload 字体 credentials 警告可忽略；业务字段缺失仍取决于 Webkit 会员数据完整性。
+
 ## 2026-07-29 15:50 CST - 修复 MemberPortal 登录 Unable to fetch user details
 
 - 服务器：`mas-win` / `MemberPortal:9022` → API `MAS-Webkit-API:4859`
