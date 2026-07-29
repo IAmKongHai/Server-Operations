@@ -1,5 +1,20 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 15:05 CST - 修复 HRLink 登录：auth DB + 密码过期
+
+- 服务器：`mas-win` / `mssql-ref`
+- 操作人：`Grok`
+- 原因：登录失败。排查链路后发现两层问题：
+  1. （此前）`appsettings.Development.json` 覆盖导致请求 cloudkit（已修）。
+  2. **Webkit** `Web.config` 连 **`authprovidermas`**，mssql-ref 上该库不存在/登录失败；OAuth 校验在 `GetOAuthClientDetails` 炸。
+  3. 账号 `jts@toplogic.com.ph` 在 `maswebkit.dbo.tblsubscriptioncompany.passwordexpiry=2025-10-31`，业务返回 **errorcode 2003 密码过期**。
+- 做了什么：
+  - `MAS-Webkit-API\Web.config`：`authprovidermas` → **`authprovidermasweb`**；`apicachemas` 暂改指 `maswebkit`（库不存在）。
+  - SQL：`UPDATE tblsubscriptioncompany SET passwordexpiry=DATEADD(year,5,GETDATE()) WHERE emailaddress='jts@toplogic.com.ph'`（1 行）。
+- 验证：`POST http://192.168.2.21:9023/api/auth`（带 app-sign）→ **HTTP 200**，`success=true`，`subscriptionno=3917`，`companyname=ABC COMPANY`。
+- 回滚：恢复 `Web.config.bak.authdb-20260729`；把 `passwordexpiry` 改回原值。
+- 说明：浏览器需硬刷新后再登；ego-browser 任务空间被用户接管未完成 UI 自动化，但 API 登录已通。
+
 ## 2026-07-29 14:51 CST - 修复 HRLink 误连 cloudkit.toplogic.com.ph
 
 - 服务器：`mas-win`（`192.168.2.21`）
