@@ -1,5 +1,26 @@
 # pve 运维操作时间线
 
+## 2026-07-29 16:33 CST - Tailscale 显示 offline：根因是家里路由器代理挂了
+
+- 服务器：`pve`
+- 操作人：`Grok`（只读排查）+ 用户定位根因并恢复路由器代理
+- 原因：`ssh pve` 可连，但 `tailscale status` 里本机显示 `offline`，外网/其他 peer 连不上 `pve`；健康检查报无法连接 coordination server。
+- 排查现象（代理挂掉时）：
+  1. `tailscaled` 仍 `active`，但状态为 **logged out**：`register request` / `PollNetMap` 访问 `https://controlplane.tailscale.com` 失败（`HTTPS: EOF`）。
+  2. MagicDNS（`100.100.100.100`）与上游 DNS（含 `192.168.2.1`、`8.8.8.8`）查询超时；`curl` 解析 `controlplane.tailscale.com` 超时。
+  3. 网关 `192.168.2.1` ICMP 正常；`1.1.1.1` 不通；`8.8.8.8` 偶发可达。
+  4. 强制 `--resolve` 后访问 controlplane 仍 TLS EOF（`unexpected eof while reading`）。
+  5. `netcheck` 仍有 UDP / 公网映射 / 最近 DERP `km`，说明数据面部分可用，**控制面 HTTPS 被中间代理链路打断**。
+- 根因：家里路由器上的代理失效；出站 HTTPS/DNS 异常，Tailscale 无法与 control plane 同步，节点被标为 offline。本机能 `ssh pve` 是因为走局域网 `192.168.2.10`，不依赖 Tailscale。
+- 做了什么：
+  - 仅在 `pve` 上只读诊断（status / netcheck / DNS / HTTPS / 日志），**未改** `tailscaled` 配置、未重启服务。
+  - 用户修复家里路由器代理后，控制面恢复。
+- 验证（恢复后）：
+  - `tailscale status`：`pve` 不再 `offline`，无 Health 告警；`BackendState: Running`。
+  - `dig @8.8.8.8 controlplane.tailscale.com` 正常；`curl -I https://controlplane.tailscale.com` → `HTTP/2 302`。
+- 影响：排查期间无服务改动；代理恢复后 tailnet 控制面同步恢复，其他节点可再经 Tailscale 访问 `pve` / 子网路由。
+- 回滚：无配置变更。
+
 ## 2026-07-10 11:00 CST - Tailscale 打洞修复：为 pve/mssql 分配独立 UDP 端口
 
 - 服务器：`pve`（并联动 `mssql-ref`）
