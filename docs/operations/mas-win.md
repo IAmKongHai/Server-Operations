@@ -1,5 +1,19 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 15:40 CST - 消掉 HRLink 前端 console.error("No") 噪音
+
+- 服务器：`mas-win` / `HRLinkPortal:9023`
+- 操作人：`Grok`
+- 原因：登录已通，但控制台仍刷 `console.error("No")`（及 app-sign 调试 log）。
+- 根因：ContentHash `Ly(msg,key)` 在 msg/key 为空时 `console.error("No")`；GET 无 params 或校验路径会触发。`/api/auth/me` **401** 是未登录探测，属预期，Chrome 会红字记录网络失败，应用层无法完全关掉。
+- 做了什么：
+  - 备份：`index.19d8eae8.js.bak.console-quiet-20260729`
+  - 补丁：空参直接 `return ""`（去掉 `console.error("No")`）；去掉 app-sign 不匹配时的 `console.log(generated/header)`。
+  - 仍保留先前 with-otp→auth 修改。
+- 验证：下发 JS 中无 `console.error("No")` / `console.log("generated`。
+- 回滚：用 `.bak.console-quiet-20260729` 覆盖回 assets（或再叠 `.bak.no-otp-20260729`）。
+- 用户：强刷后再看 Console；401 `/me` 打开未登录页时仍可能出现（正常）。
+
 ## 2026-07-29 15:35 CST - 修复 HRLink 表单登录 500（with-otp → 无 OTP 路径）
 
 - 服务器：`mas-win` / `HRLinkPortal:9023`
