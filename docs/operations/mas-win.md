@@ -1,5 +1,25 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 15:50 CST - 修复 MemberPortal 登录 Unable to fetch user details
+
+- 服务器：`mas-win` / `MemberPortal:9022` → API `MAS-Webkit-API:4859`
+- 操作人：`Grok`
+- 原因：账号 `afrivera@icare.com.ph` 登录提示 `Unable to fetch user details. Please contact MIS/IT.`
+- 根因：
+  1. `SignInUser` 可成功拿 token，但 `ProcceedWithSignIn` 调 `MemberServices.GetMemberDetails` 时请求 **`GET {MemberPortalAPI}v8/memberdetails?...`**。
+  2. 当前 Webkit 只注册了 `memberdetails`～`v7/memberdetails`（`v7` 内部已用 V8 SP），**没有 `v8/memberdetails` 路由** → **HTTP 404 HTML**。
+  3. `GetMemberDetails` 失败返回 null → `TempSignInResult.user == null` → `ContinueSignIn` 返回 500 文案。
+  4. `Logs/login_*.txt` 可见 `user:null`；`Logs/Member Details_*.txt` 可见 `{"error":404,...}`。
+- 做了什么：
+  - 备份：`C:\MAS\Apps\MemberPortal\bin\MemberPortal.dll.bak.v8-to-v7-20260729`
+  - 二进制同长替换（UTF-16LE）：`v8/memberdetails` → `v7/memberdetails`（1 处）
+  - 回收 AppPool `MemberPortal`
+- 验证：
+  - `POST /Home/SignIn/SignInUser` → `success=true`，`initial.emailaddress=afrivera@icare.com.ph`
+  - `POST /Home/SignIn/ContinueSignIn` → **`{"success":true}`**
+- 回滚：用 `.bak.v8-to-v7-20260729` 覆盖 `MemberPortal.dll` 并回收 AppPool。
+- 说明：若后续升级 Webkit 增加正式 `v8/memberdetails` 路由，可再改回 v8。
+
 ## 2026-07-29 15:40 CST - 消掉 HRLink 前端 console.error("No") 噪音
 
 - 服务器：`mas-win` / `HRLinkPortal:9023`
