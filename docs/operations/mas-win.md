@@ -1,5 +1,23 @@
 # mas-win 运维操作时间线
 
+## 2026-07-29 15:35 CST - 修复 HRLink 表单登录 500（with-otp → 无 OTP 路径）
+
+- 服务器：`mas-win` / `HRLinkPortal:9023`
+- 操作人：`Grok`
+- 原因：用户控制台显示 `POST /api/auth/with-otp → 500`；打开页 `GET /api/auth/me → 401`（未登录预期）。
+- 根因：
+  - SPA 登录表单默认走 **`/api/auth/with-otp`**（`loginUsernamePassword(..., false)`）。
+  - 该接口登录 Webkit 成功后还会调 OTP：`OTHER_API.OTP=http://127.0.0.1:9/`（占位假地址），连接被拒绝 → `HttpRequestException` → **500**。
+  - 此前自动化用的是 `loginUsernamePassword(..., true)` → **`/api/auth`**（不走 OTP），所以能进 Dashboard；与用户真实点 Sign In 路径不一致。
+- 做了什么：
+  - 备份：`wwwroot/assets/index.19d8eae8.js.bak.no-otp-20260729`
+  - 补丁：将包内唯一一处 `"/api/auth/with-otp"` 替换为 `"/api/auth"`（本地无 OTP 服务）。
+- 验证：
+  - 下发 JS 中 `with-otp` 出现次数 = 0。
+  - `POST /api/auth` 仍 200；旧 `with-otp` 路由若直打仍会 500（后端未改）。
+- 回滚：`Copy-Item ...index.19d8eae8.js.bak.no-otp-20260729 ...index.19d8eae8.js` 后强刷。
+- 用户侧：必须 **强刷 / 清缓存** 才能加载新 JS；登录后 `/me` 可能仍慢 20–40s。
+
 ## 2026-07-29 15:20 CST - 验证 HRLink 浏览器登录成功（Dashboard）
 
 - 服务器：`mas-win`（`192.168.2.21:9023`）+ `MAS-Webkit-API:4859`
