@@ -1,5 +1,33 @@
 # tizi-ddy 运维时间线
 
+## 2026-07-30 12:55 CST - 对照 tizi 的 IPv6 处理方式（只读）
+
+- 服务器：`tizi`（对照） / `tizi-ddy`（待对齐）
+- 操作人：`Grok`
+- 原因：用户要求查 `tizi` 如何处理 IPv6；`tizi-ddy` 与 `tizi` 同 Provider，应对齐。
+- 影响：无（只读；**尚未**改 ddy 配置）。
+- 结论摘要：
+  1. **系统层（tizi / tizi-cyp / tizi-ddy 一致）**  
+     - 无公网 IPv6，仅 eth0 `fe80::` + Tailscale ULA；无默认 IPv6 路由；`ping6`/`curl -6` 失败，`curl -4` 正常。  
+     - 厂商 `ipv6net.service` + `/etc/init_ipv6_tunnel` 为 **空脚本 no-op**，未建 SIT。  
+     - **没有** 在 sysctl 里 `disable_ipv6=1`。
+  2. **应用层（tizi / tizi-cyp 的有意处理）**  
+     - S-UI REALITY TLS：`reality.handshake.domain_strategy = "ipv4_only"`。  
+     - 历史：`s-ui.db.before-ipv4-only-20260501`；`bash_history` 中  
+       `json_set(..., '$.reality.handshake.domain_strategy', 'ipv4_only')`。  
+     - 原因：dest `assets-xbxweb.xbox.com` 同时有 A + AAAA；节点无 IPv6 出站时 handshake 若走 AAAA 会失败。  
+     - direct outbound **未**再设 domain strategy（`{}`）；listen 仍为 `::`（双栈入站）。
+  3. **tizi-ddy 缺口（3x-ui / Xray）**  
+     - REALITY `dest/target` = `assets-xbxweb.xbox.com:443`，**无** 等价 `ipv4_only`。  
+     - freedom outbound `domainStrategy=AsIs`；routing `AsIs`。  
+     - sniffing 开启，出站可能对嗅探域名再解析，存在选 AAAA 的风险。
+  4. **建议对齐（待用户确认后执行；会触达 xray 重载）**  
+     - inbound `stream_settings.sockopt.domainStrategy = UseIPv4`（对 REALITY dial dest 侧更贴近 sing-box 的 handshake 策略）；  
+     - freedom outbound `domainStrategy = UseIPv4`；  
+     - 备份 x-ui.db + config.json 后再改。
+- 回滚方式：N/A（本条只读）。
+- 验证：三台 `ip -6 route` / REALITY dest DNS A+AAAA / tizi tls JSON 已核对。
+
 ## 2026-07-30 12:43 CST - 只读检查系统/3x-ui 日志（重点 IPv6）
 
 - 服务器：`tizi-ddy`
