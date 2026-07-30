@@ -1,5 +1,31 @@
 # tizi-ddy 运维时间线
 
+## 2026-07-30 12:43 CST - 只读检查系统/3x-ui 日志（重点 IPv6）
+
+- 服务器：`tizi-ddy`
+- 操作人：`Grok`
+- 原因：用户要求检查代理服务器日志，特别关注 IPv6 相关报错。
+- 影响：无（只读排查，未改配置/服务）。
+- 备份：无。
+- 回滚方式：无。
+- 变更时序 / 排查结论：
+  1. **服务状态**：`x-ui` active（PID 4407，自 2026-07-28 10:57 起）；内嵌 `xray 26.7.11`（PID 4417）；uptime ~2d；load 极低。
+  2. **IPv6 报错**：**未发现**。
+     - `journalctl -p err..alert` 近 7 天：`ipv6|IPv6|inet6|AF_INET6` 匹配 **0**。
+     - `/var/log/x-ui/3xui.log`：无 ERROR/FATAL；与 IPv6 相关仅有历史 INFO「Web/Sub server running HTTP on `[::]:2095/2096`」（首启默认绑定，后已改为 Tailscale IPv4 `100.75.133.13:2095`）。
+     - `journalctl -u x-ui`：无 Xray dial/listen 失败类日志。
+  3. **IPv6 栈现状（重要，但不是“报错”）**：
+     - `disable_ipv6=0`，但 **eth0 无公网 IPv6**，仅 `fe80::` link-local；Tailscale ULA `fd7a:115c:a1e0::13a:850e/128`。
+     - **无默认 IPv6 路由**：`ip -6 route get 2001:4860:4860::8888` → `Network is unreachable`；`ping6` / `curl -6` 失败；`curl -4` 正常。
+     - `ipv6net.service`（SIT tunnel）enabled 且 active(exited)，但 `/etc/init_ipv6_tunnel` 内容为空 no-op，**未建立任何 sit 接口**。
+  4. **数据面**：xray 监听 `*:443`（双栈 socket）；当前 ESTAB 连接均为 IPv4-mapped（`[::ffff:80.251.215.131]:443` ↔ 国内 IPv4 客户端）；路由 `domainStrategy=AsIs`，outbound freedom 同为 `AsIs`。
+  5. **其它日志噪音（非 IPv6）**：
+     - 公网 SSH 扫描：`kex_exchange_identification: Connection reset by peer` 大量；偶发 `maximum authentication attempts exceeded`；fail2ban sshd 正常 ban/unban。
+     - 面板：`Unauthorized WebSocket connection attempt from 100.92.181.15`（自 07-30 03:22 起间歇，多为浏览器会话过期/未登录 WS 探测，来源为管理端 Tailscale IP）。
+     - UFW 持续 BLOCK 非 22/443 扫描端口（预期行为）。
+  6. **日志可见性限制**：xray `loglevel=warning`、`access=none`、`error=""`（stderr 进 x-ui journal）；若客户端经代理访问 **纯 IPv6 目标**，理论上可能出现 dial 失败，但当前 journal 中**没有**此类 warning；若要深挖出站 IPv6 失败需临时把 loglevel 提到 `info`/`debug`（需确认后改）。
+- 验证：只读命令已执行；结论如上。
+
 ## 2026-07-28 11:15 CST - 分享链接永久使用域名 ddy-tizi.skysms.xyz
 
 - 服务器：`tizi-ddy`
