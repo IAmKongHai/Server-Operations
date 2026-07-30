@@ -1,5 +1,34 @@
 # tizi-ddy 运维时间线
 
+## 2026-07-30 13:01 CST - 对齐 tizi：Xray 强制 IPv4 解析（UseIPv4）
+
+- 服务器：`tizi-ddy`
+- 操作人：`Grok`
+- 原因：与同 Provider 的 `tizi`/`tizi-cyp` 对齐；节点无公网 IPv6，REALITY dest（`assets-xbxweb.xbox.com`）有 AAAA，避免 handshake/出站误走 IPv6。
+- 影响：
+  - **数据面短暂中断**：`systemctl restart x-ui` 两次（约 12:59、13:00 CST），xray 重载后 `:443` 恢复监听。
+  - inbound `in-443-tcp`：`stream_settings.sockopt.domainStrategy = UseIPv4`（贴近 S-UI `handshake.domain_strategy=ipv4_only`）。
+  - freedom outbound `direct`：`domainStrategy = UseIPv4`（写入 settings `xrayTemplateConfig`，重启后持久）。
+  - REALITY dest/SNI/密钥未改。
+- 备份：`/root/backup/tizi-ddy-ipv4-only-20260730-125855/`（`x-ui.db`、`config.json`、`stream_settings.before.json`）。
+- 回滚方式：
+  ```bash
+  cp -a /root/backup/tizi-ddy-ipv4-only-20260730-125855/x-ui.db /etc/x-ui/x-ui.db
+  cp -a /root/backup/tizi-ddy-ipv4-only-20260730-125855/config.json /usr/local/x-ui/bin/config.json
+  # 可选：sqlite 删除 key=xrayTemplateConfig 后恢复默认模板
+  systemctl restart x-ui
+  ```
+- 变更时序：
+  1. 备份 DB + config.json  
+  2. 更新 `inbounds.stream_settings.sockopt.domainStrategy=UseIPv4`  
+  3. 首次改 config.json outbound 后 restart → outbound 被默认模板冲回 `AsIs`；inbound sockopt 仍在  
+  4. 将含 `UseIPv4` 的默认骨架写入 `settings.xrayTemplateConfig` 再 restart  
+  5. 运行时 config：outbound `UseIPv4` + inbound sockopt `UseIPv4` 均保留；xray 26.7.11 started，无新 ERROR
+- 验证：
+  - `ss`：`*:443` xray、`100.75.133.13:2095` 面板  
+  - config.json / DB 双处 `UseIPv4`  
+  - 本机 `curl -4` 外网 200；dest 域名仍可走 A 记录连通
+
 ## 2026-07-30 12:55 CST - 对照 tizi 的 IPv6 处理方式（只读）
 
 - 服务器：`tizi`（对照） / `tizi-ddy`（待对齐）
