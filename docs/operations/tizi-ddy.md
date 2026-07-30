@@ -1,5 +1,37 @@
 # tizi-ddy 运维时间线
 
+## 2026-07-30 23:02 CST - REALITY minClientVer=1.0.0 修复 Shadowrocket 兼容
+
+- 服务器：`tizi-ddy`
+- 操作人：`Grok`
+- 原因：同一 iPhone 上 `rao-tizi`（S-UI/sing-box）可用、电脑上同一 `konghai-test` 可用，但 Shadowrocket 连 `tizi-ddy`（3x-ui + Xray REALITY）失败。排查发现今日面板升至 **3.6.0 / Xray 26.7.28** 后日志反复警告：
+  `REALITY: The default minimal client version is Xray-core v26.3.27, other clients may be refused to connect`。
+  社区（Xray #6482、3x-ui #5922 等）与现象一致：新版 Xray 在 `minClientVer` 留空时默认要求客户端 ≥ 26.3.27；Shadowrocket 版本号格式对不上会被拒，桌面 Xray 客户端不受影响。
+- 选型 / 影响：
+  - 将入站 REALITY **最小客户端版本** 显式设为 `1.0.0`（放宽默认门槛，恢复 Shadowrocket 等非 Xray 版本号客户端）。
+  - **数据面短暂中断**：`systemctl restart x-ui` 两次（约 23:01、23:02 CST）。
+  - dest/SNI/密钥/shortIds/UUID 未改。
+  - Xray 会额外警告：改低 `minClientVer` 可能略增 IP 被墙探测风险（官方提示）；与兼容性权衡后仍采用社区通行值 `1.0.0`。
+- 备份：
+  - `/root/backup/tizi-ddy-minclient-1.0.0-20260730-230143/`（首次误改 `minClient` 字段前的 `x-ui.db` + `config.json`）
+  - `/root/backup/tizi-ddy-minclientver-1.0.0-20260730-230237/`（写入 `minClientVer` 前的 `x-ui.db` + `config.json`）
+- 回滚方式：
+  ```bash
+  cp -a /root/backup/tizi-ddy-minclientver-1.0.0-20260730-230237/x-ui.db /etc/x-ui/x-ui.db
+  cp -a /root/backup/tizi-ddy-minclientver-1.0.0-20260730-230237/config.json /usr/local/x-ui/bin/config.json
+  systemctl restart x-ui
+  ```
+- 变更时序：
+  1. 备份 DB + config.json  
+  2. 首次只把 DB/运行时字段 `minClient` 写成 `1.0.0` 并 restart → **无效**：Xray JSON 只认 `minClientVer`，启动仍报 default min = 26.3.27  
+  3. 再次备份；在 `inbounds.stream_settings.realitySettings` 写入 **`minClientVer":"1.0.0"`**（并同步 legacy `minClient`、补 `maxClientVer`/`maxTimeDiff`），`systemctl restart x-ui`  
+  4. 运行时 `config.json` 已含 `minClientVer: 1.0.0`；`*:443` 由 xray 监听；本机 REALITY TLS 探针仍返回 `*.xbox.com`
+- 验证：
+  - 启动日志变为：`REALITY: Changing "minClientVer" will increase the likelihood of your server's IP being blocked by the GFW`（说明字段已生效）
+  - **不再出现** `default minimal client version is Xray-core v26.3.27`
+  - `x-ui` active，`Xray 26.7.28 started`，`:443` LISTEN
+  - 待用户在 iPhone Shadowrocket 用原 `konghai-test` 节点复测通网
+
 ## 2026-07-30 13:01 CST - 对齐 tizi：Xray 强制 IPv4 解析（UseIPv4）
 
 - 服务器：`tizi-ddy`
