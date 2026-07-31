@@ -1,5 +1,28 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-31 14:21 CST - 停用 Runner 2（止血，未注销）
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（用户确认只做此项）
+- 原因：Runner 2 仅有默认 label `self-hosted, Linux, X64`，会接泛化 self-hosted CI（近期多为 `iCare-mobile-app` Sonar）；本机按 CPU 计费，需先止血。
+- 影响：
+  - `ip-172-31-42-99.ec2.internal-2`（agentId **18**）不再接 job
+  - **未**从 org 注销，目录 `~/actions-runner-2` 保留
+  - Runner 1（`dev-cypresso-ci`）继续承接部署；workflow 侧 CI 误用 `dev-cypresso-ci` 由用户自行改
+- 备份：无（仅 stop + disable 服务）
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'sudo systemctl enable --now actions.runner.cypressoai.ip-172-31-42-99.ec2.internal-2.service'
+  ```
+- 变更时序：
+  1. 确认 agentId 18 `busy=false`
+  2. `sudo systemctl stop` + `disable` unit `actions.runner.cypressoai.ip-172-31-42-99.ec2.internal-2.service`
+  3. 确认本机无 `actions-runner-2` 进程；Runner 1 unit 仍为 active
+- 验证：
+  - 本机：unit **inactive / disabled**
+  - GitHub API：runner 18 **offline**；runner 17 仍 **online**，labels 含 `dev-cypresso-ci`
+- 说明：截图中 `Runner group name: 'default'` 是 org 默认 runner group，与本次误接 CI **无关**；路由靠 **labels**（`dev-cypresso-ci` / 默认 Linux labels），不是 group 名。
+
 ## 2026-07-31 14:12 CST - 只读：runner 配置与误接 CI 根因
 
 - 服务器：`dev-cypresso`（`ip-172-31-42-99.ec2.internal`）
