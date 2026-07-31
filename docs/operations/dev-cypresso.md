@@ -1,5 +1,31 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-31 14:50 CST - mas-icare.cypress.sg 改为 SIT 结束静态说明页
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（用户要求）
+- 原因：SIT 测试阶段结束；公网入口 `https://mas-icare.cypress.sg/` 不再反代 `mas-icare-portal` 容器，改为静态英文说明页，引导从 2026-08-03 起使用 UAT。
+- 影响：
+  - `https://mas-icare.cypress.sg/`（及任意路径）返回静态 notice，**不再**代理 `127.0.0.1:5174` / `/api/` → `api-icare.cypress.sg`
+  - SSL（Certbot）与 HTTP→HTTPS 301 保持不变
+  - **未**停止 `mas-icare-portal` 等业务容器（仅切入口；容器仍监听本机 5174）
+- 备份：
+  - `/etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260731-sit-notice`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'sudo cp /etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260731-sit-notice /etc/nginx/conf.d/mas-icare.cypress.sg.conf && sudo nginx -t && sudo systemctl reload nginx'
+  ```
+- 变更时序：
+  1. 备份现有 nginx conf
+  2. 写入 `/var/www/mas-icare.cypress.sg/index.html`（英文 notice）
+  3. 重写 `mas-icare.cypress.sg.conf`：`root` + `try_files`，去掉 `proxy_pass`
+  4. `nginx -t` 通过后 `systemctl reload nginx`
+- 验证：
+  - `curl -sS -o /dev/null -w '%{http_code}' https://mas-icare.cypress.sg/` → **200**
+  - 响应体含 `SIT testing phase has ended` / `2026-08-03` / UAT 说明
+  - `/api/` 同样 200 且为同一静态页（不再走上游）
+  - HTTP 80 → 301 到 HTTPS
+
 ## 2026-07-31 14:21 CST - 停用 Runner 2（止血，未注销）
 
 - 服务器：`dev-cypresso`
