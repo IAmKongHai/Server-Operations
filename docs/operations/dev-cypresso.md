@@ -1,5 +1,32 @@
 # dev-cypresso 运维时间线
 
+## 2026-07-31 14:12 CST - 只读：runner 配置与误接 CI 根因
+
+- 服务器：`dev-cypresso`（`ip-172-31-42-99.ec2.internal`）
+- 操作人：`Grok`（只读排查，未改 runner / 服务 / 标签）
+- 原因：用户指出 job `cypressoai/iCare-public-backend` run `30607563562` / job `91082991915` 被本机接走；希望本机只接部署、不接 CI（CPU 按时计费）。
+- 排查现状：
+  - **Runner 1** `ip-172-31-42-99.ec2.internal`（agentId **17**，online）：labels `self-hosted, Linux, X64, dev-cypresso-ci`；systemd `actions.runner.cypressoai.ip-172-31-42-99.ec2.internal.service` active；目录 `~/actions-runner`（v2.336.0）
+  - **Runner 2** `ip-172-31-42-99.ec2.internal-2`（agentId **18**，online）：labels **仅** `self-hosted, Linux, X64`（无部署专用 label）；`~/actions-runner-2`
+  - **Runner 3** `ip-172-31-42-99.ec2.internal-3`：unit 存在但 **inactive/disabled**（`~/actions-runner-3`）
+  - 目标 job：`test-lint-build`，`runs-on: dev-cypresso-ci`，runner_name = `ip-172-31-42-99.ec2.internal`（纯 CI：Test / Lint / Build / Smoke）
+  - 近期 Worker 日志：
+    - Runner 1：多数为 `deploy.yml`（set-vars / build-push / Deploy）；夹杂 `iCare-public-backend` 的 `ci.yml`
+    - Runner 2：几乎全是 `iCare-mobile-app` 的 `sonar.yml`（SonarQube Scan）——靠默认 `self-hosted/Linux/X64` 被泛化匹配
+  - 仓库侧误用 `dev-cypresso-ci` 做 CI 的 workflow：
+    - `iCare-public-backend` `.github/workflows/ci.yml` → `runs-on: dev-cypresso-ci`
+    - `iCare-mobile-backend` `.github/workflows/ci.yml` → 同上
+  - 对照正确用法（`iCare-backend` / `iCare-frontend-mas` deploy）：质量 job 用 `backend-ci` / Mac 池；`set-vars` / build-push / Deploy 才用 `dev-cypresso-ci`
+- 影响：无（只读）；问题仍存在，CI 会继续打满本机 CPU 计费
+- 备份：无
+- 回滚：不适用
+- 建议修复（待用户确认后再动）：
+  1. **workflow**：上述两个仓库 `ci.yml` 改为 `backend-ci` 或 `ubuntu-latest`（有 Docker smoke 时优先 Linux 有 Docker 的池 / GitHub-hosted）
+  2. **runner-2**：停服务或从 org 注销（不参与部署池，只会接泛化 self-hosted CI）
+  3. runner-1 保持 `dev-cypresso-ci`，**不要**贴 `backend-ci` / 质量类 label
+- 验证：GitHub API 与本机 `.runner` / systemd / Worker 日志交叉核对一致
+- 参考：`docs/runbooks/ci-runner-pools.md`；2026-07-20 条目「CI 池：dev-cypresso 仅保留部署标签」
+
 ## 2026-07-28 17:56 CST - EBS 扩至 250G 后 guest 侧 growpart + xfs_growfs
 
 - 服务器：`dev-cypresso`
