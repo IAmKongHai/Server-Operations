@@ -1,5 +1,59 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-02 18:18 CST - 只读排查：iCare-backend SonarQube Scan 间歇失败（mac-mini DNS）
+
+- 服务器：`mas-go-dev`（runner `mas-go-dev-ci-1/2`）；对照 `mac-mini` SonarQube、`lemon-imac` / `umacbook-pro`
+- 操作人：`Grok`
+- 原因：用户反馈 GitHub Actions job 常失败，示例  
+  https://github.com/cypressoai/iCare-backend/actions/runs/30742636487/job/91482673100
+- 影响：只读排查，未改 Tailscale / DNS / runner / Sonar / workflow
+- 备份：无
+- 回滚：无（无变更）
+
+### 现象
+
+- Job：`SonarQube Scan`（workflow `SonarQube Analysis` / `.github/workflows/sonar.yml`）
+- 失败 runner：`mas-go-dev-ci-2`（同 run 重试落到 `lemon-imac-2` 后成功）
+- 测试与 coverage 步骤均通过；失败在最后 `SonarSource/sonarqube-scan-action`：
+  ```
+  ERROR Failed to query server version: Call to URL [***/api/v2/analysis/version] failed: null
+  ```
+- 同模式近期样例（connectivity，非 Quality Gate）：
+  - `2026-08-02` run `30734946112` @ `mas-go-dev-ci-1`
+  - `2026-08-01` run `30681716513` @ `mas-go-dev-ci-2`
+- 注意：列表里另有一批 failure 是 **Quality Gate 未过**（exit code 3），与本连通性问题不同，例如 lemon 上的 QG fail。
+
+### 根因链
+
+1. 仓库 secret `SONAR_HOST_URL`（2026-05-13 迁移日更新）指向内网 `http://mac-mini:9000`（Sonar 已从 `sonar.cypresso.ai` / dev-cypresso 迁到 mac-mini）。
+2. **mac-mini 上 Sonar 健康**：容器 `sonarqube` Up healthy；`curl http://127.0.0.1:9000/api/system/status` → `"status":"UP"`。
+3. **lemon / umac 可达**：`curl http://mac-mini:9000/api/system/status` → HTTP 200。
+4. **mas-go-dev 不可解析 `mac-mini`**：
+   - `tailscale debug prefs` → **`CorpDNS: false`**（未接受 MagicDNS / accept-dns）
+   - `resolvectl`：`tailscale0` DNS scope = none；系统 DNS 仅 `192.168.2.1`（search 虽有 `taila93443.ts.net` 但上行解析器不认 tailnet 名）
+   - `curl http://mac-mini:9000/...` → `Could not resolve host: mac-mini`
+   - `curl http://mac-mini.taila93443.ts.net:9000/...` 同样失败（系统解析器没用 `100.100.100.100`）
+5. **数据面本身通**：`tailscale ping mac-mini` OK；`curl http://100.108.64.126:9000/api/system/status` → UP（~26ms）
+6. 公网遗留入口 `https://sonar.cypresso.ai`（dev-cypresso nginx → 已停的旧 Sonar）现为 **502 Bad Gateway**，与本次 CI secret 路径无关，但是噪音/误导源。
+
+对照 2026-06-12 记录：当时在 VM 内启用 Tailscale 后 MagicDNS 曾验证通过（`getent hosts mac-mini` → `100.108.64.126`）。当前 **`CorpDNS=false`**，MagicDNS 已失效，job 一旦调度到 `mas-go-dev-ci-*` 就会在 Scanner 查 version 时秒失败；调度到 lemon/umac 则正常。
+
+### 建议修复（待用户确认后再做）
+
+| 方案 | 动作 | 说明 |
+| --- | --- | --- |
+| A（推荐） | `sudo tailscale set --accept-dns=true` | 恢复 MagicDNS，与 06-12 设计一致；验证 `getent hosts mac-mini` + `curl http://mac-mini:9000/api/system/status` |
+| B（兜底） | `/etc/hosts` 增加 `100.108.64.126 mac-mini mac-mini.taila93443.ts.net` | 不依赖 accept-dns；注意 cloud-init `manage_etc_hosts` 可能覆盖，需改 template 或关管理 |
+| C（不推荐） | 把 `SONAR_HOST_URL` 改成 Tailscale IP | 全池 secret 一改全动，且失去主机名语义 |
+
+修复后可用任意 backend PR 重跑 `SonarQube Analysis`，确认 job 落在 `mas-go-dev-ci-*` 时 Scanner 不再报 `Failed to query server version`。
+
+### 验证（排查时）
+
+- mac-mini：`docker ps` sonarqube healthy；本地 API UP
+- mas-go-dev：`CorpDNS false`；IP 直连 200；主机名解析失败
+- 失败 job runner = `mas-go-dev-ci-2`；同 run 成功 job runner = `lemon-imac-2`
+
 ## 2026-07-28 16:51 CST - 紧急磁盘清理：buildx 残骸 + Docker build cache + go-build 修剪
 
 - 服务器：`mas-go-dev`
