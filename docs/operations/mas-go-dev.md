@@ -1,5 +1,31 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-02 18:26 CST - 开启 Tailscale accept-dns，恢复 mac-mini Sonar 解析
+
+- 服务器：`mas-go-dev`（PVE VM `130`，Tailscale `100.109.223.53`）
+- 操作人：`Grok`（用户确认方案 A）
+- 原因：`iCare-backend` Sonar job 落到 `mas-go-dev-ci-*` 时报 `Failed to query server version`；根因是 `CorpDNS=false`，`http://mac-mini:9000` 无法解析（见上一条 18:18 排查）。
+- 选型：只做 A（`tailscale set --accept-dns=true`），暂不加 `/etc/hosts` 兜底。
+- 影响：
+  - MagicDNS 恢复；系统 DNS 改为优先 Tailscale（`100.100.100.100`，search `taila93443.ts.net`）。
+  - 未改 runner、Docker、Sonar 服务端、GitHub secrets / workflow。
+- 备份：变更前 `tailscale debug prefs` → `CorpDNS: false`；IP 直连 `http://100.108.64.126:9000` 仍 UP。
+- 回滚方式：
+  ```bash
+  sudo tailscale set --accept-dns=false
+  ```
+  回滚后 `mac-mini` 短名会再次解析失败，CI 再落到本机 Sonar 会挂。
+- 变更时序：
+  1. 预检：`CorpDNS false`；`curl http://mac-mini:9000` → could not resolve；IP 直连 200。
+  2. `sudo tailscale set --accept-dns=true`（exit 0）。
+  3. 验证解析与 HTTP。
+- 验证：
+  - `CorpDNS: true`
+  - `getent hosts mac-mini` → `100.108.64.126 mac-mini.taila93443.ts.net`
+  - `curl http://mac-mini:9000/api/system/status` 连续 3 次 HTTP **200**，`"status":"UP"`（~10–15ms）
+  - FQDN `http://mac-mini.taila93443.ts.net:9000/...` 亦 200
+- 备注：真实 CI 需等下次 `backend-ci` 调度到 `mas-go-dev-ci-*` 的 Sonar job 再确认 Scanner 端到端；本机连通性已恢复。
+
 ## 2026-08-02 18:18 CST - 只读排查：iCare-backend SonarQube Scan 间歇失败（mac-mini DNS）
 
 - 服务器：`mas-go-dev`（runner `mas-go-dev-ci-1/2`）；对照 `mac-mini` SonarQube、`lemon-imac` / `umacbook-pro`
