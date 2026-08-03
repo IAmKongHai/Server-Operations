@@ -1,5 +1,22 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-03 15:45 CST - CI 池加固：PNPM store + cron/launchd + go-build 修剪 + 双 slot 重启
+
+- 服务器：`umacbook-pro`（8 核 / 8GB，Data **228G**）
+- 操作人：`Grok`（iCare 自托管 runner 运维加固任务）
+- 原因：双 slot go-build 各约 **15G**；无定时维护；需本机 pnpm store 减流量。
+- 影响：
+  - 双 slot `.env`：`PNPM_STORE_PATH=~/gha/cache/pnpm-store` + 既有 GOCACHE/GOMODCACHE
+  - 脚本：`~/gha/scripts/{gha-runner-maintenance.sh,prune-gocache.sh}`
+  - crontab 日 03:20 / 周日 04:40；另装 LaunchAgent 兜底
+  - 即时：go-build **15G→3.1G** / **15G→2.0G**；u1 work 4.1G→1.5G；Data **62%→48% / Avail 72G→100G**
+  - 双 slot `svc.sh` 重启加载 `.env`
+- 备份：`~/actions-runner/umacbook-pro-N/.env.bak.*`
+- 回滚：恢复 `.env.bak` + 重启；删 crontab `gha-runner-maintenance` 行；bootout LaunchAgent
+- 验证：两 Listener Started；GitHub online
+- 风险：个人本合盖/断网仍会掉线；非关键唯一路径
+- 关联：`docs/runbooks/ci-runner-pools.md`
+
 ## 2026-07-24 17:38 CST - 只读：主机与双 runner 健康检查
 
 - 服务器：`umacbook-pro`

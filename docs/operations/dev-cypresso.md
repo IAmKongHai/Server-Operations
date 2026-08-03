@@ -1,5 +1,21 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-03 15:50 CST - 部署机磁盘治理：work 日清 timer（不动 buildx）
+
+- 服务器：`dev-cypresso`（`ip-172-31-42-99`，label 仅 `dev-cypresso-ci`）
+- 操作人：`Grok`（iCare 自托管 runner 运维加固任务）
+- 原因：部署机也需防 `_work` 堆积；**不做** 质量门 pnpm/go store 策略（与 CI 池分离）。
+- 影响：
+  - 脚本：`~/gha-scripts/{gha-runner-maintenance.sh,prune-gocache.sh}`
+  - 无 cronie → **systemd timer** `gha-runner-maintenance.timer` 每日 03:50 UTC，只清三份 work 目录
+  - 即时 age-prune `_temp`（mtime>+1d）
+  - **保留** `/var/cache/buildx/*`（~4.4G 各项目 cache 未 prune）
+  - **未** `docker system prune -a`；当前 Docker Images reclaimable ~6.8G、Volumes ~41G（仅 3% reclaimable）— 仅记录，未删
+- 备份：无破坏性配置；timer 可 disable
+- 回滚：`sudo systemctl disable --now gha-runner-maintenance.timer`
+- 验证：`df` 约 **38% / Avail 156G**；`dev-cypresso-ci` Listener 仍在；buildx 目录列表完整
+- 备注：系统无 `crontab` 命令属正常（AL2023 未装 cronie）
+
 ## 2026-07-31 14:50 CST - mas-icare.cypress.sg 改为 SIT 结束静态说明页
 
 - 服务器：`dev-cypresso`

@@ -1,5 +1,33 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-03 15:50 CST - CI 池加固：PNPM store + systemd timer + EnvironmentFile
+
+- 服务器：`mas-go-dev`（AL2023，根盘 **300G**）
+- 操作人：`Grok`（iCare 自托管 runner 运维加固任务）
+- 原因：`mas-go-dev-ci-1/2` 承接 `frontend-quality-ci` + `backend-ci`；需本机 pnpm/go store 与定时清 work，且不破坏部署 runner / buildx。
+- 影响：
+  - CI 两 slot `.env` 增加 `PNPM_STORE_PATH=/var/cache/gha/pnpm-store`；保留 per-slot GOCACHE + 共享 GOMODCACHE
+  - **部署 runner `mas-go-dev` 未加 PNPM**（职责不混）
+  - 脚本：`/opt/gha-scripts/{gha-runner-maintenance.sh,prune-gocache.sh}`
+  - 系统无 cronie → 用 **systemd timer**：
+    - `gha-runner-maintenance.timer` 每日 03:15 UTC
+    - `gha-runner-maintenance-weekly.timer` 周日 04:30 UTC
+  - systemd drop-in `env.conf`：`EnvironmentFile=/opt/actions-runner/<slot>/.env`（Listener 进程可验证到 GO*/PNPM）
+  - 目录：`/var/cache/gha/pnpm-store` 属主 `actions-runner`；日志 `/var/log/gha/maintenance.log`
+  - 空闲时清 `_temp`；CI 两 slot 已 restart
+- 备份：`/opt/actions-runner/*/.env.bak.*`；既有 `service.d/restart.conf` 未改
+- 回滚：
+  ```bash
+  sudo systemctl disable --now gha-runner-maintenance.timer gha-runner-maintenance-weekly.timer
+  sudo rm -f /etc/systemd/system/actions.runner.cypressoai.mas-go-dev-ci-{1,2}.service.d/env.conf
+  # 恢复 .env.bak 后 systemctl restart 对应 service
+  ```
+- 验证：
+  - `strings /proc/<Listener-pid>/environ` 含 `PNPM_STORE_PATH` / `GOCACHE` / `GOMODCACHE`
+  - `systemctl list-timers 'gha*'` 已排程；根盘约 **28% / Avail 219G**
+  - `/var/cache/buildx` **未动**
+- 关联：`docs/runbooks/ci-runner-pools.md`
+
 ## 2026-08-02 18:26 CST - 开启 Tailscale accept-dns，恢复 mac-mini Sonar 解析
 
 - 服务器：`mas-go-dev`（PVE VM `130`，Tailscale `100.109.223.53`）

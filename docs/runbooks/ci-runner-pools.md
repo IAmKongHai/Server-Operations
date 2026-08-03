@@ -1,7 +1,7 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-07-20  
-> 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁。
+> 最后更新：2026-08-03  
+> 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
 
@@ -98,16 +98,17 @@ ps eww -p "$pid" | tr ' ' '\n' | grep '^PATH='
 
 ### 缓存基线（减公网流量 / 防 CYP-322）
 
-self-hosted **不要**开 `setup-go` / `setup-node` 的 GitHub remote `cache`；依赖本机磁盘。
+self-hosted **优先**本机 store；workflow 侧 `setup-go cache: true` / `setup-node cache: pnpm` 仍可能走 GitHub Cache API（占公网）。runner `.env` 的本机路径在 store 命中后可显著少拉 registry。
 
 | 缓存 | 策略 | 注入位置 |
 |------|------|----------|
-| `GOCACHE` | **每 slot 独立目录**（同机 multi-slot 必须） | 各 runner `.env` |
+| `GOCACHE` | **每 slot 独立目录**（同机 multi-slot 必须） | 各 runner `.env`（Linux 另见 systemd `EnvironmentFile`） |
 | `GOMODCACHE` | **每主机共享一份** | 各 runner `.env` 指向同一路径 |
-| coverage GOCACHE | **job-local**：`${{ runner.temp }}/go-build-cover` + 同目录侧 `TMPDIR=.../go-tmp`（iCare-backend `sonar.yml` 全量 atomic+coverpkg） | workflow step `env`；**不**写持久 slot；避免 mas `/tmp` tmpfs 打满 |
-| npm | **每主机** `~/.npm`；workflow 用 `npm ci --prefer-offline` | 默认 home |
-| tool-cache | 每 slot `workFolder/_tool`（setup-go/node/sonar 自动） | 不可共享 |
-| 修剪策略 | **2 天**：删 go-build 内 `mtime > 2` 的文件；若单 slot 仍 **>20GB**（或 mas 合计 **>30GB**）→ 整目录清空 / `go clean -cache`（**无 Worker 时**） | `scripts/prune-gocache.sh` + 运维时间线 |
+| `PNPM_STORE_PATH` | **每主机共享一份**（frontend-quality / 会跑 JS 的 CI slot） | 各 **CI** runner `.env`；**不要**写到纯部署 runner |
+| coverage GOCACHE | **job-local**：`${{ runner.temp }}/go-build-cover` + 同目录侧 `TMPDIR=.../go-tmp` | workflow step `env`；**不**写持久 slot |
+| npm | 默认 `~/.npm`；有 `PNPM_STORE_PATH` 时 pnpm 优先本机 store | home + `.env` |
+| tool-cache | 每 slot `workFolder/_tool`（setup-go/node/sonar 自动） | **不可共享**；日常维护**不要**整盘 `rm _tool` |
+| 修剪策略 | 见下节「定时维护」 | `scripts/gha-runner-maintenance.sh` + `scripts/prune-gocache.sh` |
 
 **为何 coverage 必须 job-local：** 全量 `-covermode=atomic -coverpkg=./cmd/...,./internal/...` 为插桩变体单独建 cache key，对象大且随每个 commit 追加；Go 默认约 5 天未用才 trim，高频 CI 下持久 GOCACHE 会涨到数十 GB/slot（见 2026-07 lemon/umac/mas 盘满复盘）。
 
@@ -115,28 +116,51 @@ self-hosted **不要**开 `setup-go` / `setup-node` 的 GitHub remote `cache`；
 
 ```bash
 # .env 应含（路径按主机调整）
-grep -E 'GOCACHE|GOMODCACHE' ~/actions-runner/<slot>/.env
-# multi-slot：GOCACHE 必须不同，GOMODCACHE 应相同
+grep -E 'GOCACHE|GOMODCACHE|PNPM_STORE' ~/actions-runner/<slot>/.env
+# multi-slot：GOCACHE 必须不同，GOMODCACHE / PNPM_STORE 应相同
 
-# 无 Worker 时修剪（2 天 + 20GB 门槛）
+# 无 Worker 时修剪（2 天 + 体积门槛）
 # mac：
 ./scripts/prune-gocache.sh ~/actions-runner/<slot>/cache/go-build
 # 删迁移前 orphan（runner 已改 per-slot 后）：
 rm -rf ~/Library/Caches/go-build
 # mas-go-dev：
 sudo -u actions-runner bash -lc './scripts/prune-gocache.sh /opt/actions-runner/mas-go-dev-ci-N/cache/go-build'
+# Linux：确认 Listener 进程环境（systemd EnvironmentFile 后）
+pid=$(pgrep -f 'mas-go-dev-ci-1/bin/Runner.Listener' | head -1)
+sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 ```
 
 参考计划：`docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`；Jira **CYP-1547**（parent CYP-853）。
 
-当前主机约定（2026-07-20 落地）：
+当前主机约定（2026-08-03 加固后）：
 
-| 主机 | GOCACHE | GOMODCACHE |
-|------|---------|------------|
-| mac-mini slot N | `~/actions-runner/mac-mini-sonar-N/cache/go-build` | `~/gha/cache/go-mod`（共享） |
-| lemon-imac slot N | `~/actions-runner/lemon-imac-N/cache/go-build` | `~/go/pkg/mod` |
-| umacbook-pro slot N | `~/actions-runner/umacbook-pro-N/cache/go-build` | `~/go/pkg/mod` |
-| mas-go-dev-ci-N / mas-go-dev | `/opt/actions-runner/<name>/cache/go-build` | `/home/actions-runner/go/pkg/mod` |
+| 主机 | GOCACHE | GOMODCACHE | PNPM_STORE_PATH |
+|------|---------|------------|-----------------|
+| mac-mini slot N | `~/actions-runner/mac-mini-sonar-N/cache/go-build` | `~/gha/cache/go-mod` | `~/gha/cache/pnpm-store` |
+| lemon-imac slot N | `~/actions-runner/lemon-imac-N/cache/go-build` | `~/go/pkg/mod` | `~/gha/cache/pnpm-store` |
+| umacbook-pro slot N | `~/actions-runner/umacbook-pro-N/cache/go-build` | `~/go/pkg/mod` | `~/gha/cache/pnpm-store` |
+| mas-go-dev-ci-N | `/opt/actions-runner/<name>/cache/go-build` | `/home/actions-runner/go/pkg/mod` | `/var/cache/gha/pnpm-store` |
+| mas-go-dev（部署） | `/opt/actions-runner/mas-go-dev/cache/go-build` | 同上 | **不设**（避免与质量门混用） |
+| dev-cypresso（部署） | — | — | **不设**；只清 `_work`，保留 `/var/cache/buildx` |
+
+### 定时维护（2026-08-03）
+
+| 主机 | 调度 | 动作 |
+|------|------|------|
+| mac-mini | crontab 03:15 日 / 周日 04:30 | `~/gha/scripts/gha-runner-maintenance.sh` |
+| lemon-imac | LaunchAgent 03:25 / 周日 04:45（crontab TCC 不可用） | 同上 |
+| umacbook-pro | crontab + LaunchAgent 兜底 | 同上；MAX_GB=15 |
+| mas-go-dev | systemd timer 03:15 / 周日 04:30 UTC | `/opt/gha-scripts/...`；含 CI + 部署 work |
+| dev-cypresso | systemd timer 03:50 UTC | **仅** work 清理，不碰 buildx / 质量 store |
+
+维护脚本会：清过期 `_temp` 与 stale 仓库 work 目录；**保留** `_tool` / `_actions`；按 2 天 mtime + 体积门槛修剪 GOCACHE；weekly 可选 `pnpm store prune` / 超 cap 的 `go clean -modcache`。有 `Runner.Worker` 时跳过破坏性 prune。
+
+### 并发建议
+
+- 同物理机 N 个 slot = N 倍 `_work` + 出口流量；8GB 机（lemon / umacbook）**1～2 slot** 已足够质量门。
+- mac-mini 10 核 / 32GB 可保留 4 slot（重活 + 分片），但仍受磁盘峰值约束。
+- **不要**为减流量去清空整个 `_tool`（Sonar Scanner / setup-go 会重新大流量下载）。
 
 ## 标签运维命令
 
@@ -161,3 +185,4 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 - 2026-07-20 org 侧 label 扩容（见各机 `docs/operations/*.md` 时间线）
 - 2026-07-20 lemon-imac / umacbook-pro 补齐 gnupg + runner `.path`；backend 去掉 `skipSignatureVerification`（runner 基线修复，非 workflow 旁路）
 - 2026-07-20 四机缓存基线：per-slot `GOCACHE`、共享 `GOMODCACHE`、mas 清 ~128G go-build；计划 `docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`；backend PR #1094
+- 2026-08-03 CI 池加固：共享 `PNPM_STORE_PATH`、日/周维护脚本（work + go-build + store prune）、mas/dev-cypresso systemd timer、lemon LaunchAgent（见各机 `docs/operations/*.md`）；仓库 `scripts/gha-runner-maintenance.sh`

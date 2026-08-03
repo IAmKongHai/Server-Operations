@@ -1,5 +1,24 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-03 15:45 CST - CI 池加固：PNPM store + launchd 维护 + 清盘 + 双 slot 重启
+
+- 服务器：`lemon-imac`（8 核 / 8GB，Data **228G**）
+- 操作人：`Grok`（iCare 自托管 runner 运维加固任务）
+- 原因：盘曾 **86% / Avail ~26–28G**；`_temp` 峰值约 8G+2G；缺定时清理与本机 pnpm store。
+- 影响：
+  - 双 slot `.env`：`PNPM_STORE_PATH=~/gha/cache/pnpm-store` + 既有 GOCACHE/GOMODCACHE
+  - 脚本：`~/gha/scripts/{gha-runner-maintenance.sh,prune-gocache.sh}`
+  - **crontab 被 TCC 拒绝**（`Operation not permitted`）→ 改用 LaunchAgent：
+    - `com.cypressoai.gha-runner-maintenance` 每日 03:25
+    - `com.cypressoai.gha-runner-maintenance-weekly` 周日 04:45
+  - 即时清理：work `li` 4.1G→1.9G、`li2` 3.7G→1.3G；go-build 5.3G→2.4G / 6.9G→3.6G（MAX_GB=12）
+  - 双 slot `svc.sh` 重启加载 `.env`
+- 备份：`~/actions-runner/lemon-imac-N/.env.bak.*`
+- 回滚：恢复 `.env.bak` + 重启；`launchctl bootout gui/$(id -u)/com.cypressoai.gha-runner-maintenance{,-weekly}`
+- 验证：Data **79%→74% / Avail 40G→50G**；两 Listener Started；pnpm-store 目录已建（待 job 回填）
+- 风险：8GB 机双 slot 并发仍可能顶满内存/磁盘；建议高峰只信 mac-mini 重活
+- 关联：`docs/runbooks/ci-runner-pools.md`
+
 ## 2026-07-23 19:02 CST - A+B：清空 go-build + 恢复 runner（CYP-1547）
 
 - 服务器：`lemon-imac`

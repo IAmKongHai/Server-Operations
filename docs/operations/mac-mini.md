@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-08-03 15:42 CST - CI 池加固：PNPM store + 日/周维护 + 四 slot 重启
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（iCare 自托管 runner 运维加固任务）
+- 原因：质量门迁自托管后并发更高；需减 npm/pnpm 重复下载流量，并防止 `_work` / go-build 撑盘。
+- 影响：
+  - 四 slot `.env` 增加 `PNPM_STORE_PATH=~/gha/cache/pnpm-store`（保留 per-slot `GOCACHE` + 共享 `GOMODCACHE=~/gha/cache/go-mod`）
+  - 部署脚本：`~/gha/scripts/{gha-runner-maintenance.sh,prune-gocache.sh}`
+  - crontab：每日 03:15 清 work + 修剪 go-build；周日 04:30 weekly（pnpm prune / gomod 超 10G）
+  - 即时维护：stale workFolder 清理（s1–s4 各约 4.0G→2.4–2.8G）；四 slot `svc.sh` 重启以加载 `.env`
+- 备份：`~/actions-runner/mac-mini-sonar-N/.env.bak.<timestamp>`
+- 回滚方式：恢复各 slot `.env.bak.*` 后 `./svc.sh stop && ./svc.sh start`；`crontab -e` 删除 `gha-runner-maintenance` 两行
+- 验证：
+  - Data 盘约 **62% / Avail 712Gi**（1.8T）
+  - 四 `Runner.Listener` Started；GitHub `mac-mini-sonar-1..4` online
+  - 日志：`~/Library/Logs/gha-runner-maintenance.log`
+- 关联：`docs/runbooks/ci-runner-pools.md`；仓库 `scripts/gha-runner-maintenance.sh`
+
 ## 2026-07-29 09:27 CST - 恢复 mac-mini-sonar-1..4
 
 - 服务器：`mac-mini`
