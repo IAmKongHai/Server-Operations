@@ -1,5 +1,27 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-04 19:49 CST - 修正 public-backend `MAS_INTERNAL_API_HEALTH_PATH` 并恢复容器
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`
+- 原因：同 mas-go-dev——Deploy 推送了 `ghcr.io/cypressoai/icare-public-backend:c2ddf907…` 后容器因旧路径 `/internal/mobile/health` 校验失败而 Restarting。
+- 影响：
+  - 更新 `/home/ec2-user/stacks/icare/public-backend/.env.{app,hr,map}` 的 `MAS_INTERNAL_API_HEALTH_PATH` → `/internal/public/v1/health`
+  - `docker-compose -f public-backend.compose.yaml up -d --force-recreate public-app public-hr public-map`
+- 备份：同目录 `.env.*.bak.<timestamp>`（部署时写入）
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'BASE=/home/ec2-user/stacks/icare/public-backend
+  # 用最新 .bak.* 覆盖回旧值后
+  cd $BASE && PUBLIC_BACKEND_IMAGE=$(docker inspect --format "{{.Config.Image}}" icare-public-backend-public-app-1) \
+    PUBLIC_APP_ENV_FILE=$BASE/.env.app PUBLIC_HR_ENV_FILE=$BASE/.env.hr PUBLIC_MAP_ENV_FILE=$BASE/.env.map \
+    docker-compose -f public-backend.compose.yaml up -d --force-recreate public-app public-hr public-map'
+  ```
+- 验证：
+  - `8090/8091/8092` live → `{"status":"up"}`
+  - 日志 `service starting` version=`c2ddf907…`，webkit connected
+- 备注：Deploy workflow job 本身仍记 failure；本机已手工恢复。
+
 ## 2026-08-03 15:50 CST - 部署机磁盘治理：work 日清 timer（不动 buildx）
 
 - 服务器：`dev-cypresso`（`ip-172-31-42-99`，label 仅 `dev-cypresso-ci`）

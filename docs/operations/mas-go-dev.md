@@ -1,5 +1,37 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-04 19:48 CST - 修正 public-backend `MAS_INTERNAL_API_HEALTH_PATH` 并恢复容器
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：PR [#63](https://github.com/cypressoai/iCare-public-backend/pull/63) 合入后 Deploy 镜像构建成功，但 health 探针失败；容器日志：`MAS_INTERNAL_API_HEALTH_PATH: target must stay under /internal/public/v1`。本机 `.env.{app,hr,map}` 仍是 CYP-1782 迁移前的 `/internal/mobile/health`。
+- 影响：
+  - 更新三份 env 的 `MAS_INTERNAL_API_HEALTH_PATH` → `/internal/public/v1/health`
+  - `--force-recreate` 拉起 `public-app` / `public-hr` / `public-map`（镜像 `icare/public-backend:mas-go-dev-c2ddf907…`）
+- 备份：
+  - `/opt/mas-go-dev/public-backend/.env.app.bak.20260804114821`
+  - `/opt/mas-go-dev/public-backend/.env.hr.bak.20260804114821`
+  - `/opt/mas-go-dev/public-backend/.env.map.bak.20260804114821`
+- 回滚方式：
+  ```bash
+  ssh mas-go-dev 'BASE=/opt/mas-go-dev/public-backend
+  for f in .env.app .env.hr .env.map; do
+    sudo cp -a "$BASE/$f.bak.20260804114821" "$BASE/$f"
+  done
+  sudo env PUBLIC_BACKEND_IMAGE=$(sudo docker inspect --format "{{.Config.Image}}" icare-public-backend-public-app-1) \
+    PUBLIC_APP_ENV_FILE=$BASE/.env.app PUBLIC_HR_ENV_FILE=$BASE/.env.hr PUBLIC_MAP_ENV_FILE=$BASE/.env.map \
+    docker compose -f $BASE/public-backend.compose.yaml -f $BASE/public-backend.compose.mas-go-dev.yaml \
+    up -d --force-recreate public-app public-hr public-map'
+  ```
+- 变更时序：
+  1. 备份三份 env
+  2. sed 替换 `HEALTH_PATH` 为 `/internal/public/v1/health`
+  3. force-recreate 三容器
+- 验证：
+  - `8090/8091/8092` 的 `/api/v1/health/live` 均返回 `{"status":"up"}`
+  - 容器 Up；app 日志 `service starting` + webkit connected
+- 备注：GitHub Deploy run [30905855374](https://github.com/cypressoai/iCare-public-backend/actions/runs/30905855374) 仍记 failure（探针超时已失败）；本机已手工恢复。GHCR Build and Push 已 success（原 CGO/sqlite 问题已由 #63 修掉）。
+
 ## 2026-08-04 18:50 CST - 排查 public-backend CI 20m 超时（golangci-lint-action）
 
 - 服务器：`mas-go-dev`（job 落在 `mas-go-dev-ci-1`；结论适用整个 `backend-ci` 池）
