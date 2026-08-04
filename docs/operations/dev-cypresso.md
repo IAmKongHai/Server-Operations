@@ -8,11 +8,14 @@
 - 影响：
   - 更新 `/home/ec2-user/stacks/icare/public-backend/.env.{app,hr,map}` 的 `MAS_INTERNAL_API_HEALTH_PATH` → `/internal/public/v1/health`
   - `docker-compose -f public-backend.compose.yaml up -d --force-recreate public-app public-hr public-map`
-- 备份：同目录 `.env.*.bak.<timestamp>`（部署时写入）
+- 备份：
+  - `/home/ec2-user/stacks/icare/public-backend/.env.app.bak.20260804114906`
+  - `/home/ec2-user/stacks/icare/public-backend/.env.hr.bak.20260804114906`
+  - `/home/ec2-user/stacks/icare/public-backend/.env.map.bak.20260804114906`
 - 回滚方式：
   ```bash
   ssh dev-cypresso 'BASE=/home/ec2-user/stacks/icare/public-backend
-  # 用最新 .bak.* 覆盖回旧值后
+  for f in .env.app .env.hr .env.map; do cp -a "$BASE/$f.bak.20260804114906" "$BASE/$f"; done
   cd $BASE && PUBLIC_BACKEND_IMAGE=$(docker inspect --format "{{.Config.Image}}" icare-public-backend-public-app-1) \
     PUBLIC_APP_ENV_FILE=$BASE/.env.app PUBLIC_HR_ENV_FILE=$BASE/.env.hr PUBLIC_MAP_ENV_FILE=$BASE/.env.map \
     docker-compose -f public-backend.compose.yaml up -d --force-recreate public-app public-hr public-map'
