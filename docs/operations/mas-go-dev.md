@@ -1,5 +1,25 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-04 18:50 CST - 排查 public-backend CI 20m 超时（golangci-lint-action）
+
+- 服务器：`mas-go-dev`（job 落在 `mas-go-dev-ci-1`；结论适用整个 `backend-ci` 池）
+- 操作人：`Grok`（只读取证 + 业务仓 workflow PR；本机未改 runner）
+- 原因：用户指向 [actions/runs/30898768407/attempts/1](https://github.com/cypressoai/iCare-public-backend/actions/runs/30898768407/attempts/1)，今日多次 CI 异常。
+- 影响：无本机变更。诊断与修复落在业务仓 workflow。
+- 取证摘要：
+  - Annotation：`The job has exceeded the maximum execution time of 20m0s`
+  - Runner：`mas-go-dev-ci-1`；步骤日志上 Test/Lint/Build 均 success，但 job 被 timeout cancel
+  - `golangci-lint-action` GH cache restore ~16MB 卡在 0.1MB/s 后 timeout（prepare ~113s）；Post 仍 save cache ~63s
+  - 真正 `golangci-lint run` 仅 ~4s、0 issues；lint endgroup 后约 15 分钟无日志
+  - 同期其它失败：`config verify` 拉 `golangci-lint.run` jsonschema → `context deadline exceeded`（lemon / mas / umac）
+  - attempt 2：`test-lint-build` 在 `lemon-imac-1` ~2min 成功；Sonar 在 `mas-go-dev-ci-2` **Quality Gate FAILED**（规则门禁，非 runner）
+  - 排查窗口：家宽 Tailscale 对 `mas-go-dev` / mac-mini / lemon / umac **SSH 全超时**，未能读 `_diag`；GitHub API 显示 backend-ci runner 仍多为 online
+- 修复：对齐 `iCare-backend`，去掉 action，改为 `go install` + `golangci-lint run`
+  - PR：https://github.com/cypressoai/iCare-public-backend/pull/62
+- 方案沉淀：`docs/solutions/mas-go-dev/workflow-issues/golangci-lint-action-cache-timeout-selfhosted-2026-08-04.md`
+- 回滚：无本机回滚项；workflow 回滚见 PR
+- 验证：合入 #62 后观察后续 `test-lint-build` 是否不再出现 cache restore timeout / golangci-lint.run deadline
+
 ## 2026-08-03 15:50 CST - CI 池加固：PNPM store + systemd timer + EnvironmentFile
 
 - 服务器：`mas-go-dev`（AL2023，根盘 **300G**）

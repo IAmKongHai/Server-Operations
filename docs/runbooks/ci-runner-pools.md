@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-08-03  
+> 最后更新：2026-08-04  
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -95,6 +95,16 @@ ps eww -p "$pid" | tr ' ' '\n' | grep '^PATH='
 - mac-mini PATH / 短 workFolder：`docs/solutions/mac-mini/integration-issues/sonarqube-scanner-cli-cache-never-hits-4part-version-2026-06-09.md`
 - mas-go-dev `gnupg2-minimal` 缺 dirmngr：`docs/solutions/mas-go-dev/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
 - 2026-07-20 lemon / umacbook 补齐 gnupg + `.path`：见各机 `docs/operations/*.md`
+
+### golangci-lint（backend-ci）
+
+self-hosted **不要**依赖 `golangci/golangci-lint-action` 的默认行为：
+
+- 默认会走 **GitHub Cache API** 拉/推 analyzer cache（跨境/代理下可 0.1MB/s 级卡死，甚至拖满 `timeout-minutes`）
+- 默认 `verify: true` 会访问 `golangci-lint.run` 拉 jsonschema，网络抖即硬失败
+
+推荐与 `iCare-backend` 一致：`go install` 固定版本 + `golangci-lint run`；本机 `~/.cache/golangci-lint` 已跨 job 持久。  
+取证与修复：`docs/solutions/mas-go-dev/workflow-issues/golangci-lint-action-cache-timeout-selfhosted-2026-08-04.md`；`iCare-public-backend` PR #62。
 
 ### 缓存基线（减公网流量 / 防 CYP-322）
 
