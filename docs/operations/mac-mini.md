@@ -1,5 +1,34 @@
 # mac-mini 运维时间线
 
+## 2026-08-05 23:24 CST - 补回 mac-mini-sonar-1..4 的 `self-hosted` label
+
+- 服务器：`mac-mini`（org runner `mac-mini-sonar-1..4`，id 22–25）
+- 操作人：`Grok`
+- 原因：backend CI workflow 使用 `runs-on: [self-hosted, backend-ci]`；`mac-mini-sonar-*` 虽有 `backend-ci` 但缺默认 label `self-hosted`，GitHub 调度硬匹配两边都要满足，导致 4 台闲置也永远进不了 backend 池。任务只能在 `mas-go-dev-ci` + `lemon-imac` + `umacbook-pro` 之间轮转，经常看起来都堆在 `mas-go-dev-ci-1`。
+- 影响：`mac-mini-sonar-1..4` 重新进入 `[self-hosted, backend-ci]` 调度池；不动任何 workflow；前端 `mac-mini-sonar` / `frontend-*-ci` 匹配不受影响。
+- 选型：方案 A（推荐）——只修 runner label，与 lemon / umac / mas-go-dev-ci 一致；不改业务仓 workflow。
+- 备份：操作前 API 快照（4 台均无 `self-hosted`）：
+  - id 22–25 labels：`mac-mini-sonar, macos, arm64, backend-ci, frontend-sonar-ci, frontend-tests-ci, frontend-quality-ci`
+- 回滚方式：
+  ```bash
+  for id in 22 23 24 25; do
+    gh api --method DELETE "orgs/cypressoai/actions/runners/${id}/labels/self-hosted"
+  done
+  ```
+- 做了什么：
+  ```bash
+  for id in 22 23 24 25; do
+    gh api --method POST "orgs/cypressoai/actions/runners/${id}/labels" -f 'labels[]=self-hosted'
+  done
+  ```
+- 验证结果：
+  - `mac-mini-sonar-1..4` labels 均含 `self-hosted` + `backend-ci`，status=`online`
+  - 全 org `backend-ci` 池（10 slot：mac-mini×4 + lemon×2 + umac×2 + mas-go-dev-ci×2）`has_self_hosted=true`
+- 补完后注意：
+  1. **同机并发**：4 slot 若同时接 Go 全量 coverage + 前端 Vitest，会抢 CPU/磁盘；可接受，但别期望 4 路 backend 全开还很快。
+  2. **能力**：本机已是重活机（gpg/dirmngr、CGO、per-slot GOCACHE 等见 `docs/runbooks/ci-runner-pools.md`）；建议观察接下来 1～2 个落到 mac-mini 的 Sonar job。
+  3. **容量预期**：真正该多吃 backend 的是 mac-mini（10 核 / 32GB）；lemon/umac 的 8GB 适合轻中负载，修好 label 后分布应更健康。
+
 ## 2026-08-03 15:42 CST - CI 池加固：PNPM store + 日/周维护 + 四 slot 重启
 
 - 服务器：`mac-mini`

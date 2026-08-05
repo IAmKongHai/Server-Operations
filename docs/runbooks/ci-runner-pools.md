@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-08-04  
+> 最后更新：2026-08-05  
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -17,18 +17,20 @@
 
 历史标签 `frontend-sonar-ci` 仍保留在部分 runner 上便于回滚；**新 workflow 应使用 `frontend-quality-ci`（PR）与 `mac-mini-sonar`（full）**。
 
-## 机器与 runner 快照（2026-07-20）
+## 机器与 runner 快照（2026-08-05）
 
-| Runner name | 主机 | 关键自定义 labels |
+| Runner name | 主机 | 关键 labels（含默认） |
 |-------------|------|---------------------|
-| `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci` |
-| `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
-| `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
+| `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci` |
+| `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
+| `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
 | `mas-go-dev` | mas-go-dev | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签） |
-| `mas-go-dev-ci-1/2` | mas-go-dev | `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`） |
+| `mas-go-dev-ci-1/2` | mas-go-dev | **`self-hosted`**, `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`） |
 | `ip-172-31-42-99.ec2.internal` | dev-cypresso | `dev-cypresso-ci`（**仅**部署） |
 | `ip-172-31-42-99.ec2.internal-2` | dev-cypresso | 默认 Linux labels，不进专用池 |
 | `icare-2-uat-runner` | UAT VM | `azure`, `uat` |
+
+**调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
 ## 仓库 workflow 对照
 
