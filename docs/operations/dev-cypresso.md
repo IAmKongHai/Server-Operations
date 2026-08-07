@@ -1,5 +1,31 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-07 09:46 CST - 发布 iCare preview APK 静态下载
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`
+- 原因：需要通过公网域名提供 `icare-preview.apk` 下载。
+- 影响：
+  - 新增静态文件：`/var/www/mas-icare.cypress.sg/apk/icare-preview.apk`（约 145MB / 151756090 bytes）
+  - 公网 URL：`https://mas-icare.cypress.sg/apk/icare-preview.apk`
+  - **未**修改 nginx conf（现有 `try_files $uri …` 已能命中真实文件；`Content-Type` 已是 `application/vnd.android.package-archive`）
+  - 根路径与其它路径仍返回 SIT 结束说明页
+- 备份：无（仅新增文件）
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'sudo rm -f /var/www/mas-icare.cypress.sg/apk/icare-preview.apk'
+  # 如需整目录：
+  # ssh dev-cypresso 'sudo rm -rf /var/www/mas-icare.cypress.sg/apk'
+  ```
+- 变更时序：
+  1. `sudo mkdir -p /var/www/mas-icare.cypress.sg/apk`
+  2. `scp` 本地 `icare-preview.apk` → 服务器 `/tmp/`，再 `mv` 到 web root
+  3. `chmod 644`、属主 `root:root`
+- 验证：
+  - `curl -I https://mas-icare.cypress.sg/apk/icare-preview.apk` → **200**，`Content-Length: 151756090`，`Content-Type: application/vnd.android.package-archive`
+  - 完整下载 size 与服务器 `stat` 一致
+  - 文件头 magic `PK..`（ZIP/APK）
+
 ## 2026-08-04 19:49 CST - 修正 public-backend `MAS_INTERNAL_API_HEALTH_PATH` 并恢复容器
 
 - 服务器：`dev-cypresso`
