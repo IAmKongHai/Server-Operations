@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-08-07 13:37 CST - mac-mini Mini Shai-Hulud IoC **full 重扫**（补齐先前 FAIL）
+
+- 服务器/设备：`mac-mini`
+- 操作人：`Grok`
+- 原因：同日首轮并行 full 扫描中 `mac-mini` 记录为 `DONE mac-mini FAIL rc=255`（05:14:55Z，无界 `find` 过大树导致 SSH 中断）；验收要求补齐与 lemon-imac 同结构的 full 只读日志，不得仅用浅扫冒充完成。
+- 影响：只读；未改配置、未重启、未删文件、未轮换凭证。
+- 先前失败：`remote-scan-progress.txt` → `START mac-mini mode=full 05:08:15` / `DONE mac-mini FAIL rc=255 05:14:55`；中间仅有浅扫摘要，已作废为正式结论。
+- 重扫方法（05:32:31Z–05:37:14Z UTC）：`mdfind` 全机文件名 + `find` 高价值根（`~/gha` `~/actions-runner` `~/Code` Desktop Documents `/opt`）+ `rg` 扫 preinstall/lock/hooks；`ServerAliveInterval=15`；SSH exit 0。
+- 结果：
+  - `IOC_FILENAME_HIT_COUNT=10`：均为 `motion-dom/.../setup.mjs`（hash `c2f397ef…`）或 `regenerate-unicode-properties/.../Math_Symbol.js`（hash `b66c1e0b…`），**非** Aikido 恶意哈希。
+  - `MALICIOUS_HASH_COUNT=0`，`PREINSTALL_HIT_COUNT=0`，`LOCKFILE_HIT_COUNT=0`，`HOOK_HIT_COUNT=0`。
+  - gha/actions-runner 下存在正常 `keyv`/`flat-cache`/`file-entry-cache` 目录，**目录内无** `setup.mjs`/`Math_Symbol.js`/`math_init.js`。
+  - 结论：`VERDICT=CLEAN_FALSE_POSITIVE_NAME_COLLISION`（与 lemon-imac / umacbook-pro 同类误报）。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 证据：`scan-mac-mini.log`（含 `PRIOR_FULL_FAIL` / `RESCAN_OK=1`）。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`mac-mini`
