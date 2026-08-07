@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
+
+- 服务器/设备：`mac-mini`
+- 操作人：`Grok`
+- 原因：2026-08-04 npm keyv 家族供应链蠕虫（Mini Shai-Hulud）披露；对清单内主机做只读 IoC 体检。
+- 影响：只读（find/rg/mdfind/ssh BatchMode）；未改配置、未重启、未删文件、未轮换凭证。
+- 扫描 IoC：`setup.mjs` / `Math_Symbol.js` / `math_init.js`（对照 Aikido 已知 SHA-256）、`preinstall: node setup.mjs`、首批高危 lock 版本、`.claude/settings.json` / `.vscode/tasks.json`、`/tmp/bun-dl-*`。
+- 结果：CLEAN。浅扫 30 个 keyv/flat-cache 等 risk 包目录，无恶意文件/preinstall/hook/lock 命中。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 备注：同批次不可达 `fnos-nas`（ssh 192.168.2.9:22 timeout）。全清单无已知恶意哈希命中。
+
 ## 2026-08-05 23:24 CST - 补回 mac-mini-sonar-1..4 的 `self-hosted` label
 
 - 服务器：`mac-mini`（org runner `mac-mini-sonar-1..4`，id 22–25）

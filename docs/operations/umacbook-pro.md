@@ -1,5 +1,17 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
+
+- 服务器/设备：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：2026-08-04 npm keyv 家族供应链蠕虫（Mini Shai-Hulud）披露；对清单内主机做只读 IoC 体检。
+- 影响：只读（find/rg/mdfind/ssh BatchMode）；未改配置、未重启、未删文件、未轮换凭证。
+- 扫描 IoC：`setup.mjs` / `Math_Symbol.js` / `math_init.js`（对照 Aikido 已知 SHA-256）、`preinstall: node setup.mjs`、首批高危 lock 版本、`.claude/settings.json` / `.vscode/tasks.json`、`/tmp/bun-dl-*`。
+- 结果：CLEAN（误报名碰撞）。gha u1/u2 work 下同上良性文件名碰撞；preinstall=0。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 备注：同批次不可达 `fnos-nas`（ssh 192.168.2.9:22 timeout）。全清单无已知恶意哈希命中。
+
 ## 2026-08-03 15:45 CST - CI 池加固：PNPM store + cron/launchd + go-build 修剪 + 双 slot 重启
 
 - 服务器：`umacbook-pro`（8 核 / 8GB，Data **228G**）

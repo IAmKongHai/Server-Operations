@@ -1,5 +1,17 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
+
+- 服务器/设备：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：2026-08-04 npm keyv 家族供应链蠕虫（Mini Shai-Hulud）披露；对清单内主机做只读 IoC 体检。
+- 影响：只读（find/rg/mdfind/ssh BatchMode）；未改配置、未重启、未删文件、未轮换凭证。
+- 扫描 IoC：`setup.mjs` / `Math_Symbol.js` / `math_init.js`（对照 Aikido 已知 SHA-256）、`preinstall: node setup.mjs`、首批高危 lock 版本、`.claude/settings.json` / `.vscode/tasks.json`、`/tmp/bun-dl-*`。
+- 结果：CLEAN（误报名碰撞）。/opt/actions-runner/*/_work 下 motion-dom setup.mjs；哈希非恶意；preinstall=0。兼 CI+SIT。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 备注：同批次不可达 `fnos-nas`（ssh 192.168.2.9:22 timeout）。全清单无已知恶意哈希命中。
+
 ## 2026-08-04 19:48 CST - 修正 public-backend `MAS_INTERNAL_API_HEALTH_PATH` 并恢复容器
 
 - 服务器：`mas-go-dev`

@@ -1,5 +1,17 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
+
+- 服务器/设备：`konghai-macbook-air`
+- 操作人：`Grok`
+- 原因：2026-08-04 npm keyv 家族供应链蠕虫（Mini Shai-Hulud）披露；对清单内主机做只读 IoC 体检。
+- 影响：只读（find/rg/mdfind/ssh BatchMode）；未改配置、未重启、未删文件、未轮换凭证。
+- 扫描 IoC：`setup.mjs` / `Math_Symbol.js` / `math_init.js`（对照 Aikido 已知 SHA-256）、`preinstall: node setup.mjs`、首批高危 lock 版本、`.claude/settings.json` / `.vscode/tasks.json`、`/tmp/bun-dl-*`。
+- 结果：本机 Mac.lan：CLEAN。python walk 覆盖 ~/Code 共 83 个 node_modules；存在 keyv/flat-cache 等正常依赖目录，但其内无恶意 setup.mjs/Math_Symbol.js/math_init.js；无 preinstall 钩子、无高危 lock 版本、无 IDE 钩子。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 备注：同批次不可达 `fnos-nas`（ssh 192.168.2.9:22 timeout）。全清单无已知恶意哈希命中。
+
 ## 2026-07-10 11:00 CST - MSSQL 访问恢复：mssql-ref 已 Tailscale direct（~8–10ms）
 
 - 设备：本机 `macbook-air`（`100.92.181.15`，办公室 `192.168.6.111`）
