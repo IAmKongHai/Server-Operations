@@ -12,6 +12,24 @@ ssh dev-cypresso
 
 公网 IP：`32.192.186.193`（见 `~/.ssh/config`）。
 
+## 发布 iCare preview APK
+
+公网下载：`https://mas-icare.cypress.sg/apk/icare-preview.apk`  
+线上路径：`/var/www/mas-icare.cypress.sg/apk/icare-preview.apk`
+
+把仓库根目录的 `icare-preview.apk` 一键替换到线上：
+
+```bash
+# 默认上传仓库根目录 ./icare-preview.apk
+./scripts/deploy-icare-preview-apk.sh
+
+# 或指定路径
+./scripts/deploy-icare-preview-apk.sh /path/to/icare-preview.apk
+
+# 可选：保留线上旧文件为 .bak.<timestamp>
+KEEP_BACKUP=1 ./scripts/deploy-icare-preview-apk.sh
+```
+
 ## 共享基础设施栈
 
 位置：`/home/ec2-user/stacks/infra/`，由一份 `docker-compose.yml` 编排。

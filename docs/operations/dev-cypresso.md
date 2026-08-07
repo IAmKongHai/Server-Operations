@@ -1,5 +1,20 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-07 10:34 CST - 用脚本更新 icare-preview.apk
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`
+- 原因：本地 `icare-preview.apk` 更新，并用新建的一键脚本验证上传流程。
+- 影响：
+  - 覆盖 `/var/www/mas-icare.cypress.sg/apk/icare-preview.apk`
+  - 新体积 `151756214` bytes，SHA256 `b9753ebfeba88ea5613a53ba001101f8b9b720a857b1950a6219cc107133008a`
+  - 新增仓库脚本：`scripts/deploy-icare-preview-apk.sh`
+- 备份：无（未开 `KEEP_BACKUP=1`）
+- 回滚方式：用旧 APK 再跑一次脚本，或从本地历史文件覆盖
+- 验证：
+  - 脚本比对远端 size / SHA256 一致
+  - `curl -I https://mas-icare.cypress.sg/apk/icare-preview.apk` → 200，`Content-Length: 151756214`
+
 ## 2026-08-07 09:46 CST - 发布 iCare preview APK 静态下载
 
 - 服务器：`dev-cypresso`
