@@ -1,5 +1,33 @@
 # nyh-prod 运维时间线
 
+## 2026-08-08 13:08 CST - 修复 vip 三站点 SSL 证书 path 错位并续签
+
+- 服务器：`nyh-prod`
+- 操作人：`Grok`
+- 原因：`vip.nanyahui.cn` / `vip.nanyahui.com` 证书已过期；`vip-dev.nanyahui.com` 站点 path 同样错位，用户确认一并修复。
+- 影响：更新宝塔 `site.db` 站点 path 与 `open_basedir`；替换 3 个域名 Let’s Encrypt 证书；`nginx reload`。未重启业务进程/容器/数据库。
+- 备份：
+  - `site.db`：`/www/backup/site-db/site.db.bak.20260808_130517`
+  - 旧证书：`/www/backup/ssl-cert/<domain>/20260808_130517/`
+  - Nginx/open_basedir：`/www/backup/nginx-conf/*bak.20260808_130517`
+- 回滚：
+  1. 恢复证书：`cp -a /www/backup/ssl-cert/<domain>/20260808_130517/* /www/server/panel/vhost/cert/<domain>/`
+  2. 恢复 `site.db`：`cp -a /www/backup/site-db/site.db.bak.20260808_130517 /www/server/panel/data/db/site.db`
+  3. `nginx -t && service nginx reload`
+- 变更：
+  1. `site.db` 三站 `path` 统一改为 `/www/wwwroot/nyh-agent-pc-old`，`project_config.php_run_path` 设为 `/public`（与 Nginx root 一致）。
+  2. open_basedir 改为 `/www/wwwroot/nyh-agent-pc-old/:/tmp/`。
+  3. 用正确 webroot 显式 HTTP-01 续签（需 `PYTHONPATH=/www/server/panel`，否则 `panelSite` 导入 `mod` 失败）：
+     - `vip.nanyahui.cn` → 到期 `2026-11-06 04:08:48 GMT`
+     - `vip.nanyahui.com` → 到期 `2026-11-06 04:09:10 GMT`
+     - `vip-dev.nanyahui.com` → 到期 `2026-11-06 04:09:24 GMT`
+  4. `nginx -t && service nginx reload`。
+- 验证：
+  - 三域名 443 端口证书均为新证，issuer Let’s Encrypt。
+  - `https://<domain>/index.html` 均 `http_code=200`、`ssl_verify=0`。
+  - `letsencrypt_v2.json` 新 valid 订单 `auth_to=/www/wwwroot/nyh-agent-pc-old/public`。
+- 后续：观察次日 `renew_v2` 日志；若再次出现 path 漂移，先对 `site.db` 与 Nginx root 做 diff。
+
 ## 2026-08-08 12:58 CST - 排查 vip.nanyahui.cn SSL 证书过期未自动续期
 
 - 服务器：`nyh-prod`
