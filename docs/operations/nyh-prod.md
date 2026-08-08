@@ -1,5 +1,26 @@
 # nyh-prod 运维时间线
 
+## 2026-08-08 12:58 CST - 排查 vip.nanyahui.cn SSL 证书过期未自动续期
+
+- 服务器：`nyh-prod`
+- 操作人：`Grok`
+- 原因：`https://vip.nanyahui.cn/index.html` 证书过期，排查为何宝塔自动续期未生效。
+- 影响：只读排查（openssl / curl / 读 crontab、site.db、letsencrypt 配置与 renew 日志）；未改配置、未续签、未 reload。
+- 结论（根因）：
+  - 证书已于 `2026-08-07 16:59:53 GMT`（约 `2026-08-08 00:59 CST`）过期；磁盘与 443 端口证书一致，均为 Let’s Encrypt `R13`，签发于 5/10。
+  - 自动续期**有在跑**：root crontab `58 1 * * *` 执行 `acme_v2.py --renew_v2=1`，近几日日志均尝试续签 hash `0e0e4cb7a4cfdc92d383dfc71ad7cf4b`。
+  - 失败点是 **HTTP-01 验证 404**：token 写到错误目录 `/www/wwwroot/load.nanyahui.com/.well-known/acme-challenge`，而 Nginx 实际 `root` 为 `/www/wwwroot/nyh-agent-pc-old/public`。
+  - 错位来源：`/www/server/panel/data/db/site.db` 中站点路径仍是创建时的 `/www/wwwroot/load.nanyahui.com`（2025-11-11），2026-05-26 前后 Nginx 根已迁到 `nyh-agent-pc-old/public`，但宝塔站点 path 未同步。
+  - 自定义 Docker 续期脚本会正确跳过该域名（`managed by bt site/domain table`），因此不会兜底。
+  - 连带：`vip.nanyahui.com` 同样 path 错位且证书已过期；`vip-dev.nanyahui.com` path 也不一致，证书仍有效至 2026-08-24。
+- 本地验证：将探测 token 写入正确 document root 后，`http://vip.nanyahui.cn/.well-known/acme-challenge/<token>` 返回 200；写在 `load.nanyahui.com` 则 301/找不到。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 待修复（需用户确认后再做）：
+  1. 将 `site.db` 中 `vip.nanyahui.cn` / `vip.nanyahui.com`（及可选 `vip-dev`）的 `path` 对齐到实际站点根，或显式用正确 `--path` 续签。
+  2. 手动 HTTP-01 续签并 `nginx -t && service nginx reload`。
+  3. 观察次日 `renew_v2` 日志是否不再 404。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`nyh-prod`
