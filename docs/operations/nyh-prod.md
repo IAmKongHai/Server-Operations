@@ -1,5 +1,20 @@
 # nyh-prod 运维时间线
 
+## 2026-08-08 13:15 CST - 全站排查 site path 与 Nginx root 是否同类错位
+
+- 服务器：`nyh-prod`
+- 操作人：`Grok`
+- 原因：vip 三站修复后，确认是否还有其它站点存在 site.db path / GetRunPath 与 Nginx root 不一致导致 HTTP-01 续期失败。
+- 影响：只读扫描（site.db、GetRunPath、nginx conf、证书天数、renew_v2 近期失败域名）；未改配置。
+- 结论：
+  - 宝塔网站表 16 站用 `panelSite.GetRunPath` 计算 `auth_to` 后，与 Nginx `root` **全部一致**（含已修复的 vip 三站）。
+  - 近几日 `renew_v2` 的 HTTP-01 `Invalid response` **仅出现在** 已修复的 `vip.nanyahui.cn` / `vip.nanyahui.com` / `vip-dev.nanyahui.com`。
+  - Docker/反代 vhost 证书剩余约 65–82 天，由自定义续期脚本覆盖，当前无过期。
+  - 另有废弃域名 `pgadmin.konghai.me` 证书已过期约 181 天（脚本排除清单内，非本次同类问题）。
+  - `nyh-2025.konghai.me` 证书约 30 天后到期，path 对齐正常，可走默认续期。
+- 备份：无（只读）。
+- 回滚：无变更。
+
 ## 2026-08-08 13:08 CST - 修复 vip 三站点 SSL 证书 path 错位并续签
 
 - 服务器：`nyh-prod`
