@@ -1,5 +1,25 @@
 # tizi-cyp 运维时间线
 
+## 2026-08-09 01:16 CST - 只读对照 tizi-ddy：系统/面板现状与重装选型调研
+
+- 服务器/设备：`tizi-cyp`（对照 `tizi-ddy`）
+- 操作人：`Grok`
+- 原因：用户计划重装 `tizi-cyp` 系统与代理面板，需两机现状对比 + 全网口碑（AlmaLinux/S-UI vs Debian/3x-ui）。
+- 影响：只读 SSH 排查；**未**改配置、未重启、未重装。
+- 快照（2026-08-09）：
+  - **OS**：AlmaLinux 9.8（kernel `5.14.0-611.55.1.el9_7`，EOL 2032-06-01）
+  - **硬件**：3 vCPU AMD EPYC-Genoa / 2 GiB RAM / 40G disk（用 6%）/ KVM
+  - **面板栈**：S-UI **1.5.3** + Sing-Box **v1.13.14**（单进程 `/usr/local/s-ui/sui`，RSS ~430 MiB，DB ~39M）
+  - **数据面**：`*:443`（VLESS，inbound 名 `cyp-tizi`）；客户端约 6 条（多为家里/办公室路由器）
+  - **面板暴露**：仅 Tailscale `100.88.178.78:2095`（path `/app/`）；sub `127.0.0.1:2096`
+  - **公网**：`22` + `443/tcp`（firewalld public）；另 `mssql-ref-proxy` 仅 TS `1433`
+  - **流量**：2026-07 eth0 **1.72 TiB**；2026-08 迄今 ~118 GiB
+  - **共性**：BBR+fq、Tailscale 1.102.2、无 Docker
+- 口碑要点（社区/GitHub，见对话）：S-UI ~9.7k★，适合 sing-box 新协议；3x-ui ~44k★ 生态更大；代理节点重装常见选 Debian + 3x-ui。
+- 重装前必迁：面板 DB/客户端 UUID·REALITY 密钥、域名 `cyp-tz.skysms.xyz`、firewalld/ufw 策略、Tailscale、**`mssql-ref-proxy` unit**、流量清零 cron。
+- 备份：无（只读）。
+- 回滚：无变更。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`tizi-cyp`

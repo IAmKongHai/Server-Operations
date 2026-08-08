@@ -1,5 +1,24 @@
 # tizi-ddy 运维时间线
 
+## 2026-08-09 01:16 CST - 只读对照 tizi-cyp：系统/面板现状（供 cyp 重装选型）
+
+- 服务器/设备：`tizi-ddy`（对照 `tizi-cyp`）
+- 操作人：`Grok`
+- 原因：用户评估重装 `tizi-cyp` 时对照本机 Debian + 3x-ui 栈；只读抓取现状与口碑材料。
+- 影响：只读 SSH 排查；**未**改配置、未重启。
+- 快照（2026-08-09）：
+  - **OS**：Debian 13.5 (trixie)，kernel `6.12.88+deb13-amd64`
+  - **硬件**：2 vCPU Intel Xeon (SierraForest) / 1 GiB RAM / 20G disk（用 10%）/ KVM；已用 swap ~18 MiB
+  - **面板栈**：3x-ui **3.6.0** + Xray **26.7.28**（`x-ui` + 子进程 xray；合计 RSS ~230 MiB 量级）
+  - **数据面**：`*:443` VLESS REALITY（inbound `ddy-tizi`）；`minClientVer=1.0.0`（2026-07-30 兼容 Shadowrocket）
+  - **面板暴露**：仅 Tailscale `100.75.133.13:2095`；公网 ufw 仅 `22`+`443`
+  - **安全附带**：fail2ban（`sshd` + `3x-ipl`）
+  - **流量**：2026-07 ~35 GiB；2026-08 迄今 ~48 GiB（负载远低于 cyp）
+  - **共性**：BBR+fq、Tailscale 1.102.2、无 Docker
+- 备注：相对 cyp 配置更紧（1G 内存），但 3x-ui 社区体量与教程显著更多；升级 Xray 后需留意 REALITY 客户端版本门槛。
+- 备份：无（只读）。
+- 回滚：无变更。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`tizi-ddy`
