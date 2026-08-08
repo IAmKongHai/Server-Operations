@@ -1,6 +1,9 @@
 # 运行时日志，不入库
 logs/
 
+# 本机敏感备份（面板 DB、TS state、密钥等），不入库
+_backups/
+
 # macOS
 .DS_Store
 

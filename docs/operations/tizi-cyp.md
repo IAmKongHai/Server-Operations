@@ -1,5 +1,23 @@
 # tizi-cyp 运维时间线
 
+## 2026-08-09 01:38 CST - 重装前全量备份（已拉回本机）
+
+- 服务器/设备：`tizi-cyp`
+- 操作人：`Grok`（用户确认运维窗口、计划 Debian 13.5 + 3x-ui 重装）
+- 原因：重装 OS/面板前落盘可恢复材料；备份优先拉回本机，磁盘上的 `/root/backup` 重装后会丢。
+- 影响：只读备份 + 打包传输；**未**停服务、**未**改配置、**未**重装。S-UI 在线 `sqlite3 .backup`，`integrity_check=ok`。
+- 服务端路径：
+  - 目录：`/root/backup/tizi-cyp-pre-reinstall-20260809-013659/`
+  - 包：`/root/backup/tizi-cyp-pre-reinstall-20260809-013659.tar.gz`（~23–24M，含迁移 JSON 的刷新包）
+  - SHA256 同目录 `*.sha256`
+- 本机路径（**不入库**，见 `.gitignore` `_backups/`）：
+  - `/Users/konghai/Code/Project/Server/_backups/tizi-cyp-pre-reinstall-20260809/tizi-cyp-pre-reinstall-20260809-013659.tar.gz`
+  - 已解压同名目录；关键：`s-ui/s-ui.db`、`s-ui/migration-export.json`、`MIGRATE-TO-3XUI.md`、`mssql-ref-proxy/`、`tailscale/`、`ssh/`
+- 备份内容摘要：S-UI 1.5.3 DB + dump、客户端 6 条、firewalld/ssh/cron/sysctl、mssql-ref-proxy unit、Tailscale state、主机元数据、历史 `/root/backup/tizi-cyp-20260710`
+- 校验：本机 `shasum -a 256 -c …sha256` → OK
+- 回滚：无变更；重装后依赖本机 `_backups/` 恢复
+- 备注：S-UI DB **不能**直接导入 3x-ui；UUID/REALITY 密钥在 `migration-export.json`（敏感，勿提交 git）
+
 ## 2026-08-09 01:16 CST - 只读对照 tizi-ddy：系统/面板现状与重装选型调研
 
 - 服务器/设备：`tizi-cyp`（对照 `tizi-ddy`）
