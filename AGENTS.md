@@ -111,7 +111,8 @@
 - `mas-go-dev` 是 MAS 老系统 Go 重构版的开发测试 VM，过往文档常以 `192.168.2.22` 指代；同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
-  - `/Users/for-konghai/gha/li`、`/Users/for-konghai/gha/li2` — slot 1 / slot 2 的短路径 workFolder（注意命名不对称，非 `li1`/`li2`）
+  - `/Users/for-konghai/gha/li{1,2}` — 对应 slot 的短路径 workFolder（2026-08-08 由不对称的 `li`/`li2` 统一而来）
+  - 改 workFolder 时必须同步改两个维护 LaunchAgent plist 里硬编码的 `WORK_DIRS`，否则每日/每周清理会静默失效、磁盘涨回去
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/cache/go-build` — per-slot Go 编译缓存（共享 `GOMODCACHE=~/go/pkg/mod`）
   - `/Users/for-konghai/gha/cache/pnpm-store` — 本机 pnpm store（两 slot 共享）
   - `/Users/for-konghai/gha/scripts/` — 维护脚本（`gha-runner-maintenance.sh`、`prune-gocache.sh`）

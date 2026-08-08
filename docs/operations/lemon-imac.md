@@ -1,5 +1,37 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-08 22:25 CST - 统一 slot 1 workFolder 为 `~/gha/li1`（含维护 plist 同步）
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`
+- 原因：slot 1 的 workFolder 为 `~/gha/li`、slot 2 为 `~/gha/li2`，命名不对称，易让后续脚本与文档按规律推测出错路径。用户确认 runner 空闲后要求统一。
+- 影响：
+  - `~/gha/li` → `~/gha/li1`（用 `mv` 迁移，保留 4.0G 既有 checkout / `_tool` 缓存，未删除重建）
+  - `~/actions-runner/lemon-imac-1/.runner` 的 `workFolder` 改为 `/Users/for-konghai/gha/li1`
+  - **两个维护 LaunchAgent plist 的 `WORK_DIRS` 同步改为 `li1 li2`**（`com.cypressoai.gha-runner-maintenance{,-weekly}` 第 15 行硬编码了 work 路径；只改 runner 不改 plist，每日/每周清理会静默失效并导致磁盘涨回，此机历史上已因盘满出过 CYP-1547）
+  - slot 2 全程在线，CI 未断供；仅 slot 1 停机约 1 分钟
+- 备份：
+  - `~/actions-runner/lemon-imac-1/.runner.bak.20260808`
+  - `~/Library/LaunchAgents/com.cypressoai.gha-runner-maintenance.plist.bak.20260808`
+  - `~/Library/LaunchAgents/com.cypressoai.gha-runner-maintenance-weekly.plist.bak.20260808`
+- 回滚：`mv ~/gha/li1 ~/gha/li` → 还原上述三个 `.bak.20260808` → `launchctl bootout` + `bootstrap` 重载 slot 1 与两个维护 agent（约 1 分钟，全程可逆）
+- 变更时序：
+  1. 确认无 `Runner.Worker`（仅两个 Listener 在线）→ 空闲
+  2. `launchctl bootout` 停 slot 1（slot 2 保持在线）
+  3. 备份 `.runner` + 两个 plist
+  4. `mv ~/gha/li ~/gha/li1`
+  5. `sed` 改 `.runner`（匹配 `gha/li"` 带尾引号，避免误伤 `li2`）
+  6. `sed` 改两个 plist（匹配 `gha/li ` 带尾空格）
+  7. `launchctl bootstrap` 重载 slot 1 + 两个维护 agent
+- 验证：
+  - slot 1 日志 `Session created` → **`Listening for Jobs`**（runner 2.336.0），非仅进程存活
+  - `launchctl list` 四个服务退出码均 0；slot 2 PID 未变（97536），未受影响
+  - `~/gha` 下只剩 `li1`/`li2`/`cache`/`scripts`，旧 `~/gha/li` 确认不存在；体积 4.0G / 4.1G 完整保留
+  - `plutil -lint` 两个 plist OK
+  - 以 plist 实际参数跑 `DRY_RUN=1` 维护脚本：正确识别 `li1` 与 `li2` 并列出待清理项，确认清理链路未断
+- 备注：`_PipelineMapping` 仍记旧路径，首个 job 可能重新 checkout 一次，属正常自愈。`docs/runbooks/ci-runner-pools.md` 只记缓存路径、不含 workFolder，无需改动。
+- 关联：`AGENTS.md` 目录约定已更新并补充「改 workFolder 必须同步改维护 plist」的告警
+
 ## 2026-08-08 CST - 只读核实 runner workFolder 与缓存路径（补全仓库清单）
 
 - 服务器：`lemon-imac`
