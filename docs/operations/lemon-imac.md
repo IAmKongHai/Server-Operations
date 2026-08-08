@@ -1,5 +1,21 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-08 CST - 只读核实 runner workFolder 与缓存路径（补全仓库清单）
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`
+- 原因：对齐 `README.md` 与 `AGENTS.md` 服务器清单时发现 `lemon-imac` 缺目录约定；`umacbook-pro` 的 workFolder 为 `~/gha/u{1,2}`，需上机确认 `lemon-imac` 是否同构，避免凭推测写进约定文档。
+- 影响：只读（`cat .runner` / `cat .env` / `ls`）；未改配置、未重启 runner、未删文件。
+- 核实结果：
+  - workFolder **命名不对称**：slot 1 为 `~/gha/li`、slot 2 为 `~/gha/li2`（不是 `li1`/`li2`，也不同于 `umacbook-pro` 的 `u1`/`u2`）
+  - agentName `lemon-imac-1`（agentId 32）/ `lemon-imac-2`（agentId 31）；org `cypressoai`，均为 useV2Flow
+  - `.env` 与 runbook 记载一致：per-slot `GOCACHE=~/actions-runner/lemon-imac-{1,2}/cache/go-build`，共享 `GOMODCACHE=~/go/pkg/mod`、`PNPM_STORE_PATH=~/gha/cache/pnpm-store`
+  - LaunchAgent 四个齐全：`actions.runner.cypressoai.lemon-imac-{1,2}` + `com.cypressoai.gha-runner-maintenance{,-weekly}`
+  - 维护脚本在 `~/gha/scripts/`（`gha-runner-maintenance.sh`、`prune-gocache.sh`）
+- 备份：无（只读）。
+- 回滚：无变更。
+- 关联：`AGENTS.md` 已补 `lemon-imac` 目录约定；`docs/runbooks/ci-runner-pools.md`
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`lemon-imac`
