@@ -1,5 +1,34 @@
 # tizi-cyp 运维时间线
 
+## 2026-08-09 02:02 CST - 重装后完成 Debian 13 + 3x-ui REALITY 基线与跳板
+
+- 服务器/设备：`tizi-cyp`（公网 `89.208.242.203`，Tailscale **现** `100.116.91.14`；重装前 TS 为 `100.88.178.78`）
+- 操作人：`Grok`（用户已登录 Tailscale；授权完成剩余重建）
+- 原因：用户重装 OS 为 Debian 13 后，恢复纯代理节点（**3x-ui + Xray**，对齐 ddy；弃用 S-UI/sing-box）。
+- 选型 / 影响：
+  - **OS 基线**：hostname `tizi-cyp`；时区 `Asia/Shanghai`；`en_US.UTF-8`；BBR + `fq`；包：`curl`/`ufw`/`fail2ban`/`socat`/`sqlite3`/`vnstat`；SSH `PasswordAuthentication no`。
+  - **3x-ui v3.6.0** + **Xray 26.7.28**：VLESS + REALITY `*:443`，remark `cyp-tizi`，dest/SNI `assets-xbxweb.xbox.com`，flow `xtls-rprx-vision`，`minClientVer=1.0.0`；**UUID / REALITY 私钥 / shortIds** 从本机备份 `migration-export` / `s-ui.db` 原样迁入（6 客户端，5 启用）。
+  - **面板**：仅 `100.116.91.14:2095`（webBasePath 随机，安装时生成）；sub 绑 `127.0.0.1:2096`；**无**公网面板端口。
+  - **ufw**：default deny；放行 `22/tcp`、`443/tcp`、`tailscale0` 全通。
+  - **mssql-ref-proxy**：`socat` 仅听 **`100.116.91.14:1433` → `100.124.140.78:1433`**，`MemoryMax=256M`，enabled。
+- 备份：
+  - 本机（gitignored）：`_backups/tizi-cyp-pre-reinstall-20260809/`
+  - 机上：`/root/migrate-payload.json`（敏感）、`/root/mssql-ref-proxy.README`、`/etc/x-ui/install-result.env`（面板账密，mode 600）
+- 回滚方式：
+  - 面板/入站：改 `/etc/x-ui/x-ui.db` 后 `systemctl restart x-ui`（需保留备份库）
+  - 跳板：`systemctl disable --now mssql-ref-proxy && rm -f /etc/systemd/system/mssql-ref-proxy.service && systemctl daemon-reload`
+  - 防火墙：`ufw disable`（不推荐）或按 `ufw status` 回改规则
+- 变更时序：基线软件包 → 3x-ui 官方安装 → 写 REALITY 入站/客户端 → 面板绑 TS:2095 → ufw → mssql-ref-proxy → 验收。
+- 验证：
+  - `scripts/verify-tizi-cyp-baseline.sh` → `VERIFY_TIZI_CYP_OK`
+  - `ss`：`*:443` xray；`100.116.91.14:2095` x-ui；`100.116.91.14:1433` socat；无 `0.0.0.0:2095/1433`
+  - 迁移对账：6 UUID 与私钥匹配；`minClientVer=1.0.0`；禁用客户端未进运行时 config
+  - 公网 TLS 探针：`:443` SNI `assets-xbxweb.xbox.com` 返回 `CN=*.xbox.com`（REALITY 握手面）
+- 备注：
+  - 客户端侧 **无需改 UUID/密钥**（域名 `cyp-tz.skysms.xyz` 未动）。
+  - 面板 URL 仅经 Tailscale：`http://100.116.91.14:2095/<webBasePath>/`（path 见机上 `install-result.env`，**勿写入 git**）。
+  - 明日全量客户端上线前建议各抽测一条路由器节点。
+
 ## 2026-08-09 01:38 CST - 重装前全量备份（已拉回本机）
 
 - 服务器/设备：`tizi-cyp`
