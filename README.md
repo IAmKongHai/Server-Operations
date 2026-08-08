@@ -29,13 +29,20 @@ server/
 | `tizi-cyp`     | 代理              | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                                  |
 | `tizi-ddy`     | 代理              | 代理节点（`80.251.215.131`，Debian 13，3x-ui 面板）                                              |
 | `mac-mini`     | 本地              | 家里的 Mac mini                                                                                  |
-| `lemon-imac`   | 本地 / 测试       | Tailscale 内网 iMac，作为 macOS ARM GitHub Actions self-hosted runner                             |
+| `lemon-imac`   | 本地 / 测试       | Tailscale 内网 iMac（8 核 / 8GB），跑 self-hosted runner `lemon-imac-1/2`                          |
+| `umacbook-pro` | 本地 / 测试       | Tailscale 内网 MacBook Pro（`100.113.23.49`，M1 / 8GB），跑 self-hosted runner `umacbook-pro-1/2`  |
 | `nas`          | 本地 / 数据       | 家用 NAS，跑 SQL Server（`mas-old-sql2022-fts-nas` 等）及历史业务数据库                          |
 | `pve`          | 本地 / 测试       | Proxmox VE 虚拟化宿主，计划承载开发测试 VM                                                       |
 | `mssql-ref`    | 本地 / 数据       | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库（`192.168.2.20`）                            |
 | `mas-go-dev`   | 本地 / 测试       | PVE 上的 Amazon Linux 2023 VM（`192.168.2.22`），承载 MAS Go 重构版开发/集成测试环境与 GH Actions runner |
+| `fnos-nas`     | 本地 / 存储       | PVE 上的飞牛 fnOS VM（VMID 140，`192.168.2.9`），存放可重新下载的影视资源，不承诺数据可恢复       |
+| `km-landui`    | 本地              | 内网设备，纳入例行安全扫描清单                                                                    |
+| `home-router`  | 本地 / 网络       | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问                                                |
+| `office-router`| 本地 / 网络       | 办公室路由器，原托管的 GitHub Actions runner 已于 2026-06-30 移除                                 |
 
 > 详细的服务运行清单、域名、端口、备份策略等，按需在 `<server>/` 子目录或 `docs/solutions/<server>/` 下补充。
+>
+> `fnos-nas` / `km-landui` / 路由器只有运维时间线，无 `docs/solutions/` 条目；`fnos-nas` 曾出现 SSH 超时不可达（见 `docs/operations/lemon-imac.md` 2026-08-07 条目）。
 
 ## 常用工作流
 

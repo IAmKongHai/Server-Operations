@@ -90,11 +90,16 @@
 | `tizi-cyp`     | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                        | **是**（代理节点，按生产对待）    |
 | `tizi-ddy`     | 代理节点（`80.251.215.131`，Debian 13，3x-ui）                                         | **是**（代理节点，按生产对待）    |
 | `mac-mini`     | 家里的 Mac mini                                                                        | 否                                |
+| `lemon-imac`   | Tailscale 网内 iMac（8 核 / 8GB），跑 org `cypressoai` self-hosted runner `lemon-imac-1/2`；`ssh lemon-imac` 以 `for-konghai` 登录 | 否（CI runner 机，改 runner / LaunchAgent 前仍需确认） |
 | `umacbook-pro` | Tailscale 网内 MacBook Pro（`100.113.23.49`，主机名 `UdeMacBook-Pro.local`，M1 / 8GB），跑 org `cypressoai` self-hosted runner `umacbook-pro-1/2`；`ssh umacbook-pro` 以 `for-konghai` 登录 | 否（CI runner 机，改 runner / LaunchAgent 前仍需确认） |
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
 | `pve`          | Proxmox VE 虚拟化宿主，计划承载开发测试 VM；当前可通过 `ssh pve` 以 root 密钥登录    | 否（测试环境，但仍需备份后再改）  |
 | `mssql-ref`    | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库；当前可通过 `ssh ubuntu@192.168.2.20` 登录 | 否（参考/测试数据库，改库前仍需备份确认） |
 | `mas-go-dev`   | PVE 上的 Amazon Linux 2023 VM（`192.168.2.22`，原裸 IP 访问），承载 MAS Go 重构版开发/集成测试环境，跑后端容器与 self-hosted GitHub Actions runner；`ssh mas-go-dev` 以 `ec2-user` 登录 | 否（开发测试环境，但改 Docker / runner 前仍需备份确认） |
+| `fnos-nas`     | PVE 上的飞牛 fnOS VM（VMID 140，`192.168.2.9`），存放可重新下载的影视资源                | 否（不承诺数据可恢复；曾出现 SSH 超时不可达）  |
+| `km-landui`    | 内网设备，纳入例行安全扫描清单                                                          | 否                                |
+| `home-router`  | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问（本机已卸载 Tailscale）              | **是**（改动影响家里所有联网设备） |
+| `office-router`| 办公室路由器，原托管的 GitHub Actions runner 已于 2026-06-30 移除                        | **是**（改动影响办公室所有联网设备） |
 
 注意：
 - `nyh-prod` 上同时跑着多个项目的生产数据库与站点，任何重启 / 配置改动都要先想清楚波及哪些项目
@@ -104,6 +109,13 @@
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
 - `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认
 - `mas-go-dev` 是 MAS 老系统 Go 重构版的开发测试 VM，过往文档常以 `192.168.2.22` 指代；同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI
+- `lemon-imac` 目录约定：
+  - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
+  - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/cache/go-build` — per-slot Go 编译缓存（共享 `~/go/pkg/mod`）
+  - `/Users/for-konghai/gha/cache/pnpm-store` — 本机 pnpm store
+  - 维护任务走 LaunchAgent（`com.cypressoai.gha-runner-maintenance{,-weekly}`）而非 crontab，crontab 被 TCC 拒绝
+  - 当前 labels 同 `umacbook-pro`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
+  - 8GB 内存 + 双 slot 并发容易顶满内存/磁盘，重活优先派给 `mac-mini`
 - `umacbook-pro` 目录约定：
   - `/Users/for-konghai/actions-runner/umacbook-pro-{1,2}/` — GitHub Actions runner 程序与配置
   - `/Users/for-konghai/gha/u{1,2}/` — 对应 slot 的短路径 workFolder
