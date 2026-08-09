@@ -28,6 +28,10 @@
   - 客户端侧 **无需改 UUID/密钥**（域名 `cyp-tz.skysms.xyz` 未动）。
   - 面板 URL 仅经 Tailscale：`http://100.116.91.14:2095/<webBasePath>/`（path 见机上 `install-result.env`，**勿写入 git**）。
   - 明日全量客户端上线前建议各抽测一条路由器节点。
+  - **经验落盘（后续节点升级用）**：
+    - Runbook：`docs/runbooks/proxy-node-reinstall-upgrade.md`
+    - 通用选型：`docs/solutions/best-practices/proxy-node-3x-ui-debian-upgrade-2026-08-09.md`
+    - 本机样板：`docs/solutions/tizi-cyp/best-practices/debian-3xui-reinstall-from-s-ui-2026-08-09.md`
 
 ## 2026-08-09 01:38 CST - 重装前全量备份（已拉回本机）
 
