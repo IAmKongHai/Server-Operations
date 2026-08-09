@@ -15,6 +15,15 @@
 docs/runbooks/ci-runner-pools.md
 ```
 
+## 代理节点升级
+
+`tizi` 族纯代理节点（Debian + 3x-ui/Xray、REALITY、仅 TS 面板）重装/升级：
+
+```text
+docs/runbooks/proxy-node-reinstall-upgrade.md
+docs/solutions/best-practices/proxy-node-3x-ui-debian-upgrade-2026-08-09.md
+```
+
 ## 路径约定
 
 ```text
