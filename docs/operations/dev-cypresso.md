@@ -1,5 +1,62 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-10 12:56 CST - 修复 App 登录 503：icare-backend 侧遗漏的 7 处旧跳板 IP（12:02 条目的续集）
+
+- 服务器：`dev-cypresso`
+- 操作人：`Claude`
+- 触发：App 登录页报 `The service is temporarily unavailable. Please try again shortly.`
+- 原因：**与 12:02 条目同源（tizi-cyp 换 IP），但出错的服务不同**。12:02 只修了 public-backend 自己的 `.env.{app,hr,map}`，遗漏了 `icare-backend` 的一整组 env 文件，其中仍是旧 IP `100.88.178.78`：
+  ```
+  App 登录 → public-backend（本身正常，WEBKIT_DB 已在 12:02 修好）
+              └→ http://api:8080/internal/public/v1/{members/<id>/auth-context, settings/auth-policy}
+                   └→ icare-backend ← DB_HOST 仍是旧 IP
+                        └→ dial tcp 100.88.178.78:1433 i/o timeout（15s）
+                             └→ public-backend 客户端 10s 先超时 → 对 App 返回 503
+  ```
+  - `icare-backend` 容器已连续运行 39 小时、healthy，未被当日部署触及，是**带着旧配置一直活着**的，所以 12:02 修复时不会暴露。
+  - 关键区分点：从 public-backend 容器手工 `curl http://api:8080/...` **秒回 401**（服务活着、网络通），但业务请求 15s 超时——差别在业务路径要查库。据此可快速排除"容器网络不通"这一错误方向。
+- 影响：
+  - 改动 `/home/ec2-user/stacks/icare/` 下 3 个 env 文件、共 7 处 `*DB_HOST`
+  - 重建 `api` / `worker` / `ecom-api` / `sup-api` 四个容器
+- 待修清单（旧 IP → `100.116.91.14`）：
+
+  | 文件 | 处数 | 变量 |
+  |---|---|---|
+  | `.env`（`.env.docker` 是指向它的软链） | 3 | `DB_HOST`、`WEBKIT_DB_HOST`、`SALESPORTAL_DB_HOST` |
+  | `.env.ecom` | 1 | `DB_HOST` |
+  | `.env.sup` | 3 | `DB_HOST`、`SALESPORTAL_DB_HOST`、`REPLICATED_DB_HOST` |
+
+- 备份：`/home/ec2-user/stacks/icare/.env{,.ecom,.sup}.bak.20260810-dbhost`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'cd /home/ec2-user/stacks/icare && \
+    for f in .env .env.ecom .env.sup; do cp "$f.bak.20260810-dbhost" "$f"; done'
+  # 再按下方「变更时序」第 4 步重建容器
+  ```
+- 变更时序：
+  1. 定位：`icare-backend-api-1` 日志刷 `unable to open tcp connection with host '100.88.178.78:1433'`，另有每 30s 一次的 `policy sync: reload failed`（casbin 权限策略同步）
+  2. `grep -lE "100\.88\.178\.78" .env*` 找全受影响文件（**注意排除 `.bak.*` 备份，那些不该改**）
+  3. 备份后 `sed -i -E "s/^([A-Z_]*DB_HOST)=100\.88\.178\.78[[:space:]]*$/\1=100.116.91.14/"`，锚定行首 + 行尾，避免误伤注释或其他含该 IP 的配置；`diff` 确认恰好只改了预期行数
+  4. 重建容器（**必须显式传镜像变量**，见下方「坑」）：
+     ```bash
+     cd /home/ec2-user/stacks/icare
+     export BACKEND_IMAGE=ghcr.io/cypressoai/icare-backend:<sha>
+     export ECOM_IMAGE=ghcr.io/cypressoai/icare-backend-ecom:<sha>
+     export SUP_IMAGE=ghcr.io/cypressoai/icare-backend-sup:<sha>
+     docker-compose -f backend.compose.yaml up -d --no-deps api worker ecom-api sup-api
+     ```
+     `<sha>` 取自 `docker ps --format '{{.Names}}\t{{.Image}}'`（本次为 `7fa2c2fb07cde5f27af0883c8a96c8f0cc4c7125`，三个镜像仓同一 commit）
+- 两个坑（本次实操踩到）：
+  - **`.env.docker` 是指向 `.env` 的软链**。`cp -a .env.docker .env.docker.bak` 只会复制出一条软链，**内容根本没备份**，且 `ls -l | grep '^l'` 在该目录下不显示它。要备份必须对真身 `.env` 操作，或用 `readlink -f` 先解析。
+  - **`docker-compose up -d` 会尝试从源码构建**：`backend.compose.yaml` 里各服务同时有 `build:` 和 `image:`，`image` 未提供时回退到 `:local` 标签，本地无此镜像即触发 build，而部署机没有 Dockerfile，报 `failed to read dockerfile: open Dockerfile.external-api: no such file or directory`。**必须显式 export `BACKEND_IMAGE`/`ECOM_IMAGE`/`SUP_IMAGE`**。与 12:02 条目里 `PUBLIC_BACKEND_IMAGE` 的坑同源。此次失败未破坏运行中的容器，但会浪费一轮排查。
+  - 附带注意：`api` 服务 `depends_on: seed (service_completed_successfully)`，重建时须带 **`--no-deps`** 避免触发 seed 数据迁移（CI 在 `deploy.yml:331` 也是这么做的，那里有同样的注释）。本次只换 IP、不换镜像版本，seed 无关且有风险。
+- 验证：
+  - **登录端点实测**：`POST :8090/api/v1/app/auth/login` 用无效账号 → `{"code":10001,"message":"msg.auth.invalid_credentials"}`（401，1ms）。能判定"凭据错误"即证明查库正常；故障时此处返回 503 `msg.health.dependency_unavailable`（即 App 页面那句 temporarily unavailable）
+  - `:8090`/`:8091`/`:8092` 的 `/api/v1/health/ready` 均由 `down` 转为 `up`
+  - 四容器 `RestartCount=0` 且 healthy；`policy sync: reload failed` 停止；`docker exec ... printenv | grep 100.88.178.78` 无残留
+- 结论：与 12:02 同一根因的遗漏面。**排查同类问题时，`grep -rl <旧IP> /home/ec2-user/stacks/` 应覆盖全部 stack，而不只是报错服务自己的 env。**
+- 待办：CYP-2006 的 pre-flight 目前只保护 `iCare-public-backend` 的部署流程；`icare-backend`（7 处 DB host、3 个 env 文件、4 个容器）尚无任何防护，同一脚本挂到其部署流程即可补齐，需另开 Jira。
+
 ## 2026-08-10 12:02 CST - 修复 public-backend 崩溃循环：WEBKIT_DB_HOST 指向已失效的 tizi-cyp 旧 Tailscale IP
 
 - 服务器：`dev-cypresso`
@@ -38,7 +95,7 @@
   - 容器日志近 5 分钟内无 `i/o timeout` / `failed to initialize database` / 旧 IP 记录
   - 观察 45s：三个容器 `RestartCount=0`、状态由 `health: starting` 转为 `Up About a minute (healthy)`，崩溃循环终止
 - 结论：本次 CI 失败属 runner 侧环境配置问题，与提交代码无关。
-- 待办：在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。改动落在 `cypressoai/iCare-public-backend` 仓库（本机未克隆），交接文档见 `docs/handoffs/icare-public-backend-deploy-preflight-2026-08-10.md`。
+- 待办：~~在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。改动落在 `cypressoai/iCare-public-backend` 仓库（本机未克隆），交接文档见 `docs/handoffs/icare-public-backend-deploy-preflight-2026-08-10.md`。~~ **已完成**（2026-08-10）：CYP-2006 / [iCare-public-backend#120](https://github.com/cypressoai/iCare-public-backend/pull/120)，`scripts/preflight-db-reachable.sh`，已接入 `deploy-dev-cypresso` 与 `deploy-mas-go-dev` 两个 job。首次真实部署（run `31355448734`）三条 `preflight ok`，耗时约 250ms。**失败路径尚未在真机验证过。** 注：该仓其实已克隆在本机 `iCare/public-backend/`，交接文档中"本机未克隆"的判断有误。
 - 备注：经确认 `tizi-cyp` 后续不会再重装，`WEBKIT_DB_HOST` 保持裸 IP，不改用 MagicDNS 名（会引入其他问题）。
 
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
