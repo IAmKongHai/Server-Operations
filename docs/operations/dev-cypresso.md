@@ -38,7 +38,7 @@
   - 容器日志近 5 分钟内无 `i/o timeout` / `failed to initialize database` / 旧 IP 记录
   - 观察 45s：三个容器 `RestartCount=0`、状态由 `health: starting` 转为 `Up About a minute (healthy)`，崩溃循环终止
 - 结论：本次 CI 失败属 runner 侧环境配置问题，与提交代码无关。
-- 待办：在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。
+- 待办：在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。改动落在 `cypressoai/iCare-public-backend` 仓库（本机未克隆），交接文档见 `docs/handoffs/icare-public-backend-deploy-preflight-2026-08-10.md`。
 - 备注：经确认 `tizi-cyp` 后续不会再重装，`WEBKIT_DB_HOST` 保持裸 IP，不改用 MagicDNS 名（会引入其他问题）。
 
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
