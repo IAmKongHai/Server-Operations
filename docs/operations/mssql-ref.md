@@ -1,5 +1,33 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-10 23:15 CST - 为 UAT SQL MI 产出瘦身版 authprovidermasweb 备份（10.5GB → 141MB）
+
+- 服务器：`mssql-ref`
+- 操作人：`Claude`
+- 原因：需把 `authprovidermasweb`（内部逻辑名 `TopLogicAuthProvider`）迁到 UAT 环境的 Azure SQL MI，要求尽量压缩传输体积。
+- 影响：**源库 `authprovidermasweb` 全程零改动**。所有清理动作在临时副本 `authprovidermasweb_uat` 上完成，副本用完即删。未重启 `mssql-server`。
+- 体积构成（操作前）：MDF 分配 10733 MB / 实际用 2162 MB，LDF 64 MB。空间大头是 `exception_logs` 表 1336577 行 / 1687 MB（2023-01-01 ~ 2026-08-05 的应用异常日志），占实际数据 78%。
+- 删除前的安全校验：
+  - `sys.foreign_keys` 确认 `exception_logs` 既不被引用也不引用他表，是孤立叶子表。
+  - 全库唯一存储过程 `ResultWithOutput_sp` 经 `OBJECT_DEFINITION` 检查未引用该表。
+  - 用户确认历史日志无需归档，直接清空。
+- 变更时序：
+  1. `BACKUP DATABASE [authprovidermasweb]` → `/restore/data/uat_export/tmp_src.bak`（压缩，318 MB）。
+  2. `RESTORE` 为副本库 `authprovidermasweb_uat`，数据文件 `MOVE` 到 `uat_export/`。
+  3. 在**副本**上 `TRUNCATE TABLE exception_logs` + `oauth_access_tokens_old`（均保留表结构）。
+  4. `DBCC SHRINKFILE` 收数据文件与日志文件 → MDF 475 MB / LDF 0.77 MB。
+  5. `BACKUP ... WITH COMPRESSION, CHECKSUM` → `authprovidermasweb_uat.bak`（141 MB），随后 `RESTORE VERIFYONLY WITH CHECKSUM` 通过。
+  6. `scp` 下载到本地 `iCare/backend/db-bak/authprovidermasweb_uat-10082026.bak`（该目录被 `.gitignore` 忽略，含真实用户数据不入 git）。
+  7. 清理：`DROP DATABASE authprovidermasweb_uat`、删 `/restore/data/uat_export/` 与 `/tmp` 内所有中间文件及 `.sql`。
+- 验证：
+  - 副本行数：`AspNetUsers` 476655（完整保留）、`oauth_access_tokens` 91、`oauth_clients` 11、`__MigrationHistory` 1、`exception_logs` 0；非系统对象 42 个全在。
+  - `DBCC CHECKDB ... PHYSICAL_ONLY` 无错误。
+  - 传输完整性：两端 md5 一致 `5d069d585e6c9d71446b7093cdf6d331`。
+  - 收尾确认 `sys.databases` 仅剩 `authprovidermasweb` ONLINE；`/restore` 占用回到 168G/393G。
+- 备份：源库备份 `tmp_src.bak` 为过程中转文件，已随清理删除；源库本身未动，无需回滚点。
+- 回滚方式：本次未改源库，无回滚需求。UAT 侧如需重做，重跑上述 1~6 步即可。
+- 待办 / 风险：该库 `compatibility_level = 110`（SQL Server 2012），本机引擎为 **SQL Server 2022 (16.0.4252.3)**。SQL MI 不接受高于自身引擎版本的 `.bak`，用户已确认 UAT MI 走 "SQL Server 2022" 更新策略，故可直接 `RESTORE`。若日后目标 MI 引擎低于 2022，`.bak` 路线必然失败，需改走 BACPAC / SqlPackage 导出。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`mssql-ref`
