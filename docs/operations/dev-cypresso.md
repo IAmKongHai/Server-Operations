@@ -1,5 +1,46 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-10 12:02 CST - 修复 public-backend 崩溃循环：WEBKIT_DB_HOST 指向已失效的 tizi-cyp 旧 Tailscale IP
+
+- 服务器：`dev-cypresso`
+- 操作人：`Claude`
+- 触发：iCare-public-backend `Deploy public-backend` workflow 的 `Deploy to dev-cypresso` job 连续失败（run `31350189741`，已是第 4 次 attempt）。同一 run 的 `Deploy to mas-go-dev` job 成功。
+- 原因：
+  - 2026-08-09 重装 `tizi-cyp` 系统后重新登录 Tailscale，其 Tailscale IP 由 `100.88.178.78` 变为 `100.116.91.14`。
+  - `tizi-cyp` 是 dev-cypresso 访问 `mssql-ref` MSSQL 的 socat 转发跳板（直连 mssql-ref 太慢，必须走代理）。
+  - dev-cypresso 上 `/home/ec2-user/stacks/icare/public-backend/.env.{app,hr,map}` 里 `WEBKIT_DB_HOST` 仍是旧 IP，三个容器启动时 `dial tcp 100.88.178.78:1433: i/o timeout` 而崩溃，陷入重启循环。
+  - 这批 `.env.*` 由宿主机本地维护、不入库，CI 无从校验；部署脚本只能等 60s 健康检查超时后倒 200 行日志，定位成本高。
+- 影响：
+  - 改动 `.env.app` / `.env.hr` / `.env.map` 三个文件的 `WEBKIT_DB_HOST` 一行
+  - 重建 `public-app` / `public-hr` / `public-map` 三个容器（重建前它们已在崩溃循环中，无可用服务，不存在打断正常服务）
+- 备份：`/home/ec2-user/stacks/icare/public-backend/.env.{app,hr,map}.bak.20260810`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'cd /home/ec2-user/stacks/icare/public-backend && \
+    for f in .env.app .env.hr .env.map; do cp "$f.bak.20260810" "$f"; done'
+  # 再按下方「变更时序」第 4 步重建容器
+  ```
+- 变更时序：
+  1. 只读诊断：`tailscale status` 确认 tailnet 内已无 `100.88.178.78`；从 dev-cypresso 测 TCP，旧 IP:1433 timeout、`100.116.91.14:1433` OK
+  2. 在 `tizi-cyp` 上确认转发存活且已持久化：`mssql-ref-proxy.service`（active/running），socat `TCP-LISTEN:1433,bind=100.116.91.14 → TCP:100.124.140.78:1433`
+  3. 备份三个 env 文件后 `sed -i` 替换 `WEBKIT_DB_HOST`，并确认无旧 IP 残留
+  4. 重建容器（注意本机**无 compose v2 CLI 插件**，须用 `/usr/local/bin/docker-compose`，其自身是 v2.24.5）：
+     ```bash
+     cd /home/ec2-user/stacks/icare/public-backend
+     export PUBLIC_BACKEND_IMAGE=ghcr.io/cypressoai/icare-public-backend:<sha>
+     export PUBLIC_APP_ENV_FILE=$PWD/.env.app PUBLIC_HR_ENV_FILE=$PWD/.env.hr PUBLIC_MAP_ENV_FILE=$PWD/.env.map
+     docker-compose -f public-backend.compose.yaml up -d --force-recreate --pull never \
+       public-app public-hr public-map
+     ```
+     （不带 `PUBLIC_BACKEND_IMAGE` 会回退到 compose 默认值 `icare/public-backend:local` 并报 GHCR `pull access denied`）
+- 验证：
+  - 复用 workflow 同款探测：`:8090` / `:8091` / `:8092` 的 `/api/v1/health/live` 均**首次尝试**即返回 `"status":"up"`
+  - 容器日志近 5 分钟内无 `i/o timeout` / `failed to initialize database` / 旧 IP 记录
+  - 观察 45s：三个容器 `RestartCount=0`、状态由 `health: starting` 转为 `Up About a minute (healthy)`，崩溃循环终止
+- 结论：本次 CI 失败属 runner 侧环境配置问题，与提交代码无关。
+- 待办：在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。
+- 备注：经确认 `tizi-cyp` 后续不会再重装，`WEBKIT_DB_HOST` 保持裸 IP，不改用 MagicDNS 名（会引入其他问题）。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`dev-cypresso`

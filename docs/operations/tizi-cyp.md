@@ -32,6 +32,11 @@
     - Runbook：`docs/runbooks/proxy-node-reinstall-upgrade.md`
     - 通用选型：`docs/solutions/best-practices/proxy-node-3x-ui-debian-upgrade-2026-08-09.md`
     - 本机样板：`docs/solutions/tizi-cyp/best-practices/debian-3xui-reinstall-from-s-ui-2026-08-09.md`
+  - **下游影响（2026-08-10 补记）**：本次 Tailscale IP 变更（`100.88.178.78` → `100.116.91.14`）
+    导致 `dev-cypresso` 上 iCare public-backend 三个容器崩溃循环、CI 部署连续失败 —— 那边
+    `.env.{app,hr,map}` 的 `WEBKIT_DB_HOST` 硬编码了本机旧 IP 作为 MSSQL 跳板地址。
+    详见 `docs/operations/dev-cypresso.md` 2026-08-10 12:02 条目。
+    **后续若本机 TS IP 再变，记得同步该文件。**
 
 ## 2026-08-09 01:38 CST - 重装前全量备份（已拉回本机）
 
