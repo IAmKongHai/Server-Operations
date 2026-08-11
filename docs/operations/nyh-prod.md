@@ -1,5 +1,46 @@
 # nyh-prod 运维时间线
 
+## 2026-08-11 14:23 CST - 部署 Tailscale Exit Node（个人手机固定出口 IP）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`）
+- 操作人：`Grok`（用户确认执行 plan + 浏览器登录 tailnet + Admin 批准 Exit）
+- 计划：`docs/plans/2026-08-11-001-ops-nyh-prod-tailscale-exit-plan.md`
+- 原因：单人极小流量，目标 App 需要稳定以本机香港 IP 出网；优先 Exit Node，不稳再考虑 3x-ui。
+- 影响：
+  - 宿主机安装 Tailscale `1.102.2`，节点名 `nyh-prod`，Tailscale IPv4 `100.78.12.107`，宣告 Exit（`0.0.0.0/0` / `::/0`）。
+  - ufw 入站 **UDP 41641**；用户侧阿里云安全组同步已开。
+  - 曾短暂导致本机解析失败（见下「踩坑」），已用公网 DNS 修复；业务 `load.nanyahui.com` / `vip.nanyahui.cn` 恢复 200。
+  - **未**改 Nginx 80/443、未装 3x-ui、未用 host 网络 Docker。
+- 选型：
+  - 宿主机 Exit，非 Docker；`--accept-dns=false --accept-routes=false`。
+  - 本机不选用任何 exit（服务器只提供出口）。
+- 备份：
+  - ufw：`/root/backup/ufw-status-20260811_141431.txt`（600）
+- 回滚方式：
+  1. 客户端取消 Exit Node。
+  2. 服务器：`tailscale set --advertise-exit-node=false` 或 `systemctl stop tailscaled`。
+  3. 可选：`ufw delete allow 41641/udp`；卸载 tailscale 包（一般不必）。
+  4. DNS 相关：`/etc/systemd/resolved.conf.d/99-aliyun-public-dns.conf` 与 `fix-aliyun-dns-vs-tailscale.service` 可按需保留（有 Tailscale 时建议保留）。
+- 变更时序：
+  1. 只读基线：无 tailscale；`ip_forward=1`；ufw active；公网 `47.239.167.8`；`load` HTTPS 200（`acquilangai.com` 装前即为 502，非本次引入）。
+  2. `ufw allow 41641/udp comment 'Tailscale'`（含 v6）。
+  3. 官方脚本安装 `tailscale`；`tailscaled` enable+active。
+  4. `tailscale up --advertise-exit-node --accept-dns=false --accept-routes=false --hostname=nyh-prod`；用户浏览器登录。
+  5. `/etc/sysctl.d/99-tailscale-exit.conf`：`ip_forward=1` + `ipv6 forwarding=1`。
+  6. **踩坑修复**：登录后阿里云 VPC DNS `100.100.2.136/138` 落在 Tailscale CGNAT `100.64/10`，`ts-input` 丢弃非 `tailscale0` 的该段回包 → 本机 dig/curl 域名超时。处理：`resolvectl` 与 `/etc/systemd/resolved.conf.d/99-aliyun-public-dns.conf` 改为 `223.5.5.5` / `223.6.6.6`（fallback `8.8.8.8`）；`/usr/local/sbin/fix-aliyun-dns-vs-tailscale.sh` + systemd oneshot + `tailscaled` ExecStartPost 复挂；另加 `100.100.2.x/32` 走 eth0 的 host route 兜底。
+  7. 用户 Admin **Approve exit node**。
+  8. 本机 Mac 验收：`tailscale set --exit-node=nyh-prod` → `ifconfig.me` = `47.239.167.8`；路径 **`direct 47.239.167.8:41641`**（非仅 DERP）；随后 `tailscale set --exit-node=` 清掉，本地出口恢复。
+- 验证：
+  - `tailscale status`：`offers exit node`；peer 侧 `ExitNodeOption=true`，AllowedIPs 含 `0.0.0.0/0`。
+  - 默认路由仍 `eth0`；CorpDNS/accept-routes 关闭。
+  - `ss -ulnp`：`0.0.0.0:41641` / `[::]:41641` = tailscaled。
+  - HTTPS：`load.nanyahui.com` / `vip.nanyahui.cn` → 200。
+- 后续：
+  - **手机**：Tailscale App 登录同一 tailnet → Exit Node 选 `nyh-prod` → 查公网 IP 是否 `47.239.167.8` → 测目标 App。
+  - 建议 Admin ACL 限制仅本人可使用该 Exit（若尚未收紧）。
+  - 若大陆手机长期仅 relay / 不稳 → 按 plan R11 另开 3x-ui 冷门端口方案。
+  - `acquilangai.com` 502 与本次无关，需另查。
+
 ## 2026-08-08 13:15 CST - 全站排查 site path 与 Nginx root 是否同类错位
 
 - 服务器：`nyh-prod`
