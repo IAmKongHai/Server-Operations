@@ -26,6 +26,15 @@ The day of month when a VPS provider resets a server's traffic allowance.
 
 For proxy traffic monitoring, this reset day defines the accounting cycle; calendar-month `vnstat -m` totals are not treated as authoritative when the provider's billing cycle starts on a different day.
 
+## Tailscale
+
+### Exit Node
+Tailscale 节点角色：被选中后，客户端（如手机）的默认上网流量经该节点转发并由该节点 SNAT 出公网，源 IP 为该节点公网地址。
+
+与「仅加入 Tailnet 互访 `100.x`」不同；与代理面板（3x-ui / S-UI）的入站也不同。生产机做 Exit 时应 `--accept-dns=false`、`--accept-routes=false`，且服务器自身不选用其他 Exit。
+
+*Avoid:* 把 Exit Node 与 subnet router（宣告内网网段）混为一谈。
+
 ## 代理节点（tizi 族）
 
 ### 扩容代理节点
