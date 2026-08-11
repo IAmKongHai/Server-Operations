@@ -36,9 +36,9 @@
   - `ss -ulnp`：`0.0.0.0:41641` / `[::]:41641` = tailscaled。
   - HTTPS：`load.nanyahui.com` / `vip.nanyahui.cn` → 200。
 - 后续：
-  - **手机**：Tailscale App 登录同一 tailnet → Exit Node 选 `nyh-prod` → 查公网 IP 是否 `47.239.167.8` → 测目标 App。
+  - **手机验收（2026-08-11，用户确认通过）**：iOS Tailscale Exit Node 选 `nyh-prod` 后，`https://ip.me` 显示 **`47.239.167.8`（香港）**；目标 App 可正常使用。Exit 入口在 **App 主界面**（不在 Settings）。
   - 建议 Admin ACL 限制仅本人可使用该 Exit（若尚未收紧）。
-  - 若大陆手机长期仅 relay / 不稳 → 按 plan R11 另开 3x-ui 冷门端口方案。
+  - 日常观察：大陆网络下若长期仅 DERP / 抖动，再按 plan R11 考虑 3x-ui 冷门端口备选。
   - `acquilangai.com` 502 与本次无关，需另查。
 
 ## 2026-08-08 13:15 CST - 全站排查 site path 与 Nginx root 是否同类错位
