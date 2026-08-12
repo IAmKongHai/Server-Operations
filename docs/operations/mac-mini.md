@@ -1,5 +1,34 @@
 # mac-mini 运维时间线
 
+## 2026-08-13 01:35 CST - 恢复 Docker Desktop 并确认并非整机重启
+
+- 服务器：`mac-mini`（SonarQube 宿主、self-hosted runner `mac-mini-sonar-1..4`）
+- 操作人：`konghai`（现场登录并启动 Docker Desktop）、`Codex`（只读排查与验证）
+- 原因：00:55 CST 起 iCare SonarQube CI 无法连接；现场重新登录 macOS 后启动 Docker Desktop，SonarQube 恢复，但观察到类似机器重启后的登录界面，需确认是否发生整机重启及其原因。
+- 影响：
+  - `2026-08-13 00:37:46`，macOS `WindowServer` 被内核终止，`konghai` / `coding` / `ziyi` 三个 GUI session 被强制注销；依赖 `konghai` GUI session 的 Docker Desktop 与 `mac-mini-sonar-1..4` LaunchAgent runner 随之停止。
+  - Docker Desktop 停止期间 `sonarqube` / `sonar-postgres` 不可用，导致至少 iCare-backend run `31617573433` 与 `31617651468` 的 SonarScanner 无法查询 server version；本机四个 runner slot 也退出调度池。
+  - macOS 内核、SSH 和主机网络始终在线，未发生整机重启或断电。
+- 备份：无（现场仅启动既有 Docker Desktop；后续调查均只读，未改配置或数据）。
+- 回滚方式：可退出 Docker Desktop 回到故障前状态，但会再次停止 SonarQube 及本机所有 Docker 容器，不建议作为常规回滚。
+- 变更时序：
+  1. `00:37:46.369`，内核记录旧 `WindowServer`（PID 445）已分配 **305,834 Mach ports**：`caught allocating too many mach ports`，随即触发 fatal exception，并以 signal 9 强制结束进程。
+  2. 三个 `loginwindow` session 同时记录 `directLogoutReason:WindowServerExited`，证明是 WindowServer 先退出、系统再强制注销用户，并非用户主动注销。
+  3. Docker Desktop 日志同步记录 `terminated signal received`，随后显式关闭 Docker API socket、请求 VM poweroff，并记录 `dockerd exited due to explicit Stop() call`；因此 Docker 是 GUI session 退出的受害者，不是 WindowServer 故障发起者。
+  4. `00:37:46` 后系统自动拉起新 `WindowServer` / `loginwindow`，停留在登录界面；`01:21` 远程检查时 `/dev/console=root`、无 Docker socket、TCP 9000 无监听。
+  5. `01:25`，`konghai` 现场登录并启动 Docker Desktop；Docker backend、四个 runner listener 与 Sonar 容器相继恢复。
+- 根因判断：
+  - **不是整机重启**：`kern.boottime` 仍为 `2026-07-21 08:53:53`，uptime 22 天以上；`last reboot`、`pmset` 与 panic / shutdown reports 均无本时段重启记录。
+  - **直接根因**：运行 22 天的 WindowServer 累计耗尽 Mach port 配额，被内核保护机制 SIGKILL，造成全部 GUI session 重建。
+  - **不是 OOM / 电源故障**：内核明确报 port exhaustion；无 jetsam、memory-pressure kill、panic 或掉电证据，swap 使用仅约 6.69MB。
+  - **底层泄漏源暂不能唯一定位**：故障前 SkyLight 持续报 `CGXRegisterForPortNotification: mach_port_request_notification: invalid argument`，临近退出又每秒报 `_CGXPackagesSetWindowConstraints: Invalid window`，说明 WindowServer 的 port / window bookkeeping 已异常；但保留日志未携带具体客户端身份。`konghai` / `coding` / `ziyi` 三个长期 Fast User Switching session 会扩大图形状态面，只能视为风险放大因素，不能据此认定某个用户或 App 是泄漏源。
+- 验证结果：
+  - 新 `WindowServer` PID 29298 当前约 **2,349 ports**，已从异常的 305,834 回到正常低位。
+  - `sonar-postgres`、`sonarqube` 均为 `healthy`；本机 `http://127.0.0.1:9000/api/system/status` 与 `mas-go-dev` 经 `http://mac-mini:9000/api/system/status` 均返回 HTTP 200、`status=UP`。
+  - `mac-mini-sonar-1..4` 的 `Runner.Listener` 均于 `01:25:54–01:25:55` 拉起。
+  - 本次未重跑失败的 GitHub Actions Job，避免在诊断之外改变 PR check 状态。
+- 后续建议（未执行）：定期采样 WindowServer port 数；若持续增长，保留增长窗口内的进程 / WindowServer 连接快照以定位泄漏客户端；尽量减少长期并存的 Fast User Switching session。由于 Docker Desktop 和 runner 均绑定 GUI session，还应另行评估登录会话退出后的自动恢复与告警，避免 Sonar 静默下线。
+
 ## 2026-08-13 01:21 CST - 只读确认 SonarQube 因 Docker Desktop 未运行而不可达
 
 - 服务器：`mac-mini`（SonarQube 宿主；对照 `mas-go-dev-ci-2`、`umacbook-pro-2`）
