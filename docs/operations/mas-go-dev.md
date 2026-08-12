@@ -1,5 +1,18 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-12 12:35 CST - 只读确认 iCare-backend CI 红叉为 Draft PR 门禁
+
+- 服务器：`mas-go-dev`（jobs 分别落在 `mas-go-dev-ci-1/2`）
+- 操作人：`Codex`
+- 原因：排查 [iCare-backend Actions run 31561543745](https://github.com/cypressoai/iCare-backend/actions/runs/31561543745) 的 `Lint` 与 `SonarQube Scan` 同时失败，判断是 runner 侧还是代码侧问题。
+- 影响：仅通过 GitHub 页面/API 读取 run、job、PR 与 workflow 状态；未 SSH 登录服务器，未改 runner、workflow、PR 状态或业务代码，未重跑 job。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 验证：
+  - attempt 2 的 `Lint` 在 `mas-go-dev-ci-2`、`SonarQube Scan` 在 `mas-go-dev-ci-1`；两台 runner 均使用版本 `2.336.0`，`Set up job` 成功并正常下载所需 Actions，排除 runner 初始化或网络下载故障。
+  - 两个 job 都在第一个业务步骤 `Block while draft` 命中 `github.event.pull_request.draft == true`，日志明确输出 `CI is intentionally not run` 后按 workflow 设计执行 `exit 1`；后续 checkout、Go、lint、test 与 Sonar 步骤全部 skipped，业务代码实际上未被检查。
+  - PR [#1467](https://github.com/cypressoai/iCare-backend/pull/1467) 当前 `isDraft=true`；attempt 1 与 attempt 2 行为一致。结论：不是 runner 故障，也不是业务代码失败，而是 Draft PR 的预期 required-check 门禁；将 PR 标记为 Ready for review 后，`ready_for_review` 事件会自动触发真实 CI。
+
 ## 2026-08-12 12:21 CST - 补齐 ECOM AUTH_DB 配置并恢复外部 API
 
 - 服务器：`mas-go-dev`（本地 SIT）
