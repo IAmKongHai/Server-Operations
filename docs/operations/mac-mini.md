@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-08-12 09:43 CST - 只读排查 iCare-mobile-app CI Quality Job 93874987093 失败
+
+- 服务器：`mac-mini`（self-hosted runner `mac-mini-sonar-2`）
+- 操作人：Codex（只读）
+- 原因：排查 GitHub Actions [CI Quality Job 93874987093](https://github.com/cypressoai/iCare-mobile-app/actions/runs/31520169797/job/93874987093) 是 runner 环境还是代码侧导致失败。
+- 影响：仅读取 GitHub Actions 日志和 runner 配置/进程/工作目录；未修改 runner、LaunchAgent、工作目录或仓库代码，未重启服务。
+- 做了什么：
+  1. 读取 Job 日志，失败点为 `pnpm install --frozen-lockfile`：`ERR_PNPM_ENOENT ... mkdir '.../node_modules'`。
+  2. 查询 PR #128 的文件变更与 Git tree，确认其新增的根目录 `node_modules` 是 mode `120000` 的符号链接，内容为开发者本机绝对路径 `/Users/hon/code/Ai/iCare/mobile-app/node_modules`。
+  3. 核对 `mac-mini-sonar-2` 的 `workFolder=/Users/konghai/gha/s2`、四个 `Runner.Listener` 进程与 LaunchAgent，均正常运行。
+- 结论：**代码/PR 侧问题，非 runner 故障。** runner 上不存在该开发者本机路径，`pnpm` 无法在已被该失效符号链接占用的 `node_modules` 路径下创建依赖目录。应从 PR 删除该符号链接（并确认 `.gitignore` 继续忽略 `node_modules`）后重跑 CI。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 验证结果：checkout、Node 20.20.2 与 pnpm 初始化均成功；失败发生在依赖写入前，后续 lint / type check / jest 均未执行。
+
 ## 2026-08-07 13:37 CST - mac-mini Mini Shai-Hulud IoC **full 重扫**（补齐先前 FAIL）
 
 - 服务器/设备：`mac-mini`
