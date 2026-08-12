@@ -1,5 +1,18 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-12 11:52 CST - 只读确认 ECOM 部署失败为缺失 AUTH_DB 配置
+
+- 服务器：`mas-go-dev`（本地 SIT）
+- 操作人：`Codex`
+- 原因：与远端 SIT Server 同次 ECOM readiness 失败；恢复 `iCare backend ECOM deployment failure diagnosis` 交接后，需确认本地 SIT 是否存在相同启动前置条件缺失。
+- 影响：只读检查 Docker 容器状态、最近 200 行日志及 `/opt/mas-go-dev/backend/` 下 `.env.ecom` / `.env.docker` 的 `AUTH_DB_*` 键是否存在或非空；未读取或输出密码、连接值，未改配置、未重启或重建容器。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 验证：
+  - `icare-backend-ecom-api-1`（`icare/backend-ecom:mas-go-dev-9e99fc71…`）处于 `Restarting (1)`，检查时 `RestartCount=9`、`ExitCode=1`；`api` healthy、`worker` Up，故影响限于 ECOM 外部 API。
+  - 启动日志反复报：`AUTH_DB_ENABLED must be true when APP_SERVICE_PROFILE=ecom`。
+  - `.env.ecom` 与 `.env.docker` 均未定义 `AUTH_DB_ENABLED`、`AUTH_DB_HOST`、`AUTH_DB_PORT`、`AUTH_DB_USER`、`AUTH_DB_PASSWORD`、`AUTH_DB_NAME`；与 `dev-cypresso` 一致，确定为两套 SIT 环境均未供应 ECOM 的外部 OAuth 数据库配置。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`mas-go-dev`

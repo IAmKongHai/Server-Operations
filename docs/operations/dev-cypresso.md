@@ -1,5 +1,18 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-12 11:52 CST - 只读确认 ECOM 部署失败为缺失 AUTH_DB 配置
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Codex`
+- 原因：GitHub Actions 的 ECOM readiness 连续失败；恢复 `iCare backend ECOM deployment failure diagnosis` 交接后，需在目标机取得容器启动错误并核对外部 OAuth 数据库配置契约。
+- 影响：只读检查 Docker 容器状态、最近 200 行日志及 `.env.ecom` / `.env` / `.env.docker` 的 `AUTH_DB_*` 键是否存在或非空；未读取或输出密码、连接值，未改配置、未重启或重建容器。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 验证：
+  - `icare-backend-ecom-api-1` 镜像为 `ghcr.io/cypressoai/icare-backend-ecom:0dffcd2…`，处于 `Restarting (1)`，检查时 `RestartCount=35`、`ExitCode=1`。
+  - 启动日志反复报：`AUTH_DB_ENABLED must be true when APP_SERVICE_PROFILE=ecom`。
+  - `.env.ecom`、`.env` 与 `.env.docker` 均未定义 `AUTH_DB_ENABLED`、`AUTH_DB_HOST`、`AUTH_DB_PORT`、`AUTH_DB_USER`、`AUTH_DB_PASSWORD`、`AUTH_DB_NAME`；因此故障确定为部署环境未供应 ECOM 的外部 OAuth 数据库配置，而非本次业务代码变更。
+
 ## 2026-08-10 12:56 CST - 修复 App 登录 503：icare-backend 侧遗漏的 7 处旧跳板 IP（12:02 条目的续集）
 
 - 服务器：`dev-cypresso`
