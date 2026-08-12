@@ -1,5 +1,19 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-12 12:20 CST - 补齐 ECOM AUTH_DB 配置并恢复外部 API
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Codex`
+- 原因：新 ECOM 镜像要求独立的 `AUTH_DB_*` 连接读取 `authprovidermasweb.dbo.oauth_clients`，但既有 `.env.ecom` 未配置，导致容器启动前退出并循环重启。
+- 影响：仅更新 `/home/ec2-user/stacks/icare/.env.ecom` 的 8 个 `AUTH_DB_*` 项，并强制重建原本已不可用的 `icare-backend-ecom-api-1`；未改 API、worker、SUP、业务数据、数据库表结构或 OAuth 客户端数据。
+- 备份：`/home/ec2-user/stacks/icare/.env.ecom.bak.20260812-1205-authdb`。
+- 回滚方式：恢复上述 `.env.ecom` 备份后，以当前 ECOM 镜像执行 `docker-compose -f backend.compose.yaml --profile external-api up -d --no-deps --force-recreate ecom-api`；确认两台 SIT 均不再使用对应独立身份后，由 SA 删除其 `authprovidermasweb` user 与 SQL login（见 `docs/operations/mssql-ref.md` 同时段记录）。
+- 变更时序：
+  1. 使用独立、最小权限的 ECOM SQL 身份（仅 `CONNECT` + `SELECT dbo.oauth_clients`）替代缺失配置；密码仅写入本机 `.env.ecom`，未输出或提交。
+  2. `AUTH_DB_HOST` / `PORT` / `ENCRYPT` 沿用该环境现有数据库链路，`AUTH_DB_NAME=authprovidermasweb`。
+  3. 显式复用当前 ECOM 镜像 `ghcr.io/cypressoai/icare-backend-ecom:9e99fc71…`，以 `--no-deps --force-recreate --pull never` 重建单个 ECOM 容器；未清理 compose 提示的 orphan `gotenberg`。
+- 验证：HTTP `/api/v1/health` 在第 3 次探测通过且 `auth_database=up`；最终容器 `running`、Docker health `healthy`、`RestartCount=0`。
+
 ## 2026-08-12 11:52 CST - 只读确认 ECOM 部署失败为缺失 AUTH_DB 配置
 
 - 服务器：`dev-cypresso`（SIT Server）

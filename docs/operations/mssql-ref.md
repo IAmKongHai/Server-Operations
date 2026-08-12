@@ -1,5 +1,27 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-12 12:19 CST - 为两套 SIT ECOM 创建最小权限 AUTH_DB 身份
+
+- 服务器：`mssql-ref`
+- 操作人：`Codex`（用户授权使用本地 `.env.konghai` 中 SA 凭据）
+- 原因：`dev-cypresso` 与 `mas-go-dev` 的 ECOM 服务缺少访问 `authprovidermasweb.dbo.oauth_clients` 的专用身份，启动校验失败；不得复用主库或 SUP 身份。
+- 影响：在既有 `authprovidermasweb` 中创建两个按部署 VM 隔离的 ECOM SQL login / database user；各自只授予数据库 `CONNECT` 与对象 `SELECT dbo.oauth_clients`。未读 OAuth 行、未改业务数据、表结构、schema、迁移或现有登录。
+- 变更前检查：`authprovidermasweb` 与 `dbo.oauth_clients` 存在；两个目标 login/user 均不存在，故可安全新建且不覆盖任何现有主体。
+- 备份：安全主体的变更前状态为“目标 login/user 不存在”，由创建前 SQL 断言记录；两台 VM 的 `.env.ecom` 分别备份到其 `*.bak.20260812-1205-authdb` 文件。
+- 回滚方式：待两台 VM 先恢复 env 备份并停止使用新身份后，以 SA 执行：
+  ```sql
+  USE [authprovidermasweb];
+  DROP USER [icare_sit_dev_ecom_auth];
+  DROP USER [icare_sit_mas_ecom_auth];
+  USE [master];
+  DROP LOGIN [icare_sit_dev_ecom_auth];
+  DROP LOGIN [icare_sit_mas_ecom_auth];
+  ```
+- 验证：
+  - 以两个新身份分别对 `dbo.oauth_clients` 执行 `SELECT TOP (0)` 成功，未读取任何 OAuth 记录。
+  - 权限审计：2 个 login、2 个 user、2 条对象 `SELECT` grant；无额外对象权限、无数据库角色成员资格。每个 user 的唯一附加记录为 SQL Server 连接数据库所需的 `CONNECT`。
+  - 两台 ECOM 容器随后均通过 `/api/v1/health`，`auth_database=up`。
+
 ## 2026-08-12 12:01 CST - 只读核对 SIT ECOM 外部 OAuth 数据库前置条件
 
 - 服务器：`mssql-ref`
