@@ -1,5 +1,18 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-12 12:01 CST - 只读核对 SIT ECOM 外部 OAuth 数据库前置条件
+
+- 服务器：`mssql-ref`
+- 操作人：`Codex`
+- 原因：`dev-cypresso` 与 `mas-go-dev` 的新 ECOM 镜像均因缺少 `AUTH_DB_*` 在启动前退出；需确认参考 MSSQL 是否具备该认证库及能否在不改库的情况下取得部署配置。
+- 影响：只读检查 SQL 工具与服务目录；尝试以当前 Linux 用户的集成认证查询数据库存在性。未读取业务数据、凭据或连接字符串，未改数据库、登录/用户/权限、配置或服务。
+- 备份：无（只读）。
+- 回滚：无变更。
+- 验证：
+  - 已安装 `/opt/mssql-tools18/bin/sqlcmd`；参考库历史记录显示 `authprovidermasweb` 已 ONLINE。
+  - 无 Kerberos 凭据，`sqlcmd -E -C` 无法建立集成认证，故未绕过权限读取数据库状态。
+  - 两台部署 VM 及其现有 `.env*` / 备份均没有 ECOM 专用 `AUTH_DB` 身份；根据 CYP-1397 决策，不能用主库或 SUP 身份替代，须为 ECOM/SUP 各供应只读 `SELECT dbo.oauth_clients` 的独立 SQL 登录及对应密钥。
+
 ## 2026-08-10 23:15 CST - 为 UAT SQL MI 产出瘦身版 authprovidermasweb 备份（10.5GB → 141MB）
 
 - 服务器：`mssql-ref`
