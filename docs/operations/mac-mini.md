@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-08-13 01:21 CST - 只读确认 SonarQube 因 Docker Desktop 未运行而不可达
+
+- 服务器：`mac-mini`（SonarQube 宿主；对照 `mas-go-dev-ci-2`、`umacbook-pro-2`）
+- 操作人：`Codex`
+- 原因：排查 [iCare-backend Job 94190148086](https://github.com/cypressoai/iCare-backend/actions/runs/31617573433/job/94190148086) 的 SonarScanner server version 查询失败。
+- 影响：只读检查 Docker API、相关进程、TCP 9000、SonarQube HTTP 状态、宿主机 uptime 与 Actions 对照日志；未启动 Docker Desktop、未启动或重启容器、未改 runner / Sonar / workflow / 代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 从 `mas-go-dev` 验证 `mac-mini` MagicDNS 解析正常，但 `http://mac-mini:9000/api/system/status` connection refused。
+  2. 在本机检查 Docker CLI socket、Docker / SonarQube 进程、TCP 9000 listener 与最近 reboot 记录。
+  3. 对照 `umacbook-pro-2` 上 run `31617651468`：另一台 runner 同样在测试与 coverage 成功后无法查询 SonarQube server version。
+- 验证结果：
+  - 宿主机已连续运行 22 天，本次故障不是 mac-mini 重启造成。
+  - Docker Desktop 主进程不在；`/Users/konghai/.docker/run/docker.sock` 不存在，Docker API 无法连接，TCP 9000 无监听，`curl http://127.0.0.1:9000/api/system/status` connection refused；仅 `com.docker.vmnetd` 特权 helper 仍在。
+  - 2026-08-12 23:53 CST 前的 run `31614002062` 可成功完成 Sonar 扫描；2026-08-13 00:55 CST 的目标 Job 及 01:17 CST 的 `umacbook-pro-2` Job 均报相同连通性错误。结论：**mac-mini 上 Docker Desktop 在该窗口内停止运行，连带 SonarQube 容器下线，是本次 CI 失败的直接原因；不是业务代码或某一 runner 故障。**
+  - 恢复需启动 Docker Desktop，并验证 `sonar-postgres` / `sonarqube` healthy 与 `/api/system/status` 返回 `UP` 后再重跑 CI；本次未执行，等待用户确认。
+
 ## 2026-08-12 09:43 CST - 只读排查 iCare-mobile-app CI Quality Job 93874987093 失败
 
 - 服务器：`mac-mini`（self-hosted runner `mac-mini-sonar-2`）

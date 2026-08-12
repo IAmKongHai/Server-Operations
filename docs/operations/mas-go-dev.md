@@ -1,5 +1,24 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-13 01:21 CST - 只读确认 iCare-backend Sonar 失败为 mac-mini 服务不可达
+
+- 服务器：`mas-go-dev`（self-hosted runner `mas-go-dev-ci-2`）；对照 `mac-mini` SonarQube 与 `umacbook-pro-2`
+- 操作人：`Codex`
+- 原因：排查 [iCare-backend Job 94190148086](https://github.com/cypressoai/iCare-backend/actions/runs/31617573433/job/94190148086) 是 runner 侧还是代码侧失败。
+- 影响：仅通过 `gh` 读取 Actions / PR 日志，并 SSH 只读检查 runner 服务、MagicDNS 与 SonarQube HTTP 连通性；未改 runner、Tailscale、Docker、SonarQube、workflow 或业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 全部步骤及同一时段前后 SonarQube workflow runs。
+  2. 在 `mas-go-dev` 检查 `mac-mini` 短名解析、`http://mac-mini:9000/api/system/status` 连通性及两台 runner systemd 服务状态。
+  3. 对照 `umacbook-pro-2` 上另一条 Sonar Job 的同型失败，并在 `mac-mini` 检查 Docker API、SonarQube 端口与宿主机运行时间。
+- 验证结果：
+  - 目标 Job 的 checkout、Go 1.25.7、C toolchain、依赖下载、全量测试与 coverage 合并全部成功；唯一失败为 SonarScanner 查询 `SONAR_HOST_URL` 的 `/api/v2/analysis/version`，报 `Failed to query server version` 并退出 1，因此不是业务代码或测试失败。
+  - `mas-go-dev-ci-1/2` systemd 服务均为 `active`；`getent hosts mac-mini` 正确解析到 Tailscale 地址 `100.108.64.126`，排除 2026-08-02 曾发生的 MagicDNS 故障；但访问 `mac-mini:9000` 立即 connection refused。
+  - 同一时段稍后的 run `31617651468` 落到 `umacbook-pro-2`，也在测试和 coverage 成功后报完全相同的 Sonar server version 查询失败，排除 `mas-go-dev-ci-2` 单 runner 故障。
+  - `mac-mini` 已运行 22 天、无本次时段重启；但 Docker Desktop 主进程不在、`~/.docker/run/docker.sock` 不存在、TCP 9000 无监听，仅 `com.docker.vmnetd` helper 存活。结论：**基础设施 / SonarQube 宿主侧故障，具体为 mac-mini 上 Docker Desktop 未运行，导致 SonarQube 容器不可达；不是代码侧问题，也不是目标 runner 自身故障。**
+  - 未启动 Docker Desktop、未拉起 SonarQube、未重跑 CI；这些恢复动作需另行确认。
+
 ## 2026-08-12 12:47 CST - 补齐 SUP AUTH_DB 配置并恢复外部 API
 
 - 服务器：`mas-go-dev`（本地 SIT）
