@@ -1,5 +1,16 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-12 12:46 CST - 补齐 SUP AUTH_DB 配置并恢复外部 API
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Codex`
+- 原因：Actions run `31561010370` 升级 SUP 至新镜像后，`.env.sup` 缺少 `AUTH_DB_*`，容器在启动前报 `AUTH_DB_ENABLED must be true when APP_SERVICE_PROFILE=sup` 并循环重启。
+- 影响：仅更新 `.env.sup` 的 8 个 `AUTH_DB_*` 项，重建单个已不可用的 `icare-backend-sup-api-1`；未改 ECOM、MAS API、worker、OAuth 数据、业务数据或 schema。
+- 备份：`/home/ec2-user/stacks/icare/.env.sup.bak.20260812-1235-sup-authdb`。
+- 回滚方式：恢复上述 `.env.sup` 备份后，以当前 SUP 镜像执行 `docker-compose -f backend.compose.yaml --profile external-api up -d --no-deps --force-recreate sup-api`；确认两台 SIT 不再使用 SUP 专用身份后，由 SA 删除相应 SQL user/login（见 `mssql-ref` 同时段记录）。
+- 变更时序：使用该 VM 专属、最小权限的 SUP SQL 身份（仅 `CONNECT` + `SELECT dbo.oauth_clients`）；沿用现有 DB host / port / encrypt 链路，`AUTH_DB_NAME=authprovidermasweb`；显式复用 Actions 部署镜像 `ghcr.io/cypressoai/icare-backend-sup:9e99fc71…`，以 `--no-deps --force-recreate --pull never` 重建。未清理 orphan `gotenberg`。
+- 验证：SUP `/api/v1/health` 第 4 次探测通过且 `auth_database=up`；最终 ECOM 与 SUP 均为 `running`、Docker health `healthy`、`RestartCount=0`。
+
 ## 2026-08-12 12:20 CST - 补齐 ECOM AUTH_DB 配置并恢复外部 API
 
 - 服务器：`dev-cypresso`（SIT Server）

@@ -1,5 +1,16 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-12 12:45 CST - 为两套 SIT SUP 创建最小权限 AUTH_DB 身份
+
+- 服务器：`mssql-ref`
+- 操作人：`Codex`（沿用用户授权的本地 `.env.konghai` SA 凭据）
+- 原因：Actions run `31561010370` 部署新 SUP 镜像后，两套 SIT 的 `.env.sup` 均缺少 `AUTH_DB_*`，SUP 无法启动；与已修复的 ECOM 需要隔离身份，不能复用 ECOM、主库或其他服务身份。
+- 影响：在既有 `authprovidermasweb` 中新建两个按部署 VM 隔离的 SUP SQL login / database user；各自只授予数据库 `CONNECT` 和对象 `SELECT dbo.oauth_clients`。未读 OAuth 行、未改业务数据、表结构、schema、迁移或现有主体。
+- 变更前检查：`authprovidermasweb`、`dbo.oauth_clients` 存在；两个目标 login/user 均不存在，未覆盖任何既有主体。
+- 备份：变更前安全主体状态为“目标 login/user 不存在”，由创建前 SQL 断言记录；两台 VM 的 `.env.sup` 分别备份至其 `*.bak.20260812-1235-sup-authdb` 文件。
+- 回滚方式：待两台 VM 先恢复 env 备份并停止使用身份后，以 SA 在 `[authprovidermasweb]` 删除两个 SUP user，再在 `[master]` 删除对应 login；身份命名和 SQL 模板与本文件 12:19 ECOM 条目一致。
+- 验证：两个新身份各自 `SELECT TOP (0) dbo.oauth_clients` 成功且未读取 OAuth 行；四个 SIT ECOM/SUP 身份权限复核均仅为 `CONNECT` + 对该单表 `SELECT`，`ROLE_MEMBERSHIPS=0`；两台 SUP 随后 health 中 `auth_database=up`。
+
 ## 2026-08-12 12:19 CST - 为两套 SIT ECOM 创建最小权限 AUTH_DB 身份
 
 - 服务器：`mssql-ref`
