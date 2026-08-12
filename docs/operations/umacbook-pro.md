@@ -1,5 +1,23 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-12 13:28 CST - 定位 iCare Mobile Jest CI 超时为测试用例挂起
+
+- 服务器/设备：`umacbook-pro`
+- 操作人：`Codex`
+- 原因：排查 `iCare-mobile-app` Actions run `31561202341` 的 `CI Quality` 为 runner 故障还是代码侧超时。
+- 影响：以只读健康检查、runner `_diag` 日志检查为主；在当时空闲的 u2 checkout 上运行了带 20/45/90 秒硬超时的单文件 Jest 探针，并在取证后终止自建调试进程。未改 runner 配置、未重启服务、未删除业务文件。
+- 备份：无（未改配置或持久状态）。
+- 回滚方式：无持久变更；临时 Jest / Inspector 进程已清理。
+- 做了什么：
+  - 核对 attempt 1/2：分别落到 `umacbook-pro-1` / `umacbook-pro-2`，均完成 lint、type-check，随后 Jest 静默并撞上 workflow 的 `timeout-minutes: 25`。
+  - 检查两份 `Worker_*.log`：runner 均在 GitHub 发来 timeout cancellation 后依次发送 SIGINT、SIGTERM、清理进程树并回传 job；未见 runner 断联、sleep、磁盘或服务异常。
+  - 用各 slot 的 `jest --listTests` 顺序对照 CI 已 PASS suite，首个未完成文件均为 `src/features/reimbursements/wizard/provider-picker-screen.test.tsx`。
+  - 单跑新增用例“搜索输入防抖 300ms，且切回 Near 后不沿用搜索 pending 骨架”会稳定挂住并由外层硬超时终止；排除该用例后，同文件其余 7 个测试在约 1.9 秒内通过。
+- 验证结果：
+  - `umacbook-pro-1/2` LaunchAgent 与 `Runner.Listener` 均保持 running，未重启；根分区使用率 17%，主机 uptime 184 天，无资源耗尽证据。
+  - 同一 PR 此前还在 `mac-mini-sonar-{1,3,4}` 多次复现 25 分钟 timeout；相同的 `mac-mini-sonar-3` 跑 `develop` SHA `5624e22` 时 Jest 约 1 分 44 秒通过，进一步排除单机 runner 故障。
+  - 结论：超时由 PR 新增 fake-timer/debounce 测试挂起触发，runner 只是在 25 分钟上限到达后执行取消与清理。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`umacbook-pro`
