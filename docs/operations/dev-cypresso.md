@@ -1,5 +1,35 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-13 11:34 CST - 关闭 public-app OTP 开发发送器
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Codex`
+- 原因：公开 Dev 的 App OTP 接口响应仍包含 `data.devCode`，确认不是手机号或 Promotexter Test Mode 导致；`public-app` 在 `APP_ENV=sit` 且未显式配置 `AUTH_OTP_DEV_SENDER` 时默认启用开发发送器，因此不会请求 Promotexter。
+- 影响：仅在 `/home/ec2-user/stacks/icare/public-backend/.env.app` 新增 `AUTH_OTP_DEV_SENDER=false`，并短暂重建 `public-app` 单个容器；`public-hr`、`public-map`、数据库及手机 App 均未改动。该配置也会让未单独设置的 `AUTH_RESET_LINK_DEV_SENDER` 随 OTP 开关默认为 `false`。
+- 备份：`/home/ec2-user/stacks/icare/public-backend/.env.app.bak.20260813-033310-auth-otp-dev-sender`（文件名时间戳为 UTC，对应 2026-08-13 11:33 CST；`600`，`ec2-user:ec2-user`）。
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'set -euo pipefail
+  BASE=/home/ec2-user/stacks/icare/public-backend
+  cp -a "$BASE/.env.app.bak.20260813-033310-auth-otp-dev-sender" "$BASE/.env.app"
+  # 这里只回滚配置，保留执行回滚时正在运行的镜像；inspect 失败时立即中止。
+  IMAGE=$(sudo docker inspect icare-public-backend-public-app-1 --format "{{.Config.Image}}")
+  cd "$BASE"
+  sudo env PUBLIC_BACKEND_IMAGE="$IMAGE" PUBLIC_APP_ENV_FILE="$BASE/.env.app" \
+    docker-compose -f public-backend.compose.yaml \
+    up -d --no-deps --force-recreate --pull never public-app'
+  ```
+- 变更时序：
+  1. 只读确认 `.env.app` 与旧容器运行环境均未定义 `AUTH_OTP_DEV_SENDER`；旧容器健康，镜像为 `ghcr.io/cypressoai/icare-public-backend:4bb3fa1ab13454d87a1b3f6998b9d426e6aa98b7`。
+  2. 备份 `.env.app` 后新增 `AUTH_OTP_DEV_SENDER=false`。
+  3. 显式复用上述镜像，以 `--no-deps --force-recreate --pull never` 仅重建 `public-app`，未拉取新镜像或触发其它服务。
+- 验证：
+  - 本次重建完成后，新容器实际环境为 `AUTH_OTP_DEV_SENDER=false`，镜像仍为 `4bb3fa1a…`，状态 `running/healthy`、`RestartCount=0`。
+  - `GET http://127.0.0.1:8090/api/v1/health/live` 返回 `data.status=up`。
+  - 错误路径 smoke：使用不存在的合成邮箱调用 `POST /api/v1/app/auth/otp/generate`，返回预期的 `404 member_not_registered`，响应不含 `devCode`。该请求在调用 sender 前返回，不能证明开关在 OTP 成功路径已生效。
+  - 未覆盖：为避免向真实会员发送未经约定的短信或邮件，本次未用真实收件人验证 OTP 成功响应或 Promotexter 端到端投递；也未验证 `AUTH_RESET_LINK_DEV_SENDER` 隐式转为 `false` 后的密码重置链路。后续应使用事先约定的 SIT 测试会员完成这两条受控验证。
+  - 11:48 CST 复查：后续部署已将容器镜像更新为 `e9633ac5…`（容器启动于 11:46:53 CST）；新容器仍实际加载 `AUTH_OTP_DEV_SENDER=false`，且保持 `running/healthy`、`RestartCount=0`，说明配置未被部署覆盖。
+
 ## 2026-08-12 12:46 CST - 补齐 SUP AUTH_DB 配置并恢复外部 API
 
 - 服务器：`dev-cypresso`（SIT Server）
