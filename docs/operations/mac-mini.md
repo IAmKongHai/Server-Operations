@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-08-13 10:49 CST - 只读确认 SonarQube 正常，CI 首跑失败在 runner 的 Tailscale 链路
+
+- 服务器/设备：`mac-mini`（SonarQube 宿主）；对照 `umacbook-pro-1`
+- 操作人：`Codex`
+- 原因：排查 [iCare-public-frontend attempt 1 Job 94327015274](https://github.com/cypressoai/iCare-public-frontend/actions/runs/31661331203/job/94327015274) 在 Web 页面可访问时仍报 Sonar server connect timeout 的原因。
+- 影响：仅通过 GitHub API / Job 日志和 SSH 检查 SonarQube 容器状态、HTTP/访问日志及 runner 的 DNS、路由和 Tailscale 历史日志；未改 Docker、SonarQube、Tailscale、runner、workflow 或业务代码，未触发重跑。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 检查 `sonarqube` / `sonar-postgres` 当前状态、`sonarqube` start time、restart count、容器健康探针及 10:35–10:45 UTC 访问日志。
+  2. 对照 `umacbook-pro-1` 在失败时刻的 TCP SYN、Tailscale DERP/peer 日志与当前 HTTP 连通性。
+  3. 核对同一 workflow attempt 2 的 [Job 94327302116](https://github.com/cypressoai/iCare-public-frontend/actions/runs/31661331203/job/94327302116) 和服务端 ScannerCLI 访问记录。
+- 验证结果：
+  - `sonarqube` 自 `2026-08-12 17:26:12Z` 起持续运行，检查时 `healthy`、`RestartCount=0`；10:35–10:45 UTC 每 15 秒的 `/api/system/status` 健康探针均为 HTTP 200，故障窗口没有服务重启或失活证据。
+  - attempt 1 的 ScannerCLI 于 `10:40:08` 从 `umacbook-pro-1` 发起连接，但 Tailscale 记录目标 peer `lastRecv=6h19m1s`，5 秒内 6 个 SYN 均无响应；Sonar access log 没有收到对应请求。因此报错发生在 HTTP 建连前，不涉及 token、Quality Gate 或项目扫描。
+  - Tailscale 在该连接窗口将 runner 的 home DERP 从 `derp-900` 切到 `derp-17`；attempt 2 扫描前重新为目标 peer 建立 `derp-900` 连接。服务端于 `10:42:17` 收到同版本 ScannerCLI 的 `/api/v2/analysis/version` 并返回 HTTP 200，attempt 2 最终 Quality Gate `PASSED`、workflow 成功。
+  - 当前宿主本地访问 API 约 `0.006s`、runner 经 Tailscale 约 `0.39s` 均能立即获得 HTTP 响应。结论：**SonarQube 服务端在本次 10:40 失败窗口内正常；失败由 `umacbook-pro-1 → mac-mini` 的 Tailscale peer/DERP 瞬断触发，链路随后自动恢复。**
+
 ## 2026-08-13 01:35 CST - 恢复 Docker Desktop 并确认并非整机重启
 
 - 服务器：`mac-mini`（SonarQube 宿主、self-hosted runner `mac-mini-sonar-1..4`）

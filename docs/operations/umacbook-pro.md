@@ -1,5 +1,25 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-13 10:49 CST - 定位 public frontend Sonar 首跑失败为 Tailscale DERP 瞬断
+
+- 服务器/设备：`umacbook-pro`（self-hosted runner `umacbook-pro-1`）；对照 `mac-mini` SonarQube
+- 操作人：`Codex`
+- 原因：排查 [iCare-public-frontend attempt 1 Job 94327015274](https://github.com/cypressoai/iCare-public-frontend/actions/runs/31661331203/job/94327015274) 在 SonarQube Web 已恢复后仍报失败的原因。
+- 影响：仅通过 GitHub API / Job 日志和 SSH 检查 DNS、路由、Tailscale/macOS 网络日志、SonarQube HTTP 与容器日志；未改 runner、Tailscale、Docker、SonarQube、workflow 或业务代码，未触发重跑。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对 attempt 1 的 Job 元数据和完整日志，确认 checkout、依赖安装、coverage 下载及 LCOV 校验均成功，唯一失败点是 ScannerCLI 查询 `SONAR_HOST_URL/api/v2/analysis/version`。
+  2. 在 `umacbook-pro` 检查 `mac-mini` MagicDNS 解析、Tailscale 路由、当前 HTTP 连通性及 10:40 前后的 macOS/Tailscale 历史日志。
+  3. 在 `mac-mini` 对照 SonarQube 容器健康、restart count、15 秒健康探针和访问日志。
+  4. 核对同一 workflow attempt 2 的 [Job 94327302116](https://github.com/cypressoai/iCare-public-frontend/actions/runs/31661331203/job/94327302116) 及对应服务端访问记录。
+- 验证结果：
+  - attempt 1 于 `10:40:08` 从 Java 进程向 `100.108.64.126:9000` 发起 TCP 连接，路由正确走 `utun5`；5 秒内发出 6 个 SYN、未收到响应，ScannerCLI 因 `HTTP connect timed out` 退出。
+  - Tailscale 同时记录 `open-conn-track: timeout opening ... online=yes, lastRecv=6h19m1s`；连接窗口内 home DERP 从 `derp-900` 切到 `derp-17`，目标 peer 路径尚未收敛。MagicDNS 能正常响应，排除短名解析故障。
+  - `mac-mini` 上 `sonarqube` 全程 `healthy`、`RestartCount=0`；故障窗口内本地健康探针每 15 秒返回 HTTP 200，且 10:40 没有收到该 ScannerCLI 请求，排除 SonarQube Web、token、coverage 与业务代码错误。
+  - attempt 2 于 `10:41:13` 已由外部重跑，仍落在同一台 `umacbook-pro-1`；Tailscale 于 `10:42:16–10:42:17` 为目标 peer 重建 `derp-900` 连接，Sonar 服务端随即收到 `/api/v2/analysis/version` 并返回 HTTP 200。最终 `10:50:00` Quality Gate `PASSED`、Scanner `EXECUTION SUCCESS`，workflow attempt 2 整体成功。
+  - 当前从 `umacbook-pro` 访问同一 API 约 `0.39s` 返回 HTTP 401（未携带 token 的预期响应），证明 DNS、路由和 HTTP 链路均已自行恢复。结论：**首跑失败是 `umacbook-pro-1 → mac-mini` 的 Tailscale peer/DERP 瞬时不可达，不是昨晚 Docker Desktop 下线故障的延续，也不是 SonarQube 服务端故障。**
+
 ## 2026-08-12 13:28 CST - 定位 iCare Mobile Jest CI 超时为测试用例挂起
 
 - 服务器/设备：`umacbook-pro`
