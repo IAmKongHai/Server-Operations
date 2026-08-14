@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 00:42 CST - 重启后复查：ToDesk 未回潮；SonarQube 容器未自动拉起
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（重启）、`Grok`（只读复查）
+- 原因：卸载 ToDesk 后用户重启，确认残留是否被 launchd 拉回，并看 CI 相关服务是否起来。
+- 影响：只读。未启动容器、未改配置。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - `kern.boottime` = `2026-08-15 00:15:33`，uptime 约 27 分钟；控制台用户 `konghai` 于 `00:16` 登录。
+  - ToDesk 进程、App、plist、PrivilegedHelper、HAL 驱动、pkgutil 收据、声音设备名均不存在。默认输出仍是 LG UltraFine。
+  - launchd 仍有三条 `com.youqu.todesk.* => disabled` 空标签，无对应文件，重启后也未启动。
+  - `mac-mini-sonar-1..4` 的 `Runner.Listener` 均在 `00:16` 拉起。
+  - Docker Desktop 已起来；当时在跑的只有 `acquilang-postgres`、`richer-grafana`、`richer-postgres`。
+  - `sonarqube` 为 `Exited (137)`（重启被 SIGKILL），`sonar-postgres` 为 `Exited (0)`，本机 `127.0.0.1:9000` connection refused。未代为 `docker start`。
+- 结论：ToDesk 卸载在重启后仍然干净。SonarQube 需手动拉起后 CI 才能扫。
+
 ## 2026-08-15 00:12 CST - ToDesk 已彻底卸载，复查通过
 
 - 服务器：`mac-mini`
