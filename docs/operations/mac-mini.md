@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:20 CST - 节点 IP 已改回 100.108.64.126；MagicDNS 仍是 mac-mini-1
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（管理后台改 IP、删旧节点）、`Grok`（改 hostname、ssh config、验证）
+- 原因：用户已删除旧机器，并把新节点 IPv4 改回原来的 `100.108.64.126`，避免改文档和 CI 里的硬编码。
+- 影响：本机 `Host mac-mini` 改回 `100.108.64.126`；`ssh mac-mini` 测通。`tailscale set --hostname=mac-mini` 已执行，但控制面显示名仍是 `mac-mini-1`，MagicDNS `mac-mini` 尚无法解析。
+- 备份：无。
+- 回滚：IP 已回到原值，无需回滚。
+- 验证：
+  - `tailscale ip -4` = `100.108.64.126`，`Online=true`，`WantRunning=true`
+  - `ssh mac-mini` → `SSH_OK`
+  - `tailscale ping mac-mini` → `lookup mac-mini: no such host`；`mac-mini-1` 可 ping
+- 下一步：在管理后台把机器名从 `mac-mini-1` 改成 `mac-mini`，短名才会回到 `http://mac-mini:9000`。然后装 Colima。Docker Desktop 当前未在跑。
+
 ## 2026-08-15 02:15 CST - Homebrew tailscaled 已登录；新 IP 100.86.35.24，短名暂为 mac-mini-1
 
 - 服务器：`mac-mini`
