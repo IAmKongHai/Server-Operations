@@ -1,5 +1,34 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:38 CST - 仅迁正在跑的 4 个容器到 Colima；Sonar / richer 已 UP
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（导出/导入、切引擎）、`konghai`（本机开过 Docker Desktop 以便导出）
+- 原因：Docker Desktop 绑 GUI；只把当前在跑的服务迁到 Colima（vz / 6 CPU / 12 GiB / 100 GiB 盘）。
+- 影响：
+  - 迁了 `sonarqube`、`sonar-postgres`、`richer-grafana`、`richer-postgres`。其它已停用容器未迁。
+  - 备份在 `~/backups/colima-migrate-20260815/`（pg_dump + named volume tar，600）。
+  - richer 补了 `~/stacks/richer/docker-compose.yml`；postgres 改为 named volume `richer_pg_data`。
+  - Docker context 默认 `colima`。Desktop 已强制退出，`AutoStart` 保持 false。App 先留着回滚。
+  - `~/.zshenv` 把 `/opt/homebrew/bin` 提前，并默认 `DOCKER_HOST` 指向 Colima socket。
+- 备份：上述目录。Desktop 侧原容器只是 stop，未 rm。
+- 回滚：`colima stop` → 开 Docker Desktop → `docker context use desktop-linux` → `docker start` 原来的四个容器。
+- 验证：
+  - `http://127.0.0.1:9000/api/system/status` → `UP` / 26.3.0.120487
+  - Grafana `:3001/login` HTTP 200
+  - sonar 库 125 张表；richer 库 15 张表
+- 未完成：Colima 还不是 LaunchDaemon。安装脚本已放到 `~/Downloads/install-colima-daemon.sh`，需本机 `sudo` 执行（会短暂停一下再由 launchd 拉起）。
+
+## 2026-08-15 02:22 CST - MagicDNS 短名 mac-mini 已收回
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（管理后台改名）、`Grok`（验证）
+- 原因：把 `mac-mini-1` 改回 `mac-mini`，恢复 CI / 文档里的 `http://mac-mini:9000`。
+- 影响：只读验证 + 文档。未改 daemon。
+- 备份：无。
+- 回滚：无变更。
+- 验证：`DNSName=mac-mini.taila93443.ts.net`；本机 `dscacheutil` 解析到 `100.108.64.126`；`tailscale ping mac-mini` 约 3ms（直连局域网）。`mac-mini-1` 已不存在。
+
 ## 2026-08-15 02:20 CST - 节点 IP 已改回 100.108.64.126；MagicDNS 仍是 mac-mini-1
 
 - 服务器：`mac-mini`
