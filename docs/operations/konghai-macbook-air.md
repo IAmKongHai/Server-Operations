@@ -1,5 +1,19 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-08-14 23:41 CST - 彻底清除 ToDesk 残留，快切小小空后鼠标恢复
+
+- 服务器/设备：本机 MacBook Air M5（`konghai-macbook-air`，macOS 26.5.2）
+- 操作人：`Grok`（排查与卸载）、`konghai`（重启后验证）
+- 原因：锁定 `konghai` 再快切到 `xxk`（小小空）后，鼠标几乎不能动、键盘正常；锁屏同样卡，切回 `konghai` 恢复。用户已把 ToDesk.app 扔进废纸篓，症状仍在。
+- 影响：停掉并删除 ToDesk 系统服务、LoginWindow Session Proxy、虚拟声卡和安装收据；默认声音改回 LG UltraFine。未动 BetterAndBetter / iShot / 其它远控残留。
+- 备份：`/Library/Preferences/Audio/com.apple.audio.SystemSettings.plist.bak.20260814`
+- 回滚方式：重装 ToDesk。音频配置可用上述 bak 还原后再 `killall coreaudiod`。
+- 做了什么：
+  1. 确认 `ToDesk_Service` / `ToDesk_Session_Proxy` 仍从废纸篓 `ToDesk_2026-08-14_22-44-45` 运行；`gui/502` 每 10 秒重试已删除的 `/Applications/ToDesk.app`。
+  2. 卸载 LaunchDaemon / LaunchAgent、PrivilegedHelper、HAL `ToDeskOutputDriver.driver`、pkg 收据，并清掉系统音频配置里的 ToDesk 聚合设备。
+  3. 用户重启后，**未退出 BetterAndBetter / iShot** 再登小小空，鼠标正常。
+- 验证结果：进程、HAL、pkgutil、声音设备列表均无 ToDesk；用户确认快切问题消失。复盘见 `docs/solutions/best-practices/todesk-incomplete-uninstall-fast-user-switch-mouse-lag-2026-08-14.md`，可复用脚本 `scripts/uninstall-todesk.sh`。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`konghai-macbook-air`
