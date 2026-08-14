@@ -33,6 +33,7 @@ mac-mini 上的容器现在跑在 **Docker Desktop 4.82.0** 里。Desktop 是 El
 - **GUI Tailscale 必须卸掉**，不能和 brew `tailscaled` 并存。官方 Standalone 卸法：把 `/Applications/Tailscale.app` 拖进废纸篓，确认一并移除系统扩展，清空废纸篓，**重启一次**。不要用 `brew uninstall --cask --zap`（这台是 pkg 装的，不是 cask；zap 还会清状态）。
 - 卸系统扩展、重启、`sudo brew services start tailscale` 都要本机管理员密码。当前 SSH **没有 passwordless sudo**，远程代卸会留下残留扩展，且切断隧道后办公室直连 `100.108.64.126` 会断。本机 `~/.ssh/config` 的 `Host mac-mini` **写死了** `100.108.64.126`；重装后 IP 几乎一定会变（macsys 状态带不到 OSS `tailscaled`），需 `tailscale up --hostname=mac-mini` 保 MagicDNS，并改 ssh HostName。
 - 切换窗口兜底：`ssh mac-mini-lan`（办公室 → `pve` Tailscale → 局域网 `192.168.2.170`）。建议妻子能走到机器前、或你回家再切 Tailscale；Colima 可先在现有隧道上准备。
+- **2026-08-15 02:15 已完成**：Homebrew `tailscaled` 1.102.2 + LaunchDaemon 已登录。新 IP **`100.86.35.24`**。本机 `Host mac-mini` 已改。待删旧节点 `100.108.64.126` 后把 MagicDNS 从 `mac-mini-1` 收回 `mac-mini`。
 
 ## Current State（2026-08-15 01:05 CST 只读）
 

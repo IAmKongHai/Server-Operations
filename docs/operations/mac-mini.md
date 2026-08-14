@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:15 CST - Homebrew tailscaled 已登录；新 IP 100.86.35.24，短名暂为 mac-mini-1
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（本机 `sudo brew services start` + `tailscale up`）、`Grok`（装 formula、改本机 ssh config、验证）
+- 原因：换成登录前也能跑的开源 `tailscaled`，妻子解 FileVault 后办公室仍能经 Tailscale SSH。
+- 影响：
+  - GUI Standalone 已卸。Homebrew `tailscale` 1.102.2 以 LaunchDaemon `homebrew.mxcl.tailscale` 跑（root，`KeepAlive` + `RunAtLoad`，含 `System`/`LoginWindow`）。
+  - 新节点 `100.86.35.24`，`WantRunning=true`，`--operator=konghai`，`--hostname=mac-mini`，`CorpDNS=true`。
+  - 旧节点 `100.108.64.126` / DNS `mac-mini` 仍在 tailnet（offline）。新机因此叫 `mac-mini-1`。未删旧节点前，MagicDNS `mac-mini` 和 CI 的 `http://mac-mini:9000` 会指到已死的旧 IP。
+  - 本机 `~/.ssh/config` 的 `Host mac-mini` 已改为 `100.86.35.24`；`ssh mac-mini` 已测通。
+- 备份：无（新节点重新登录，未搬 GUI 状态）。
+- 回滚：停 daemon：`sudo brew services stop tailscale`；重装 GUI 前先卸 formula。旧 IP 不可用。
+- 验证：
+  - `launchctl`：`system/homebrew.mxcl.tailscale` running，pid 12650。
+  - 本机 `tailscale ping mac-mini-1` → `100.86.35.24` 约 14ms（走局域网）。
+  - `ssh mac-mini`（新 IP）返回 `SSH_OK`。
+- 下一步：在 [Tailscale 机器列表](https://login.tailscale.com/admin/machines) 删除旧的 `mac-mini`（`100.108.64.126`），再 `tailscale set --hostname=mac-mini`，让短名回到 `mac-mini`。然后才迁 Colima。
+
 ## 2026-08-15 02:05 CST - 用户确认 ziyi 已在 FileVault；GUI Tailscale 必须人在本机卸
 
 - 服务器：`mac-mini`
