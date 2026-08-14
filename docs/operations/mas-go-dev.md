@@ -1,5 +1,18 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-14 10:48 CST - App 同事确认 MAS LOA Discussion 真机推送通过
+
+- 服务器：`mas-go-dev`（内网 SIT）
+- 操作人：`Grok`（记录）；真机验证由开发 App 的同事完成
+- 原因：09:47 打开 `iCare-backend` FCM、10:45 确认部署后挂载仍在之后，补齐 handoff 要求的端到端验收。
+- 影响：无服务器改动。
+- 备份：无（只记录）。
+- 回滚方式：无变更。
+- 做了什么：同事在内网 MAS 发出 LOA Discussion，用已登录 App 的真机查收。
+- 验证结果：同事回复 **「app 上能收到推送」**。整条链路已通：
+  MAS LOA 页面 → 内网 `iCare-backend` → FCM → APNs → App。
+  公网 `public-backend` 仍只负责登录 / 存 token / 读通知，无需再改。
+
 ## 2026-08-14 10:45 CST - 只读确认 #1500 合并后 FCM 挂载在后续部署中仍生效
 
 - 服务器：`mas-go-dev`（内网 SIT）
@@ -18,7 +31,7 @@
   - 容器内 `FCM_ENABLED=true`，挂载 `fcm-service-account.json -> /run/secrets/fcm-sa.json (ro)`，属主 `10001:999`。
   - `api` / `worker` 均报 `fcm push sender ready project=icare-dev-3c465`；`api` healthy、`RestartCount=0`。
   - `127.0.0.1:8080/healthz`、`5174/healthz`、`5174/api/v1/health` 均为 200。
-  - 结论：#1500 的挂载已进入 develop 部署链路，**后续常规部署不会再冲掉 FCM**。真机横幅仍待同事在内网 MAS 发一条 LOA Discussion。
+  - 结论：#1500 的挂载已进入 develop 部署链路，**后续常规部署不会再冲掉 FCM**。真机横幅当时待同事验证；10:48 已确认 App 能收到推送。
 
 ## 2026-08-14 09:47 CST - 打开 iCare-backend FCM 真实发送（MAS LOA Discussion）
 
@@ -54,7 +67,7 @@
   - 本机用服务账号换 FCM access token：`TOKEN_OK expires_in=3599`；对无效 token 调 FCM v1 返回 `400 INVALID_ARGUMENT`（鉴权与出网通过，不是 `401/403`）。
   - `http://127.0.0.1:5174/healthz` 与 `/api/v1/health` 仍为 200。
   - maswebkit 中已有设备 token 记录（历史数据，未读取或下发任何真实 token）。
-  - **未做真机横幅**：需要已登录 App、已上报 token 的会员，在内网 MAS `http://192.168.2.22:5174` 的 LOA Request Ledger 发一条 Discussion。成功时 `api` 日志不应再出现 `fcm push disabled`；失败会打 `loa discussion fcm delivery incomplete`。
+  - 当时未做真机横幅。后续见 10:48 条目：App 同事确认能收到推送。
 - 备注：公网 `dev-cypresso` 的 `public-backend` FCM 保持不动（App 登录 / 存 token / `test-dispatch` 仍走那里）。`mas-icare.cypress.sg` 仍是 SIT 结束说明页，不要为这条链路重开。
 
 ## 2026-08-13 01:21 CST - 只读确认 iCare-backend Sonar 失败为 mac-mini 服务不可达
