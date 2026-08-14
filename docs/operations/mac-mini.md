@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:05 CST - 用户确认 ziyi 已在 FileVault；GUI Tailscale 必须人在本机卸
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读 + 本机加 SSH 兜底）+ 用户决策
+- 原因：用户确认妻子账户已启用文件保险柜，同意 Colima + Homebrew `tailscaled`，并问 GUI 版要不要手动卸载。
+- 影响：未卸 Tailscale、未装 Colima。仅在**本机** `~/.ssh/config` 增加 `Host mac-mini-lan`（`ProxyJump pve` → `192.168.2.170`），供切换窗口断 Tailscale 时从办公室绕回家。
+- 备份：改 ssh config 前可从 Time Machine / 编辑器撤销；未动服务器。
+- 回滚：删掉 `Host mac-mini-lan` 段。
+- 结论：
+  - GUI Standalone（`/Applications/Tailscale.app` + 系统扩展）和 brew `tailscaled` **不能并存**，必须卸 GUI。
+  - 官方步骤要拖 App 进废纸篓、确认卸扩展、清空废纸篓、重启。系统扩展对话框和重启必须有人在机前；远程无 passwordless sudo。
+  - `Host mac-mini` 现指向 `100.108.64.126`；重装 OSS daemon 后节点 IP 预期会变，切完要改 HostName，并用 `--hostname=mac-mini` 保住短名。
+- 尚未执行卸载或 `brew install`。等用户约定窗口（妻子在家或本人回家）再切。
+
 ## 2026-08-15 01:48 CST - 只读确认：ziyi 登录后当前 Tailscale 不会为公司 SSH 自动起来
 
 - 服务器：`mac-mini`

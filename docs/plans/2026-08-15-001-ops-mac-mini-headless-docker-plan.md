@@ -28,7 +28,11 @@ mac-mini 上的容器现在跑在 **Docker Desktop 4.82.0** 里。Desktop 是 El
 - 掉电 → 只有 `ziyi` 登录：她的会话不会拉起 `konghai` 的 `Tailscale.app`，公司侧经 Tailscale 的 SSH **大概率不通**。她再注销也不会自己好。
 - 对照：2026-08-13 WindowServer 崩溃时盘已解开、隧道已建好，远程仍能打到 `100.108.64.126`（9000 connection refused）。那是「已经连上之后 GUI 死了」，不是冷启动。
 - 今天 00:15 重启后，Network Extension（root）和 `Tailscale.app`（konghai）都在 **00:16:36** 才起来，和 `konghai` 00:16 控制台登录对齐，不像开机就自己连。
-- 若目标是「妻子解完盘，我在公司就能 SSH」：要另做一步，把 Tailscale 换成 LaunchDaemon 里的开源 `tailscaled`（官方唯一 `Run before login = yes` 的 macOS 装法）。与 Colima 同一类改动，需单独确认；不要和现在的 `.app` 同时抢隧道。
+- 若目标是「妻子解完盘，我在公司就能 SSH」：要另做一步，把 Tailscale 换成 LaunchDaemon 里的开源 `tailscaled`（官方唯一 `Run before login = yes` 的 macOS 装法）。与 Colima 同一类改动；不要和现在的 `.app` 同时抢隧道。
+- 用户已确认 `ziyi` 启用了 FileVault，并同意 **Colima + Homebrew `tailscaled`**。
+- **GUI Tailscale 必须卸掉**，不能和 brew `tailscaled` 并存。官方 Standalone 卸法：把 `/Applications/Tailscale.app` 拖进废纸篓，确认一并移除系统扩展，清空废纸篓，**重启一次**。不要用 `brew uninstall --cask --zap`（这台是 pkg 装的，不是 cask；zap 还会清状态）。
+- 卸系统扩展、重启、`sudo brew services start tailscale` 都要本机管理员密码。当前 SSH **没有 passwordless sudo**，远程代卸会留下残留扩展，且切断隧道后办公室直连 `100.108.64.126` 会断。本机 `~/.ssh/config` 的 `Host mac-mini` **写死了** `100.108.64.126`；重装后 IP 几乎一定会变（macsys 状态带不到 OSS `tailscaled`），需 `tailscale up --hostname=mac-mini` 保 MagicDNS，并改 ssh HostName。
+- 切换窗口兜底：`ssh mac-mini-lan`（办公室 → `pve` Tailscale → 局域网 `192.168.2.170`）。建议妻子能走到机器前、或你回家再切 Tailscale；Colima 可先在现有隧道上准备。
 
 ## Current State（2026-08-15 01:05 CST 只读）
 
