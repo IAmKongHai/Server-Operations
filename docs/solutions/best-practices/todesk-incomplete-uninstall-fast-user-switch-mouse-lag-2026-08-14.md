@@ -39,15 +39,14 @@ tags: [todesk, macos, fast-user-switching, mouse-lag, leftover-daemon, virtual-a
 不要用「把 App 扔进废纸篓」判断 ToDesk 是否卸干净。用仓库脚本一次扫完并删掉服务、开机项、虚拟声卡和安装收据：
 
 ```bash
-# 本机（会弹系统密码框）
-/path/to/scripts/uninstall-todesk.sh
+# 推荐：终端里直接 sudo（不要用图形密码框）
+sudo /path/to/scripts/uninstall-todesk.sh --apply
 
 # 只看残留、不改动
 /path/to/scripts/uninstall-todesk.sh --dry-run
-
-# 已经拿到 root
-sudo /path/to/scripts/uninstall-todesk.sh --apply
 ```
+
+脚本若放在「下载」里，`osascript` 图形提权常会在密码通过后仍失败（TCC 不让特权进程读 Downloads），看起来像密码错了。用 `sudo` 即可。
 
 脚本路径：`scripts/uninstall-todesk.sh`。
 

@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 00:09 CST - 图形密码框通过后脚本未以 root 执行，改为走 sudo
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（改脚本）、`konghai`（在图形界面多次输入密码）
+- 原因：用户在终端跑 `~/Downloads/uninstall-todesk.sh`，图形密码框弹出且密码正确，但脚本仍报「无法弹出密码框或你取消了」。
+- 影响：ToDesk 仍在跑，尚未删除。已覆盖下载目录和 `/tmp` 里的脚本。
+- 备份：无。
+- 回滚：无卸载发生。
+- 排查：`/tmp/uninstall-todesk.log` 只有 `mode=auto` / `user=konghai` 的扫描，没有任何 `mode=apply` 或 `uid=0`。说明密码过了，但 `osascript with administrator privileges` 没能执行位于「下载」的脚本（TCC / `com.apple.macl`）。错误信息把所有 osascript 失败都说成「取消密码框」，是误导。
+- 修复：脚本改为终端里 `exec sudo ... --apply`；图形提权只跑 `/tmp` 副本，并打印系统原始错误。
+- 用户下一步：
+  ```bash
+  sudo /tmp/uninstall-todesk.sh --apply
+  ```
+
 ## 2026-08-15 00:00 CST - 把 ToDesk 卸载脚本放到下载目录
 
 - 服务器：`mac-mini`

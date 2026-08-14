@@ -3,11 +3,12 @@
 # 不会碰 ToDesktop（Cursor / Notion Calendar 用的 com.todesktop.*）。
 #
 # 用法：
-#   ./uninstall-todesk.sh              # 先扫描；非 root 时弹系统密码框再执行
+#   sudo ./uninstall-todesk.sh --apply # 推荐：终端里直接 sudo
 #   ./uninstall-todesk.sh --dry-run    # 只扫描，不改任何东西
-#   sudo ./uninstall-todesk.sh --apply # 已经是 root 时直接卸载
+#   ./uninstall-todesk.sh              # 先扫描；终端里会再要一次 sudo
 #
-# 远程机器：先 scp 过去，再在那台机器的图形会话里跑；纯 SSH 无界面时用 sudo。
+# 不要依赖「图形密码框」。从「下载」目录走 osascript 提权时，
+# macOS TCC 常在密码通过后仍拒绝执行，看起来像密码错了。
 set -euo pipefail
 
 MODE=auto
@@ -298,20 +299,35 @@ apply() {
 }
 
 elevate_and_apply() {
-  local self abs
+  local self staged err
   self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
-  abs=$self
-  if [ ! -f "$abs" ]; then
-    echo "找不到脚本自身: $abs" >&2
+  if [ ! -f "$self" ]; then
+    echo "找不到脚本自身: $self" >&2
     exit 1
   fi
-  echo "需要管理员权限，将在这台 Mac 的屏幕上弹出系统密码框。"
-  echo "（SSH 过来时，密码框出现在被控 Mac 的显示器上，不在你现在这台机器。）"
-  if osascript -e "do shell script \"/bin/bash $(printf %q "$abs") --apply\" with administrator privileges"; then
+
+  # 终端里用 sudo。图形密码框对「下载」目录经常密码对了也不让执行。
+  if [ -t 0 ]; then
+    echo "需要管理员权限。请在终端里输入登录密码（不会用图形密码框）："
+    exec sudo /bin/bash "$self" --apply
+  fi
+
+  staged=/tmp/uninstall-todesk.sh
+  cp "$self" "$staged"
+  chmod 700 "$staged"
+  xattr -c "$staged" 2>/dev/null || true
+  echo "无终端，尝试图形密码框（执行 /tmp 副本以避免「下载」目录权限）…"
+  err=$(mktemp /tmp/uninstall-todesk-osascript.XXXXXX)
+  if osascript -e "do shell script \"/bin/bash /tmp/uninstall-todesk.sh --apply\" with administrator privileges" 2>"$err"; then
+    rm -f "$err"
     return 0
   fi
-  echo "无法弹出密码框或你取消了。请在这台 Mac 的终端执行："
-  echo "  sudo bash \"$abs\" --apply"
+  echo "图形提权失败。系统返回："
+  cat "$err" 2>/dev/null || true
+  rm -f "$err"
+  echo
+  echo "请打开「终端」执行："
+  echo "  sudo /bin/bash /tmp/uninstall-todesk.sh --apply"
   exit 1
 }
 
