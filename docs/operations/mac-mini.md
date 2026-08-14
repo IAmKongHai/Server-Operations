@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 01:10 CST - 只读评估：Docker Desktop 无法无登录常驻，推荐换 Colima
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读排查 + 写计划）
+- 原因：用户要把 mac-mini 当服务器用——开机后不登录图形界面，容器也要起来；并嫌 Docker Desktop GUI 费资源。结合 2026-08-13 WindowServer 崩溃后 Desktop 连带掉线、以及今天 00:15 重启后部分容器没起来。
+- 影响：只读。未改 Docker / 容器 / FileVault / 登录项 / runner。
+- 备份：无。
+- 回滚：无变更。
+- 做了什么：
+  1. 核对引擎、socket、Desktop 设置、FileVault、自动登录、容器 restart policy、compose 归属、runner LaunchAgent。
+  2. 把结论写成 `docs/plans/2026-08-15-001-ops-mac-mini-headless-docker-plan.md`。
+- 验证（只读快照，约 01:05 CST）：
+  - Docker Desktop 4.82.0，VM **8 CPU / 24 GiB**，`AutoStart=true` 但会弹出 GUI；`/var/run/docker.sock` 链到 `konghai` 的 Desktop socket，`hon` 在 `docker` 组。
+  - FileVault **开着**，自动登录未开。冷启动必须有人在登录窗解锁，这不是 Docker 能绕开的。
+  - 当时在跑：`sonarqube` / `sonar-postgres`（healthy）、`richer-grafana` / `richer-postgres`。`acquilang-postgres`、`multica-*`、`cypresso-okr-*` 虽有 restart policy，重启后未保持运行。
+  - 四个 `mac-mini-sonar-*` runner 仍是 LaunchAgent（`ProcessType=Interactive`），和 Desktop 一样绑 GUI 会话。
+- 结论：Docker Desktop 没有 headless / LaunchDaemon 模式，不能靠「开机脚本 + 登录自启」解决注销或 WindowServer 崩溃。推荐换成 **Colima + LaunchDaemon**，有状态卷导出导入后卸 Desktop。未执行迁移，等用户确认。
+- 计划：`docs/plans/2026-08-15-001-ops-mac-mini-headless-docker-plan.md`
+
 ## 2026-08-15 00:42 CST - 重启后复查：ToDesk 未回潮；SonarQube 容器未自动拉起
 
 - 服务器：`mac-mini`
