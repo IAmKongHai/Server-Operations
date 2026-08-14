@@ -18,6 +18,13 @@ mac-mini 上的容器现在跑在 **Docker Desktop 4.82.0** 里。Desktop 是 El
 
 本计划只覆盖评估与推荐路径。真正换引擎、迁 volume、卸 Desktop、改 LaunchDaemon 必须用户确认后再做。
 
+## Decision（2026-08-15）
+
+- **不建专用用户**。Colima 装在 `konghai` 下，LaunchDaemon 也以 `konghai` 跑。
+- 掉电后由妻子 `ziyi`（本机显示名「梓依」）在开机屏登录她自己的账户解锁磁盘。解完盘即可走开 / 注销；不必进 `konghai` 桌面。
+- **掉电后不能靠 SSH 以 `konghai` 解锁 FileVault。** Apple Silicon 上磁盘未开时 `sshd`、Tailscale 都还在加密卷里，网口也还没进正常用户态。SSH 要等任意一个 FileVault 用户在机前解锁之后才可用。
+- 执行前必须在本机确认 `ziyi` 已在 FileVault 解锁名单里（`sudo fdesetup list`，或开机屏能看到「梓依」）。当前远程没有 sudo，只看到 `konghai` 有 Secure Token；`ziyi` 是否能解锁尚未核实。若不在名单，由 `konghai` 执行 `sudo fdesetup add -usertoadd ziyi`（会要双方密码）。
+
 ## Current State（2026-08-15 01:05 CST 只读）
 
 | 项 | 现状 |

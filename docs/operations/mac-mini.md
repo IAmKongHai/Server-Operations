@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 01:35 CST - 敲定 Colima 仍用 konghai；掉电不能 SSH 解 FileVault
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）+ 用户决策
+- 原因：用户确认不建专用 Colima 用户；掉电由 `ziyi` 在开机屏解锁；并问能否 SSH 进 `konghai` 远程解 FileVault。
+- 影响：只读。未建用户、未改 FileVault、未装 Colima。
+- 备份：无。
+- 回滚：无变更。
+- 结论：
+  - Colima 计划维持「装在 `konghai` + LaunchDaemon `UserName=konghai`」。
+  - 冷启动 / 掉电：**不能** SSH 解锁。盘未开时 sshd 不在。`ziyi`（或任何已启用的 FileVault 用户）必须在机前输一次密码；解完后可 SSH `konghai`，LaunchDaemon 即可拉 Colima。
+  - `pmset autorestart=1`：来电会自动开机，然后停在 FileVault 屏等人口令。
+  - 远程看不到 `ziyi` 的 AuthenticationAuthority（无 sudo / `fdesetup list`）。执行迁移前要在本机确认她已在解锁名单，否则开机屏只有 `konghai`。
+- 计划已更新：`docs/plans/2026-08-15-001-ops-mac-mini-headless-docker-plan.md`
+
 ## 2026-08-15 01:10 CST - 只读评估：Docker Desktop 无法无登录常驻，推荐换 Colima
 
 - 服务器：`mac-mini`
