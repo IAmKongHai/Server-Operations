@@ -1,11 +1,15 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-07-28  
+> 最后更新：2026-08-15  
 > 4 个 org runner：`mac-mini-sonar-1` … `4`  
 > 目录：`~/actions-runner/mac-mini-sonar-{1..4}`  
+> 2026-08-15 起改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
+> 旧 LaunchAgent plist 停在 `~/Library/LaunchAgents.disabled-20260815/`。  
 > 固定恢复脚本：`~/bin/mac-mini-runner-resume.sh`  
 > 日志：`~/Library/Logs/mac-mini-runner-resume.log`  
 > 池与 label 定义见 [ci-runner-pools.md](./ci-runner-pools.md)
+
+**不要再运行 `./svc.sh install` / `./svc.sh start`。** 那会把 LaunchAgent 装回 `~/Library/LaunchAgents`，登录后和 Daemon 双开。
 
 ## 红线：不要用 `at` 做定时恢复
 
@@ -20,26 +24,24 @@ macOS **默认禁用** `com.apple.atrun`（plist 里 `Disabled=true`）。
 ## 立即恢复
 
 ```bash
-ssh mac-mini '~/bin/mac-mini-runner-resume.sh'
+ssh mac-mini 'sudo ~/bin/mac-mini-runner-resume.sh'
 ```
 
 或：
 
 ```bash
 for n in 1 2 3 4; do
-  (cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh start)
+  sudo launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
 ```
 
-**注意**：必须 `cd` 到 runner 根目录再调 `./svc.sh`。绝对路径调用会报：
-
-`Failed: Must run from runner root or install is corrupt`
+KeepAlive 已开，崩溃后 launchd 会自己拉。resume 主要给「人为 bootout 之后」用。
 
 ## 停止
 
 ```bash
 for n in 1 2 3 4; do
-  (cd ~/actions-runner/mac-mini-sonar-$n && ./svc.sh stop)
+  sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
 ```
 
@@ -47,7 +49,7 @@ done
 
 ```bash
 # 本机
-launchctl list | grep actions.runner
+launchctl print system | grep actions.runner
 ps aux | grep Runner.Listener | grep -v grep
 
 # GitHub
@@ -55,7 +57,7 @@ gh api orgs/cypressoai/actions/runners \
   --jq '.runners[] | select(.name|startswith("mac-mini-sonar")) | {name,status,busy}'
 ```
 
-期望 `status` = `online`。
+期望 `status` = `online`。全员注销后也应如此。
 
 ## 定时（推荐 cron）
 

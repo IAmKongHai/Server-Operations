@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:46 CST - 准备把 mac-mini-sonar-1..4 改成 LaunchDaemon
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（挪走 Agent、写脚本）、待 `konghai` 本机 sudo
+- 原因：全员注销后 runner 不在，和 Colima 同一类问题。
+- 影响：四个 LaunchAgent plist 已移到 `~/Library/LaunchAgents.disabled-20260815/`（登录也不会再拉）。Daemon 尚未装，runner 仍停。
+- 备份：上述 disabled 目录里的原 plist。
+- 回滚：把 plist 移回 `~/Library/LaunchAgents`，不要装 Daemon。
+- 脚本：`~/Downloads/install-mac-mini-runner-daemons.sh`。恢复脚本已改为 kickstart `system/…`。不要再用 `./svc.sh install`。
+- 验证：安装脚本尚未执行。
+
 ## 2026-08-15 02:44 CST - 全员注销后验证：Tailscale + Colima + 4 个容器仍在
 
 - 服务器：`mac-mini`
