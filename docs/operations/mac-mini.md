@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 00:00 CST - 把 ToDesk 卸载脚本放到下载目录
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户要在图形界面自己执行卸载，需要在「下载」里能看到脚本。
+- 影响：只新增 `~/Downloads/uninstall-todesk.sh`（755），未跑卸载、未改服务。
+- 备份：无。
+- 回滚：删掉该文件即可。家目录和 `/tmp` 里先前那两份仍在。
+- 验证：`ls` 显示 `-rwxr-xr-x`，SHA-256 与仓库脚本一致。
+- 用户下一步：打开终端执行 `~/Downloads/uninstall-todesk.sh`，在密码框输入本机登录密码；卸完建议重启。
+
 ## 2026-08-14 23:58 CST - 扫到完整 ToDesk 仍在跑，脚本已就位，远程 sudo 未执行
 
 - 服务器：`mac-mini`（SonarQube 宿主、self-hosted runner；macOS 26.5.2）
@@ -13,11 +24,11 @@
   - `ToDesk_Session_Proxy` 挂在 `konghai`；launchd 还为 uid 501/503/505（`konghai` / `ziyi` / `coding`）注册了 `ToDesk_Service_*`。
   - 系统 plist、PrivilegedHelper、HAL `ToDeskOutputDriver.driver`、pkg `com.youqu.todesk.mac` 均在。当前默认输出已是 LG UltraFine，设备列表里没有 ToDesk 虚拟声卡名。
   - 远程 `osascript` 提权返回「管理员用户名或密码不正确」(-60007)，SSH 也无 passwordless sudo。
-- 脚本位置（该机）：`/Users/konghai/uninstall-todesk.sh`（与仓库 `scripts/uninstall-todesk.sh` 相同）。在 mac-mini 图形会话的终端执行：
+- 脚本位置（该机，2026-08-15 00:00 已再拷到下载目录）：`/Users/konghai/Downloads/uninstall-todesk.sh`（与仓库 `scripts/uninstall-todesk.sh` 相同）。在 mac-mini 图形会话的「终端」执行：
   ```bash
-  /Users/konghai/uninstall-todesk.sh
+  ~/Downloads/uninstall-todesk.sh
   ```
-  或 `sudo /Users/konghai/uninstall-todesk.sh --apply`。卸完建议重启再确认进程和 HAL 都消失。
+  或 `sudo ~/Downloads/uninstall-todesk.sh --apply`。卸完建议重启再确认进程和 HAL 都消失。
 - 验证结果：卸载尚未执行。背景见 `docs/solutions/best-practices/todesk-incomplete-uninstall-fast-user-switch-mouse-lag-2026-08-14.md`。
 
 ## 2026-08-13 10:49 CST - 只读确认 SonarQube 正常，CI 首跑失败在 runner 的 Tailscale 链路
