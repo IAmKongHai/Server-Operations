@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:51 CST - runner LaunchDaemon 已装上；全员注销后 GitHub 仍 online
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（sudo 安装脚本后注销）、`Grok`（远程核对）
+- 原因：让 CI runner 和 Colima / Tailscale 一样，不依赖图形登录。
+- 影响：`mac-mini-sonar-1..4` 现为 `system/actions.runner.cypressoai.mac-mini-sonar-N`，以 `konghai` 跑 `runsvc.sh`。旧 Agent plist 仍在 `~/Library/LaunchAgents.disabled-20260815/`。
+- 备份：上述 disabled 目录。
+- 回滚：`sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-N` 并删对应 `/Library/LaunchDaemons` plist；需要时把 disabled 目录里的 Agent 移回 `~/Library/LaunchAgents`。
+- 验证（控制台用户 `root`，`who` 空）：
+  - 四个 job `state=running`，各有 `Runner.Listener --startuptype service`。
+  - GitHub：四个均为 `online`；当时 1 和 3 `busy=true`（已在接活）。
+  - Sonar 仍 `UP`，Tailscale 仍 `100.108.64.126`。
+
 ## 2026-08-15 02:46 CST - 准备把 mac-mini-sonar-1..4 改成 LaunchDaemon
 
 - 服务器：`mac-mini`
