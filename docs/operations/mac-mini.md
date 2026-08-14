@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 02:44 CST - 全员注销后验证：Tailscale + Colima + 4 个容器仍在
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（跑完 daemon 脚本后注销所有用户）、`Grok`（远程验证）
+- 原因：确认不再依赖任何人的图形会话。
+- 影响：只读。`/dev/console=root`，`who` 为空。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - `ssh mac-mini`（`100.108.64.126`）通；`tailscaled` LaunchDaemon 在线，MagicDNS `mac-mini`。
+  - `system/com.konghai.colima` running；四个容器 healthy / Grafana 200；Sonar `UP` 26.3.0。
+  - `mac-mini-sonar-1..4` 的 `Runner.Listener` **不在**（仍是 LaunchAgent，注销后会停）。这是预期，尚未改 runner。
+
 ## 2026-08-15 02:38 CST - 仅迁正在跑的 4 个容器到 Colima；Sonar / richer 已 UP
 
 - 服务器：`mac-mini`
