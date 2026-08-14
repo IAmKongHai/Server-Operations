@@ -1,5 +1,42 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-14 09:47 CST - 打开 iCare-backend FCM 真实发送（MAS LOA Discussion）
+
+- 服务器：`mas-go-dev`（内网 SIT，`192.168.2.22`）
+- 操作人：`Grok`
+- 原因：App 同事要验证 MAS 发出的 LOA Discussion 能否出 iPhone 横幅。这条链路由 `iCare-backend` 发送，与已配好的公网 `public-backend` FCM 是两套独立配置。此前 `api` / `worker` 日志为 `fcm push disabled`，discussion 会落库但不推送。
+- 影响：仅重建 `icare-backend-api-1` 与 `icare-backend-worker-1`（约数秒不可用）；未改 ECOM / SUP / public-backend / MAS portal / 数据库。FCM 为出站访问 Google，不暴露新端口。
+- 备份：
+  - `/opt/mas-go-dev/backend/.env.docker.bak.20260814-fcm`
+  - `/opt/mas-go-dev/backend/backend.compose.yaml.bak.20260814-fcm`
+- 回滚方式：
+  ```bash
+  BASE=/opt/mas-go-dev/backend
+  sudo cp -a $BASE/.env.docker.bak.20260814-fcm $BASE/.env.docker
+  sudo cp -a $BASE/backend.compose.yaml.bak.20260814-fcm $BASE/backend.compose.yaml
+  sudo rm -f $BASE/.env $BASE/fcm-service-account.json
+  IMG=$(sudo docker inspect icare-backend-api-1 --format '{{.Config.Image}}')
+  sudo env BACKEND_IMAGE="$IMG" docker compose --project-directory $BASE \
+    -f $BASE/backend.compose.yaml up -d --no-deps --force-recreate --pull never api worker
+  ```
+  回滚后日志应回到 `fcm push disabled`；MAS 保存 discussion 仍可用，只是不再真发推送。
+- 变更时序：
+  1. 从同机已验证的 `public-backend` 服务账号复制到 `/opt/mas-go-dev/backend/fcm-service-account.json`（`600`，`uid=10001 gid=999`），Firebase 项目 `icare-dev-3c465`。
+  2. 在主机维护的 `.env.docker` 追加 `FCM_ENABLED=true`、`FCM_CREDENTIALS_FILE=/run/secrets/fcm-sa.json`、`FCM_PROJECT_ID=icare-dev-3c465`、`FCM_TIMEOUT=10s`。未写入 ecom/sup env，避免非 mas profile 启动失败。
+  3. 新增 compose `.env`：`BACKEND_FCM_CREDENTIALS_FILE=/opt/mas-go-dev/backend/fcm-service-account.json`（只给 volume 插值，不入库）。
+  4. `api` / `worker` 增加只读挂载 `${BACKEND_FCM_CREDENTIALS_FILE:-/dev/null}:/run/secrets/fcm-sa.json:ro`。
+  5. 显式复用当前镜像 `icare/backend:mas-go-dev-80c1eb54…`，`--no-deps --force-recreate --pull never` 重建 `api` + `worker`，未跑 seed、未 `--remove-orphans`。
+  6. 源仓同步：[iCare-backend#1500](https://github.com/cypressoai/iCare-backend/pull/1500)。**该 PR 合并前若有其它 backend 部署，会覆盖本机 compose、丢掉挂载**；而 `.env.docker` 仍是 `FCM_ENABLED=true`，`api` 会因读不到凭证起不来。合并前请先合 #1500，或临时把 `FCM_ENABLED` 改回 `false`。
+- 验证：
+  - `api` `healthy`、`RestartCount=0`；`worker` `running`、`RestartCount=0`。
+  - 两边日志：`fcm push sender ready project=icare-dev-3c465`。
+  - 挂载：`/opt/mas-go-dev/backend/fcm-service-account.json -> /run/secrets/fcm-sa.json (ro)`。
+  - 本机用服务账号换 FCM access token：`TOKEN_OK expires_in=3599`；对无效 token 调 FCM v1 返回 `400 INVALID_ARGUMENT`（鉴权与出网通过，不是 `401/403`）。
+  - `http://127.0.0.1:5174/healthz` 与 `/api/v1/health` 仍为 200。
+  - maswebkit 中已有设备 token 记录（历史数据，未读取或下发任何真实 token）。
+  - **未做真机横幅**：需要已登录 App、已上报 token 的会员，在内网 MAS `http://192.168.2.22:5174` 的 LOA Request Ledger 发一条 Discussion。成功时 `api` 日志不应再出现 `fcm push disabled`；失败会打 `loa discussion fcm delivery incomplete`。
+- 备注：公网 `dev-cypresso` 的 `public-backend` FCM 保持不动（App 登录 / 存 token / `test-dispatch` 仍走那里）。`mas-icare.cypress.sg` 仍是 SIT 结束说明页，不要为这条链路重开。
+
 ## 2026-08-13 01:21 CST - 只读确认 iCare-backend Sonar 失败为 mac-mini 服务不可达
 
 - 服务器：`mas-go-dev`（self-hosted runner `mas-go-dev-ci-2`）；对照 `mac-mini` SonarQube 与 `umacbook-pro-2`
