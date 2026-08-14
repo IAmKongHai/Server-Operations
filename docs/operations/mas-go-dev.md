@@ -1,5 +1,25 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-14 10:45 CST - 只读确认 #1500 合并后 FCM 挂载在后续部署中仍生效
+
+- 服务器：`mas-go-dev`（内网 SIT）
+- 操作人：`Grok`
+- 原因：[iCare-backend#1500](https://github.com/cypressoai/iCare-backend/pull/1500) 已合并并自动部署；需确认 compose 覆盖后 `api` / `worker` 仍能读到 FCM 凭证，没有退回 `fcm push disabled` 或因缺文件起不来。
+- 影响：只读检查 GitHub Actions 与本机容器 / 挂载 / 日志 / 探活；未改配置、未重启、未发真实推送。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对 #1500 合并提交 `943acb5a`，Backend Deploy [31762295839](https://github.com/cypressoai/iCare-backend/actions/runs/31762295839) 成功（含 `Deploy to mas-go-dev`）。
+  2. 再核对其后的 [CYP-2123](https://github.com/cypressoai/iCare-backend/actions/runs/31763823982) 部署也成功；本机当前跑的是这趟镜像 `icare/backend:mas-go-dev-d53eb812…`（2026-08-14 10:35 CST 起来）。
+  3. 检查本机 `backend.compose.yaml`（02:35 被 deploy 覆盖）、`.env` / `.env.docker`、凭证文件与容器挂载、启动日志、探活。
+- 验证结果：
+  - 部署覆盖后的 compose 仍带 `${BACKEND_FCM_CREDENTIALS_FILE:-/dev/null}:/run/secrets/fcm-sa.json:ro`（`api` 与 `worker`）。
+  - 主机 `.env` / `.env.docker` 与 `fcm-service-account.json` 未被 deploy 改动（仍是 01:44 那一版）。
+  - 容器内 `FCM_ENABLED=true`，挂载 `fcm-service-account.json -> /run/secrets/fcm-sa.json (ro)`，属主 `10001:999`。
+  - `api` / `worker` 均报 `fcm push sender ready project=icare-dev-3c465`；`api` healthy、`RestartCount=0`。
+  - `127.0.0.1:8080/healthz`、`5174/healthz`、`5174/api/v1/health` 均为 200。
+  - 结论：#1500 的挂载已进入 develop 部署链路，**后续常规部署不会再冲掉 FCM**。真机横幅仍待同事在内网 MAS 发一条 LOA Discussion。
+
 ## 2026-08-14 09:47 CST - 打开 iCare-backend FCM 真实发送（MAS LOA Discussion）
 
 - 服务器：`mas-go-dev`（内网 SIT，`192.168.2.22`）
