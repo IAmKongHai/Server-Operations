@@ -24,6 +24,11 @@ mac-mini 上的容器现在跑在 **Docker Desktop 4.82.0** 里。Desktop 是 El
 - 掉电后由妻子 `ziyi`（本机显示名「梓依」）在开机屏登录她自己的账户解锁磁盘。解完盘即可走开 / 注销；不必进 `konghai` 桌面。
 - **掉电后不能靠 SSH 以 `konghai` 解锁 FileVault。** Apple Silicon 上磁盘未开时 `sshd`、Tailscale 都还在加密卷里，网口也还没进正常用户态。SSH 要等任意一个 FileVault 用户在机前解锁之后才可用。
 - 执行前必须在本机确认 `ziyi` 已在 FileVault 解锁名单里（`sudo fdesetup list`，或开机屏能看到「梓依」）。当前远程没有 sudo，只看到 `konghai` 有 Secure Token；`ziyi` 是否能解锁尚未核实。若不在名单，由 `konghai` 执行 `sudo fdesetup add -usertoadd ziyi`（会要双方密码）。
+- **只换 Colima 不够让你在办公室连回家。** 当前 Tailscale 是 Standalone 系统扩展版（`com.tailscale.ipn.macsys` 1.102.2）。官方对照表：Standalone **不能**在登录前运行；只有开源 `tailscaled` 可以。`WantRunning=true`，节点 `100.108.64.126`，登录账号 `k@cypresso.ai`。
+- 掉电 → 只有 `ziyi` 登录：她的会话不会拉起 `konghai` 的 `Tailscale.app`，公司侧经 Tailscale 的 SSH **大概率不通**。她再注销也不会自己好。
+- 对照：2026-08-13 WindowServer 崩溃时盘已解开、隧道已建好，远程仍能打到 `100.108.64.126`（9000 connection refused）。那是「已经连上之后 GUI 死了」，不是冷启动。
+- 今天 00:15 重启后，Network Extension（root）和 `Tailscale.app`（konghai）都在 **00:16:36** 才起来，和 `konghai` 00:16 控制台登录对齐，不像开机就自己连。
+- 若目标是「妻子解完盘，我在公司就能 SSH」：要另做一步，把 Tailscale 换成 LaunchDaemon 里的开源 `tailscaled`（官方唯一 `Run before login = yes` 的 macOS 装法）。与 Colima 同一类改动，需单独确认；不要和现在的 `.app` 同时抢隧道。
 
 ## Current State（2026-08-15 01:05 CST 只读）
 

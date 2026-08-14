@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 01:48 CST - 只读确认：ziyi 登录后当前 Tailscale 不会为公司 SSH 自动起来
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户在办公室只靠 Tailscale 连回家，问掉电后妻子登 `ziyi`、再注销，挂在 `konghai` 下的 Tailscale 会不会起来。
+- 影响：只读。未改 Tailscale / FileVault / 登录项。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - 装的是 Standalone `com.tailscale.ipn.macsys` 1.102.2，不是 App Store。
+  - 两个进程：root 的 `io.tailscale.ipn.macsys.network-extension`（数据面）、`konghai` 的 `Tailscale.app`（菜单栏）。`WantRunning=true`，`LoggedOut=false`，节点 `100.108.64.126` / `k@cypresso.ai`。
+  - 今日 `kern.boottime=00:15:33`，两进程均 `00:16:36` 启动，与 `konghai` 控制台 00:16 登录对齐。
+  - 官方 [macos-variants](https://tailscale.com/docs/concepts/macos-variants)：Standalone `Run before login = no`；开源 `tailscaled` 才是 `yes`。[unattended](https://tailscale.com/docs/how-to/run-unattended) 写明 macOS 还不能当系统服务跑。
+- 结论：妻子只登她的账户，办公室经 Tailscale SSH 回家不可靠。08-13 GUI 崩了还能打到 `100.108.64.126`，是因为隧道当时已经建好。要「解完盘就能从公司连」，需另把 Tailscale 改成 `tailscaled` LaunchDaemon。
+- 计划已更新：`docs/plans/2026-08-15-001-ops-mac-mini-headless-docker-plan.md`
+
 ## 2026-08-15 01:35 CST - 敲定 Colima 仍用 konghai；掉电不能 SSH 解 FileVault
 
 - 服务器：`mac-mini`
