@@ -1,6 +1,7 @@
 ---
 title: ToDesk 残留服务导致快切用户后鼠标几乎不能动
 date: 2026-08-14
+last_updated: 2026-08-15
 category: docs/solutions/best-practices
 server: (适用所有 macOS)
 module: macOS / ToDesk / Fast User Switching
@@ -32,7 +33,7 @@ tags: [todesk, macos, fast-user-switching, mouse-lag, leftover-daemon, virtual-a
 
 清干净 ToDesk 残留并重启后，**不退出 BetterAndBetter / iShot** 再登小小空，鼠标恢复正常。因此可以认定是 ToDesk 残留，不是辅助功能软件。
 
-同一天在 `mac-mini` 上扫到完整安装仍在跑：`ToDesk_Service` 自 2026-07-21 起累计约 890 小时 CPU，并给 uid 501/503/505（`konghai` / `ziyi` / `coding`）各挂了一份服务。`mac-mini` 上的卸载因远程 sudo 需要本机密码，脚本已放到该机，待在图形会话里执行。
+同一天在 `mac-mini` 上扫到完整安装仍在跑：`ToDesk_Service` 自 2026-07-21 起累计约 890 小时 CPU，并给 uid 501/503/505（`konghai` / `ziyi` / `coding`）各挂了一份服务。2026-08-15 00:12 用户在该机终端执行 `sudo /tmp/uninstall-todesk.sh --apply` 后复查通过（进程、App、HAL、pkgutil、虚拟声卡均无）。图形密码框从「下载」目录提权会失败，必须用终端 `sudo`。
 
 ## Guidance
 

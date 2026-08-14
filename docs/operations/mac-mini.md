@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-08-15 00:12 CST - ToDesk 已彻底卸载，复查通过
+
+- 服务器：`mac-mini`
+- 操作人：`konghai`（本机 `sudo /tmp/uninstall-todesk.sh --apply`）、`Grok`（远程核对日志）
+- 原因：清掉自 2026-07-21 起常驻、累计约 890 小时 CPU 的 ToDesk 服务，避免快切用户时再截鼠标。
+- 影响：`ToDesk.app`、系统服务、LoginWindow Session Proxy、虚拟声卡、各用户配置和安装收据已删除。默认输出仍是 LG UltraFine。Docker / SonarQube / runner 未动。
+- 备份：`/Library/Preferences/Audio/com.apple.audio.SystemSettings.plist.bak.20260815`
+- 回滚：重装 ToDesk；音频可用上述 bak 还原后再 `killall coreaudiod`。
+- 日志要点（`/tmp/uninstall-todesk.log`，`00:12:05` 起 `uid=0`）：
+  - bootout 成功：`system/com.youqu.todesk.{service,UninstallerHelper,UninstallerWatcher}`、`gui/501` 的 desktop/startup
+  - 删除 App、5 个 plist、PrivilegedHelper、HAL `ToDeskOutputDriver.driver`、系统 Application Support/Logs，以及 `claw_bot` / `coding` / `hon` / `konghai` / `ziyi` 家目录里的 ToDesk 数据
+  - forget：`com.youqu.todesk.mac` / UninstallerClient / UninstallerHelper
+- 验证（00:13 CST 远程复查）：
+  - 进程无 `ToDesk_Service` / `ToDesk_Session_Proxy`
+  - `/Applications/ToDesk.app`、HAL 驱动、pkgutil 收据均不存在
+  - 声音设备列表无 ToDesk；默认输出 LG UltraFine
+  - launchd 仅剩三条 `disabled` 空标签，无对应 plist，不会再启动
+- 建议：方便时重启一次 mac-mini，让 launchd 空标签和 coreaudiod 状态彻底掉干净。重启前确认 Sonar / runner 窗口可接受。
+
 ## 2026-08-15 00:09 CST - 图形密码框通过后脚本未以 root 执行，改为走 sudo
 
 - 服务器：`mac-mini`
