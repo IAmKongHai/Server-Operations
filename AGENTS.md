@@ -100,6 +100,7 @@
 | `km-landui`    | 内网设备，纳入例行安全扫描清单                                                          | 否                                |
 | `home-router`  | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问（本机已卸载 Tailscale）              | **是**（改动影响家里所有联网设备） |
 | `office-router`| 办公室路由器，原托管的 GitHub Actions runner 已于 2026-06-30 移除                        | **是**（改动影响办公室所有联网设备） |
+| `cursor-box`   | Cursor Cloud Agent 沙箱（容器 hostname `cursor`，Tailscale 名 `3x-ui`，`100.102.171.1`）；`ssh box@100.102.171.1`。**不是** `tizi-ddy` 的 3x-ui 面板 | 否（云端临时沙箱，会话结束可能销毁） |
 
 注意：
 - `nyh-prod` 上同时跑着多个项目的生产数据库与站点，任何重启 / 配置改动都要先想清楚波及哪些项目
