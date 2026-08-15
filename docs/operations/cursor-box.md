@@ -6,6 +6,23 @@ Cursor Cloud Agent 沙箱。容器内 hostname 是 `cursor`，Tailscale 节点�
 
 网卡上**没有独立公网 IPv4**。网卡只有 `172.30.0.2/24` 和 Tailscale `100.102.171.1`。出站经宿主机 NAT（当前源 IP 表现为 Cloudflare `104.30.175.37`），入站只能走 Tailscale / Cursor 控制面，不能当公网站点或代理节点。
 
+**不要**在这台沙箱上注册 GitHub Actions runner：无公网 IP 不影响 runner 出站，但机器是 Cursor 临时容器、无 Docker、凭证会落到非自管环境。CI 继续用 `docs/runbooks/ci-runner-pools.md` 里的自管机。
+
+## 2026-08-15 12:31 CST - 评估能否当 GitHub runner
+
+- 服务器：`cursor-box`
+- 操作人：`Grok`
+- 原因：用户问能否用这台无公网 IP 的沙箱做 GitHub runner。
+- 影响：只读（查 docker / 磁盘 / 是否已有 Runner.Listener）；未安装 runner、未改配置。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：对照 `docs/runbooks/ci-runner-pools.md`，并复查本机 Docker 与持久化。
+- 验证结果：
+  - 无 `docker` 二进制、无 `/var/run/docker.sock`；`:2375` 在听但不是可用的 CI Docker。
+  - 根盘是 overlay，无已装 `actions-runner`。
+  - 规格 8c / 16G / 128G 对 Linux job 够用，但生命周期与安全不满足自管 runner 要求。
+- 结论：协议上能装（runner 只出站），**不要装**。需要 Linux 容量时扩 `mas-go-dev-ci` 或 `dev-cypresso`，不要用 Cursor 沙箱。
+
 ## 2026-08-15 12:24 CST - 确认无独立公网 IP
 
 - 服务器：`cursor-box`（Tailscale `3x-ui` / `100.102.171.1`）
