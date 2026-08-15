@@ -10,21 +10,30 @@ server: mac-mini
 
 ## Summary
 
-在家里的 `mac-mini` 上，用**现有 Colima Docker 引擎**部署 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api)（AI 订阅账号 → 统一 API Key 网关）。栈是官方三件套：`sub2api` + PostgreSQL 18 + Redis 8。
+在家里的 `mac-mini` 上，用**现有 Colima Docker 引擎**部署 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api)（AI 订阅账号 → 统一 API Key 网关）。栈是 `sub2api` + 自带小规格 PostgreSQL + Redis 8。
 
 本计划只覆盖评估与推荐路径。真正 `docker compose up`、写 `.env`、拉镜像必须用户确认后再做。
 
-**推荐默认（未确认前不执行）：**
+### 已锁定（2026-08-16）
+
+| 项 | 决定 |
+| --- | --- |
+| 暴露 | `0.0.0.0:8080`，本机 + 局域网可访问（与 Sonar 同策略） |
+| 运行模式 | `RUN_MODE=standard`（完整计费 / 余额 / 充值） |
+| 管理员邮箱 | `konghai007@gmail.com` |
+| 现有库 | **不**挂到 `sonar-postgres` 或 `richer-postgres` |
+
+### 仍待确认
 
 | 项 | 推荐 |
 | --- | --- |
+| Postgres 形态 | **专用小容器**跟在 Sub2API compose 里（约 30–80 MiB）。不要为了「少一个容器」去借用现有库 |
 | 引擎 | 现有 Colima（不要 Apple `container`，不要再开 Docker Desktop） |
 | 目录 | `~/stacks/sub2api/`（与 `sonarqube` / `richer` 同级） |
 | compose | 官方 `docker-compose.local.yml`（数据落本地目录，方便 tar 备份） |
 | 镜像 | 钉死 `weishaw/sub2api:0.1.177`（有 `linux/arm64`，约 75MB） |
-| 端口 | 宿主 `8080`（当前空闲）；Postgres / Redis **不**映射到宿主 |
-| 暴露 | 只绑 Tailscale `100.108.64.126:8080`，不进公网、不绑 LAN `0.0.0.0` |
-| 模式 | `RUN_MODE=simple` + `SIMPLE_MODE_CONFIRM=true`（个人/家庭自用，跳过计费） |
+| 端口 | 宿主 `8080`；Postgres / Redis **不**映射到宿主 |
+| Redis | 本机现在没有 Redis，必须新建 |
 | 资源 | 整栈预算约 1.0–1.5 GiB，**不**扩大 Colima 12 GiB 配额 |
 
 ---
@@ -71,14 +80,51 @@ Sub2API 是一个自建 AI API 网关：把 Claude / OpenAI / Gemini / Grok 等�
 
 ---
 
+## 2.1 现有 Postgres 能不能共用、该不该共用
+
+现场两个实例：
+
+| 容器 | 版本 | 内存 | 网络 | 宿主端口 | 用途 |
+| --- | --- | --- | --- | --- | --- |
+| `sonar-postgres` | 17.11 | **189 MiB** | 仅 `sonar-net` | 不映射 | 团队 CI SonarQube |
+| `richer-postgres` | 16.15 | **24 MiB** | `richer_default` | `0.0.0.0:5432` | hon 的 DDRicher |
+
+Sub2API 官方要求 PostgreSQL **15+**。两个版本都满足，技术上可以再 `CREATE DATABASE sub2api`。
+
+**结论：能共用，但不该共用现有这两个。**
+
+原因不是「Postgres 不能多租户」，而是这两个实例各自已经有明确主人和生命周期：
+
+1. **`sonar-postgres`**：CI 关键路径。备份、升级、磁盘打满、错误 migration 都会直接让 `http://mac-mini:9000` 挂。它故意不映射宿主端口，就是为了隔离。
+2. **`richer-postgres`**：hon 的栈，密码是开发口令 `richer_dev`，而且已经把 5432 暴露到局域网。把带 OAuth token / API Key 的 Sub2API 库塞进去，等于和别人的监控库、弱密码、同一套备份绑死。
+3. **跨 compose 网络**：两个库分别在 `sonar-net` / `richer_default`。要共用就得改对方 compose、加 external network，或走 `host.docker.internal:5432`。后者只对 richer 可行，还把 Sub2API 绑在「richer 必须先于它启动」上。
+4. **Sub2API 自己的库不轻**：上游有 50+ 条 migration，含 `usage_logs` 分区、仪表盘预聚合、运维监控表。`standard` 模式会持续写用量。这不是再开一个空库那么简单。
+5. **真正的内存账**：`richer-postgres` 现在 24 MiB。一个空的 `postgres:18-alpine` 空闲也大约 30–80 MiB。省下来的不是「一个 Postgres」，而是几十兆。Colima 里真正贵的是 Sonar 那 2.2 GiB。
+6. **Redis 没有现成的可借**。Sub2API 调度、会话、API Key 缓存都靠 Redis，这一只必须新建。
+
+「每个项目一个 Postgres 很浪费」这句话，在 **10 个服务、每个都按 1GB `shared_buffers` 启动** 时成立。本机现状不是这个：两个库加起来才 ~210 MiB，而且一个是 CI、一个是别人的业务。浪费来自官方 `.env.example` 的大连接池，不是容器个数。
+
+三种做法对照：
+
+| 做法 | 省内存 | 耦合 | 本期建议 |
+| --- | --- | --- | --- |
+| 挂到 `sonar-postgres` | 约 0 | 绑死 CI | **否** |
+| 挂到 `richer-postgres` | 约 0 | 绑死 hon 的栈 + 弱密码 | **否** |
+| Sub2API compose 里自带小 Postgres | 多 30–80 MiB | 无 | **本期采用** |
+| 另起一台 `apps-postgres`，专给以后的个人应用 | 中长期少容器 | 自己的库之间耦合，不动 Sonar/richer | 以后有第 2、第 3 个个人应用再做 |
+
+Postgres 主进程、`shared_buffers`、wal writer 是按实例付的。两个库共用一台实例确实比两台实例省。但省的前提是：**这台实例是你自己的、用途同类、升级窗口可以一起排**。Sonar 和 richer 都不符合。
+
+---
+
 ## 3. 推荐架构
 
 ```text
 Tailnet 客户端
   Claude Code / Codex / Gemini CLI / 浏览器
            │
-           │  http://mac-mini:8080
-           │  （仅 100.108.64.126:8080）
+           │  http://mac-mini:8080 或 http://192.168.2.170:8080
+           │  （0.0.0.0:8080，本机 + 局域网）
            ▼
    mac-mini 宿主端口 8080
            │  Colima 端口转发
@@ -138,8 +184,8 @@ docker compose up -d
 
 1. `sub2api.image`：`weishaw/sub2api:latest` → `weishaw/sub2api:0.1.177`
 2. `sub2api.environment` 增加：
-   - `SIMPLE_MODE_CONFIRM=${SIMPLE_MODE_CONFIRM:-}`
    - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`（先留空；若容器出站失败再填）
+   - 不启用 `SIMPLE_MODE_CONFIRM`（已选 `standard`）
 3. 三个服务都加内存上限，避免和 Sonar 抢：
    - `sub2api`：`mem_limit: 768m`
    - `postgres`：`mem_limit: 384m`
@@ -151,12 +197,11 @@ Postgres / Redis **继续不映射宿主端口**。`richer-postgres` 已经占�
 ### 5.2 `.env`（本机生成，chmod 600）
 
 ```bash
-# 绑定：只给 Tailscale，不给 LAN / 公网
-BIND_HOST=100.108.64.126
+# 绑定：本机 + 局域网（与 Sonar :9000 同策略；mac-mini 无公网入站）
+BIND_HOST=0.0.0.0
 SERVER_PORT=8080
 SERVER_MODE=release
-RUN_MODE=simple
-SIMPLE_MODE_CONFIRM=true
+RUN_MODE=standard
 TZ=Asia/Shanghai
 
 # 密钥：openssl rand -hex 32，四套都写死
@@ -167,7 +212,7 @@ REDIS_PASSWORD=<generated>
 JWT_SECRET=<generated>
 TOTP_ENCRYPTION_KEY=<generated>
 
-ADMIN_EMAIL=admin@sub2api.local
+ADMIN_EMAIL=konghai007@gmail.com
 ADMIN_PASSWORD=<generated-and-kept-offline>
 
 # 共享 12 GiB Colima，压连接池
@@ -194,8 +239,8 @@ SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=false
 
 | 用途 | 地址 |
 | --- | --- |
-| 管理后台 | `http://mac-mini:8080`（Tailscale MagicDNS） |
-| 健康检查 | `http://mac-mini:8080/health` |
+| 管理后台 | `http://mac-mini:8080`（Tailscale）或 `http://192.168.2.170:8080`（局域网） |
+| 健康检查 | 同上 `/health` |
 | OpenAI 兼容 | `http://mac-mini:8080/v1` |
 | Anthropic 兼容 | `http://mac-mini:8080/v1/messages` |
 
@@ -218,7 +263,7 @@ SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=false
 | --- | --- |
 | Colima 12 GiB 里 Sonar 已占 ~2.4 GiB | 整栈上限约 1.3 GiB；不扩 VM |
 | 宿主两套 Colima 已接近 32 GiB | 不新增 VM、不拉 Desktop |
-| 默认 `0.0.0.0` 把后台暴露给家里 Wi-Fi | 绑 `100.108.64.126` |
+| `0.0.0.0:8080` 局域网可访问后台 | 接受（已拍板）；mac-mini 无公网入站。不要在路由器上做端口映射 |
 | `:latest` 某天拉到不兼容版本 | 钉 `0.1.177` |
 | 空 `JWT_SECRET` / `TOTP_ENCRYPTION_KEY` 重启后全员掉线、2FA 失效 | `.env` 写死 |
 | 容器出站被墙 | 宿主现已通；启动后用 `docker compose exec` 再测；不行再给容器加代理 |
@@ -249,16 +294,19 @@ SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=false
 
 ---
 
-## 9. 需要你拍板的两件事
+## 9. 决策状态
 
-1. **暴露范围**
-   - **A（推荐）**：只绑 Tailscale `100.108.64.126:8080`。办公室 / 手机开 Tailscale 就能用，家里没加 tailnet 的设备打不到。
-   - B：和 Sonar 一样绑 `0.0.0.0:8080`，局域网也能直接访问。
-2. **运行模式**
-   - **A（推荐）**：`simple`，隐藏 SaaS 计费，适合自己或家人共用额度。
-   - B：`standard`，完整计费 / 余额 / 充值，以后要给外人发卡再用。
+已拍板：
 
-管理员邮箱默认为 `admin@sub2api.local`，密码本机生成后只告诉你一次。
+- 暴露：`0.0.0.0:8080`
+- 模式：`standard`
+- 管理员邮箱：`konghai007@gmail.com`
+- 不把库挂到现有 `sonar-postgres` / `richer-postgres`
+
+仍待确认（Postgres 形态）：
+
+- **A（推荐）**：Sub2API compose 自带小 Postgres + Redis。多占约 30–80 MiB，和现有栈零耦合，`compose down` 即可回滚。
+- B：现在就建一台独立的 `apps-postgres`（再加一台 `apps-redis`），Sub2API 当第一个租户。适合你明确后面还会在 mac-mini 上堆个人应用。本期工程量更大，且 Sonar / richer **仍然不要迁上去**。
 
 ---
 
