@@ -4,6 +4,25 @@ Cursor Cloud Agent 沙箱。容器内 hostname 是 `cursor`，Tailscale 节点�
 
 登录：`ssh box@100.102.171.1`（用户 `box`，无密码 sudo）。会话结束或 Cursor 回收后节点可能消失，不要当常驻生产机。
 
+网卡上**没有独立公网 IPv4**。网卡只有 `172.30.0.2/24` 和 Tailscale `100.102.171.1`。出站经宿主机 NAT（当前源 IP 表现为 Cloudflare `104.30.175.37`），入站只能走 Tailscale / Cursor 控制面，不能当公网站点或代理节点。
+
+## 2026-08-15 12:24 CST - 确认无独立公网 IP
+
+- 服务器：`cursor-box`（Tailscale `3x-ui` / `100.102.171.1`）
+- 操作人：`Grok`
+- 原因：用户问这台沙箱是否没有公网 IP、以及这种形态能做什么。
+- 影响：只读（`ip addr` / `ip route` / 出站 `curl` / `ss` / `tailscale`）；未改配置。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：复查网卡、默认路由、出站源 IP、监听端口、Tailscale endpoint。
+- 验证结果：
+  - 接口：`enp0s3=172.30.0.2/24`，`tailscale0=100.102.171.1`，无 `1.x/8` 以外的公网地址。
+  - 默认路由：`default via 172.30.0.1 dev enp0s3 src 172.30.0.2`。
+  - 出站探测（ifconfig.me / ipify / icanhazip / ipinfo）均回 `104.30.175.37`（Cloudflare，San Jose），说明有出网、但源 IP 是共享出口，不是本机专属。
+  - Tailscale `Addrs` 含 AWS `100.22.162.62:38454`，这是宿主机 NAT 映射给 WireGuard 打洞用的，不是沙箱的 inbound 公网 IP。
+  - 本机大量端口听在 `0.0.0.0`，但公网到不了；tailnet 内可经 `100.102.171.1` 访问。
+- 结论：适合当隔离开发/跑 Agent/出站拉代码调 API；不适合当公网站点、webhook 接收端、3x-ui 代理节点。需要对外暴露时另开 Tailscale Funnel / Cloudflare Tunnel，且仍受沙箱生命周期限制。
+
 ## 2026-08-15 12:17 CST - 只读盘点 VM / 容器规格
 
 - 服务器：`cursor-box`（Tailscale `3x-ui` / `100.102.171.1`）
