@@ -1,5 +1,29 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 02:04 CST - 用 Colima 部署 Sub2API 0.1.177（自带小 Postgres + Redis）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（远程部署），用户确认方案 A 及暴露/模式
+- 原因：在家里用 Docker 跑 Sub2API，统一接入 Claude / OpenAI / Gemini / Grok 订阅。
+- 选型：官方 compose 本地目录版；镜像钉 `weishaw/sub2api:0.1.177`；Postgres / Redis 跟在同一 compose，不共用 `sonar-postgres` / `richer-postgres`。
+- 影响：
+  - 新增容器 `sub2api` / `sub2api-postgres` / `sub2api-redis`，`restart: unless-stopped`。
+  - 宿主端口 **`0.0.0.0:18080`**。原计划 8080，但 `hon` 的 `colima-multica` SSH 转发已占 `*:8080`（Multica `/healthz`）；未动 hon 的端口。
+  - 内存实测约 73 MiB（上限 768/384/128 MiB）。Sonar / richer 未改。
+- 备份：`~/backups/sub2api-20260816.tar.gz`（600，含 `.env`）。
+- 回滚：`cd ~/stacks/sub2api && docker compose down`。数据在 `data/` `postgres_data/` `redis_data/`，不要加 `-v`。清干净再删这三个目录。
+- 变更时序：
+  1. `~/stacks/sub2api/` 落 compose + 600 `.env`（`RUN_MODE=standard`，管理员 `konghai007@gmail.com`）。
+  2. `docker compose pull` + `up -d`。AUTO_SETUP 建库、建管理员、拉定价数据。
+  3. 发现宿主 8080 打到 Multica，改 `SERVER_PORT=18080` 后只重建 `sub2api` 容器。
+- 验证：
+  - 三容器 healthy；`http://127.0.0.1:18080/health`、`/setup/status`、UI `/`、局域网 `192.168.2.170:18080`、Tailscale `100.108.64.126:18080` 均为 200。
+  - 管理员登录 API `POST /api/v1/auth/login` 返回 200。
+  - 容器内可访问 Anthropic / OpenAI / xAI。
+  - Sonar `UP` 26.3.0；Grafana `:3001` 200；`127.0.0.1:8080/healthz` 仍是 Multica。
+- 计划：`docs/plans/2026-08-16-001-ops-mac-mini-sub2api-deploy-plan.md`
+- 访问：`http://mac-mini:18080` 或 `http://192.168.2.170:18080`。客户端 `base_url` 指 `http://mac-mini:18080/v1`。
+
 ## 2026-08-15 02:51 CST - runner LaunchDaemon 已装上；全员注销后 GitHub 仍 online
 
 - 服务器：`mac-mini`

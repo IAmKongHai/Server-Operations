@@ -1,7 +1,7 @@
 ---
 title: 在 mac-mini 用 Colima / Docker Compose 部署 Sub2API
 type: ops
-status: proposed
+status: completed
 date: 2026-08-16
 server: mac-mini
 ---
@@ -12,29 +12,21 @@ server: mac-mini
 
 在家里的 `mac-mini` 上，用**现有 Colima Docker 引擎**部署 [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api)（AI 订阅账号 → 统一 API Key 网关）。栈是 `sub2api` + 自带小规格 PostgreSQL + Redis 8。
 
-本计划只覆盖评估与推荐路径。真正 `docker compose up`、写 `.env`、拉镜像必须用户确认后再做。
+**2026-08-16 02:04 CST 已执行完成。** 详见 `docs/operations/mac-mini.md`。
 
 ### 已锁定（2026-08-16）
 
 | 项 | 决定 |
 | --- | --- |
-| 暴露 | `0.0.0.0:8080`，本机 + 局域网可访问（与 Sonar 同策略） |
+| 暴露 | `0.0.0.0:18080`（本机 + 局域网）。原计划 8080，但宿主 `*:8080` 已被 `hon` 的 `colima-multica` SSH 转发占用 |
 | 运行模式 | `RUN_MODE=standard`（完整计费 / 余额 / 充值） |
 | 管理员邮箱 | `konghai007@gmail.com` |
 | 现有库 | **不**挂到 `sonar-postgres` 或 `richer-postgres` |
-
-### 仍待确认
-
-| 项 | 推荐 |
-| --- | --- |
-| Postgres 形态 | **专用小容器**跟在 Sub2API compose 里（约 30–80 MiB）。不要为了「少一个容器」去借用现有库 |
-| 引擎 | 现有 Colima（不要 Apple `container`，不要再开 Docker Desktop） |
-| 目录 | `~/stacks/sub2api/`（与 `sonarqube` / `richer` 同级） |
-| compose | 官方 `docker-compose.local.yml`（数据落本地目录，方便 tar 备份） |
-| 镜像 | 钉死 `weishaw/sub2api:0.1.177`（有 `linux/arm64`，约 75MB） |
-| 端口 | 宿主 `8080`；Postgres / Redis **不**映射到宿主 |
-| Redis | 本机现在没有 Redis，必须新建 |
-| 资源 | 整栈预算约 1.0–1.5 GiB，**不**扩大 Colima 12 GiB 配额 |
+| Postgres 形态 | **A**：Sub2API compose 自带小 Postgres + Redis |
+| 引擎 | 现有 Colima |
+| 目录 | `~/stacks/sub2api/` |
+| 镜像 | `weishaw/sub2api:0.1.177` |
+| 资源 | 实测约 73 MiB（18 + 50 + 5），上限 768/384/128 MiB |
 
 ---
 
@@ -123,8 +115,8 @@ Postgres 主进程、`shared_buffers`、wal writer 是按实例付的。两个�
 Tailnet 客户端
   Claude Code / Codex / Gemini CLI / 浏览器
            │
-           │  http://mac-mini:8080 或 http://192.168.2.170:8080
-           │  （0.0.0.0:8080，本机 + 局域网）
+           │  http://mac-mini:18080 或 http://192.168.2.170:18080
+           │  （0.0.0.0:18080，本机 + 局域网；8080 被 Multica 占用）
            ▼
    mac-mini 宿主端口 8080
            │  Colima 端口转发
@@ -199,7 +191,7 @@ Postgres / Redis **继续不映射宿主端口**。`richer-postgres` 已经占�
 ```bash
 # 绑定：本机 + 局域网（与 Sonar :9000 同策略；mac-mini 无公网入站）
 BIND_HOST=0.0.0.0
-SERVER_PORT=8080
+SERVER_PORT=18080
 SERVER_MODE=release
 RUN_MODE=standard
 TZ=Asia/Shanghai
@@ -239,7 +231,7 @@ SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=false
 
 | 用途 | 地址 |
 | --- | --- |
-| 管理后台 | `http://mac-mini:8080`（Tailscale）或 `http://192.168.2.170:8080`（局域网） |
+| 管理后台 | `http://mac-mini:18080`（Tailscale）或 `http://192.168.2.170:18080`（局域网） |
 | 健康检查 | 同上 `/health` |
 | OpenAI 兼容 | `http://mac-mini:8080/v1` |
 | Anthropic 兼容 | `http://mac-mini:8080/v1/messages` |
@@ -263,7 +255,7 @@ SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=false
 | --- | --- |
 | Colima 12 GiB 里 Sonar 已占 ~2.4 GiB | 整栈上限约 1.3 GiB；不扩 VM |
 | 宿主两套 Colima 已接近 32 GiB | 不新增 VM、不拉 Desktop |
-| `0.0.0.0:8080` 局域网可访问后台 | 接受（已拍板）；mac-mini 无公网入站。不要在路由器上做端口映射 |
+| 宿主 8080 已被 hon/Multica 占用 | 改绑 `18080`；不要去抢 Multica 的转发 |
 | `:latest` 某天拉到不兼容版本 | 钉 `0.1.177` |
 | 空 `JWT_SECRET` / `TOTP_ENCRYPTION_KEY` 重启后全员掉线、2FA 失效 | `.env` 写死 |
 | 容器出站被墙 | 宿主现已通；启动后用 `docker compose exec` 再测；不行再给容器加代理 |
@@ -296,17 +288,13 @@ SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=false
 
 ## 9. 决策状态
 
-已拍板：
+已全部锁定并执行：
 
-- 暴露：`0.0.0.0:8080`
+- 暴露：本机 + 局域网；宿主端口因 Multica 占用改为 **18080**
 - 模式：`standard`
 - 管理员邮箱：`konghai007@gmail.com`
+- Postgres：方案 A，自带小库 + Redis
 - 不把库挂到现有 `sonar-postgres` / `richer-postgres`
-
-仍待确认（Postgres 形态）：
-
-- **A（推荐）**：Sub2API compose 自带小 Postgres + Redis。多占约 30–80 MiB，和现有栈零耦合，`compose down` 即可回滚。
-- B：现在就建一台独立的 `apps-postgres`（再加一台 `apps-redis`），Sub2API 当第一个租户。适合你明确后面还会在 mac-mini 上堆个人应用。本期工程量更大，且 Sonar / richer **仍然不要迁上去**。
 
 ---
 
