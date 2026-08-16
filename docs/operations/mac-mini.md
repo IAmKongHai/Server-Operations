@@ -1,5 +1,28 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 16:30 CST - 自打 PR #5640 镜像换上，3.7 Flash 已通
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：官方 `weishaw/sub2api:0.1.177` 没有 Gemini 3.7 变体目录；用户要求用 PR `#5640`（`feat/gemini-3.7` @ `f2a7aeb`）自打镜像换上。
+- 选型 / 影响：
+  - 源码：`~/src/sub2api-pr5640`（仅该 PR 分支）。
+  - 镜像：`sub2api:pr5640-3.7`（`linux/arm64`），版本字符串 `0.1.177-pr5640`。
+  - compose `image:` 从 `weishaw/sub2api:0.1.177` 改为本地 `sub2api:pr5640-3.7`。
+  - 只重建 `sub2api`。Postgres / Redis / Sonar / richer 未动。
+  - 仍保留 `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL=daily`。
+- 备份：`~/stacks/sub2api/docker-compose.yml.bak.pr5640`（换镜像前）、`docker-compose.yml.bak.20260816`。
+- 回滚：把 compose `image:` 改回 `weishaw/sub2api:0.1.177`（或拷回 bak），`docker compose up -d sub2api`。数据卷不动。
+- 验证：
+  - 容器 healthy；`/app/sub2api -version` = `Sub2API 0.1.177-pr5640 (commit: f2a7aeb)`；`GET /health` ok。
+  - `/v1/models` 已出现 `gemini-3.7-flash` 及 `-high/-medium/-low/-tiered`。
+  - Key `konghai` 仍绑分组 5 `antigravity`。
+  - `POST /v1/chat/completions`：
+    - `gemini-2.5-flash` → **200**（回归未坏）
+    - `gemini-3.7-flash-tiered` → **200**，回复 `OK`（订阅额度，走 Antigravity daily）
+    - `gemini-3.7-flash` / `-high` / `-medium` / `-low` → 上游 **404** `Requested entity was not found`
+- 结论：客户端把 `model` 改成 **`gemini-3.7-flash-tiered`** 即可。high/medium/low 在当前 daily 端点不存在，不是网关目录问题。计费表尚未收录该模型（日志 `pricing not found`），不影响调用。
+
 ## 2026-08-16 16:22 CST - 加上 Antigravity daily 端点后 2.5 通、3.7 仍 404
 
 - 服务器：`mac-mini`
