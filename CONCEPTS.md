@@ -26,6 +26,28 @@ The day of month when a VPS provider resets a server's traffic allowance.
 
 For proxy traffic monitoring, this reset day defines the accounting cycle; calendar-month `vnstat -m` totals are not treated as authoritative when the provider's billing cycle starts on a different day.
 
+## Sub2API / Gemini 订阅网关
+
+### Sub2API
+自建 AI API 网关：把 Claude / Gemini / Antigravity 等订阅 OAuth 收成项目自己的 `sk-` Key，再给 OpenAI 兼容客户端用。
+
+客户端只改 `base_url` 和 Key；真正吃哪家额度，由账号平台类型和分组决定，不是由 `/v1/models` 目录决定。
+
+### Antigravity 账号
+Sub2API 里一种账号平台，消耗的是 Google AI Pro / Antigravity OAuth 订阅额度。
+
+Gemini 3.7 Flash 的订阅访问在这条线上。OpenAI 兼容调用仍打网关的 `/v1`，不要把 `/antigravity` 前缀当成 OpenAI `base_url`。
+
+### google_one
+Sub2API Gemini OAuth 的一种类型，走 Cloud AI Companion（Gemini for Google Cloud / Code Assist）。
+
+启用该 API 只是项目权限门，不是 Vertex 按 token 计费，也不是控制台里的企业月费包。这条线不提供 Gemini 3.7 Flash 订阅额度。
+
+### Antigravity 变体名
+Antigravity 上游认的是带 thinking 档位的模型实体名，不是营销用的基础名。
+
+网关目录里有基础名，不代表上游能创建该实体。订阅 3.7 Flash 要以当时 daily 端点实际返回 200 的变体名为准。
+
 ## Tailscale
 
 ### Exit Node

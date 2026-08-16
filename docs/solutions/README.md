@@ -94,3 +94,4 @@ grep -r "tags:.*baota" docs/solutions/
 - [dev-cypresso / GitHub Actions 部署失败，磁盘被 Docker 老镜像占满](dev-cypresso/integration-issues/docker-image-buildup-fills-disk-2026-05-14.md) — 2026-05-14
 - [tizi / REALITY 握手因无 IPv6 出口解析 IPv6 导致 network is unreachable](tizi/runtime-errors/reality-handshake-ipv6-unreachable-2026-05-02.md) — 2026-05-02
 - [rao-tizi / 备用代理节点预防性 IPv4-only 与暴露面加固](rao-tizi/best-practices/standby-proxy-node-ipv4-only-hardening-2026-05-02.md) — 2026-05-02
+- [mac-mini / Sub2API Docker 部署与 Gemini 订阅额度](mac-mini/best-practices/sub2api-docker-gemini-subscription-2026-08-16.md) — 2026-08-16
