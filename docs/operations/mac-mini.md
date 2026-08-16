@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 15:25 CST - 复查 Sub2API：分组已绑上，404 是路径，exhausted 是上游 429
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户建了 `antigravity` 分组并绑上账号和 Key，仍报 `/antigravity` 404 与 `/v1` `All available accounts exhausted`。
+- 影响：只读。未改分组、账号、Key、容器。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - `account_groups`：账号 1 → 分组 5；Key `konghai` 的 `group_id=5`。绑定正确。
+  - 用户客户端是 `ai-sdk/openai-compatible`，打的是 `POST /v1/chat/completions` 模型 `gemini-3.7-flash`。
+  - `POST /antigravity/v1/chat/completions` 和 `/antigravity/chat/completions` 为 **404**（该前缀只接 Anthropic `/v1/messages` 和 Gemini `/v1beta/`）。
+  - 绑定后同一 Key 的 `/v1/chat/completions` 已能选到 Antigravity 账号，上游返回 **429**，网关对外写成 `All available accounts exhausted`。
+  - `POST /antigravity/v1/messages` 同样打到上游 429。
+- 结论：调度已通。404 是 OpenAI 客户端不该用 `/antigravity` 当前缀；exhausted 是 Google/Antigravity 限流，不是 Key 或分组错了。
+
 ## 2026-08-16 14:45 CST - 只读探测 Sub2API Antigravity Key：鉴权通、推理 503
 
 - 服务器：`mac-mini`
