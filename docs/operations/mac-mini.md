@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 16:22 CST - 加上 Antigravity daily 端点后 2.5 通、3.7 仍 404
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户要试 `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL=daily`，看 3.7 Flash 是否因此可用。
+- 影响：
+  - `.env` / compose 增加该变量，值为 `daily`。
+  - 只重建 `sub2api` 容器。Postgres / Redis / Sonar / richer 未动。
+- 备份：`~/stacks/sub2api/docker-compose.yml.bak.20260816`、`.env.bak.20260816`（600）。
+- 回滚：把两个 bak 拷回，`docker compose up -d sub2api`。
+- 验证：
+  - 容器内 `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL=daily`；healthy。
+  - Key 已在分组 `antigravity`。`gemini-2.5-flash` 在 `/v1/chat/completions` 和 `/antigravity/v1beta/...` 均为 **200**。
+  - `gemini-3.7-flash` 上游 **404**；`-high/-medium` 被 0.1.177 目录拒掉（404/503）。
+- 结论：daily + 美国出口已生效。3.7 要等合入 PR `#5640` 的版本，或自打该 PR。
+
 ## 2026-08-16 16:10 CST - 结论：3.7 Flash 不在 Code Assist，要走 Antigravity 变体名
 
 - 服务器：`mac-mini`
