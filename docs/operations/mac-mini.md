@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 16:56 CST - 新 Antigravity 号 exhausted：403 验证 + 旧号被关掉
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户新加 `hxf.xxk@gmail.com` 后再调 `/v1`，客户端报 `All available accounts exhausted`，怀疑是没填 GCP Project ID。
+- 影响：只读。未改账号、分组、镜像。
+- 验证：
+  - 16:45:24 后台把账号 1（`konghai007` Antigravity）`schedulable` 关掉；16:37:41 关掉账号 2。
+  - 16:45:55 请求只剩账号 3，上游 **403** `Validation required`（Google 要验证该账号），网关把账号 3 标 `error` / 不可调度。
+  - 分组 5 里两个 Antigravity 号此后都不可调度，后续再打就会 exhausted。
+  - 账号 3 的 `project_id` 实际已有自动值 `celestial-monument-psf6z`；缺的是 `antigravity_project_id`。源码只在 `project_id` 为空时才要求填，这次失败文案不是缺项目。
+- 结论：先让 `hxf.xxk` 在浏览器走完 Google 验证 / 打开过 Antigravity，再清 error 并打开调度。要立刻恢复调用，把账号 1 的调度重新打开即可。
+
 ## 2026-08-16 16:30 CST - 自打 PR #5640 镜像换上，3.7 Flash 已通
 
 - 服务器：`mac-mini`
