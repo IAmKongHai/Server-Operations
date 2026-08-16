@@ -99,6 +99,7 @@ gemini-3.7-flash-tiered
 | `/antigravity` 404 | 把专用前缀当成了 OpenAI `base_url` |
 | `All available accounts exhausted` | 网关把「候选全失败」翻成这句话，经常是上游 429，或账号被标了 `error` |
 | 上游 403 `Validation required` | Google 要验证，或账号国家/地区是中国。不是缺 GCP Project ID |
+| Grok 400 `include_server_side_tool_invocations` | Grok 同时带了 `web_search` 和其它 function。当前镜像把搜索当客户端 function，不再混 Gemini 内置搜索 |
 | 上游 404 `Requested entity was not found` / `Resource not found` | 模型名上游不认。Code Assist 没有 3.7；Antigravity 上不要用基础名 |
 | 后台「测试连接」404 | 它默认探 `gemini-2.0-flash`，可忽略 |
 

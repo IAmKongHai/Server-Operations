@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 17:52 CST - Sub2API 镜像补丁：Grok 工具集不再触发 Gemini 内置搜索 400
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：Grok Build 走 `/antigravity/v1/messages` 时带 `web_search` + 其它 function，Sub2API 把搜索转成 Gemini 内置 `googleSearch`，上游 400：`Please enable tool_config.include_server_side_tool_invocations`。该开关在当前 daily/v1internal 上无效。
+- 选型：有客户端 function 时不再发内置搜索，把 `web_search` 当普通 function 回给客户端执行。只重建 `sub2api`。
+- 镜像：`sub2api:pr5640-3.7-ssti`（`0.1.177-pr5640-ssti`）。旧镜像 `sub2api:pr5640-3.7` 仍在。
+- 备份：`~/stacks/sub2api/docker-compose.yml.bak.ssti.20260816`
+- 回滚：compose `image:` 改回 `sub2api:pr5640-3.7`，`docker compose up -d sub2api`
+- 验证：`list_dir` + `web_search_20250305` 混用 `POST /antigravity/v1/messages` → **200**，回复 `HI`。无工具短请求仍 200。Sonar / Grafana / Postgres / Redis 未动。
+
 ## 2026-08-16 17:16 CST - 账号 3 因 Google 国家=中国被拒；账号 4 已通
 
 - 服务器：`mac-mini`
