@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 14:45 CST - 只读探测 Sub2API Antigravity Key：鉴权通、推理 503
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户已登录 Antigravity，要用自己的 Key 验证能否真实调用。
+- 影响：只读。未改账号、分组、Key、容器。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - `GET /v1/models` 200，列出 10 个 Claude 模型。
+  - `POST /v1/messages`、`/antigravity/v1/messages`、`/v1/chat/completions`、`/antigravity/v1beta/...generateContent` 均为 **503** `No available accounts`。
+  - 库内：Antigravity OAuth 账号 `id=1` 为 `active` / `schedulable`，但 `account_groups` 为空；Key `konghai` 绑在分组 `default`（`anthropic`）。
+- 结论：网关和 Key 可用，缺的是「账号进组」。`base_url=http://mac-mini:18080/v1` 还要开 Antigravity 混合调度，否则 Claude 应走 `http://mac-mini:18080/antigravity`。
+
 ## 2026-08-16 02:04 CST - 用 Colima 部署 Sub2API 0.1.177（自带小 Postgres + Redis）
 
 - 服务器：`mac-mini`
