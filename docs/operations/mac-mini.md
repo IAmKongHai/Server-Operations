@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 16:10 CST - 结论：3.7 Flash 不在 Code Assist，要走 Antigravity 变体名
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（资料 + 只读探测）
+- 原因：用户目标是 `gemini-3.7-flash`，怀疑 Cloud AI Companion 没开这个模型。
+- 影响：只读。未改账号映射、分组、镜像。
+- 验证：
+  - Gemini `google_one` 号实测只有 2.5 Flash/Pro；3.7-flash 上游 404。
+  - Antigravity 账号映射里已有 `gemini-3.7-flash`→同名；Key 当前绑在 Gemini 组，打 `/antigravity/v1beta` 为 503（组里没有 Antigravity 号）。
+- 资料：Sub2API PR `#5640`（未合入 0.1.177）写明 Antigravity 上 3.7 要用 `gemini-3.7-flash-high/medium/low/tiered`，基础名 404；建议 `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL=daily` + 美国出口。
+
 ## 2026-08-16 16:00 CST - 实测 Gemini google_one 账号仅 2.5 Flash / 2.5 Pro 可用
 
 - 服务器：`mac-mini`
