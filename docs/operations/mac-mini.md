@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 15:52 CST - 启用 Cloud AI Companion 后 Gemini 调用已通
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（清账号残留 error 后实测）
+- 原因：用户已启用 `cloudaicompanion.googleapis.com`，要确认 `/v1/chat/completions` 能否用订阅号。
+- 影响：把账号 2 的旧 403 状态清成 `active` / `schedulable=true`。未改分组、Key、容器。
+- 备份：无。
+- 回滚：账号若再被上游打成 error，后台会自己标红。
+- 验证：
+  - `POST /v1/chat/completions` 模型 `gemini-2.5-flash` → **200**，回复 `sub2api-ok`。
+  - `POST /v1beta/models/gemini-2.5-flash:generateContent` → **200**。
+  - 后台「测试连接」仍默认打 `gemini-2.0-flash`，上游 404，可忽略。
+- 结论：API 启用有效。客户端继续用 `http://mac-mini:18080/v1`。
+
 ## 2026-08-16 15:35 CST - 复查 Sub2API Gemini 账号：GCP 项目未开 Cloud AI Companion API
 
 - 服务器：`mac-mini`
