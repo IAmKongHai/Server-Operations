@@ -1,6 +1,7 @@
 ---
 title: 在 mac-mini 用 Colima 部署 Sub2API，并用订阅额度调用 Gemini 3.7 Flash
 date: 2026-08-16
+last_updated: 2026-08-16
 category: docs/solutions/mac-mini/best-practices
 server: mac-mini
 module: mac-mini / Sub2API
@@ -46,6 +47,8 @@ tags: [mac-mini, sub2api, colima, docker-compose, antigravity, gemini, google-ai
 给 GCP 项目启用 `cloudaicompanion.googleapis.com` 只是开门，**不是**控制台那张 $75/月企业包，也不是 Vertex 按量计费。启用后要把账号上残留的 `error` / `schedulable=false` 清掉，否则调度仍会跳过。
 
 3.7 Flash 的订阅额度在 **Antigravity**，不在 Code Assist。Key 必须绑 `platform=antigravity` 的分组，组里要有可用的 Antigravity 账号。
+
+Google 账号的**国家/地区不能是中国**。国家设成中国时，OAuth 能加上，调用会 403 `Validation required`，网关把账号标 `error` 并关掉调度。改国家是 Google 账号设置，不是 Sub2API 的 GCP Project ID。改完后在账号行末点 **恢复状态**，并打开 **参与调度**。
 
 ### 客户端怎么打
 
@@ -95,6 +98,7 @@ gemini-3.7-flash-tiered
 | `503` / `No available accounts` | 分组空，或账号没进组 |
 | `/antigravity` 404 | 把专用前缀当成了 OpenAI `base_url` |
 | `All available accounts exhausted` | 网关把「候选全失败」翻成这句话，经常是上游 429，或账号被标了 `error` |
+| 上游 403 `Validation required` | Google 要验证，或账号国家/地区是中国。不是缺 GCP Project ID |
 | 上游 404 `Requested entity was not found` / `Resource not found` | 模型名上游不认。Code Assist 没有 3.7；Antigravity 上不要用基础名 |
 | 后台「测试连接」404 | 它默认探 `gemini-2.0-flash`，可忽略 |
 
@@ -117,6 +121,13 @@ Sub2API 的 `/v1` 只是一层调度。账号类型、分组、上游端点、�
 Key 分组: Gemini
 POST /v1/chat/completions  model=gemini-3.7-flash
 → 上游 404 Resource not found
+```
+
+**错误：Google 账号国家是中国**
+
+```text
+账号: antigravity OAuth，国家/地区 = 中国
+→ 上游 403 Validation required；清 error 再打仍会 403
 ```
 
 **错误：OpenAI 客户端打专用前缀**

@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 17:16 CST - 账号 3 因 Google 国家=中国被拒；账号 4 已通
+
+- 服务器：`mac-mini`
+- 操作人：用户排查；`Grok` 只读核对后记录
+- 原因：`hxf.xxk@gmail.com`（账号 3）走完验证仍 403。用户确认该 Google 账号国家设为中国，上游不允许调用。另加 `geogle7733@gmail.com`（账号 4）。
+- 影响：未改镜像、分组、Key。账号 3 仍 `error` / 不可调度，等改国家后再恢复。
+- 验证：
+  - 账号 4：`antigravity` / `active` / `schedulable`，进分组 5。
+  - `17:16:18` `POST /v1/chat/completions` `gemini-3.7-flash-tiered` 走账号 4 → **200**。
+  - 账号 1 调度已重新打开；账号 3 仍是 `Validation required (403)`。
+- 结论：Antigravity 订阅号的 Google 账号国家不能是中国。403 先看国家/地区，不要先怀疑 Project ID。改国家后再对账号 3 点「恢复状态」并打开调度。
+
 ## 2026-08-16 16:56 CST - 新 Antigravity 号 exhausted：403 验证 + 旧号被关掉
 
 - 服务器：`mac-mini`

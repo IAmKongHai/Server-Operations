@@ -38,6 +38,8 @@ Sub2API 里一种账号平台，消耗的是 Google AI Pro / Antigravity OAuth �
 
 Gemini 3.7 Flash 的订阅访问在这条线上。OpenAI 兼容调用仍打网关的 `/v1`，不要把 `/antigravity` 前缀当成 OpenAI `base_url`。
 
+Google 账号国家/地区设为中国时，上游会拒调（常见 403 Validation required），即使订阅有效、OAuth 已绑定。这是账号地区限制，不是网关缺 Project ID。
+
 ### google_one
 Sub2API Gemini OAuth 的一种类型，走 Cloud AI Companion（Gemini for Google Cloud / Code Assist）。
 
