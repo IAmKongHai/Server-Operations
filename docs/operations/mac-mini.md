@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 16:00 CST - 实测 Gemini google_one 账号仅 2.5 Flash / 2.5 Pro 可用
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读探测）
+- 原因：用户问该 Gemini 账号能用哪些模型；`gemini-3.7-flash` 报 Resource not found。
+- 影响：只读。对 Key 发了十余次短请求。
+- 备份：无。
+- 回滚：无变更。
+- 验证：`POST /v1/chat/completions` 仅 `gemini-2.5-flash`、`gemini-2.5-pro` 返回 200；`gemini-2.0-flash`、全部 Gemini 3.x（含 3.7-flash）及别名均为上游 404。
+- 结论：`/v1/models` 列出的是 Sub2API 默认目录，不是 Code Assist / Google AI Pro 这条线上真实可用的模型。
+
 ## 2026-08-16 15:52 CST - 启用 Cloud AI Companion 后 Gemini 调用已通
 
 - 服务器：`mac-mini`
