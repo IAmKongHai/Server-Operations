@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-08-16 15:35 CST - 复查 Sub2API Gemini 账号：GCP 项目未开 Cloud AI Companion API
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：用户新加 Gemini 账号后，`/v1/chat/completions` 仍报 `All available accounts exhausted`。
+- 影响：只读。未改账号、分组、Key、容器。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - Key `konghai` 已改绑分组 6 `Gemini`；账号 2 已进该组。
+  - 账号 2：`platform=gemini` / `oauth` / `oauth_type=google_one` / `project_id=my-openclaw-super-xxk`，状态 **`error`**、`schedulable=false`。
+  - 上游 403：`Gemini for Google Cloud API has not been used in project my-openclaw-super-xxk`，需在该项目启用 `cloudaicompanion.googleapis.com`。
+  - 15:34 的客户端请求（`ai-sdk/openai-compatible`，模型 `gemini-3.7-flash`）因此被记成 exhausted。
+- 结论：调度已选到 Gemini 账号。失败在 Google 侧 API 未启用，不是 Key 或分组。
+
 ## 2026-08-16 15:25 CST - 复查 Sub2API：分组已绑上，404 是路径，exhausted 是上游 429
 
 - 服务器：`mac-mini`
