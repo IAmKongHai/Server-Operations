@@ -1,5 +1,35 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-17 09:26 CST - 恢复 mas-icare.cypress.sg SIT 反代入口
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Grok`（用户要求恢复 `https://mas-icare.cypress.sg/`）
+- 原因：2026-07-31 将公网入口改成 SIT 结束静态说明页后，现需重新对外提供 MAS SIT 门户。
+- 影响：
+  - `https://mas-icare.cypress.sg/` 恢复反代本机 `mas-icare-portal`（`127.0.0.1:5174`）
+  - `/api/` 恢复转发到 `https://api-icare.cypress.sg`
+  - 保留 2026-08-07 起的 `/apk/icare-preview.apk` 静态下载（该路径在切说明页之后才加上，原反代备份里没有）
+  - SSL 与 HTTP→HTTPS 301 不变
+  - **未**重启、重建任何容器；`mas-icare-portal` / `icare-backend-api-1` 当时已在跑
+- 备份：
+  - `/etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260817-restore-sit`（当时的静态说明页配置）
+  - 原反代配置仍在 `/etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260731-sit-notice`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'sudo cp /etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260817-restore-sit /etc/nginx/conf.d/mas-icare.cypress.sg.conf && sudo nginx -t && sudo systemctl reload nginx'
+  ```
+- 变更时序：
+  1. 只读确认门户容器 `Up`、本机 `5174` 返回 `iCare MAS`、API `/api/v1/health` 为 `sit` 且 `database=up`。
+  2. 备份当前静态说明页 nginx conf。
+  3. 按 `bak.20260731-sit-notice` 恢复反代，并新增 `location /apk/` 指向 `/var/www/mas-icare.cypress.sg`。
+  4. `nginx -t` 通过后 `systemctl reload nginx`（未 restart）。
+- 验证：
+  - `https://mas-icare.cypress.sg/` → **200**，标题 `iCare MAS`，不再是 SIT 结束说明页
+  - 浏览器进入 `/login`，页脚显示 `MAS Ultra` / `SIT`，后端版本 `8128f2f1…`
+  - `https://mas-icare.cypress.sg/api/v1/health` → **200**，`env=sit`，`database.status=up`
+  - `https://mas-icare.cypress.sg/apk/icare-preview.apk` → **200**，`Content-Length: 151756214`
+  - `http://mas-icare.cypress.sg/` → **301** 到 HTTPS
+
 ## 2026-08-13 11:34 CST - 关闭 public-app OTP 开发发送器
 
 - 服务器：`dev-cypresso`（SIT Server）
