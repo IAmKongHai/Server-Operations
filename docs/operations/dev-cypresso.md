@@ -1,5 +1,24 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-17 15:18 CST - 更新 icare-preview.apk
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Grok`（用户要求把仓库根目录新 APK 替换上去）
+- 原因：本地 `icare-preview.apk` 已换成新包（159MB），线上仍是 2026-08-07 的 145MB 旧文件。
+- 影响：
+  - 覆盖 `/var/www/mas-icare.cypress.sg/apk/icare-preview.apk`
+  - 新体积 `166533256` bytes（158.8MiB），SHA256 `89cf7101d7aca12b26ec85a9d8d401859d49f8b2c884ca8712d981e60442ba8d`
+  - 公网 URL 不变：`https://mas-icare.cypress.sg/apk/icare-preview.apk`
+  - **未**改 nginx、未重启任何服务
+- 备份：无（未开 `KEEP_BACKUP=1`）
+- 回滚方式：用旧 APK 再跑一次 `./scripts/deploy-icare-preview-apk.sh`
+- 变更时序：
+  1. 确认 `main` 分支，本地文件 `159M` / SHA256 `89cf7101…`
+  2. 执行 `./scripts/deploy-icare-preview-apk.sh`（scp 到 `/tmp` 后原子替换）
+- 验证：
+  - 脚本比对远端 size / SHA256 一致
+  - `curl -I https://mas-icare.cypress.sg/apk/icare-preview.apk` → **200**，`Content-Length: 166533256`，`Last-Modified: Mon, 17 Aug 2026 07:18:25 GMT`
+
 ## 2026-08-17 09:26 CST - 恢复 mas-icare.cypress.sg SIT 反代入口
 
 - 服务器：`dev-cypresso`（SIT Server）
