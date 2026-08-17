@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-08-17 15:20 CST - 只读复核：专用 slot 同时打 iOS + Android
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户确认用专用 slot，并问双端是否都能放这台机器。
+- 影响：只读。未装软件、未注册新 runner、未接受 Xcode first launch、未触发构建。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - Xcode 26.6 / iOS SDK 26.5 / CocoaPods 1.16.2 可用；`xcodebuild -checkFirstLaunchStatus` 退出码 **69**（首次启动组件未跑完）。
+  - login keychain 在 SSH 非交互下 `User interaction is not allowed`；本机只有个人 Development 身份 `Apple Development: XIANLIANG XIE (2329U9YKK8)`，没有团队 `2ZSNV9MWK6` 的 Distribution 证书。
+  - `~/.expo/state.json` 仅有 `uuid`，未登录 EAS；无 `~/.config/icare/testflight.json`。
+  - 对照 eas-cli 源码：`findIdentitiesByTeamId` 仍带 `security find-identity -v`。macOS 26 Tahoe 上这条会误判「Distribution 证书没导入」（eas-cli#3678），PR #3679 未进 main。
+- 结论：一台专用 slot **可以串行打双端**。Android 补 Node/JDK 即可；iOS 必须先 `xcodebuild -runFirstLaunch`、用 `EXPO_TOKEN` 拉 EAS 管理的 Distribution 证书，并钉带 Tahoe 修复的 eas-cli（或等价去掉 `-v`）。不要双端并行，也不要把 `mobile-build` 贴到现有 sonar slot。
+
 ## 2026-08-17 15:05 CST - 只读盘点：能否在本机打 iCare 会员端 App
 
 - 服务器：`mac-mini`
