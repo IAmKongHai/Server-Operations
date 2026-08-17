@@ -1,5 +1,25 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-17 17:35 CST - 只读确认 Backend Deploy #32010421100 失败为 swagger 注解冲突
+
+- 服务器：`mas-go-dev`（self-hosted runner `mas-go-dev`）；对照 GitHub Actions `Backend Deploy`
+- 操作人：`Grok`
+- 原因：用户指向 [iCare-backend Actions run 32010421100](https://github.com/cypressoai/iCare-backend/actions/runs/32010421100)，需判断是 runner / 磁盘 / 部署脚本问题，还是代码侧构建失败。
+- 影响：只读查 `gh run view` 与 `develop` 上的 handler 注解；未改 runner、Docker、compose、`.env.docker`，未重跑 Job，未重启容器。
+- 备份：无（只读）。
+- 回滚方式：无变更。当前 SIT 仍停在上一趟成功部署（`fix(CYP-2160)` / run [32003652368](https://github.com/cypressoai/iCare-backend/actions/runs/32003652368)），本次镜像未构建成功，容器未被覆盖。
+- 做了什么：
+  1. 核对 run 结论：`Set Environment Variables` 成功；`Deploy to mas-go-dev` 与 `Build and Push Docker Image` 均在 Docker 构建阶段失败；`Build and Test` / `Deploy to Server` 被跳过。
+  2. 两边失败步骤相同：`Dockerfile:23` 的 `RUN bash ./scripts/generate-swagger.sh`。
+  3. 脚本本身先生成 Swagger 2.0 成功，失败发生在 `go run ./cmd/openapi-conv`：`convert to openapi 3: body and form parameters cannot exist together for the same operation`。
+  4. 本趟触发提交是 [iCare-backend#1525](https://github.com/cypressoai/iCare-backend/pull/1525)（CYP-2164 help-center 列表过滤，`eb41b77`），但同一错误已在前一趟 [run 32004994057](https://github.com/cypressoai/iCare-backend/actions/runs/32004994057) / [iCare-backend#1523](https://github.com/cypressoai/iCare-backend/pull/1523)（CYP-2162 MAP 头像 multipart）出现。
+  5. 核对 `develop` 上 `UploadProfileImage` 的 swag 注解：同一 `POST /internal/public/v1/members/{membercode}/profile-image` 同时写了 `@Accept json,mpfd`、`@Param body body ...` 和 `@Param file formData file ...`。`kin-openapi` 转 OpenAPI 3 时不允许同一 operation 同时带 body 与 form 参数。
+- 验证结果：
+  - **不是** runner、磁盘、Buildx、GHCR 登录或 mas-go-dev 运行时问题；`Verify mas-go-dev runtime`、checkout、Buildx 均成功。
+  - **是** 代码侧 swagger 契约冲突。#1525 只是叠在已坏的 #1523 之上，重跑本趟不会过。
+  - 修法在 iCare-backend：把 JSON / multipart 拆成两个 route（或两套独立 `@Router`），或只给其中一种写 swag 参数，不能在同一个 operation 上同时声明 `body` 与 `formData`。
+- 备注：Node.js 20 deprecation 只是 annotation，与本次失败无关。
+
 ## 2026-08-14 10:48 CST - App 同事确认 MAS LOA Discussion 真机推送通过
 
 - 服务器：`mas-go-dev`（内网 SIT）
