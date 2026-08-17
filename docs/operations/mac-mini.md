@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-17 16:22 CST - mac-mini-mobile-1 Daemon 已上线；Xcode first launch 完成
+
+- 服务器：`mac-mini`
+- 操作人：用户本机 `sudo ~/Downloads/install-mac-mini-mobile-daemon.sh`；`Grok` 核对并补 `.env` 加载、crontab
+- 原因：用户确认后执行 first launch + LaunchDaemon。
+- 影响：
+  - `xcodebuild -checkFirstLaunchStatus` = **0**
+  - `system/actions.runner.cypressoai.mac-mini-mobile-1` running；Listener pid 新进程在听 job
+  - GitHub：`mac-mini-mobile-1` **online**，labels 未变（仅 `mobile-preview-ci` 池）
+  - `runsvc.sh` 现在会 `source .env`（备份 `runsvc.sh.bak.20260817`）
+  - crontab 日/周维护 `WORK_DIRS` 增加 `~/gha/m1`（备份 `~/Library/Logs/crontab.bak.20260817`）
+- 回滚：`sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-mobile-1` 并删对应 plist；crontab 拷回 bak。
+- 验证：stdout `Listening for Jobs`；`gh api` status=online。未打 APK（仓库尚无 `EXPO_TOKEN` secret）。
+
 ## 2026-08-17 16:25 CST - 已注册 mac-mini-mobile-1，等本机 sudo 装 Daemon
 
 - 服务器：`mac-mini`
