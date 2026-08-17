@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-08-17 15:05 CST - 只读盘点：能否在本机打 iCare 会员端 App
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：开发反馈 EAS 云构建慢，评估能否把 `iCare-mobile-app` 的 Android / iOS 出包挪到本机。
+- 影响：只读。未装软件、未改 runner、未改 Docker、未触发 EAS。
+- 备份：无。
+- 回滚：无变更。
+- 验证（SSH 只读）：
+  - 主机：Apple M4 / 10 核 / 32GB / macOS 26.5.2；数据盘 1.8T 已用 62%、剩余约 716GB。
+  - 已有：Xcode 26.6、Android SDK（platforms 25–36、build-tools 35/36、NDK 27.1、adb）、Homebrew OpenJDK 17.0.17、CocoaPods 1.16.2、fastlane、fnm。
+  - 缺：登录 PATH 无 `node` / `pnpm` / `eas`（`fnm list` 仅 `system`，`/opt/homebrew/bin/node` 不存在）；`ANDROID_HOME` / `JAVA_HOME` 未导出；`/usr/bin/java` 找不到 runtime。
+  - 负载：4 个 `mac-mini-sonar-*` LaunchDaemon 在线；当时 `mac-mini-sonar-1` 有 `Runner.Worker`；Docker/Colima 在跑 SonarQube、Sub2API、Grafana 及对应 Postgres/Redis。内存 compressor 约 10GB 页，不适合再叠一层和 CI 并发的原生编译。
+- 结论：Android preview 本机构建硬件条件基本具备，但要先装 Node 22 + pnpm + eas-cli，并导出 JDK/SDK；不要复用现有 4 个 sonar slot。iOS 有 Xcode，但还缺签名链路，且 Xcode 26 对 `expo run:ios` 有已知坑。
+
 ## 2026-08-16 17:52 CST - Sub2API 镜像补丁：Grok 工具集不再触发 Gemini 内置搜索 400
 
 - 服务器：`mac-mini`
