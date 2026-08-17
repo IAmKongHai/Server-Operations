@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-08-17 16:15 CST - 为 mobile-preview 槽装上 Homebrew node@22 + pnpm
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：执行 `docs/plans/2026-08-17-001-ops-mac-mini-mobile-preview-slot-plan.md` U1。Daemon `.path` 不能 `eval fnm`；本机 `fnm` 也没有 Node 版本。
+- 选型：Homebrew keg-only `node@22` 22.23.2，不 `brew link --overwrite`（会撞已有 `/opt/homebrew/lib/node_modules/npm`）。pnpm 用 corepack 钉 `10.12.3`。
+- 影响：只新增 Cellar 公式与 corepack shim。未改 4 个 sonar runner、未改 LaunchDaemon、未跑 Xcode first launch。
+- 备份：无。
+- 回滚：`brew uninstall node@22`（依赖瓶可留着）。
+- 验证（显式 PATH，无 fnm）：
+  - `node -v` = `v22.23.2`（`/opt/homebrew/opt/node@22/bin/node`）
+  - `pnpm -v` = `10.12.3`
+  - `java -version` = OpenJDK 17.0.17
+  - `adb version` = 1.0.41
+  - `xcodebuild -checkFirstLaunchStatus` 仍为 **69**（U1 iOS 半截未做，须本机确认后再 `runFirstLaunch`）
+- 计划：`docs/plans/2026-08-17-001-ops-mac-mini-mobile-preview-slot-plan.md`
+
 ## 2026-08-17 15:20 CST - 只读复核：专用 slot 同时打 iOS + Android
 
 - 服务器：`mac-mini`
