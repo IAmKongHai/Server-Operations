@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-08-05  
+> 最后更新：2026-08-17  
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -14,6 +14,7 @@
 | 现网/集成部署构建 | `dev-cypresso-ci` | **仅** dev-cypresso | set-vars、Build and Push、Deploy to Server（前后端） | 任何 Lint / Sonar / Tests |
 | mas-go-dev 本机部署 | `mas-go-dev` | **仅** mas-go-dev 部署 runner | Deploy to mas-go-dev（前后端） | 质量门禁（质量用 `mas-go-dev-ci`） |
 | Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner | Deploy MAS to Azure UAT、UAT 镜像 mirror | 日常 PR CI |
+| 会员端 preview 本机构建 | `mobile-preview-ci` | **仅** `mac-mini-mobile-1` | iCare-mobile-app preview `eas build --local`（Android APK / iOS IPA，串行） | 质量门、backend CI、EAS 云构建、production |
 
 历史标签 `frontend-sonar-ci` 仍保留在部分 runner 上便于回滚；**新 workflow 应使用 `frontend-quality-ci`（PR）与 `mac-mini-sonar`（full）**。
 
@@ -22,6 +23,7 @@
 | Runner name | 主机 | 关键 labels（含默认） |
 |-------------|------|---------------------|
 | `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci` |
+| `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签） |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
 | `mas-go-dev` | mas-go-dev | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签） |

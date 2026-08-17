@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-08-17 16:25 CST - 已注册 mac-mini-mobile-1，等本机 sudo 装 Daemon
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（注册 + 写文件）；LaunchDaemon / Xcode first launch 待本机 `sudo`
+- 原因：计划 U2。GitHub 注册不需要 sudo；`launchctl bootstrap system` 和 `xcodebuild -runFirstLaunch` 需要管理员密码，SSH `sudo -n` 失败。
+- 影响：
+  - 新 runner `mac-mini-mobile-1`（agentId 38）已在 org Default 组，当前 **offline**。
+  - labels：`self-hosted, macos, arm64, macos-arm64, mac-mini, mobile-preview-ci`。无质量门标签。
+  - workFolder：`~/gha/m1`。程序目录：`~/actions-runner/mac-mini-mobile-1`。
+  - `.env` 含 `PNPM_STORE_PATH` / `ANDROID_HOME` / `JAVA_HOME` / `LANG`。无 `EXPO_TOKEN`。
+  - `~/bin/mac-mini-runner-resume.sh` 已包含该槽。
+- 备份：`~/bin/mac-mini-runner-resume.sh.bak.20260817`
+- 回滚：`gh api` 取 remove-token 后在该目录 `./config.sh remove`；删目录与 `~/gha/m1`。
+- 本机待跑（要密码）：`sudo ~/Downloads/install-mac-mini-mobile-daemon.sh`（脚本会 first launch + 装 Daemon）。
+- 验证：`gh api` 已见 runner；status=offline，符合 Daemon 未装。
+
 ## 2026-08-17 16:15 CST - 为 mobile-preview 槽装上 Homebrew node@22 + pnpm
 
 - 服务器：`mac-mini`

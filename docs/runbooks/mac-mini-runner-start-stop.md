@@ -1,9 +1,10 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-08-15  
-> 4 个 org runner：`mac-mini-sonar-1` … `4`  
-> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`  
-> 2026-08-15 起改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
+> 最后更新：2026-08-17  
+> org runner：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
+> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）  
+> 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
+> `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
 > 旧 LaunchAgent plist 停在 `~/Library/LaunchAgents.disabled-20260815/`。  
 > 固定恢复脚本：`~/bin/mac-mini-runner-resume.sh`  
 > 日志：`~/Library/Logs/mac-mini-runner-resume.log`  
@@ -33,6 +34,7 @@ ssh mac-mini 'sudo ~/bin/mac-mini-runner-resume.sh'
 for n in 1 2 3 4; do
   sudo launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
+sudo launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-mobile-1
 ```
 
 KeepAlive 已开，崩溃后 launchd 会自己拉。resume 主要给「人为 bootout 之后」用。
@@ -43,6 +45,7 @@ KeepAlive 已开，崩溃后 launchd 会自己拉。resume 主要给「人为 bo
 for n in 1 2 3 4; do
   sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
+sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-mobile-1
 ```
 
 ## 校验
@@ -54,7 +57,7 @@ ps aux | grep Runner.Listener | grep -v grep
 
 # GitHub
 gh api orgs/cypressoai/actions/runners \
-  --jq '.runners[] | select(.name|startswith("mac-mini-sonar")) | {name,status,busy}'
+  --jq '.runners[] | select(.name|startswith("mac-mini")) | {name,status,busy}'
 ```
 
 期望 `status` = `online`。全员注销后也应如此。
