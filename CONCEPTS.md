@@ -10,9 +10,14 @@ A named pool of four GitHub Actions self-hosted runner service instances on `mac
 Each runner instance owns its own service environment, work folder, temporary directory, and local tool-cache slot. A fix to PATH, work folder depth, or local tool availability is not complete until all four service instances have been updated and restarted.
 
 ### runner slot
-One physical member of the `mac-mini-sonar runner` pool, identified by its runner number and its corresponding short work folder.
+One physical member of a mac-mini GitHub Actions runner pool, identified by its runner name and its corresponding short work folder.
 
-Slot-local caches are independent: a Scanner CLI cache hit on one slot does not prove another slot is warm. Cache verification for this pool needs either a hit log per slot or a confirmed `.complete` marker in each slot's tool cache.
+Slot-local caches are independent: a tool-cache hit on one slot does not prove another slot is warm. Cache verification needs either a hit log per slot or a confirmed `.complete` marker in each slot's tool cache.
+
+### mobile-preview-ci runner
+The dedicated fifth self-hosted runner on `mac-mini` (`mac-mini-mobile-1`, workFolder `~/gha/m1`) that only runs iCare member-app **preview** `eas build --local` for Android and iOS.
+
+It is not a member of the `mac-mini-sonar runner` pool. It must not carry `mac-mini-sonar`, `frontend-quality-ci`, `frontend-tests-ci`, `frontend-sonar-ci`, or `backend-ci`. iOS and Android compiles on this host are serial.
 
 ## 代理服务器流量监控
 
