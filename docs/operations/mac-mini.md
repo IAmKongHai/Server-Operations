@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 09:55 CST - 第一包 preview APK 已在 mac-mini-mobile-1 本机打出
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：`EXPO_TOKEN` 已写入 `iCare-mobile-app` 仓库 secret；执行计划 U4。
+- 影响：只触发 GitHub Actions `eas build --local`（Android preview）。未改 runner、未改 crontab、未动 sonar 槽。
+- 备份：无。
+- 回滚：无主机变更。
+- 验证：
+  - Run https://github.com/cypressoai/iCare-mobile-app/actions/runs/32088691619 **success**
+  - `eas whoami`、本地 APK、`unzip -t`、artifact 上传均成功
+  - 首次 `pnpm/action-setup` ENOTEMPTY 已用本机 node/pnpm 绕过（PR #177 合入 `main`）
+- 未做：iOS local IPA（U5）；`develop` 上 PR #175 仍开着（CI Quality 被 lemon 上无关的 pnpm 残留挡住）
+
 ## 2026-08-17 16:22 CST - mac-mini-mobile-1 Daemon 已上线；Xcode first launch 完成
 
 - 服务器：`mac-mini`
