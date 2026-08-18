@@ -65,37 +65,79 @@ tags:
 
 ## Solution
 
-先确认是不是洪峰而不是卡死：
+先把预期讲清楚：**Xcode / `pnpm` 自己那几万次 create 消不掉**，那段窗口 `fseventsd` 一定会干活。能彻底拿掉的是两层写放大：
 
-```bash
-# 连续采样，不要信 top -l 1
-for i in 1 2 3 4 5; do
-  date "+%H:%M:%S"
-  ps -axo pid,%cpu,time,command | grep '[f]seventsd'
-  sleep 2
-done
+1. Colima virtiofs 把整个 `/Users/konghai`、`/Users/hon` 挂进 VM（每个宿主写盘多一次扇出）
+2. `eas build --local` 没清干净的工作树 + 堆积的 DerivedData（同一份工程写很多遍还留着）
 
-mdutil -s / ; mdutil -s /System/Volumes/Data
+### 做不到的
 
-# 已知写盘热点
-for d in ~/gha ~/Library/Developer/Xcode/DerivedData /private/var/folders; do
-  echo -n "$d "
-  find "$d" -type f -mmin -20 2>/dev/null | wc -l
-done
+- 本机 `xcodebuild archive` 期间让 `fseventsd` 保持 0%
+- 杀 `fseventsd`、关 FSEvents、再关一遍已经 disabled 的 Spotlight
+
+### A. 收窄 Colima virtiofs（主方案，需重启 VM）
+
+2026-08-18 实测：VM 里只有这两条 virtiofs：
+
+- `/Users/konghai` → 整家目录
+- `/Users/hon` → 整家目录
+
+容器真正 bind 的宿主路径只有：
+
+| 容器 | 需要的宿主路径 |
+| --- | --- |
+| sub2api / postgres / redis | `/Users/konghai/stacks/sub2api/{data,postgres_data,redis_data}` |
+| sonarqube | `/Users/konghai/stacks/sonarqube/sonarqube-web` |
+| richer-grafana | `/Users/hon/richer/deployments/grafana/{dashboards,provisioning}` |
+| 其余 | named volume，在 `/mnt/lima-colima`，不走家目录 |
+
+`~/.colima/default/colima.yaml` 改成：
+
+```yaml
+mounts:
+  - location: /Users/konghai/stacks
+    writable: true
+  - location: /Users/hon/richer/deployments/grafana
+    writable: true
 ```
 
-若采样已经是 0%、`TIME` 不再涨：不用动。那是刚跑完的 job。
+然后 `colima restart`（sonarqube / sub2api / richer 会短暂停）。本机 lima.yaml 是 Colima 生成的，不要手改，restart 会重写。
 
-若要压峰值（需停 Colima，先确认容器可中断）：
+验证：
 
-1. 把 `~/.colima/default/colima.yaml` 的 `mounts` 从整个 `$HOME` 收成 Docker 真正要 bind 的目录，排除 `~/gha`、`~/Library/Developer`、`~/Library/Caches`。
-2. `colima restart` 后 `docker ps` 确认容器还在。
-3. 本机 EAS 和 sonar / frontend `pnpm` 尽量错开。
+```bash
+colima ssh -- findmnt -t virtiofs
+# 只应看到 /Users/konghai/stacks 和 grafana 那条，不应再有整个 /Users/konghai
+docker ps
+curl -sf http://127.0.0.1:9000/api/system/status
+```
 
-不要为了这个关 Spotlight（已经关了），也不要日常重启 `fseventsd`。
+以后 Docker 只能 bind 这两棵树下面的路径。`~/gha`、`~/Library/Developer`、Desktop 不再进 VM，CI / Xcode 写盘不再被 virtiofs 订阅。
+
+动 `hon` 的 `colima-multica` 不在本方案里。
+
+### B. 清 EAS / DerivedData 残留（磁盘写放大）
+
+同日实测残留：`/var/folders/.../T/eas-build-local-nodejs` **14G**（约 7 次 × 1.5G）、`~/Library/Developer/Xcode/DerivedData` **38G**。
+
+- 保持 `eas build --local` 默认清理，不要在 CI 长期开 `EAS_LOCAL_BUILD_SKIP_CLEANUP=1`
+- 维护脚本定期删 1 天前的 `eas-build-local-nodejs/*`，DerivedData 只留最近一份 `iCare-*`
+- 删之前仍须确认（生产守则：不擅自删目录）
+
+### C. 错开写盘窗口（调度）
+
+不要让 `mac-mini-mobile-1` 的本机 EAS 和 `mac-mini-sonar-*` 的 `pnpm` / Jest 叠在同一十几分钟。这减的是峰值，不是放大器。
+
+### 验收
+
+下一次只跑 IPA、且 A 已落地时：
+
+- 构建窗口 `fseventsd` 仍可能到几十 %，但应明显低于「整家目录 virtiofs + 双槽 pnpm」叠在一起
+- 构建结束后 1 分钟内回到 0%，`TIME` 不再涨
+- `colima ssh -- findmnt -t virtiofs` 仍没有整个 `/Users/konghai`
 
 ## Prevention
 
-- 再看到 `fseventsd` 先对表 runner 日志和上面三个目录的 mtime，而不是先改系统守护进程。
-- Colima 家目录整盘 virtiofs 是默认值，加新 bind 之前先问「CI workFolder 会不会被 VM 订阅」。
+- 再看到 `fseventsd` 先对表 runner 日志和 DerivedData / `~/gha` / `/var/folders` 的 mtime，而不是先改系统守护进程。
+- Colima 加新 bind 之前先问：这条路径是不是 CI workFolder 或 Xcode 输出。默认不要挂家目录。
 - 7 月的对照：Spotlight 开着时瓶颈是 `mds` / `mds_stores`；关索引之后 Vitest 稳态下 `fseventsd` 接近 0，只有解压 / Xcode 窗口才会再冒出来。
