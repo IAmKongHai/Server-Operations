@@ -1,5 +1,27 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 13:25 CST - 恢复被删的 oh-my-zsh plugins，消除 SSH 登录警告
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：`ssh mac-mini` 每次都先刷 Powerlevel10k instant prompt 警告，底下是 `[oh-my-zsh] plugin 'git' not found`
+- 影响：
+  - 只恢复 `~/.oh-my-zsh/plugins/`（工作树里 886 个已跟踪文件被删，git HEAD 仍在）
+  - **未**改 `~/.zshrc`、**未**关 p10k instant prompt、**未**动 runner / LaunchAgent
+  - 自定义插件（`zsh-autosuggestions`、`zsh-syntax-highlighting`）和 `custom/themes/powerlevel10k` 本来就在
+- 备份：无需；`~/.oh-my-zsh` 是 git 仓库，`git restore plugins` 可逆
+- 回滚：`cd ~/.oh-my-zsh && git checkout -- plugins` 的反向是再删该目录（一般不必）
+- 变更时序：
+  1. 确认 `~/.zshrc` 的 `plugins=(git zsh-autosuggestions zsh-syntax-highlighting)`
+  2. `ls ~/.oh-my-zsh/plugins` → 目录不存在；`git status` 全是 `D plugins/...`
+  3. `cd ~/.oh-my-zsh && git restore plugins`
+  4. 交互式 `zsh -ic` 验证
+- 验证：
+  - `plugins=git zsh-autosuggestions zsh-syntax-highlighting`
+  - `gst='git status'`
+  - `ssh -tt mac-mini` 不再出现 `plugin 'git' not found` 或 p10k instant prompt 警告
+- 未定位：谁在约 2026-08-15 00:35 删掉了该目录（与 OMZ `git pull --rebase` 时间接近，但工作树删除未进 commit）
+
 ## 2026-08-18 13:23 CST - System WWDR G3/G4 已装，重跑 iOS TestFlight
 
 - 服务器：`mac-mini`
