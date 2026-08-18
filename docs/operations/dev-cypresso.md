@@ -1,5 +1,37 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-18 10:34 CST - 为本机 id_ed25519 开通 SSH 登录并切换别名私钥
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Grok`（用户要求把本机 `~/.ssh/id_ed25519.pub` 部署到 VM，并替换 `ssh dev-cypresso` 别名使用的私钥）
+- 原因：本机别名原先强制使用 AWS 发行的 `~/.ssh/cypresso.ai.pem`（RSA），与其它主机统一的 `id_ed25519` 不一致。
+- 影响：
+  - 远端 `ec2-user` 的 `~/.ssh/authorized_keys` 新增一行本机公钥（comment `konghai@konghai.me`）
+  - 本机 `~/.ssh/config` 中 `Host dev-cypresso` 的 `IdentityFile` 从 `~/.ssh/cypresso.ai.pem` 改为 `~/.ssh/id_ed25519`
+  - **未**删除旧 PEM 对应公钥，CI / 其它仍用旧钥的客户端不受影响
+  - **未**改 `sshd_config`、防火墙、容器
+- 备份：
+  - 远端：`/home/ec2-user/.ssh/authorized_keys.bak.20260818`
+  - 本机：`~/.ssh/config.bak.20260818-dev-cypresso`
+- 回滚方式：
+  ```bash
+  # 本机别名切回 PEM
+  cp ~/.ssh/config.bak.20260818-dev-cypresso ~/.ssh/config
+  ssh -O exit dev-cypresso || true
+
+  # 如需撤回远端新公钥
+  ssh -i ~/.ssh/cypresso.ai.pem -o IdentitiesOnly=yes ec2-user@32.192.186.193 \
+    'cp -a ~/.ssh/authorized_keys.bak.20260818 ~/.ssh/authorized_keys'
+  ```
+- 变更时序：
+  1. 用现有 PEM 登录，确认 `authorized_keys` 中尚无 `konghai@konghai.me`。
+  2. 备份 `authorized_keys` 后追加 `id_ed25519.pub`（fingerprint `SHA256:UXl56N/IY99Fhi8qQTOxdq4bnAzXPMDaHg2CMGvcBQI`）。
+  3. 备份本机 `~/.ssh/config`，将 `Host dev-cypresso` 的 `IdentityFile` 改为 `~/.ssh/id_ed25519`。
+  4. 关闭既有 ControlMaster 后用新别名重连验证。
+- 验证：
+  - `ssh -o ControlMaster=no dev-cypresso 'whoami; hostname'` → `ec2-user` / `ip-172-31-42-99.ec2.internal`
+  - verbose 显示只出示 `~/.ssh/id_ed25519`，`Authenticated to 32.192.186.193 using "publickey"`
+
 ## 2026-08-17 15:18 CST - 更新 icare-preview.apk
 
 - 服务器：`dev-cypresso`（SIT Server）
