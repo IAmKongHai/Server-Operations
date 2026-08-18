@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 22:29 CST - 放入 preview iOS Firebase plist，供 GHA 本机构建拷入 IPA
+
+- 服务器：`mac-mini`（`mac-mini-mobile-1`）
+- 操作人：`Grok`
+- 原因：CYP-1850。`eas build --local` 吃不到 EAS file secret，现有 TestFlight 包里没有 `GoogleService-Info.plist`，`getToken()` 静默失败，`appledevicetoken` 写不进库。
+- 影响：只新增一份 runner 本机文件。未改 LaunchDaemon、未重启 runner、未改 workflow。下一包仍要等 mobile-app YAML 加 Stage 步才会打进 IPA。
+- 选型：落盘 `~/.config/icare/GoogleService-Info.plist`（与 `testflight.json`、`AuthKey_*.p8` 同目录），权限 `600`，属主 `konghai`。
+- 备份：目录里原先没有这份文件，无需覆盖备份。
+- 回滚：删 `~/.config/icare/GoogleService-Info.plist`。
+- 变更时序：
+  1. 本机核 `p8/GoogleService-Info.plist`：`BUNDLE_ID=ph.com.toplogic.insularhealth.preview`，`PROJECT_ID=icare-dev-3c465`。
+  2. `scp` 到 `konghai@mac-mini:~/.config/icare/GoogleService-Info.plist`。
+  3. `chmod 600`。
+- 验证：
+  - `ls`：`-rw-------`，899 bytes，属主 `konghai`
+  - runner 上再核：`BUNDLE_ID` / `PROJECT_ID` / `GOOGLE_APP_ID` 与 preview 一致
+  - 同目录 `testflight.json`、`AuthKey_3VBD4W3ZKW.p8` 未动
+- 未做：未提交 plist；未改 `eas-build-preview-local.yml`（B，mobile-app 仓另开 session）；未放 Android `google-services.json`
+
 ## 2026-08-18 19:20 CST - 只读：:9000 Sonar 容器已在跑，本机 Tailscale 曾停
 
 - 服务器：`mac-mini`
