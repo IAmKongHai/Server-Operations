@@ -1,5 +1,27 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 10:45 CST - 修正 mac-mini 上 ssh dev-cypresso 的错误 IP
+
+- 服务器：`mac-mini`（本机 SSH 别名，目标为 `dev-cypresso`）
+- 操作人：`Grok`（用户从 mac-mini 登录 dev-cypresso 时发现 HostName 配错）
+- 原因：`Host dev-cypresso` 写成了 `32.192.91.222`（占位/旧地址），正确公网 IP 是 `32.192.186.193`。
+- 影响：
+  - 只改 `~/.ssh/config` 这一行 HostName
+  - IdentityFile 仍为 `~/.ssh/cypresso.ai.pem`（远端 `authorized_keys` 仍保留该 PEM 公钥）
+  - **未**改远端、未改防火墙、未重启任何服务
+- 备份：`~/.ssh/config.bak.20260818-dev-cypresso-ip`
+- 回滚方式：
+  ```bash
+  ssh mac-mini 'cp ~/.ssh/config.bak.20260818-dev-cypresso-ip ~/.ssh/config && ssh -O exit dev-cypresso || true'
+  ```
+- 变更时序：
+  1. 读出 mac-mini 上 `Host dev-cypresso` 确认错误 IP。
+  2. 备份 config 后将 HostName 改为 `32.192.186.193`。
+  3. 从 mac-mini 用别名实测登录。
+- 验证：
+  - `ssh mac-mini 'ssh -o ControlMaster=no -o BatchMode=yes dev-cypresso "whoami; hostname"'` → `ec2-user` / `ip-172-31-42-99.ec2.internal`
+  - 首次连接已把 `32.192.186.193` ED25519 指纹写入 mac-mini `known_hosts`
+
 ## 2026-08-18 09:55 CST - 第一包 preview APK 已在 mac-mini-mobile-1 本机打出
 
 - 服务器：`mac-mini`
