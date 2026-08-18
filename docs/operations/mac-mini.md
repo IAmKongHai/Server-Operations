@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 14:04 CST - unlink Homebrew rsync，重跑 iOS export
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：WWDR/Crashlytics 过了，archive 成功，`xcodebuild -exportArchive` 报 `Copy failed`（约 1 秒）。与 fastlane#29528 相同：Xcode 调 `/usr/bin/rsync -8aPhhE`，PATH 里的 GNU rsync 3.5 当 server 直接 usage error。
+- 影响：
+  - `brew unlink rsync`（公式仍在 Cellar，可 `brew link rsync` 恢复）
+  - runner PATH 现在 `which rsync` = `/usr/bin/rsync`（openrsync）
+  - mobile-app [PR #189](https://github.com/cypressoai/iCare-mobile-app/pull/189)
+  - 已重派 [run 32105408291](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32105408291)
+- 备份：无
+- 回滚：`brew link rsync`
+- 验证：待该 run 的 export / TestFlight
+
 ## 2026-08-18 13:52 CST - 清掉残缺多输出和 Splashtop 虚拟声卡，audiomxd 回 0%
 
 - 服务器：`mac-mini`
