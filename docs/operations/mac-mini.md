@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 11:00 CST - iOS local 失败因缺 iOS 26.5 设备平台；已开始下载
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：U5 第一次 IPA 失败（run 32091626082）。签名已过，gym 报 `iOS 26.5 is not installed`。`-showsdks` 有 SDK，DeviceSupport 只到 16.4。
+- 影响：正在跑 `xcodebuild -downloadPlatform iOS`。已把上传脚本放到 `~/bin/deploy-icare-preview-apk.sh`。未改 runner、未重启。
+- 备份：无。
+- 回滚：停 download 进程；可删 `~/bin/deploy-icare-preview-apk.sh`。
+- 验证：`ssh mac-mini ssh dev-cypresso` 已通。平台下载尚未完成。
+- 下一步：下载完重跑 `platform=ios`。Android 下次会自动上传（mobile-app PR #182 已合 main）。
+
 ## 2026-08-18 10:45 CST - 修正 mac-mini 上 ssh dev-cypresso 的错误 IP
 
 - 服务器：`mac-mini`（本机 SSH 别名，目标为 `dev-cypresso`）
