@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 13:33 CST - WWDR 已过；Crashlytics 缺 plist，已跳过上传再打
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：run [32102698930](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32102698930) 已签过 `React` / `hermes`，死在 `[RNFB] Crashlytics Configuration`：`Could not get GOOGLE_APP_ID`。`eas build --local` 拿不到 EAS file secret。
+- 影响：
+  - mobile-app [PR #186](https://github.com/cypressoai/iCare-mobile-app/pull/186)：无 `GoogleService-Info.plist` 时 Crashlytics 上传改为 no-op
+  - 日后把 plist 放到 `~/.config/icare/GoogleService-Info.plist` 会恢复上传
+  - 已重派 [run 32103352964](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32103352964)
+- 备份：无
+- 回滚：revert #186
+- 验证：待该 run
+
 ## 2026-08-18 13:25 CST - 恢复被删的 oh-my-zsh plugins，消除 SSH 登录警告
 
 - 服务器：`mac-mini`
