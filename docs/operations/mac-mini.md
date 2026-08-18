@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 14:20 CST - preview iOS 本机 IPA 已提交 TestFlight
+
+- 服务器：`mac-mini`（`mac-mini-mobile-1`）
+- 操作人：`Grok`
+- 原因：WWDR G3/G4 + 跳过缺 plist 的 Crashlytics + unlink GNU rsync 后，export 终于过了。
+- 影响：
+  - Run [32105408291](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32105408291) **success**
+  - tag `preview-20260818-060458`（当时 develop/release 尖）
+  - `eas submit --path` → App Store Connect `6797895722`
+  - 提交详情：https://expo.dev/accounts/cypressoai-builds-team/projects/icare-app/submissions/d6bd7982-4c71-4bc8-9adc-baaf6f684d02
+  - TestFlight：https://appstoreconnect.apple.com/apps/6797895722/testflight/ios
+  - 本次未上传 Crashlytics dSYM（本机没有 `GoogleService-Info.plist`）
+- 备份：无
+- 回滚：无主机变更
+- 验证：EAS Submit 打印 `Submitted your app to Apple App Store Connect`。Apple 还要处理 5–10 分钟，内部测试组随后可见。
+
 ## 2026-08-18 14:04 CST - unlink Homebrew rsync，重跑 iOS export
 
 - 服务器：`mac-mini`
