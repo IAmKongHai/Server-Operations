@@ -1,5 +1,32 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 13:52 CST - 清掉残缺多输出和 Splashtop 虚拟声卡，audiomxd 回 0%
+
+- 服务器：`mac-mini`
+- 操作人：用户本机 `sudo /tmp/fix-mac-mini-audiomxd.sh --apply`；`Grok` 写脚本并复查
+- 原因：`audiomxd` 自 2026-08-15 重启后一直约 72% CPU。ToDesk 已卸干净，但「多输出设备」仍挂着缺失的 BlackHole，默认输入是残留的 Splashtop 虚拟声卡。
+- 影响：
+  - 删掉 `MetaDevice.~:AMS2_StackedOutput:0`（BlackHole + 内置喇叭）
+  - 删掉 `SplashtopRemoteSound.driver` 以及指向已不存在 App 的 LaunchDaemon / LaunchAgent
+  - 重启 `coreaudiod` / `audiomxd`（约 13:51:47，短暂无声）
+  - 默认输出仍是 LG UltraFine；本机无内置麦，现在没有默认输入设备
+  - Docker / runner / 当时正在跑的 eas iOS 编译未动
+- 备份：
+  - `/Library/Preferences/Audio/com.apple.audio.SystemSettings.plist.bak.20260818-135146`
+  - `/Library/Preferences/Audio/com.apple.audio.DeviceSettings.plist.bak.20260818-135146`
+- 回滚：还原上述 bak 后再 `sudo killall coreaudiod audiomxd`；虚拟声卡需重装 Splashtop / BlackHole
+- 变更时序：
+  1. 远程无免密 sudo，图形密码框失败（与卸 ToDesk 相同）。脚本放到 `/tmp` 与 `~/bin/fix-mac-mini-audiomxd.sh`。
+  2. 用户 13:51:46 `sudo --apply`：plist 去掉 AMS2 / Splashtop / BlackHole 首选；HAL 与 plist 删除成功；`streamer-daemon` 当时未 loaded，已 disable。
+  3. 13:51:47 重启混音栈。
+- 验证（13:52:31 及 13:52:43 再采）：
+  - 新 `audiomxd` pid 11015，**0.0% CPU**，已运行约 1 分钟仍为 0
+  - 设备列表只剩 LG ULTRAFINE（默认输出）和 Mac mini Speakers
+  - 无 Splashtop、无「多输出设备」；HAL 只剩系统自带 `ParrotAudioPlugin.driver`
+  - launchd 仅余 `"com.splashtop.streamer-daemon" => disabled` 空标签，无对应文件
+- 复盘：`docs/solutions/mac-mini/performance-issues/audiomxd-high-cpu-orphan-multi-output-2026-08-18.md`
+- 脚本：仓库 `scripts/fix-mac-mini-audiomxd.sh`
+
 ## 2026-08-18 13:45 CST - 排查 audiomxd 高 CPU：ToDesk 已卸干净，是残留多输出 + Splashtop 默认输入
 
 - 服务器：`mac-mini`
