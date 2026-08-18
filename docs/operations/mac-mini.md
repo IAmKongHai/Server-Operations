@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 13:23 CST - System WWDR G3/G4 已装，重跑 iOS TestFlight
+
+- 服务器：`mac-mini`
+- 操作人：用户本机 `bash ~/bin/install-apple-wwdr-system.sh`；`Grok` 重派 workflow
+- 原因：上一枪 IPA 因 System WWDR 过期 codesign 失败。
+- 影响：
+  - System.keychain 新增 WWDR G3（至 2030-02-20）、G4（至 2030-12-10）；2023 过期那张仍在，不删
+  - **未**重启 runner（Listener 仍为 pid 64116）
+  - 已触发 [run 32102698930](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32102698930) `platform=ios`
+- 备份：无
+- 回滚：钥匙串里删 G3/G4（一般不必）
+- 验证：`security find-certificate` 已能列出 G3/G4 的 Not After 2030。IPA / TestFlight 结果待该 run。
+
 ## 2026-08-18 13:12 CST - iOS 死在 codesign 证书链；等本机 sudo 装 WWDR
 
 - 服务器：`mac-mini`
