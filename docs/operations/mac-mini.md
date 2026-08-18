@@ -1,5 +1,32 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 16:20 CST - 只读：fseventsd 高 CPU 是本机 EAS / CI 写盘洪峰
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读排查）
+- 原因：用户看到 `fseventsd` 占 CPU 很高。
+- 影响：无变更（未杀进程、未改 Spotlight / Colima / runner）。
+- 备份：无
+- 回滚：无
+- 当时状态（16:16–16:20 CST）：
+  - 接到时 load 已从 15 分钟均值 **6.6** 回落到 1 分钟 **2.2–2.9**；`fseventsd` pid 384 连续 8×2s 采样及随后 45s **全程 0.0%**，累计 CPU **31:57**（自 Sat 02:06 本次开机）。
+  - Spotlight：`/` 与 Data 仍是 **Indexing and searching disabled**；`mds` 合计 ≈0。不是 7 月那次索引问题。
+  - 刚结束的 job：
+    - `mac-mini-mobile-1` **Preview APK (local)** 16:01–16:09，随后 **Preview IPA (local)** 16:09–16:17（`eas build --local` iOS，16:14 已产出 IPA，16:17 提交 TestFlight 结束）。
+    - `mac-mini-sonar-1/2` 约 16:14–16:15 跑完 Jest / pnpm（`iCare-mobile-app`），job 结果 Failed。
+  - 约 20 分钟内的写盘（mtime < 20 min）：
+    - `~/Library/Developer/Xcode/DerivedData` **20849**（最新目录 `iCare-egxxkhxemfltdcadpzrmbddpfmfl`，大量 `ModuleCache.noindex` `.pcm`）
+    - `/private/var/folders` **21215**（RN codegen，如 `rngesturehandler_codegen*`）
+    - `~/gha` **12193**，其中 `s2` 约 **12083**（`iCare-mobile-app/node_modules`），`m1` 只剩收尾几十个文件
+  - 放大器：Colima `default`（konghai，`virtiofs`）把 **`/Users/konghai` 整家目录** 挂进 VM；hon 的 `colima-multica` 另跑一套 VZ。CI / Xcode 的每次 create/unlink 都要由 `fseventsd` 扇出给 virtiofs。
+- 判断：`fseventsd` 没坏，也不是 Spotlight。是 **本机 iOS EAS + sonar pnpm 同时解压/编译** 的文件系统事件风暴，job 一结束 CPU 立刻归零。活动监视器里看到的高占用对应 16:01–16:17 这段。
+- 建议（未执行，需确认）：
+  1. 不必杀 `fseventsd`，杀了 launchd 会拉起来，洪峰还在就会再飙。
+  2. 若只想压峰值：把 Colima `mounts` 从整家目录收成 Docker 真正需要的路径，排除 `~/gha`、`~/Library/Developer`。这要 `colima restart`，会短暂停容器，须先确认。
+  3. 避免 mobile 本机构建和 sonar/`pnpm` 抢同一窗口。
+- 验证：job 结束后 45s 内 `fseventsd` TIME 未再增长（31:57.88 → 31:57.88）；无 Worker。
+- 复盘：`docs/solutions/mac-mini/performance-issues/fseventsd-high-cpu-ci-write-storm-2026-08-18.md`
+
 ## 2026-08-18 14:44 CST - preview tag 改为当天日期加序号
 
 - 服务器：无主机变更（mobile-app workflow）
