@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 12:27 CST - preview-local Android 首次从 develop tag 打通并上传
+
+- 服务器：`mac-mini`（`mac-mini-mobile-1`）
+- 操作人：`Grok`（用户手动触发）；runner 自动上传
+- 原因：验证 [PR #183](https://github.com/cypressoai/iCare-mobile-app/pull/183) 的 snapshot 流程。
+- 影响：只跑 `platform=android`。未改 runner。线上 APK 见 `docs/operations/dev-cypresso.md` 同日条目。
+- 备份：无
+- 回滚：无主机变更
+- 验证：
+  - Run https://github.com/cypressoai/iCare-mobile-app/actions/runs/32098462354 **success**
+  - tag `preview-20260818-041534` = `3c3cefe`（当时 develop / release 尖）
+  - APK 171686561 bytes，已发布到 `https://mas-icare.cypress.sg/apk/icare-preview.apk`
+- 未做：iOS
+
 ## 2026-08-18 11:30 CST - preview-local 改为 develop → release → tag；iOS 仍失败但原因变了
 
 - 服务器：`mac-mini`（只读核对 DerivedData）；workflow 改在 `iCare-mobile-app`
