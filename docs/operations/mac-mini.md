@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 16:52 CST - preview-local 双端发布 tag `2026-08-18.03`
+
+- 服务器：`mac-mini`（`mac-mini-mobile-1`）
+- 操作人：`Grok`（`workflow_dispatch` `eas-build-preview-local.yml`，`--ref main`，`platform=all`，`source_branch=develop`）
+- 原因：#192 合入 develop 后，需要把带 splash / 登录 / 抽屉 preview tag 的包发到 mas-icare 与 TestFlight。
+- 影响：
+  - Run [32117105413](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32117105413) **success**（prepare 9s + Android 8m17s + iOS 8m46s）
+  - `origin/release` fast-forward `0dff65e..d1ecd7e`（含 #192 merge `d1ecd7e`）
+  - 新 annotated tag `2026-08-18.03`（`EXPO_PUBLIC_BUILD_TAG` 已烤进两端）
+  - Android 覆盖公网 preview APK；iOS `buildNumber` 37 → 38，`eas submit --path` 进 TestFlight
+- 备份：无主机配置变更
+- 回滚：
+  - Android：用上一包再跑 `deploy-icare-preview-apk.sh`
+  - iOS：TestFlight 停用 build 38，改用上一包
+- 验证：
+  - Android：`https://mas-icare.cypress.sg/apk/icare-preview.apk` → **200**，`Content-Length: 175068045`，`Last-Modified: Tue, 18 Aug 2026 08:43:00 GMT`，远端 SHA256 `0cd9bb035cd077ad4ff62b1ef0424b6d7235b895740d9f9a128873ac2dd3c9d1`
+  - iOS：ASC `6797895722`，submission `7685e6b1-3ca2-42f7-87d7-5f3b73f3d833`，日志 `Submitted your app to Apple App Store Connect`
+  - 提交详情：https://expo.dev/accounts/cypressoai-builds-team/projects/icare-app/submissions/7685e6b1-3ca2-42f7-87d7-5f3b73f3d833
+  - TestFlight：https://appstoreconnect.apple.com/apps/6797895722/testflight/ios
+
 ## 2026-08-18 16:45 CST - 只读补充：构建不在 Colima 里
 
 - 服务器：`mac-mini`

@@ -1,5 +1,22 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-18 16:43 CST - preview-local 覆盖 icare-preview.apk（tag `2026-08-18.03`）
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`mac-mini-mobile-1` runner（[run 32117105413](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32117105413)）
+- 原因：#192 合入后双端 preview 发布，脚本自动替换公网 preview APK。
+- 影响：
+  - 覆盖 `/var/www/mas-icare.cypress.sg/apk/icare-preview.apk`
+  - 公网 URL 不变：`https://mas-icare.cypress.sg/apk/icare-preview.apk`
+  - **未**改 nginx / 容器 / 防火墙
+- 备份：无（脚本默认不留 `.bak`）
+- 回滚：用上一包（2026-08-18 04:27 UTC，171686561 bytes，tag `preview-20260818-041534`）再跑一次 `./scripts/deploy-icare-preview-apk.sh`
+- 验证：
+  - 源：tag `2026-08-18.03` → commit `d1ecd7e`（`feat: 启动页 / 登录 / 抽屉显示 preview tag (#192)`）
+  - CI SHA256 `0cd9bb035cd077ad4ff62b1ef0424b6d7235b895740d9f9a128873ac2dd3c9d1`，远端比对一致
+  - `curl -I https://mas-icare.cypress.sg/apk/icare-preview.apk` → **200**，`Content-Length: 175068045`，`Last-Modified: Tue, 18 Aug 2026 08:43:00 GMT`
+  - 上一包是 171686561 bytes，体积已变大，不是旧文件
+
 ## 2026-08-18 12:27 CST - mac-mini preview-local 覆盖 icare-preview.apk
 
 - 服务器：`dev-cypresso`（SIT Server）
