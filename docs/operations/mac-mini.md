@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 14:44 CST - preview tag 改为当天日期加序号
+
+- 服务器：无主机变更（mobile-app workflow）
+- 操作人：`Grok`
+- 原因：GitHub Tags 里 `preview-YYYYMMDD-HHMMSS` 看起来无序。
+- 影响：
+  - [PR #190](https://github.com/cypressoai/iCare-mobile-app/pull/190) 已合 main
+  - 下次触发 preview-local 会打 `2026-08-18.01`、`.02`…（Asia/Shanghai 当天，扫已有同日前缀取最大 +1）
+  - 旧 `preview-*` tag 保留不动
+- 备份：无
+- 回滚：revert #190
+- 验证：下次 `workflow_dispatch` 看 prepare 输出的 tag
+
 ## 2026-08-18 14:20 CST - preview iOS 本机 IPA 已提交 TestFlight
 
 - 服务器：`mac-mini`（`mac-mini-mobile-1`）
