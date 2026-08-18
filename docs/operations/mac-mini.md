@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 17:50 CST - 只读：fseventsd 彻底方案（尚未执行）
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读，未改 Colima、未删残留）
+- 原因：用户要「彻底解决」`fseventsd` CPU 和写放大。
+- 影响：无主机变更。方案写进复盘文档。
+- 备份：无
+- 回滚：无
+- 事实：
+  - Lima virtiofs 实挂 `/Users/konghai`、`/Users/hon` 两个整家目录。
+  - 容器真正 bind：`~/stacks/sub2api/{data,postgres_data,redis_data}`、`~/stacks/sonarqube/sonarqube-web`、`/Users/hon/richer/deployments/grafana/{dashboards,provisioning}`；其余是 VM 内 named volume。
+  - 残留：`eas-build-local-nodejs` **14G**，DerivedData **38G**。
+- 方案（需确认后再做）：
+  1. `colima.yaml` `mounts` 收到 `~/stacks` + hon 的 grafana 目录，然后 `colima restart`（sonarqube / sub2api / richer 短暂停）
+  2. 确认后清理 EAS 工作树和旧 DerivedData
+  3. 本机 EAS 与 sonar `pnpm` 错开
+- 做不到：Xcode/`pnpm` 写盘窗口里让 `fseventsd` 保持 0%。
+- 验证：只读核对 mounts / bind / 残留体积。
+- 复盘：`docs/solutions/mac-mini/performance-issues/fseventsd-high-cpu-ci-write-storm-2026-08-18.md`
+
 ## 2026-08-18 16:52 CST - preview-local 双端发布 tag `2026-08-18.03`
 
 - 服务器：`mac-mini`（`mac-mini-mobile-1`）
