@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 12:50 CST - 接入 ASC Key、GNU rsync，准备 TestFlight
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：走通 preview iOS → App Store Connect / TestFlight。
+- 影响：
+  - 本机与 mac-mini 写入 `~/.config/icare/testflight.json` + `AuthKey_3VBD4W3ZKW.p8`（600）。**未**入库、**未**写 GitHub secret
+  - `brew install rsync`（3.5.0），runner PATH 里 `/opt/homebrew/bin` 已在 `/usr/bin` 前，压过 Tahoe openrsync
+  - **未**改 runner plist、未重启 LaunchDaemon
+  - mobile-app [PR #184](https://github.com/cypressoai/iCare-mobile-app/pull/184)：IPA 成功后 `eas submit --path`
+- 备份：无（新增本机文件）
+- 回滚：删 `~/.config/icare/{testflight.json,AuthKey_3VBD4W3ZKW.p8}`；`brew uninstall rsync`
+- 验证：
+  - `asc-status.mjs --auth-only` → `auth=VALID`，app=`iCare Preview` / `ph.com.toplogic.insularhealth.preview`
+  - `which rsync`（runner PATH）→ `/opt/homebrew/bin/rsync` 3.5.0
+- 下一步：触发 `platform=ios`
+
 ## 2026-08-18 12:27 CST - preview-local Android 首次从 develop tag 打通并上传
 
 - 服务器：`mac-mini`（`mac-mini-mobile-1`）
