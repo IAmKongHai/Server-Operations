@@ -1,5 +1,37 @@
 # dev-cypresso 运维时间线
 
+## 2026-08-18 20:54 CST - 关闭 MAS / HR / MAP SIT 公网入口，改为 UAT 引导页
+
+- 服务器：`dev-cypresso`（SIT Server）
+- 操作人：`Grok`（用户要求关掉三个 SIT 站点，并保留 APK 下载）
+- 原因：SIT 环境关闭，公网入口改为英文静态说明页，引导访问 UAT。
+- 影响：
+  - `https://mas-icare.cypress.sg/`、`https://hr-icare.cypress.sg/`、`https://map-icare.cypress.sg/`（含 `/login` 等任意路径）返回同一静态 notice
+  - 不再反代本机 `mas-icare-portal`（5174）/ `hr-icare-portal`（5173）/ MAP 门户（5175），也不再转发 `mas-icare` 的 `/api/`
+  - **保留** `https://mas-icare.cypress.sg/apk/icare-preview.apk`
+  - SSL 与 HTTP→HTTPS 301 不变
+  - **未**停止门户 / API 容器（仅切入口）
+- 选型：三个站点共用同一份英文 notice，列出 MAS / HR / MAP 三个 UAT 登录地址，避免落地页再分叉。
+- 备份：
+  - `/etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260818-sit-closed`
+  - `/etc/nginx/conf.d/hr-icare.cypress.sg.conf.bak.20260818-sit-closed`
+  - `/etc/nginx/conf.d/map-icare.cypress.sg.conf.bak.20260818-sit-closed`
+  - `/var/www/mas-icare.cypress.sg/index.html.bak.20260818-sit-closed`（2026-07-31 旧说明页）
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'sudo cp /etc/nginx/conf.d/mas-icare.cypress.sg.conf.bak.20260818-sit-closed /etc/nginx/conf.d/mas-icare.cypress.sg.conf && sudo cp /etc/nginx/conf.d/hr-icare.cypress.sg.conf.bak.20260818-sit-closed /etc/nginx/conf.d/hr-icare.cypress.sg.conf && sudo cp /etc/nginx/conf.d/map-icare.cypress.sg.conf.bak.20260818-sit-closed /etc/nginx/conf.d/map-icare.cypress.sg.conf && sudo nginx -t && sudo systemctl reload nginx'
+  ```
+- 变更时序：
+  1. 备份三个 vhost 现网 conf 与 MAS 旧 `index.html`。
+  2. 写入 `/var/www/{mas,hr,map}-icare.cypress.sg/index.html`（英文 UAT 引导页）。
+  3. 重写三个 nginx conf：`root` + `try_files`；MAS 单独保留 `location /apk/`。
+  4. `nginx -t` 通过后 `systemctl reload nginx`（未 restart）。
+- 验证：
+  - 三个站点 `/` 与 `/login` → **200**，标题 `iCare SIT Closed`，正文含 `The SIT environment has been closed` 及三条 UAT 链接
+  - `https://mas-icare.cypress.sg/apk/icare-preview.apk` → **200**，`Content-Length: 175068061`，`Content-Type: application/vnd.android.package-archive`
+  - `https://mas-icare.cypress.sg/api/v1/health` 现为同一静态页（不再走上游）
+  - HTTP 80 → **301** 到 HTTPS
+
 ## 2026-08-18 16:43 CST - preview-local 覆盖 icare-preview.apk（tag `2026-08-18.03`）
 
 - 服务器：`dev-cypresso`（SIT Server）

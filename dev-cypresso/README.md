@@ -4,6 +4,8 @@ iCare 项目集成测试服务器。AWS EC2 上的 Amazon Linux，登录用户 `
 
 虽然是测试环境，iCare 团队日常在用，破坏性操作前仍需先通知或备份。
 
+2026-08-18 起，公网 MAS / HR / MAP SIT 入口已改为静态说明页，引导访问 UAT。门户容器未停。APK 下载地址不变。
+
 ## 连接
 
 ```bash
@@ -14,7 +16,7 @@ ssh dev-cypresso
 
 ## 发布 iCare preview APK
 
-公网下载：`https://mas-icare.cypress.sg/apk/icare-preview.apk`  
+公网下载：`https://mas-icare.cypress.sg/apk/icare-preview.apk`（SIT 站点关闭后仍可用）  
 线上路径：`/var/www/mas-icare.cypress.sg/apk/icare-preview.apk`
 
 把仓库根目录的 `icare-preview.apk` 一键替换到线上：
