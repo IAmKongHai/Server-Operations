@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 19:20 CST - 只读：:9000 Sonar 容器已在跑，本机 Tailscale 曾停
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户打不开 `http://mac-mini:9000/`，以为容器没起来。
+- 影响：未改 Colima、未启停容器、未改端口。本机 MacBook Air 的 Tailscale 当时是 `stopped`，已用 `tailscale up --reset --accept-routes` 重新连上（保留 accept-routes）。
+- 备份：无
+- 回滚：Air 上把 Tailscale 再关掉即可；mac-mini 无变更
+- 事实：
+  - Colima `default` Running（6 CPU / 12GiB），LaunchDaemon `com.konghai.colima` enabled
+  - 7 个容器约 1 小时前随 17:54 `colima restart` 起来，均为 Up / sonarqube **healthy**
+  - `http://127.0.0.1:9000/api/system/status` 与经 Tailscale `http://mac-mini:9000/api/system/status` 均为 `UP` / 26.3.0.120487
+  - 首页 HTML 200、`<title>SonarQube</title>`
+  - 宿主机 `:9000` 的 listener 是 Colima 用来做端口转发的 `ssh`，属正常
+  - `docker context` 的 `default` 已指向 Colima socket；`desktop-linux` 仍在但 Docker Desktop 引擎不在跑。用 Desktop 窗口看会像「没容器」
+- 验证：Air 连上 Tailscale 后 `curl http://mac-mini:9000/api/system/status` → 200 / `UP`（3ms 直连 `192.168.2.170`）
+
 ## 2026-08-18 17:58 CST - 收窄 Colima virtiofs 并清 EAS / DerivedData 残留
 
 - 服务器：`mac-mini`
