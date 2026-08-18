@@ -1,5 +1,26 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 11:30 CST - preview-local 改为 develop → release → tag；iOS 仍失败但原因变了
+
+- 服务器：`mac-mini`（只读核对 DerivedData）；workflow 改在 `iCare-mobile-app`
+- 操作人：`Grok`
+- 原因：
+  - 手动触发一直选 `main`，打出来的是 main，业务改动在 develop
+  - run [32094346074](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32094346074) 再次失败
+- 影响：
+  - **未**改 runner、未重启、未再下 Xcode 组件
+  - `eas-build-preview-local.yml` 已合 main（[PR #183](https://github.com/cypressoai/iCare-mobile-app/pull/183)）：`prepare` 把 `develop` 合进 `release`，打 `preview-YYYYMMDD-HHMMSS` tag，Android/iOS 从该 tag 构建
+  - `new-github-release.yml` 只响应 `v*`，避免 preview tag 误开 GitHub Release 并触发 EAS 云构建
+  - 下一次从 Actions 选 **main** 触发即可（用新 YAML）；包内容来自刚打的 tag
+- 备份：无主机变更
+- 回滚：revert #183
+- 验证 / 结论：
+  - 上次缺的 `iPhoneOS26.5.sdk` 这次在；编译、链接已过
+  - 死在 `[CP] Embed Pods Frameworks`（`PhaseScriptExecution`，gym exit 65）。DerivedData 里对应 `.xcactivitylog` 是 0 字节，脚本 stdout 没留下
+  - `expo-doctor` 有 4 个 patch 落后（`expo-constants` 等），不阻断构建
+  - iOS job 已加 `EAS_LOCAL_BUILD_SKIP_CLEANUP=1` 和失败 dump，方便下次看
+- 下一步：再触发一次 `platform=android` 验证 snapshot 流程；iOS Embed Frameworks 另修
+
 ## 2026-08-18 11:08 CST - iOS 26.5 Simulator 已装完，重跑 IPA
 
 - 服务器：`mac-mini`
