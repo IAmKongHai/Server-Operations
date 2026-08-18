@@ -32,7 +32,7 @@ tags:
 
 ## Problem
 
-`fseventsd` 是 macOS 的文件系统事件守护进程。它自己几乎不产生负载，但会把每个 create / unlink / rename 扇出给所有订阅者。mac-mini 上 Colima 用 `virtiofs` 挂了整个 `/Users/konghai`，再叠本机 `eas build --local`（Xcode DerivedData + `/var/folders` codegen）和 runner 的 `pnpm` / `npm ci`，几分钟内可以出现数万次写盘，活动监视器里就像 `fseventsd` 坏了。
+`fseventsd` 是 macOS 的文件系统事件守护进程。它自己几乎不产生负载，但会把每个 create / unlink / rename 扇出给所有订阅者。构建本身在 **macOS 宿主**（`eas build --local` → 本机 Xcode / 本机 Android SDK，加上 runner 的 `pnpm`），**不在 Colima 容器里**。Colima 用 `virtiofs` 挂了整个 `/Users/konghai`，只是这些写盘的旁路订阅者，可能把 `fseventsd` 再抬一截。
 
 这和 2026-07-21 那次 **Spotlight `mds` 索引** 不是同一条因果链。整卷索引已经关掉；现在的峰值发生在 job 的写盘窗口，job 一结束 CPU 归零。
 
@@ -41,7 +41,7 @@ tags:
 - `fseventsd` 在 CI / 本机构建期间飙到几十～近 100%，空闲采样连续为 0.0%，`TIME` 不再增长
 - `mdutil -s /` 与 Data 卷是 `Indexing and searching disabled`，`mds` 合计接近 0
 - 同期能数到大量新文件：`~/Library/Developer/Xcode/DerivedData`、`/private/var/folders/.../T/`（RN codegen）、`~/gha/s*` 的 `node_modules`
-- Colima `colima.yaml` 里 `mountType: virtiofs`，`mounts` 含整个 `/Users/konghai`（本机还额外挂了 `/Users/hon`）
+- Colima 当时只有 sonarqube / sub2api / richer 等常驻容器，没有构建容器；`colima.yaml` 的 `virtiofs` 挂了整个 `/Users/konghai`（另外还挂了 `/Users/hon`）
 
 ## What Didn't Work
 

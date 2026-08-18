@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 16:45 CST - 只读补充：构建不在 Colima 里
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读）
+- 原因：确认 fseventsd 排查里 Colima 是构建环境还是旁路订阅者。
+- 影响：无变更。
+- 备份：无
+- 回滚：无
+- 事实：
+  - `docker context` = `colima`。当时 `docker ps -a` 只有 7 个常驻服务（sub2api / richer / sonarqube 及其库），**没有** Expo / Android / eas-cli 构建容器，也没有对应镜像。
+  - 16:00–16:20 `docker events` 为空，这段 APK + IPA 窗口没有容器创建/销毁。
+  - iOS：`eas-build-local-nodejs/*/logs` 全部是宿主 `/Applications/Xcode.app/.../xcodebuild`，cwd 在 `/var/folders/.../T/eas-build-local-nodejs/<uuid>/build/ios`，产物进 `~/Library/Developer/Xcode/{DerivedData,Archives}`。Linux VM 跑不了 Xcode。
+  - Android：`Local Android preview APK` 是宿主 `/bin/bash`，cwd `~/gha/m1/iCare-mobile-app/iCare-mobile-app`；本机有 `~/Library/Android/sdk`，日志里没有 docker/colima。
+  - Sonar `pnpm` / Jest 同样在宿主 `~/gha/s1` `s2`。
+- 判断：构建在 **macOS 宿主 + GitHub runner**。Colima 只是 virtiofs 挂了整个 `/Users/konghai`，会**旁路订阅**这些写盘，可能放大 `fseventsd`，但不是编译发生的地方。
+- 验证：容器名单与 xcodebuild 日志如上。
+
 ## 2026-08-18 16:20 CST - 只读：fseventsd 高 CPU 是本机 EAS / CI 写盘洪峰
 
 - 服务器：`mac-mini`
