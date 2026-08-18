@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 13:12 CST - iOS 死在 codesign 证书链；等本机 sudo 装 WWDR
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：run [32101057448](https://github.com/cypressoai/iCare-mobile-app/actions/runs/32101057448) IPA 再次失败。ASC / rsync / sandbox 都过了。Xcode 日志：
+  - `Code Signing …/React.framework` with `iPhone Distribution: XIANLIANG XIE (2ZSNV9MWK6)`
+  - `unable to build chain to self-signed root`
+  - `errSecInternalComponent`
+- 影响：
+  - System.keychain 里的 WWDR 只到 **2023-02-07** 已过期
+  - LaunchDaemon 不能读登录钥匙串（`User interaction is not allowed`），所以登录钥匙串里较新的 WWDR 用不上
+  - 已放脚本 `~/bin/install-apple-wwdr-system.sh`（源：仓库 `scripts/install-apple-wwdr-system.sh`）
+  - 清掉这次 `EAS_LOCAL_BUILD_SKIP_CLEANUP` 留下的 eas-build 目录
+  - **未**改 runner、未装 System 证书（`sudo -n` 失败）
+- 备份：无
+- 回滚：无主机证书变更
+- 验证：等用户在 mac-mini 本机执行 `bash ~/bin/install-apple-wwdr-system.sh` 后再打 iOS
+- 下一步：sudo 装 G3/G4 后重跑 `platform=ios` → `eas submit` TestFlight
+
 ## 2026-08-18 12:50 CST - 接入 ASC Key、GNU rsync，准备 TestFlight
 
 - 服务器：`mac-mini`
