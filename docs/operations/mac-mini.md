@@ -1,5 +1,37 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 17:58 CST - 收窄 Colima virtiofs 并清 EAS / DerivedData 残留
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（用户确认后执行）
+- 原因：去掉 `fseventsd` 的 virtiofs 写放大，并清掉本机 EAS / Xcode 堆积。
+- 影响：
+  - Colima 重启约 16 秒。sonarqube / sub2api / richer 随 VM 拉起。
+  - virtiofs 从整个 `/Users/konghai` + `/Users/hon` 收到 `/Users/konghai/stacks` + `/Users/hon/richer/deployments/grafana`。
+  - 以后 Docker bind 只能落在这两棵树下。`~/gha`、`~/Library/Developer` 不再进 VM。
+  - 删了 11 个旧 `iCare-*` DerivedData、9 个 `eas-build-local-nodejs` 工作树。
+  - 日维护脚本会清隔夜 EAS 残留和过期旧 `iCare-*`（仍留最新一份）。
+- 备份：
+  - `~/.colima/default/colima.yaml.bak.20260818-1754`
+  - `~/gha/scripts/gha-runner-maintenance.sh.bak.20260818-1758`
+- 回滚：
+  - `cp ~/.colima/default/colima.yaml.bak.20260818-1754 ~/.colima/default/colima.yaml && colima restart`
+  - `cp ~/gha/scripts/gha-runner-maintenance.sh.bak.20260818-1758 ~/gha/scripts/gha-runner-maintenance.sh`
+  - DerivedData / EAS 工作树已删，不能从备份恢复（可重新构建）
+- 变更时序：
+  1. 确认无 `Runner.Worker` / `xcodebuild` / `eas`。
+  2. 改 `colima.yaml` mounts，`colima restart`（17:54:39–17:54:55）。
+  3. lima.yaml 与 `findmnt -t virtiofs` 已是窄路径；7 个容器 healthy。
+  4. Sonar `UP`，sub2api `/healthz` 200，Grafana `:3001/api/health` 200。
+  5. EAS 残留 14G → 0；DerivedData 38G → 13G（保留最新 `iCare-bdvlqdiskctslaamtfzzdlrqzncb` 2.4G + ModuleCache + 旧 AcquiLangAI）。
+  6. 维护脚本增加 `maybe_prune_eas_and_deriveddata`（有 builder 则跳过）。
+- 验证：
+  - virtiofs 仅 `stacks`、grafana、`vz-rosetta`
+  - `docker exec` 仍能看见 sonarqube-web / sub2api-data / grafana provisioning
+  - `fseventsd` 0.0%
+- 未做：错开 mobile EAS 与 sonar `pnpm` 是调度约定，没改 workflow。
+- 复盘：`docs/solutions/mac-mini/performance-issues/fseventsd-high-cpu-ci-write-storm-2026-08-18.md`
+
 ## 2026-08-18 17:50 CST - 只读：fseventsd 彻底方案（尚未执行）
 
 - 服务器：`mac-mini`

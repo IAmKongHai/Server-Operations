@@ -11,7 +11,7 @@ symptoms:
   - "CI 或 eas build --local 一结束，fseventsd 立刻回到 0%，不是常驻空转"
   - "Spotlight 已关、mds 接近 0，但 fseventsd 仍会在解压 / 编译窗口飙"
 root_cause: resource_exhaustion
-resolution_type: configuration_needed
+resolution_type: config_change
 severity: medium
 related_components:
   - fseventsd
@@ -102,6 +102,8 @@ mounts:
 ```
 
 然后 `colima restart`（sonarqube / sub2api / richer 会短暂停）。本机 lima.yaml 是 Colima 生成的，不要手改，restart 会重写。
+
+**已于 2026-08-18 17:54 CST 执行。** 备份 `colima.yaml.bak.20260818-1754`。`findmnt` 只剩 `stacks` 与 grafana；7 个容器自动拉起，Sonar / sub2api / Grafana 健康检查通过。同日清掉 EAS 工作树 14G 和 11 个旧 `iCare-*` DerivedData（38G → 13G），日维护脚本已加隔夜 prune。
 
 验证：
 
