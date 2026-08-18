@@ -1,5 +1,28 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 13:45 CST - 排查 audiomxd 高 CPU：ToDesk 已卸干净，是残留多输出 + Splashtop 默认输入
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户看到 `audiomad` 占 CPU 很高，怀疑 2026-08-15 卸 ToDesk 虚拟声卡引起。
+- 影响：只读排查，未杀进程、未改音频配置、未动 HAL / launchd。
+- 备份：无
+- 回滚：无变更
+- 事实：
+  - 进程名是系统自带的 `/usr/libexec/audiomxd`（Audio Mixer），不是第三方；活动监视器里容易看成 `audiomad`。
+  - pid 570，`_audiomxd`，自 **Sat 02:06**（卸 ToDesk 后那次重启）一直跑，当前约 **72% CPU**，累计 CPU 约 3647 分钟，有一条线程长期 `R`。
+  - ToDesk 本身干净：无 `ToDeskOutputDriver.driver`、无 ToDesk 进程、当前 `SystemSettings.plist` 已无 ToDesk 键。备份 `SystemSettings.plist.bak.20260815` 里还能看到当时删掉的 `ToDeskOutputDriver2ch_UID`。
+  - 仍挂着的第三方 HAL：`SplashtopRemoteSound.driver`（App 已不在 `/Applications`，plist 还在）。`ParrotAudioPlugin.driver` 是 Apple 系统插件，可忽略。
+  - 当前设备：默认输出 **LG ULTRAFINE**（48 kHz）；默认输入 **Splashtop Remote Sound**（虚拟、**44.1 kHz**）；另有「多输出设备」。Mac mini 没有内置麦克风。
+  - 「多输出设备」`~:AMS2_StackedOutput:0` 的子设备仍是 **BlackHole 2ch**（HAL 已不存在）+ **Mac mini Speakers**。首选输入列表也还写着 `BlackHole2ch_UID`。
+- 判断：ToDesk 残留不是直接原因。卸载 + 重启让 Core Audio 重建设备图，**缺了 BlackHole 的多输出设备** 和 **只剩 Splashtop 当默认输入** 更像让 `audiomxd` 空转的原因。时序上是卸 ToDesk 后暴露的，不是 ToDesk 驱动没卸干净。
+- 建议（未执行，需确认）：
+  1. 声音设置里把输入从 Splashtop 改掉（可先试 LG / 外接麦；本机无内置麦）。
+  2.「音频 MIDI 设置」里删掉仍挂着 BlackHole 的「多输出设备」。
+  3. 再 `sudo killall audiomxd coreaudiod` 让混音栈重建（会短暂无声，需确认）。
+  4. 若仍高：按 ToDesk 同类方式清 Splashtop HAL + LaunchAgent/Daemon。
+- 验证：只读结论如上；CPU 未处理。
+
 ## 2026-08-18 13:33 CST - WWDR 已过；Crashlytics 缺 plist，已跳过上传再打
 
 - 服务器：`mac-mini`
