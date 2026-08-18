@@ -1,5 +1,14 @@
 # mac-mini 运维时间线
 
+## 2026-08-18 11:08 CST - iOS 26.5 Simulator 已装完，重跑 IPA
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：`xcodebuild -downloadPlatform iOS` 下的是 **Simulator 26.5 (23F77, 8.52GB)**，exit 0。DeviceSupport 仍只有 15–16.x。已重派 `platform=ios`（run 32094346074）看 generic device destination 是否因此能过。
+- 影响：磁盘约 +8.5GB 模拟器运行时。未改 runner。
+- 回滚：Xcode Settings → Components 可删该 Simulator。
+- 验证：`simctl list runtimes` 现有 iOS 26.5 Available。IPA 结果待该 run。
+
 ## 2026-08-18 11:00 CST - iOS local 失败因缺 iOS 26.5 设备平台；已开始下载
 
 - 服务器：`mac-mini`
