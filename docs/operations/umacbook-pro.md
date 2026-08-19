@@ -1,5 +1,20 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-19 17:45 CST - 拉起 ToDesk GUI，供连上后改 runner / Tailscale Daemon
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：要对这台做和 lemon-imac 一样的改造（runner + Tailscale 改 LaunchDaemon）。先让用户用 ToDesk 连上，因为卸 GUI Tailscale 后 `ssh umacbook-pro`（`100.113.23.49`）会断。
+- 影响：仅 `open -a ToDesk --args -AutoRun YES`。未重启 `ToDesk_Service`、未动 runner、未动 Tailscale、无 sudo。
+- 备份：无。
+- 回滚：GUI 里退出即可。
+- 验证：
+  - 控制台用户是 `for-konghai`（Aqua `gui/502` 在），无需 sudo
+  - 新 GUI pid 9545，监听 `127.0.0.1:37600`；Service 仍是 07-17 起的 pid 42202 / `35600`
+  - 设备码 **`254880455`**（与 2026-07-21 记录一致）
+  - `umacbook-pro-1/2` Listener 未受影响
+- 备注：Service 已跑 33 天。若客户端连不上，再在本机 `sudo` 完整重启（lemon-imac 同款脚本）。
+
 ## 2026-08-13 10:49 CST - 定位 public frontend Sonar 首跑失败为 Tailscale DERP 瞬断
 
 - 服务器/设备：`umacbook-pro`（self-hosted runner `umacbook-pro-1`）；对照 `mac-mini` SonarQube
