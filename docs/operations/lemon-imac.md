@@ -1,5 +1,31 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-19 16:09 CST - runner 从 LaunchAgent 改为 LaunchDaemon（注销后仍在线）
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（写脚本 / 挪走 Agent / 核对）、`konghai`（本机 `sudo` 安装脚本）
+- 原因：`for-konghai` 没有图形会话时 LaunchAgent 不起；控制台长期是 `zhangli`，两个 slot 自 2026-08-09 起 offline。需要和 mac-mini 一样，注销桌面后 runner 仍接 job。
+- 影响：
+  - `lemon-imac-1/2` 现为 `system/actions.runner.cypressoai.lemon-imac-N`，以 `for-konghai` 跑 `runsvc.sh`（`KeepAlive` + `SessionCreate` + `HOME` / `GOCACHE` 等写进 plist）
+  - 日/周维护一并改成 Daemon：`system/com.cypressoai.gha-runner-maintenance{,-weekly}`（03:25 / 周日 04:45）。Agent 时代 `for-konghai` 未登录就不会跑，盘会再涨
+  - 旧 Agent plist 停在 `~/Library/LaunchAgents.disabled-20260819/`
+- 选型：官方 `./svc.sh install` 只会装 LaunchAgent，装完登录后会和 Daemon 双开。安装脚本：`~/gha/scripts/install-lemon-imac-runner-daemons.sh`（仓库副本 `scripts/install-lemon-imac-runner-daemons.sh`）
+- 备份：上述 disabled 目录里的原 plist
+- 回滚方式：`sudo launchctl bootout system/actions.runner.cypressoai.lemon-imac-{1,2}` 并删对应 `/Library/LaunchDaemons` plist；需要时把 disabled 目录里的 Agent 移回 `~/Library/LaunchAgents`。不要再 `./svc.sh install`
+- 变更时序：
+  1. 确认两 slot 已 Stopped、无 `Runner.Worker`（GitHub offline 自 08-09）
+  2. 把四个 LaunchAgent plist 挪到 `~/Library/LaunchAgents.disabled-20260819/`
+  3. 用户 `sudo` 跑安装脚本：写 `/Library/LaunchDaemons`、`bootstrap system`、`kickstart` 两个 runner
+  4. 核对 Listener + GitHub online
+- 验证：
+  - 控制台用户仍是 `zhangli`；`for-konghai` 只有 SSH，无 Aqua 会话
+  - `launchctl print system/actions.runner.cypressoai.lemon-imac-{1,2}`：`type = LaunchDaemon`、`state = running`、`username = for-konghai`
+  - 两 slot 日志 `Connected to GitHub` → **`Listening for Jobs`**（runner 2.336.0）
+  - GitHub：`lemon-imac-1` / `lemon-imac-2` 均为 **online / busy=false**
+  - 维护两个 job `state = not running`、`runs = 0`（日历调度，到点才跑），`plutil -lint` 四个 plist OK
+- 备注：FileVault 冷启动仍要有人在登录窗解锁磁盘；这和 Daemon 无关。**不要**再跑 `./svc.sh install` / `start`
+- 关联：`docs/runbooks/lemon-imac-runner-start-stop.md`；mac-mini 同做法见 `docs/runbooks/mac-mini-runner-start-stop.md` 与 2026-08-15 时间线
+
 ## 2026-08-08 22:25 CST - 统一 slot 1 workFolder 为 `~/gha/li1`（含维护 plist 同步）
 
 - 服务器：`lemon-imac`

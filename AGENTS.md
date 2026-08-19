@@ -113,11 +113,11 @@
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
   - `/Users/for-konghai/gha/li{1,2}` — 对应 slot 的短路径 workFolder（2026-08-08 由不对称的 `li`/`li2` 统一而来）
-  - 改 workFolder 时必须同步改两个维护 LaunchAgent plist 里硬编码的 `WORK_DIRS`，否则每日/每周清理会静默失效、磁盘涨回去
+  - 改 workFolder 时必须同步改两个维护 LaunchDaemon plist 里硬编码的 `WORK_DIRS`，否则每日/每周清理会静默失效、磁盘涨回去
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/cache/go-build` — per-slot Go 编译缓存（共享 `GOMODCACHE=~/go/pkg/mod`）
   - `/Users/for-konghai/gha/cache/pnpm-store` — 本机 pnpm store（两 slot 共享）
-  - `/Users/for-konghai/gha/scripts/` — 维护脚本（`gha-runner-maintenance.sh`、`prune-gocache.sh`）
-  - LaunchAgent：runner 为 `actions.runner.cypressoai.lemon-imac-{1,2}`；维护任务为 `com.cypressoai.gha-runner-maintenance{,-weekly}`（走 LaunchAgent 而非 crontab，crontab 被 TCC 拒绝）
+  - `/Users/for-konghai/gha/scripts/` — 维护与启停脚本（`gha-runner-maintenance.sh`、`prune-gocache.sh`、`install-lemon-imac-runner-daemons.sh`、`lemon-imac-runner-resume.sh`）
+  - LaunchDaemon（2026-08-19 起，注销图形用户后仍在线）：runner 为 `system/actions.runner.cypressoai.lemon-imac-{1,2}`；维护任务为 `system/com.cypressoai.gha-runner-maintenance{,-weekly}`（crontab 被 TCC 拒绝，不能再改回 LaunchAgent）。**不要** `./svc.sh install` / `start`，那会把 LaunchAgent 装回 `~/Library/LaunchAgents` 并和 Daemon 双开。启停见 `docs/runbooks/lemon-imac-runner-start-stop.md`
   - 当前 labels 同 `umacbook-pro`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
   - 8GB 内存 + 双 slot 并发容易顶满内存/磁盘，重活优先派给 `mac-mini`
 - `umacbook-pro` 目录约定：
