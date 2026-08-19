@@ -1,5 +1,16 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-19 16:50 CST - 预装 Homebrew tailscale，未启动、未卸 GUI
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`
+- 原因：用户已用 ToDesk 连上，准备把 Tailscale 从 GUI Standalone 换成 LaunchDaemon。GUI 一卸，本机 `ssh lemon-imac`（写死 `100.81.246.93`）会断；iMac LAN 是 `10.0.0.129`，操作机在 `192.168.2.109`，直连 ping 不通，没有 mac-mini 那种 `ProxyJump pve` 兜底。必须先把 formula 装好，再让用户在 ToDesk 里卸 GUI、启 daemon。
+- 影响：只 `brew install tailscale` 1.102.2。**未** `brew services start`，**未**卸 `/Applications/Tailscale.app`，隧道仍是 macsys 1.98.9 / `100.81.246.93`。
+- 备份：无（新装 formula，与 GUI 并存但没启动）。
+- 回滚：`brew uninstall tailscale`。不要在 GUI 还在时 `brew services start`。
+- 验证：`brew services info` = Running/Loaded false；无 `tailscaled` 进程；`/usr/local/bin/tailscale ip -4` 仍 `100.81.246.93`。
+- 下一步（用户在 ToDesk 里做）：拖走 Tailscale.app → 确认卸系统扩展 → 清空废纸篓 → 按提示重启 → 再连 ToDesk → `sudo ~/gha/scripts/start-lemon-imac-tailscaled.sh` → 浏览器登录 → 把新 `100.x` 发回。
+
 ## 2026-08-19 16:36 CST - 重启 ToDesk，供本机连上后改 Tailscale Daemon
 
 - 服务器：`lemon-imac`
