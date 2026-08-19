@@ -1,5 +1,28 @@
 # mac-mini 运维时间线
 
+## 2026-08-19 13:02 CST - 只读：SSH 上 setup 只转了 55942，本机 localhost:3000 打不开登录页
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读；未杀 `setup`、未改 hon 的 daemon / compose）
+- 原因：用户按 CLI 提示在本机 `ssh -L 55942:127.0.0.1:55942 konghai@mac-mini`，再打开 `http://localhost:3000/login?cli_callback=...`，登录不成。
+- 影响：无主机变更。konghai 的 `setup` 仍在等认证。
+- 备份：无
+- 回滚：无
+- 事实：
+  - mac-mini `multica setup self-host` pid 94577 自 12:57 仍在；`127.0.0.1:55942` 由该进程监听。
+  - 本机隧道 pid 45457 正常；`curl 127.0.0.1:55942/callback` → 400（缺参数，说明打到了 CLI）。
+  - 本机 `127.0.0.1:3000` **没有进程**，`curl` connection refused。
+  - Tailscale `http://100.108.64.126:3000/login` → 200 Multica 页面。
+  - `/api/config`：`allow_signup=true`，`daemon_server_url` / `daemon_app_url` 都是 `http://100.108.64.126:3000`（前端地址，和昨天的 `--server-url` 坑同类）。
+  - backend 对 Origin `http://100.108.64.126:3000` 回了 `Access-Control-Allow-Origin`，经 Tailscale 打开登录页可走 API。
+- 结论：提示里的 `localhost:3000` 是 mac-mini 的前端，不是笔记本。只转 callback 不够。
+- 正确做法（未代操作）：
+  - 保留现有 `setup` 和 `-L 55942`，本机打开 `http://100.108.64.126:3000/login?cli_callback=http://localhost:55942/callback&cli_state=<当次 state>`
+  - 或再 `-L 3000:127.0.0.1:3000` 后用 CLI 原 URL
+  - 或 `multica login --token`
+- 验证：本机 3000 refused、55942 隧道通、TS :3000 200。
+- 复盘：`docs/solutions/mac-mini/integration-issues/multica-setup-ssh-login-localhost-3000-2026-08-19.md`
+
 ## 2026-08-19 12:54 CST - 只读：multica setup self-host 连不上 :3000 是 URL 指错
 
 - 服务器：`mac-mini`

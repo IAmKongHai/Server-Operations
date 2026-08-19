@@ -105,3 +105,4 @@ UI 里「Add a computer」有时会把前端 URL 填进 `--server-url`（同类�
 - 官方：<https://multica.ai/docs/self-host-quickstart>
 - [multica#3816](https://github.com/multica-ai/multica/issues/3816) — Cloud「Add a computer」把 frontend 当成 `--server-url`
 - `docs/operations/mac-mini.md` — 2026-08-19 排查记录
+- `docs/solutions/mac-mini/integration-issues/multica-setup-ssh-login-localhost-3000-2026-08-19.md` — SSH 下只转 callback、本机 3000 打不开登录页
