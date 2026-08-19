@@ -118,6 +118,7 @@
   - `/Users/for-konghai/gha/cache/pnpm-store` — 本机 pnpm store（两 slot 共享）
   - `/Users/for-konghai/gha/scripts/` — 维护与启停脚本（`gha-runner-maintenance.sh`、`prune-gocache.sh`、`install-lemon-imac-runner-daemons.sh`、`lemon-imac-runner-resume.sh`）
   - LaunchDaemon（2026-08-19 起，注销图形用户后仍在线）：runner 为 `system/actions.runner.cypressoai.lemon-imac-{1,2}`；维护任务为 `system/com.cypressoai.gha-runner-maintenance{,-weekly}`（crontab 被 TCC 拒绝，不能再改回 LaunchAgent）。**不要** `./svc.sh install` / `start`，那会把 LaunchAgent 装回 `~/Library/LaunchAgents` 并和 Daemon 双开。启停见 `docs/runbooks/lemon-imac-runner-start-stop.md`
+  - Tailscale：Homebrew `tailscaled` 1.102.2，LaunchDaemon `system/homebrew.mxcl.tailscale`，节点 `100.81.246.93` / MagicDNS `lemon-imac`。**不要**再装 GUI Standalone（会和 daemon 抢隧道）。CLI：`/opt/homebrew/bin/tailscale`
   - 当前 labels 同 `umacbook-pro`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
   - 8GB 内存 + 双 slot 并发容易顶满内存/磁盘，重活优先派给 `mac-mini`
 - `umacbook-pro` 目录约定：

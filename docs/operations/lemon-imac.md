@@ -1,5 +1,23 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-19 17:13 CST - Tailscale 已换成 brew LaunchDaemon，IP 仍是 100.81.246.93
+
+- 服务器：`lemon-imac`
+- 操作人：`konghai`（卸 GUI、登录、把节点 IPv4 改回原地址）、`Grok`（预装 formula、写启动脚本、核对）
+- 原因：GUI Standalone 绑登录会话；注销或不登 `for-konghai` 桌面时隧道会断。改成和 mac-mini 一样的开源 `tailscaled` LaunchDaemon。
+- 影响：
+  - `/Applications/Tailscale.app` 已卸，无 `io.tailscale.ipn.macsys` 残留
+  - `system/homebrew.mxcl.tailscale` running（pid 5016，`tailscaled` 1.102.2），`WantRunning=true`，`--hostname=lemon-imac`，`--operator=for-konghai`，`CorpDNS=true`
+  - 节点 IPv4 **仍是** `100.81.246.93`（用户在管理后台改回），MagicDNS `lemon-imac.taila93443.ts.net` 指向同一地址
+  - 本机 `~/.ssh/config` 的 `Host lemon-imac` 不用改
+- 备份：无（新登录，未搬 GUI 状态）。旧 GUI 已卸。
+- 回滚：`sudo brew services stop tailscale` 后重装 GUI Standalone；不要两套同时跑。
+- 验证：
+  - `ssh lemon-imac` → `SSH_OK`；`ping 100.81.246.93` / `ping lemon-imac` 通
+  - `tailscale status` 本机见 `lemon-imac` active，直连
+  - 重启后 runner LaunchDaemon 已自起：`lemon-imac-1/2` Listener 16:49 起在听
+- 备注：`brew services info` 非 root 会显示 Running false，以 `launchctl print system/homebrew.mxcl.tailscale` 为准。FileVault 冷启动仍要人在登录窗解锁。
+
 ## 2026-08-19 16:50 CST - 预装 Homebrew tailscale，未启动、未卸 GUI
 
 - 服务器：`lemon-imac`
