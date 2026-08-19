@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-08-19 14:58 CST - 只读：Multica 预克隆 403 是 HTTPS 凭证，主仓已由 SSH 拉下
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读；未改 git credential、未停 daemon、未改 Multica 挂仓）
+- 原因：用户问启动时 iCare 私有仓 403 / `-25308` 是什么意思、要不要修。
+- 影响：无主机变更。
+- 备份：无
+- 回滚：无
+- 事实：
+  - runtime 仍 online（profile `konghai` pid 95167）。
+  - HTTPS `git ls-remote https://github.com/cypressoai/iCare-backend.git` 在 SSH 会话里同样 403 + `-25308`。
+  - SSH `git ls-remote git@github.com:cypressoai/iCare-backend.git` 成功；`ssh -T git@github.com` → `IAmKongHai`。
+  - `gh` 登录 `IAmKongHai`，`iCare` admin、`iCare-backend` push；`cypresso-ai/icare-sit` 404。
+  - `~/.git-credentials` 有两条 github.com：先 `x-access-token` 再 `IAmKongHai`。系统 helper 还有 Xcode `osxkeychain`。
+  - 缓存目录里已经有 SSH 拉下来的包：`iCare` ~844M、`iCare-backend` ~179M、`iCare-frontend-mas` ~37M、`richer` ~15M。没有 `icare-sit`。
+- 结论：403 是 HTTPS 用了错误/过期 token + 后台打不开钥匙串。不是「没写权限」。主仓任务可以从 cache worktree 干活。`icare-sit` 是另一个 org，当前 GitHub 用户看不见。
+- 建议（未执行）：workspace 挂 SSH URL；GUI 里 `gh auth setup-git`；或给 `IAmKongHai` 开 `icare-sit` / 从 workspace 卸掉。
+- 复盘：`docs/solutions/mac-mini/integration-issues/multica-daemon-https-repo-cache-403-2026-08-19.md`
+
 ## 2026-08-19 13:13 CST - 已把 mac-mini 配成 konghai 的 Multica runtime
 
 - 服务器：`mac-mini`
