@@ -1,5 +1,26 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-19 18:01 CST - runner 从 LaunchAgent 改为 LaunchDaemon；预装 brew tailscale 未启动
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（写脚本 / 预装 formula / 核对）、`konghai`（本机 `sudo` 安装 runner）
+- 原因：和 lemon-imac 一样，注销图形用户后 runner 仍要接 job。控制台还有 `u` 的会话，`for-konghai` 注销后 LaunchAgent 会停。
+- 影响：
+  - `umacbook-pro-1/2` 现为 `system/actions.runner.cypressoai.umacbook-pro-N`，`KeepAlive` + `SessionCreate`，`HOME` / `GOCACHE` 写进 plist
+  - 维护改成 Daemon：每日 03:20 / 周日 04:40，`MAX_GB=15`，`WORK_DIRS` 为 `u1 u2`
+  - 原 crontab 两行 `gha-runner-maintenance` 已删（只剩空表），避免和 Daemon 双跑
+  - 旧 Agent 停在 `~/Library/LaunchAgents.disabled-20260819/`
+  - 已 `brew install tailscale` 1.102.2，**未** `brew services start`，GUI Standalone 仍在，IP 仍 `100.113.23.49`
+- 选型：官方 `./svc.sh install` 只会装 LaunchAgent。安装脚本：`~/gha/scripts/install-umacbook-pro-runner-daemons.sh`
+- 备份：disabled 目录里的原 plist
+- 回滚：`sudo launchctl bootout system/actions.runner.cypressoai.umacbook-pro-{1,2}` 并删对应 `/Library/LaunchDaemons` plist；把 Agent 移回 `~/Library/LaunchAgents`；crontab 可从本条目拷回。不要再 `./svc.sh install`
+- 验证：
+  - `launchctl print`：`type = LaunchDaemon`、`state = running`、`username = for-konghai`
+  - 两 slot 日志 **`Listening for Jobs`**（2.336.0）；GitHub `umacbook-pro-1/2` 均为 **online / busy=false**
+  - 无 `tailscaled` 进程；`/Applications/Tailscale.app` 仍在
+- 下一步：用户在 ToDesk 里卸 GUI Tailscale → 按提示重启 → 再连 ToDesk → `sudo ~/gha/scripts/start-umacbook-pro-tailscaled.sh` → 浏览器登录 → 把新 `100.x` 发回（也可在管理后台改回 `100.113.23.49`）
+- 关联：`docs/runbooks/umacbook-pro-runner-start-stop.md`
+
 ## 2026-08-19 17:45 CST - 拉起 ToDesk GUI，供连上后改 runner / Tailscale Daemon
 
 - 服务器：`umacbook-pro`

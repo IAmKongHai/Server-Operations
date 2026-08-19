@@ -164,7 +164,7 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 |------|------|------|
 | mac-mini | crontab 03:15 日 / 周日 04:30 | `~/gha/scripts/gha-runner-maintenance.sh` |
 | lemon-imac | LaunchDaemon 03:25 / 周日 04:45（crontab TCC 不可用；2026-08-19 由 LaunchAgent 改来，注销后仍调度） | 同上 |
-| umacbook-pro | crontab + LaunchAgent 兜底 | 同上；MAX_GB=15 |
+| umacbook-pro | LaunchDaemon 03:20 / 周日 04:40（2026-08-19 由 crontab+LaunchAgent 改来，注销后仍调度；MAX_GB=15） | 同上 |
 | mas-go-dev | systemd timer 03:15 / 周日 04:30 UTC | `/opt/gha-scripts/...`；含 CI + 部署 work |
 | dev-cypresso | systemd timer 03:50 UTC | **仅** work 清理，不碰 buildx / 质量 store |
 
@@ -201,3 +201,4 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 - 2026-07-20 四机缓存基线：per-slot `GOCACHE`、共享 `GOMODCACHE`、mas 清 ~128G go-build；计划 `docs/plans/2026-07-20-001-ops-ci-runner-cache-baseline-plan.md`；backend PR #1094
 - 2026-08-03 CI 池加固：共享 `PNPM_STORE_PATH`、日/周维护脚本（work + go-build + store prune）、mas/dev-cypresso systemd timer、lemon LaunchAgent（见各机 `docs/operations/*.md`）；仓库 `scripts/gha-runner-maintenance.sh`
 - 2026-08-19 lemon-imac runner + 维护任务改为 LaunchDaemon（注销图形用户后仍在线）；不要再 `./svc.sh install`。见 `docs/runbooks/lemon-imac-runner-start-stop.md`、`docs/operations/lemon-imac.md`
+- 2026-08-19 umacbook-pro 同样改为 LaunchDaemon；原 crontab 已删避免双跑。见 `docs/runbooks/umacbook-pro-runner-start-stop.md`

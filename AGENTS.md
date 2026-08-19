@@ -122,9 +122,11 @@
   - 当前 labels 同 `umacbook-pro`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
   - 8GB 内存 + 双 slot 并发容易顶满内存/磁盘，重活优先派给 `mac-mini`
 - `umacbook-pro` 目录约定：
-  - `/Users/for-konghai/actions-runner/umacbook-pro-{1,2}/` — GitHub Actions runner 程序与配置
+  - `/Users/for-konghai/actions-runner/umacbook-pro-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
   - `/Users/for-konghai/gha/u{1,2}/` — 对应 slot 的短路径 workFolder
-  - LaunchAgent：`actions.runner.cypressoai.umacbook-pro-{1,2}`
+  - `/Users/for-konghai/gha/scripts/` — 维护与启停脚本（`gha-runner-maintenance.sh`、`install-umacbook-pro-runner-daemons.sh`、`umacbook-pro-runner-resume.sh`、`start-umacbook-pro-tailscaled.sh`）
+  - LaunchDaemon（2026-08-19 起，注销图形用户后仍在线）：runner 为 `system/actions.runner.cypressoai.umacbook-pro-{1,2}`；维护任务为 `system/com.cypressoai.gha-runner-maintenance{,-weekly}`（原 crontab 已删，避免双跑）。**不要** `./svc.sh install` / `start`。启停见 `docs/runbooks/umacbook-pro-runner-start-stop.md`
+  - Tailscale：计划与 lemon-imac 相同（Homebrew `tailscaled` LaunchDaemon）。未完成前仍可能是 GUI Standalone `100.113.23.49`
   - 当前 labels：`self-hosted,macos,arm64,macos-arm64,umacbook-pro,frontend-tests-ci,frontend-quality-ci,backend-ci`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
 - `mas-go-dev` 上的目录约定：
   - `/opt/mas-go-dev/backend/` — iCare backend 部署目录，每次 PR 由 runner 同步 `backend.compose.yaml`、构建镜像并滚动 `api` + `worker` 容器；`.env.docker` 在此本地维护（600 权限），仓库内对应 `backend/.env.docker.example`
