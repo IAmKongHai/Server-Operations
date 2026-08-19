@@ -22,7 +22,7 @@
 
 | Runner name | 主机 | 关键 labels（含默认） |
 |-------------|------|---------------------|
-| `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci` |
+| `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci`。**2026-08-19 起 3/4 `launchctl disable` / GitHub offline**，在线只剩 1/2 |
 | `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签） |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
@@ -173,7 +173,7 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 ### 并发建议
 
 - 同物理机 N 个 slot = N 倍 `_work` + 出口流量；8GB 机（lemon / umacbook）**1～2 slot** 已足够质量门。
-- mac-mini 10 核 / 32GB 可保留 4 slot（重活 + 分片），但仍受磁盘峰值约束。
+- mac-mini 10 核 / 32GB 历史上可保留 4 slot（重活 + 分片），但仍受磁盘峰值约束。**2026-08-19 起主动停 3/4**，给本机 Multica runtime 留并发；独占 `mac-mini-sonar` 重活只剩两路。
 - **不要**为减流量去清空整个 `_tool`（Sonar Scanner / setup-go 会重新大流量下载）。
 
 ## 标签运维命令

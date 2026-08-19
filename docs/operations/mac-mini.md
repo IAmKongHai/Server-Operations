@@ -1,5 +1,38 @@
 # mac-mini 运维时间线
 
+## 2026-08-19 16:35 CST - 停用 mac-mini-sonar-3/4，给 Multica 留并发
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：mac-mini 已作 konghai 的 Multica runtime（hon 的 daemon / `colima-multica` 也在）。4 路 sonar slot 高峰会和本地 agent 抢 10 核。用户确认先停 3/4。
+- 影响：
+  - `mac-mini-sonar` 独占重活（Coverage / 全量 branch Sonar / deploy quality-gate）最多两路并行。
+  - 共享池少 2 个 mac-mini slot。当时 `lemon-imac-1/2` 已 offline，测试分片实际剩 `mac-mini`×2 + `umacbook-pro`×2。
+  - **未**注销 GitHub runner，**未**动 `mac-mini-sonar-1/2` 与 `mac-mini-mobile-1`。
+- 选型：`launchctl disable` + `bootout`，不 `config.sh remove`。回滚只需 enable + bootstrap / kickstart。
+- 备份：`~/bin/mac-mini-runner-resume.sh.bak.20260819-1634`
+- 回滚方式：
+  ```bash
+  sudo /bin/launchctl enable system/actions.runner.cypressoai.mac-mini-sonar-3
+  sudo /bin/launchctl enable system/actions.runner.cypressoai.mac-mini-sonar-4
+  sudo /bin/launchctl bootstrap system /Library/LaunchDaemons/actions.runner.cypressoai.mac-mini-sonar-3.plist
+  sudo /bin/launchctl bootstrap system /Library/LaunchDaemons/actions.runner.cypressoai.mac-mini-sonar-4.plist
+  # 或 sudo ~/bin/mac-mini-runner-resume.sh（恢复 3/4 前先把脚本里的 3/4 加回 labels）
+  cp ~/bin/mac-mini-runner-resume.sh.bak.20260819-1634 ~/bin/mac-mini-runner-resume.sh
+  ```
+- 变更时序：
+  1. 15:54 接到时 3/4 正在跑 `iCare-frontend-mas` PR #1594 `sonar.yml`，未杀 job。
+  2. 16:34 五 slot 均 `busy=false`，无 `Runner.Worker`。
+  3. `cp` 备份 resume 脚本。
+  4. `sudo /bin/launchctl disable` 3/4（免密 sudo 只覆盖 `/bin/launchctl`）。
+  5. `bootout` 卸掉 launchd job；Listener 成孤儿后 `kill -TERM`。
+  6. resume 脚本改为只 kickstart 1/2 + mobile-1。
+- 验证：
+  - launchd：3/4 `disabled` 且 `print` 找不到 service；1/2/mobile `state=running`
+  - 本机只剩 3 个 `Runner.Listener`（sonar-1/2、mobile-1）
+  - GitHub：`mac-mini-sonar-3/4` `status=offline`；1/2 与 mobile-1 `online` `busy=false`
+- 未做：未处理 `lemon-imac` offline；维护 cron 仍扫 `s3`/`s4` 工作目录（只清缓存，不拉起 runner）
+
 ## 2026-08-19 14:58 CST - 只读：Multica 预克隆 403 是 HTTPS 凭证，主仓已由 SSH 拉下
 
 - 服务器：`mac-mini`
