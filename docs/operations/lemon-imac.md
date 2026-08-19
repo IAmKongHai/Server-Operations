@@ -1,5 +1,24 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-19 16:36 CST - 重启 ToDesk，供本机连上后改 Tailscale Daemon
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（写脚本 / 核对）、`konghai`（本机 `sudo`）
+- 原因：用户要先用 ToDesk 连上 iMac 图形界面，再把 Tailscale 装成 LaunchDaemon。当时 `ToDesk_Service` 16:28 自己被 KeepAlive 拉过一次（`last exit code = 5`），但 `zhangli` 的 GUI 从 08-17 07:02 一直挂着。
+- 影响：只重启 ToDesk。未改 Tailscale、未动 runner、未 reboot。
+- 备份：无配置改动。脚本落在 `~/gha/scripts/restart-todesk.sh`。
+- 回滚：不必；ToDesk 本就常驻。若要再拉：`sudo ~/gha/scripts/restart-todesk.sh`
+- 变更时序：
+  1. `killall` / `killall -9` ToDesk 相关进程
+  2. `launchctl kickstart -k system/com.youqu.todesk.service`
+  3. `launchctl asuser $(id -u zhangli)` 以 `zhangli` 再 `open -a ToDesk --args -AutoRun YES`
+- 验证：
+  - `ToDesk_Service` pid 56340、`zhangli` GUI pid 56346，均 16:36:40 新起
+  - 本机监听 `127.0.0.1:35600`（Service）/ `37600`（zhangli GUI）
+  - 16:38 已见 `ToDesk_Session --myid=126978008 --isVideoSession=true`（设备码与 2026-07-21 记录一致）
+  - runner 未受影响：`lemon-imac-1/2` Listener 仍为 37317 / 37320
+- 未做：Tailscale 仍是 GUI Standalone 系统扩展，等用户连上后再改 Daemon
+
 ## 2026-08-19 16:09 CST - runner 从 LaunchAgent 改为 LaunchDaemon（注销后仍在线）
 
 - 服务器：`lemon-imac`
