@@ -1,5 +1,30 @@
 # mac-mini 运维时间线
 
+## 2026-08-19 12:54 CST - 只读：multica setup self-host 连不上 :3000 是 URL 指错
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读，未改守护进程、未跑 `setup`、未动 hon 的 compose）
+- 原因：用户在 `mac-mini` 上执行 `multica setup self-host --server-url http://100.108.64.126:3000 --app-url http://100.108.64.126:3000`，报 *Server is not reachable*。
+- 影响：无主机变更。konghai 的 `~/.multica` 仍不存在；hon 的 daemon 未动。
+- 备份：无
+- 回滚：无
+- 事实：
+  - `100.108.64.126` 就是本机 Tailscale IPv4，不是另一台控制面。
+  - hon 的 `colima-multica` 自 Sat 15:00 在跑；宿主 `*:3000` / `*:8080` 由 lima SSH 转发（pid 55727）。
+  - `GET :3000/` → 200 Next.js HTML；`GET :3000/health` → **404**。
+  - `GET :8080/health` → 200 `{"status":"ok"}`；`GET :8080/healthz` → 200，db / migrations ok。经 Tailscale IP 同样通。
+  - CLI `multica 0.4.29`；`setup self-host` 默认 backend `localhost:8080`、frontend `localhost:3000`，先探 `<server-url>/health`。
+  - 已有 runtime：`hon` pid 6857，自 2026-08-18 17:02，`multica daemon start --foreground --server-url http://localhost:8080`，4 个 workspace，agents = grok / claude / codex。konghai 跑 `multica daemon status` 看到的就是这个进程。
+  - konghai 的 PATH 上没有 `grok` / `claude` / `codex`。
+- 结论：服务没挂。`--server-url` 指到了前端 3000，健康检查 404 被报成 unreachable。
+- 正确做法（未执行，需用户在本机登录）：
+  - 人已经在 mac-mini 上：`multica setup self-host`
+  - 或 `--server-url http://100.108.64.126:8080 --app-url http://100.108.64.126:3000`（可能撞 `FRONTEND_ORIGIN=localhost:3000` 的 CORS）
+  - SSH 无浏览器时用 `multica login --token`
+  - 不要停 hon 的 daemon
+- 验证：只读 curl / `multica setup self-host --help` / `ps` 如上。
+- 复盘：`docs/solutions/mac-mini/integration-issues/multica-setup-self-host-server-url-frontend-2026-08-19.md`
+
 ## 2026-08-18 22:29 CST - 放入 preview iOS Firebase plist，供 GHA 本机构建拷入 IPA
 
 - 服务器：`mac-mini`（`mac-mini-mobile-1`）
