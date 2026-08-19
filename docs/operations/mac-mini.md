@@ -1,5 +1,38 @@
 # mac-mini 运维时间线
 
+## 2026-08-19 13:13 CST - 已把 mac-mini 配成 konghai 的 Multica runtime
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：浏览器 SSH 回调登录走不通；用户要求直接配置。
+- 影响：
+  - 用户 `k@cypresso.ai` 已登录 CLI。
+  - 独立 profile `konghai` 的 daemon 在跑（pid 95167，0.4.29），**未停** hon 的 daemon（pid 6857）。
+  - 在 hontest / iCare / cmm 各注册了 Claude / Codex / Grok 三个 runtime，显示名 `*(mac-mini)`，状态 online。
+  - 写了用户级 LaunchAgent plist，SSH 会话里 `bootstrap gui/` 失败，**当前没有**交给 launchd；下次 GUI 登录后才会自动拉起。
+- 选型：绕开浏览器回调。本机 self-host 开发验证码 `888888` 对 `k@cypresso.ai` 有效，签发一年期 PAT，再 `multica login --token`。默认 profile 会把 hon 的进程当成「已在跑」，所以用 `--profile konghai`。
+- 备份：原先没有 konghai 的 daemon 状态；PAT 明文只在 `~/.multica/config.json` 与 profile 配置里（600）。
+- 回滚：
+  - `multica --profile konghai daemon stop`
+  - 删 `~/Library/LaunchAgents/ai.multica.daemon.konghai.plist`
+  - 在 Multica Settings 里吊销 PAT `mac-mini-konghai-runtime`
+- 变更时序：
+  1. `POST /auth/send-code` + `verify-code`（k@cypresso.ai / 888888）拿到会话。
+  2. `POST /api/tokens` 建 PAT `mac-mini-konghai-runtime`（365 天）。
+  3. `multica login --token` → 3 个 workspace。
+  4. 默认 `daemon start` 被 hon pid 6857 挡住；改 `--profile konghai --daemon-id mac-mini-konghai` 成功。
+  5. 写 LaunchAgent；`launchctl bootstrap gui/501` 从 SSH 返回 125。先 CLI 把 daemon 拉回。
+- 验证：
+  - `multica --profile konghai auth status` → k / k@cypresso.ai
+  - `multica --profile konghai daemon status` → running，agents claude/codex/grok，3 workspaces
+  - health `127.0.0.1:20252` → running / daemon_id=mac-mini-konghai
+  - `runtime list` 有 `Claude/Codex/Grok (mac-mini)` online
+  - hon pid 6857 仍在
+- 未做 / 已知限制：
+  - iCare 若干 repo 预克隆 403（`Write access to repository not granted` + keychain `-25308`）。runtime 已注册，碰到要写这些仓的任务可能失败。
+  - LaunchAgent 尚未 load，重启后需 GUI 登录一次，或再执行 `multica --profile konghai daemon start ...`
+- 复盘：`docs/solutions/mac-mini/integration-issues/multica-setup-ssh-login-localhost-3000-2026-08-19.md`
+
 ## 2026-08-19 13:02 CST - 只读：SSH 上 setup 只转了 55942，本机 localhost:3000 打不开登录页
 
 - 服务器：`mac-mini`

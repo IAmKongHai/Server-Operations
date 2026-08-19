@@ -70,11 +70,29 @@ ssh -L 3000:127.0.0.1:3000 -L 55942:127.0.0.1:55942 konghai@mac-mini
 
 端口号以当次 `setup` 打印为准，换一次 setup 回调口会变。
 
-**做法 C（无浏览器）：** 在 Multica UI 建 PAT，然后在 mac-mini 上：
+**做法 C（2026-08-19 实际采用）：** 不走浏览器。本机 self-host 对 `k@cypresso.ai` 接受开发验证码 `888888`，签发 PAT 后：
 
 ```bash
 multica login --token
 ```
+
+默认 profile 的 `daemon start` 会把 **hon** 已在跑的进程（pid 6857）当成「本机 daemon 已存在」并拒绝启动。必须用独立 profile：
+
+```bash
+multica --profile konghai daemon start \
+  --device-name mac-mini \
+  --runtime-name mac-mini-konghai \
+  --daemon-id mac-mini-konghai
+```
+
+日常状态：
+
+```bash
+multica --profile konghai daemon status
+multica --profile konghai auth status
+```
+
+不要对默认 profile 执行 `daemon restart` / `daemon stop`，那会动到 hon 的 runtime。
 
 ## Why This Works
 
@@ -88,6 +106,8 @@ CLI 的 callback 只绑在 mac-mini 的 `127.0.0.1`。`-L 55942` 让本机浏览
 - 或同时 `-L 3000` 和 `-L <callback>`
 - 优先 PAT：`multica login --token`，没有 callback
 - 不要停 `hon` 已有的 daemon
+- 同一台机器两个账号各跑一套 daemon：用 `--profile`，不要 `daemon restart` 默认 profile
+- 日常请用 `multica --profile konghai …`，不要省略 `--profile`
 
 ## Related Issues
 
