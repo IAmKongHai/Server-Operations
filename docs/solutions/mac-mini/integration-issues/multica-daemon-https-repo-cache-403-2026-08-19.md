@@ -60,7 +60,7 @@ tags:
 
 若希望 HTTPS 也通（或避免以后再挂 HTTPS URL）：
 
-1. **优先**：Multica workspace 里把仓库改成 SSH URL（`git@github.com:cypressoai/iCare-backend.git`）。`gh` 的 git protocol 已经是 ssh，本机 `Host github.com` 用 `~/.ssh/id_ed25519`，`ssh -T git@github.com` 是 `Hi IAmKongHai!`。
+1. **SSH（2026-08-20 已做）**：`Host github.com` 已改成工作号钥匙 `~/.ssh/id_ed25519_k_cypresso_ai`（`IdentitiesOnly yes`）。`ssh -T git@github.com` 现为 `k-cypresso`；`git@github.com:cypresso-ai/icare-sit.git` 可 ls-remote。个人号走 `git@github-personal:...`。备份 `~/.ssh/config.bak.20260820`。
 2. **HTTPS（2026-08-20 已做）**：`gh` 增加工作号 `k-cypresso` 并切为当前账号，再 `gh auth setup-git`。HTTPS 不再走失效的 `x-access-token` / 打不开的钥匙串。随后 konghai 的 Multica daemon 已把 `cypresso-ai/icare-sit` 拉进 cache。切回个人号：`gh auth switch --user IAmKongHai`。
 3. **`icare-sit`**：要么把 `IAmKongHai` 加进 `cypresso-ai/icare-sit`，要么从 Multica workspace 卸掉这个 repo。没权限怎么换协议都拉不下来。
 

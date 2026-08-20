@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-08-20 12:38 CST - Host github.com 改用工作号 k-cypresso 钥匙
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户要把默认 `git@github.com` 改成工作号，这样 Multica / git 走 SSH 也能看到 `cypresso-ai` 等仓。
+- 影响：本机 `konghai` 所有 `git@github.com:...` 都认证为 **k-cypresso**。个人号改走别名 `github-personal`。`github-cypress` 仍指向工作号。未改 hon 的 SSH、未重启 daemon。
+- 选型：`IdentityFile ~/.ssh/id_ed25519_k_cypresso_ai`，并加 `IdentitiesOnly yes`，避免 ssh-agent 里个人钥匙抢先被 GitHub 认成 `IAmKongHai`。
+- 备份：`~/.ssh/config.bak.20260820`
+- 回滚：`cp ~/.ssh/config.bak.20260820 ~/.ssh/config`
+- 变更：
+  - `Host github.com`：`id_ed25519` → `id_ed25519_k_cypresso_ai` + `IdentitiesOnly yes`
+  - 新增 `Host github-personal`：原个人钥匙 `id_ed25519`
+  - `Host github-cypress`：工作号钥匙，补 `IdentitiesOnly yes`
+- 验证：
+  - `ssh -T git@github.com` → `Hi k-cypresso!`
+  - `ssh -T git@github-personal` → `Hi IAmKongHai!`
+  - `ssh -T git@github-cypress` → `Hi k-cypresso!`
+  - `git ls-remote git@github.com:cypresso-ai/icare-sit.git` → `refs/heads/main`
+- 个人仓用法：`git@github-personal:IAmKongHai/<repo>.git`
+
 ## 2026-08-20 12:12 CST - mac-mini 的 gh 增加工作号 k-cypresso 并切为当前账号
 
 - 服务器：`mac-mini`
