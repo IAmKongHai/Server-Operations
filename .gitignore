@@ -22,6 +22,9 @@ Shadowrocket/*.csv
 # MAS 老系统部署副本的 Web.config：含明文 DB 密码，仅本地参考，不入库
 mas-win/**/Web.config
 
+# 生产发布包：含 SQL / SMTP / OAuth 明文，只作 mas-win 覆盖源，不入库
+birnaries_20082026/
+
 # 本地凭据：仅本机持有，不入库
 p8/
 *.p8
