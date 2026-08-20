@@ -1,5 +1,15 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 11:44 CST - SSH 注销 for-konghai 图形会话，runner / Tailscale 仍在
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：同 lemon-imac。`sudo launchctl reboot logout` 从 SSH 同样 125。
+- 影响：`launchctl bootout gui/$(id -u)` 无需 sudo。`/dev/console=root`；Listener 仍在；注销后 slot 1 仍能接新 job（GitHub online / busy）。无自动登录，不必改 loginwindow。
+- 备份：无。
+- 回滚：人在键盘前登录。屏幕共享目前仍不可用。
+- 以后从 SSH 注销 GUI：`launchctl bootout gui/$(id -u)`。
+
 ## 2026-08-20 11:11 CST - 放入 ToDesk 干净卸载脚本，待本机 sudo
 
 - 服务器：`umacbook-pro`
