@@ -1,5 +1,38 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-20 10:45 CST - 只读确认 iCare-backend Sonar 失败为 lemon-imac Tailscale 出站 TCP 不可用
+
+- 服务器：`lemon-imac`（runner `lemon-imac-1`）；对照 `mac-mini` SonarQube、`umacbook-pro`、`mas-go-dev`
+- 操作人：`Grok`
+- 原因：排查 [iCare-backend Job 96292948777](https://github.com/cypressoai/iCare-backend/actions/runs/32320380460/job/96292948777)（run `32320380460`，PR `bugfix/CYP-2204/announcement-notification`）是代码侧还是 runner 网络侧失败。
+- 影响：仅 `gh` 读 Actions 日志，并 SSH 只读检查 MagicDNS、Tailscale ping、TCP 连通性与 Sonar HTTP；未重启 `tailscaled`、未改 runner / LaunchDaemon / workflow / 业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 全部步骤及同一时段前后 `SonarQube Analysis` runs。
+  2. 在 `lemon-imac` 解析 `mac-mini`、`curl`/`nc`/`python socket` 连 `100.108.64.126:9000` 与 `:22`，并 `tailscale ping` / `debug dial-types`。
+  3. 对照 `mac-mini` 本机 Sonar 健康、以及 `umacbook-pro` / `mas-go-dev` 访问 `http://mac-mini:9000/api/system/status`。
+- 验证结果：
+  - 目标 Job 的 checkout、Setup Go、C toolchain、依赖下载、全量测试与 coverage 合并全部成功。同 run 的 `Lint` 也成功。唯一失败是 `SonarSource/sonarqube-scan-action` 查询 `SONAR_HOST_URL` 的 `/api/v2/analysis/version`：
+    ```
+    ERROR Failed to query server version: Call to URL [***/api/v2/analysis/version] failed: Can't assign requested address
+    ```
+    Scanner CLI 8.1.0.6389，runner `lemon-imac-1`，约 10:34 CST。因此不是业务代码或测试失败。
+  - `mac-mini` 上 Colima 容器 `sonarqube` `Up 19 hours (healthy)`；`curl http://127.0.0.1:9000/api/system/status` 与 `http://100.108.64.126:9000/...` 均为 `"status":"UP"`（26.3.0.120487）。
+  - `umacbook-pro`：`curl http://mac-mini:9000/api/system/status` HTTP 200（~0.68s）；`nc 100.108.64.126:9000` 成功。
+  - `mas-go-dev`：同上 HTTP 200（~19ms），MagicDNS `100.108.64.126 mac-mini.taila93443.ts.net`。排除 2026-08-02 / 08-13 那类「Sonar 挂了」或 mas-go-dev DNS 问题。
+  - `lemon-imac`：MagicDNS 正常（`mac-mini` → `100.108.64.126`）；`tailscale ping mac-mini` 通；公网 `https://github.com` HTTP 200。但对任意 tailnet `100.x` TCP（`mac-mini:9000` / `:22`、`mas-go-dev:22`、`umacbook-pro:22`）一律 errno 49：
+    ```
+    Can't assign requested address
+    ```
+    `tailscale debug dial-types 100.108.64.126 9000`：BareDial / UserDial / PeerDial 同错，SystemDial i/o timeout。`tailscale ip -6` 为 `fd7a:115c:a1e0::33a:4d49`，挂在 `utun4` 上。
+  - 同型失败：前夜 schedule run [`32288060872`](https://github.com/cypressoai/iCare-backend/actions/runs/32288060872) 也在 `lemon-imac-2` 报完全相同的 `Can't assign requested address`。成功样例 run `32322183019` 落在 `mac-mini-sonar-2`（本机回环，不走 lemon 出站）。
+  - 结论：**基础设施 / lemon-imac Tailscale 出站 TCP 故障**（errno 49），不是 PR 代码、不是 Sonar 进程、也不是 `lemon-imac-1` 单 slot。时间上紧挨 2026-08-19 17:13 把 GUI Standalone 换成 brew `tailscaled` LaunchDaemon；当时只验了入站 `ssh lemon-imac` 与 ping，没验本机访问 `mac-mini:9000`。
+- 未做（需确认后再做）：
+  - 重启 `system/homebrew.mxcl.tailscale` 或 `tailscale debug restun` / `rebind`
+  - 重跑该 Job（恢复连通后可 re-run；若落到 mac-mini / umac / mas-go-dev 也可先绿）
+- 备注：附近 run `32324180890` / `32325359725` 的红叉是 workflow 步骤 `Block while draft` exit 1，与本连通性问题不同。
+
 ## 2026-08-19 17:13 CST - Tailscale 已换成 brew LaunchDaemon，IP 仍是 100.81.246.93
 
 - 服务器：`lemon-imac`
