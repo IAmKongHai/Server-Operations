@@ -1,5 +1,15 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-20 11:11 CST - 放入 ToDesk 干净卸载脚本，待本机 sudo
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（scp）、`konghai`（待 sudo）
+- 原因：用户要在 lemon-imac / umacbook-pro 上彻底卸优趣 ToDesk，远程入口改走 SSH + Tailscale Daemon。
+- 影响：只拷了 `~/gha/scripts/uninstall-todesk.sh`（仓库 `scripts/uninstall-todesk.sh`）。**尚未执行**。
+- 备份：无。
+- 回滚：删该脚本即可。
+- 执行（用户本机）：`sudo /Users/for-konghai/gha/scripts/uninstall-todesk.sh --apply`。会卸 App、LaunchDaemon/Agent、HAL 虚拟声卡；不碰 ToDesktop。
+
 ## 2026-08-20 10:45 CST - 只读确认 iCare-backend Sonar 失败为 lemon-imac Tailscale 出站 TCP 不可用
 
 - 服务器：`lemon-imac`（runner `lemon-imac-1`）；对照 `mac-mini` SonarQube、`umacbook-pro`、`mas-go-dev`
