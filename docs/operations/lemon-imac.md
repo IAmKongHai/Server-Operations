@@ -1,5 +1,19 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-20 11:44 CST - SSH 注销 for-konghai 图形会话，runner / Tailscale 仍在
+
+- 服务器：`lemon-imac`
+- 操作人：`konghai`（先关自动登录）、`Grok`（`launchctl bootout gui/502`）
+- 原因：GUI 占资源；屏幕共享进不去。`sudo launchctl reboot logout` 从 SSH 报 **125 Domain does not support specified action**（只能在 Aqua 域用）。
+- 影响：
+  - 用户已 `defaults delete autoLoginUser` 并删 `/etc/kcpassword`，避免注销后自动再登
+  - `launchctl bootout gui/$(id -u)`（**无需 sudo**，SSH 里以 `for-konghai` 即可）拆掉 Aqua
+  - `/dev/console` 现为 **root**（登录窗）；Finder / Dock 已无；`WindowServer` 仍在
+  - `homebrew.mxcl.tailscale` 与 `lemon-imac-1/2` Listener 未断；GitHub 仍 online（当时 slot 2 busy）
+- 备份：无。
+- 回滚：人在键盘前登录 `for-konghai`。不要再开自动登录。
+- 以后从 SSH 注销 GUI：`launchctl bootout gui/$(id -u)`，不要用 `launchctl reboot logout`。
+
 ## 2026-08-20 11:25 CST - 已 sudo 重启 brew tailscaled LaunchDaemon，Sonar TCP 恢复
 
 - 服务器：`lemon-imac`
