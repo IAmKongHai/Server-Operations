@@ -61,7 +61,7 @@ tags:
 若希望 HTTPS 也通（或避免以后再挂 HTTPS URL）：
 
 1. **优先**：Multica workspace 里把仓库改成 SSH URL（`git@github.com:cypressoai/iCare-backend.git`）。`gh` 的 git protocol 已经是 ssh，本机 `Host github.com` 用 `~/.ssh/id_ed25519`，`ssh -T git@github.com` 是 `Hi IAmKongHai!`。
-2. **HTTPS**：`~/.git-credentials` 里 github.com 有两条，第一条用户是 `x-access-token`（安装令牌 / 旧 token），Git 会先用它，GitHub 就回那句误导性的 Write access 403。系统还有 Xcode 的 `osxkeychain` helper，后台拿不到钥匙串就会 `-25308`。在 **GUI 终端** 执行 `gh auth setup-git`，让 HTTPS 走 `gh`（当前 token scope 含 `repo`），不要让 daemon 去弹钥匙串。不要在文档或脚本里写 token。
+2. **HTTPS（2026-08-20 已做）**：`gh` 增加工作号 `k-cypresso` 并切为当前账号，再 `gh auth setup-git`。HTTPS 不再走失效的 `x-access-token` / 打不开的钥匙串。随后 konghai 的 Multica daemon 已把 `cypresso-ai/icare-sit` 拉进 cache。切回个人号：`gh auth switch --user IAmKongHai`。
 3. **`icare-sit`**：要么把 `IAmKongHai` 加进 `cypresso-ai/icare-sit`，要么从 Multica workspace 卸掉这个 repo。没权限怎么换协议都拉不下来。
 
 ## Why This Works

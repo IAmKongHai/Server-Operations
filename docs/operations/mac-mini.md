@@ -1,5 +1,31 @@
 # mac-mini 运维时间线
 
+## 2026-08-20 12:12 CST - mac-mini 的 gh 增加工作号 k-cypresso 并切为当前账号
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（用户用设备码在浏览器授权）
+- 原因：用户要在 `gh` 里登录另一个 GitHub 账号，才能看见 `cypresso-ai` 等组织仓（此前 `IAmKongHai` 对 `icare-sit` 404）。
+- 影响：
+  - `gh` 现有两个 github.com 账号：**当前 `k-cypresso`**，`IAmKongHai` 仍在、未删。
+  - `gh auth setup-git` 后 HTTPS 走 `gh` helper；`git ls-remote https://github.com/cypresso-ai/icare-sit.git` 成功。
+  - 重启了 **konghai** 的 Multica profile daemon（pid 56550）。hon 的 daemon 未动（当时已是上午 10:13 另起的 pid 18984）。
+  - `icare-sit` 已写入 repo cache（HEAD `main`）。
+- 选型：设备码 `gh auth login --web --skip-ssh-key --git-protocol ssh --insecure-storage`。SSH 无钥匙串弹窗，token 落在 `~/.config/gh/hosts.yml`（已 `chmod 600`）。
+- 备份：登录前只有 `IAmKongHai`；该账号 oauth 仍保留。
+- 回滚：`gh auth switch --user IAmKongHai`。若要丢掉工作号：`gh auth logout --user k-cypresso`。
+- 验证：
+  - `gh api user` → `k-cypresso`
+  - `gh api repos/cypresso-ai/icare-sit` → private、push
+  - orgs：`cypressoai`、`caimiamiao`
+  - HTTPS 预克隆 `icare-sit` 无新的 403；缓存目录出现 `github.com+cypresso-ai+icare-sit.git`
+- 未改：`Host github.com` 仍用 `~/.ssh/id_ed25519`（`IAmKongHai`）。`git@github.com:cypresso-ai/icare-sit.git` 仍 404。工作号 SSH 走已有别名 `github-cypress`（`id_ed25519_k_cypresso_ai`）。
+- 切换：
+  ```bash
+  gh auth switch --user k-cypresso
+  gh auth switch --user IAmKongHai
+  gh auth status
+  ```
+
 ## 2026-08-19 16:35 CST - 停用 mac-mini-sonar-3/4，给 Multica 留并发
 
 - 服务器：`mac-mini`
