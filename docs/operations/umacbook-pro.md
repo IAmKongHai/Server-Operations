@@ -1,5 +1,15 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 11:11 CST - 放入 ToDesk 干净卸载脚本，待本机 sudo
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`（scp）、`konghai`（待 sudo）
+- 原因：ToDesk 已放弃；用户要用仓库脚本彻底卸优趣 ToDesk。
+- 影响：只拷了 `~/gha/scripts/uninstall-todesk.sh`。**尚未执行**。
+- 备份：无。
+- 回滚：删该脚本即可。
+- 执行（用户本机）：`sudo /Users/for-konghai/gha/scripts/uninstall-todesk.sh --apply`
+
 ## 2026-08-20 10:55 CST - 完整重启 ToDesk 仍不可用；用户放弃 ToDesk，不重启整机
 
 - 服务器：`umacbook-pro`
