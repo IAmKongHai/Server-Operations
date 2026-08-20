@@ -1,5 +1,23 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 09:58 CST - Tailscale 已换成 brew LaunchDaemon，IP 仍是 100.113.23.49
+
+- 服务器：`umacbook-pro`
+- 操作人：`konghai`（卸 GUI、登录、把节点 IPv4 改回原地址）、`Grok`（预装 formula、写启动脚本、核对）
+- 原因：GUI Standalone 绑登录会话；改成和 lemon-imac / mac-mini 一样的开源 `tailscaled` LaunchDaemon。
+- 影响：
+  - `/Applications/Tailscale.app` 已卸，无 `io.tailscale.ipn.macsys` 残留
+  - `system/homebrew.mxcl.tailscale` running（pid 1668，`tailscaled` 1.102.2），`WantRunning=true`，`--hostname=umacbook-pro`，`--operator=for-konghai`，`CorpDNS=true`
+  - 节点 IPv4 **仍是** `100.113.23.49`（用户在管理后台改回），MagicDNS `umacbook-pro.taila93443.ts.net` 指向同一地址
+  - 本机 `~/.ssh/config` 的 `Host umacbook-pro` 不用改
+- 备份：无（新登录，未搬 GUI 状态）。旧 GUI 已卸。
+- 回滚：`sudo brew services stop tailscale` 后重装 GUI Standalone；不要两套同时跑。
+- 验证：
+  - `ssh umacbook-pro` → `SSH_OK`；`ping 100.113.23.49` / `ping umacbook-pro` 通
+  - 本机 `tailscale status` 见 `umacbook-pro` active，直连
+  - 重启后 runner LaunchDaemon 已自起：`umacbook-pro-1/2` Listener 09:52 起在听
+- 备注：`brew services info` 非 root 会显示 Running false，以 `launchctl print system/homebrew.mxcl.tailscale` 为准。FileVault 冷启动仍要人在登录窗解锁。
+
 ## 2026-08-19 18:01 CST - runner 从 LaunchAgent 改为 LaunchDaemon；预装 brew tailscale 未启动
 
 - 服务器：`umacbook-pro`
