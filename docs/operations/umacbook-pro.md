@@ -1,5 +1,18 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 10:30 CST - 屏幕共享仍失败；SRP 已开，不建议为此重启整机
+
+- 服务器：`umacbook-pro`
+- 操作人：`konghai`（SSH 里跑了 `enable-screensharing-srp.sh`）、`Grok`（核对）
+- 原因：用户问要不要重启整机。脚本已成功：`AllowSRPForNetworkNodes=true`，`screensharingd` kickstart 到 pid 3130 / runs=5。直连 `vnc://100.113.23.49` 登录框仍过不去。
+- 影响：只再 `kickstart -k` 清掉又一条半开会话。**未 reboot**。
+- 核实：
+  - 本机账号密码 `dscl -authonly` 此前已通过（口令不入库）
+  - 本机隧道 `vnc://127.0.0.1:5901` 同样失败，说明不只是 Tailscale / SRP 网络开关
+  - 每次尝试都卡在 `5900` ESTABLISHED 且 Recv-Q=3650 / Send-Q=1292，像 Apple RFB 003.889 握手停住，不是服务没开
+  - 协议横幅 `RFB 003.889`（Apple 屏幕共享，不是普通 VNC）
+- 结论：重启整机对这种鉴权握手帮助不大，却要解 FileVault、runner 会短暂掉线。先清客户端钥匙串里记住的 `100.113.23.49` 密码再试。仍不行再考虑 `kickstart -configure` 或开 VNC legacy，而不是先 reboot。
+
 ## 2026-08-20 10:25 CST - 重启 ToDesk GUI，供用户进去跑屏幕共享 SRP 脚本
 
 - 服务器：`umacbook-pro`
