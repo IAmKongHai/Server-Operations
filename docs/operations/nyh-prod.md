@@ -1,5 +1,83 @@
 # nyh-prod 运维时间线
 
+## 2026-08-20 23:15-23:25 CST - konghai.me / ddricher.ai 已提交 HSTS preload；修复 HTTP 上多余的 HSTS 头
+
+- 服务器：`nyh-prod`（`47.239.167.8`）
+- 操作人：用户在 hstspreload.org 完成提交；`Claude` 负责核实与修复警告
+- 前置：用户已在 Cloudflare 删除 `www.konghai.me` 解析（经权威 NS 确认 A/CNAME 均无），
+  解除了 `konghai.me` 的 preload 阻塞。
+
+### 提交结果（官方 API 核实）
+
+`https://hstspreload.org/api/v2/status?domain=<域名>`：
+
+- **`konghai.me` → `status: pending`**
+- **`ddricher.ai` → `status: pending`**
+
+两域均已进入待收录队列。用户反馈「点 Submit 按钮没反应」，实为该页面原地追加
+Success 区块、不跳转不刷新，提交本已成功——截图底部即为回执，API 亦确认。
+
+### konghai.me 提交前的六项预检（全过）
+
+| 项 | 结果 |
+|---|---|
+| 有效证书 | PASS |
+| HTTP 301 → 同域 HTTPS | PASS |
+| `max-age` ≥ 31536000 | PASS（63072000 = 730 天）|
+| `includeSubDomains` | PASS |
+| `preload` | PASS |
+| 全部子域 TLS 有效 | PASS（6/6 实测）|
+
+子域清单（`includeSubDomains` 会全部绑定）：`bnsg`(200)、`duowei`(502)、`smith`(302)、
+`numbers`(403，Cloudflare)、`nyh-2025`(200)、`zen-design-hualu`(200)。
+**502/302/403 均为应用层响应，不影响 preload —— 它只校验 TLS 握手是否成功。**
+
+### 修复：Unnecessary HSTS header over HTTP
+
+hstspreload.org 提示 `http://konghai.me` 也在下发 HSTS 头。成因是 80 与 443 同处一个
+server 块，server 级 `add_header` 对 HTTP 的 301 响应一并生效。HTTP 上的 HSTS 头
+不仅无效，还可被中间人剥离/伪造，按规范应移除。
+
+- 在 `/www/server/nginx/conf/nginx.conf` 的 `http{}` 内（第 100 行 vhost include 之前）
+  新增 `map $scheme $hsts_header`：`https` 输出完整值，`default` 输出空串
+  （nginx 对空值 header 不下发）。
+- 25 处 vhost 的 `add_header` 改为引用 `$hsts_header` 变量。
+- `0.default.conf`（未匹配主机名的兜底 server）**仍刻意不改**，理由同前：
+  会对任何解析到本机 IP 的域名下发 HSTS。
+
+### 备份
+
+- `/root/backup/hsts-http-20260820_231955/`（31 个 vhost `.conf` + `nginx.conf.bak`）
+
+### 回滚方式
+
+`cp /root/backup/hsts-http-20260820_231955/*.conf /www/server/panel/vhost/nginx/` +
+`cp /root/backup/hsts-http-20260820_231955/nginx.conf.bak /www/server/nginx/conf/nginx.conf`
+→ `nginx -t && nginx -s reload`
+
+### 验证
+
+- HTTP 响应：`konghai.me` / `bnsg` / `ddricher.ai` / `smith` **均已无 HSTS 头**
+- HTTPS 响应：四者均保留 `max-age=63072000; includeSubDomains; preload`
+- 全站 13 个站点 smoke 通过（`duowei` 502 为既有故障，与本次无关）
+
+### 长期约束（重要）
+
+`konghai.me` 与 `ddricher.ai` 收录后，`includeSubDomains` 会绑定**当前及未来所有子域**：
+
+- **今后在这两个域下新建任何子域，必须一上线就具备有效 HTTPS 证书**，否则直接不可访问，
+  且 preload 的 HSTS 错误在浏览器中**无「继续访问」选项**。
+- **证书过期 = 该子域彻底打不开**。`nyh-2025.konghai.me` 证书 **2026-09-07** 到期
+  （当时剩约 18 天），需确认自动续期（cron 每日 2:20 / 4:30）正常工作。
+- 移出 preload 列表需数月，不可快速回退。
+
+### 仍未解决：移动网络证书告警与 preload 无关
+
+再次记录：用户最初的 `bnsg.konghai.me` 移动网络证书告警属 **TLS 层劫持**
+（证书 SAN 为运营商 IP `117.55.193.146`），**preload 收录后该告警依然存在**。
+本次 preload 的实际收益是防 HTTP 首跳明文劫持 + 全子域强制 HTTPS。
+应对劫持仍靠 Tailscale Exit Node 与向 10086 / 工信部投诉。
+
 ## 2026-08-20 22:55-23:10 CST - TLS 协议与加密套件收敛（TLSv1.1 下线、3DES 清除）+ preload 范围收敛
 
 - 服务器：`nyh-prod`（`47.239.167.8`）
