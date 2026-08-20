@@ -1,5 +1,40 @@
 # mas-win 运维操作时间线
 
+## 2026-08-20 13:50 CST - 用 birnaries_20082026 原地覆盖五个 IIS 站点
+
+- 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）
+- 操作人：`Grok`
+- 原因：新版 C# 发布包到位，替换参考环境上的五个老站点（管理端 API/Web、MemberPortal、HRLink、Webkit API）。
+- 选型 / 影响：
+  - 站点名、端口、应用池不变。
+  - 覆盖期间五站短暂停止；`C:\MAS\Data` 未动。
+  - 配置沿用覆盖前已本地化的副本（SQL → `mssql-ref` / `mas_ref_owner` / `medicalassistance_preprod`；门户 API → `:4859`）。
+  - 未改防火墙、crontab、数据库。
+- 备份：
+  - PVE 快照 `pre-birnaries-20082026`（2026-08-20 13:11）。
+  - 现网配置与补丁：`C:\MAS\Backup\pre-birnaries-20082026\`。
+- 回滚方式：恢复快照 `pre-birnaries-20082026`（停池后回滚）。不要用更旧的 `portals-pre-deploy`（会丢掉 07-29 补丁）。
+- 变更时序：
+  1. `.gitignore` 忽略 `birnaries_20082026/`（含生产凭据，不入库）。
+  2. 快照 + 备份 Web.config / appsettings / StoreFallback / 2307 PDF。
+  3. 经 Tailscale 把 gzip 包传到 PVE，再经 `192.168.2.10:18080` 拉进 Windows Staging（PVE HTTP 已关）。
+  4. 停五站/池，robocopy 覆盖 `C:\MAS\Apps\*`，还原备份配置与本地补丁文件。
+  5. HRLink 入口 JS `index.9d92b79b.js`：`/api/auth/with-otp` → `/api/auth`（1 处）。
+  6. 启动五站。
+- 验证：
+  - `http://192.168.2.21:9021/` → **200**，title `Sign In - MAS Web Insular`
+  - `http://192.168.2.21:9022/` → **200**，title `Sign In - Member Portal`
+  - `http://192.168.2.21:9023/` → **200**，title `iCare HR Link`，入口 `assets/index.9d92b79b.js`
+  - `http://192.168.2.21:9020/` 与 `:4859/` → **403**（API 无默认页，预期）
+  - MemberPortal store 任意生产 Profile base64url → **200** `image/png`（306 bytes）
+  - `POST :4859/login` JSON → **400**（路由存活）
+  - `POST :9021/user-signin` 表单 → **200**（路由存活；未用业务账号做完整登录）
+- 已知限制：
+  - 登录级 smoke（ADMIN / MemberPortal 两步登录 / HRLink Dashboard）未在本轮用业务账号跑完，需浏览器强刷后再试。
+  - 新包 `searchengine_db` 未接入；`apicachemas` 仍 remap 到 `maswebkit`。
+  - Staging 仍在 `C:\MAS\Staging\birnaries-20082026\`，PVE `/tmp/maswin-birnaries-20082026.tar.gz` 仍在；删除前需确认。
+- 计划：`docs/plans/2026-08-20-001-ops-mas-win-csharp-replace-plan.md`
+
 ## 2026-07-29 16:20 CST - MemberPortal store 全量本地回退 + 账号2 登录耗时验证
 
 - 服务器：`mas-win` / `MemberPortal:9022`

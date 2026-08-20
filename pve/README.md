@@ -382,7 +382,7 @@ MAS 老 C# 系统参考应用 VM。只用于重构期间打开旧页面、调用
 | Network | `e1000` on `vmbr0` |
 | QEMU guest agent | 已安装并运行 |
 | Secrets | PVE 内 `/root/mas-win-secrets.env`，`600` 权限，不写入仓库 |
-| Snapshots | `windows-core-ready`、`iis-aspnet-ready`、`mas-csharp-smoke-ready`、`mas-csharp-preprod-ready`、`portals-pre-deploy` |
+| Snapshots | `portals-pre-deploy`（2026-07-28 门户部署前）、`pre-birnaries-20082026`（2026-08-20 覆盖新包前；本轮回滚点） |
 | On boot | `onboot=1`，`startup=order=20,up=90,down=180` |
 
 IIS / 应用：
@@ -400,13 +400,13 @@ IIS / 应用：
 ```text
 http://192.168.2.21:9021/   # MAS-WEB（管理门户）
 http://192.168.2.21:9022/   # MemberPortal
-http://192.168.2.21:9023/   # HRLink；Swagger: /swagger
+http://192.168.2.21:9023/   # HRLink（title: iCare HR Link；入口 JS `assets/index.9d92b79b.js`）
 http://192.168.2.21:4859/   # Webkit API（无默认页，根路径 403）
 ```
 
 部署说明：
 
-- 应用发布包来源：iCare repo `docs/MAS-old-c#/old-C#-code/`（含 `MAS-Webkit-API`，原生产站名 `MASAPIProd`）
+- 应用发布包来源：`birnaries_20082026/`（2026-08-20 原地覆盖；目录含生产凭据，已 gitignore）
 - VM 内部署副本：`C:\MAS\Apps\MAS-API`、`MAS-WEB`、`MemberPortal`、`HRLinkPortal`、`MAS-Webkit-API`
 - 原始配置备份：`Web.config.orig` / `appsettings.json.orig` / `web.config.orig`
 - 数据库连接指向 `mssql-ref`：`192.168.2.20,1433`（`MAS-API` 与 `MAS-Webkit-API`）
@@ -419,7 +419,7 @@ http://192.168.2.21:4859/   # Webkit API（无默认页，根路径 403）
 - SMTP 和生产外部地址已在部署副本中本地化/禁用
 - OAuth client 配置从 `authprovidermasweb.dbo.oauth_clients` 中的 `user` 记录同步到部署副本，文档不记录 secret
 - Runtime：已装 ASP.NET Core **6.0.36 Hosting Bundle**（HRLink 需要 ANCM V2）
-- 快照：部署前 `portals-pre-deploy`；更早的 `mas-csharp-preprod-ready` 仍可用
+- 快照：覆盖前回滚点 `pre-birnaries-20082026`；更早的 `portals-pre-deploy` 仍在，但回滚到它会丢掉 07-29 补丁
 
 2026-05-16 smoke test：
 
@@ -430,19 +430,21 @@ http://192.168.2.21:4859/   # Webkit API（无默认页，根路径 403）
 - 登录后带 cookie 访问首页：HTTP 200，返回登录后页面内容
 - 切换到 preprod / client-prod 环境开关后复测登录与首页仍通过
 
-2026-07-28 portal smoke test：
+2026-08-20 publish-replace smoke test：
 
+- `MAS-WEB` 登录页：HTTP 200（title: Sign In - MAS Web Insular）
 - `MemberPortal` 登录页：HTTP 200（title: Sign In - Member Portal）
-- `HRLinkPortal` 根路径：HTTP 200（占位页；原包 wwwroot 无 SPA 资源）
-- `HRLinkPortal` Swagger：HTTP 200
-- 业务登录 / Webkit API：未部署，预期失败（B1）
+- `HRLinkPortal` 根路径：HTTP 200（title: iCare HR Link；入口 `index.9d92b79b.js`）
+- `MAS-API` / `MAS-Webkit-API` 根路径：HTTP 403
+- MemberPortal store 生产 Profile URL：HTTP 200 `image/png`
+- 业务账号完整登录：本轮未跑，待浏览器强刷验证
 
 注意：
 
 - `mas-win` 当前网卡使用 `e1000`，这是为了降低 Windows unattended 安装复杂度；已安装 VirtIO guest tools，后续可安排维护窗口切换为 VirtIO 网卡。
 - 创建快照时 Windows 事件日志出现 VSS `8194` warnings，但快照创建成功，当前不影响 IIS / 登录 smoke。
 - 从 macOS 打包 tar 时会带入 `._*` AppleDouble 文件，部署后必须删除，否则 ASP.NET 解析 `App_Browsers` 会 500。
-- `portals-pre-deploy` 是 2026-07-28 门户部署前快照；`mas-csharp-preprod-ready` 是更早的 MAS-only 回滚点。
+- `pre-birnaries-20082026` 是 2026-08-20 覆盖新包前的回滚点；`portals-pre-deploy` 是 2026-07-28 门户部署前快照。
 
 ## 网络备注
 
