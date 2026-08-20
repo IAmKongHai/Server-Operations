@@ -1,5 +1,115 @@
 # nyh-prod 运维时间线
 
+## 2026-08-20 22:13-22:30 CST - 安全加固：全站 HSTS 规范化 + 93 个安全补丁 + 内核 6.12.48→6.12.101 + 重启
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Debian 13.1）
+- 操作人：`Claude`（用户确认执行：HSTS preload、内核升级、其他加固、可随时重启）
+- 起因：用户在移动网络访问 `https://bnsg.konghai.me/` 间歇性出现「此连接非私人连接」证书告警。
+- **诊断修正（重要）**：证书详情显示 SAN 为 **IP `117.55.193.146`**（国内运营商网段）、签发者 Let's Encrypt
+  —— 是**一张合法签发但属于他人的证书**被塞入连接。说明劫持发生在 **TLS 层**，
+  而非上一会话推测的「HTTP 首跳明文被劫」。**结论：HSTS preload 挡不住该劫持**
+  （浏览器证书校验本就已生效并报警）。真正可用的规避手段是已部署的 Tailscale Exit Node，
+  以及向移动/工信部投诉。preload 仍做，但目标是防首跳明文，不是解决本次告警。
+
+### 影响
+
+- 24 个 vhost 的 HSTS 头统一为 `max-age=63072000; includeSubDomains; preload` + `always`
+  （原 23/26 缺 `always`，错误响应会丢 HSTS 头；`max-age` 由 1 年提到 2 年）。
+- `0.default.conf`（未匹配主机名的兜底 server）**刻意不改**：加 `includeSubDomains; preload`
+  会对任何解析到本机 IP 的域名下发 HSTS，波及非自有域名。
+- 4 个缺 HTTP→HTTPS 跳转的 vhost 补上 301：`admin.ddricher.ai`、`api.acquilangai.com`、
+  `duowei.konghai.me`、`smith.konghai.me`（preload 的强制前置条件）。
+- 93 个 Debian-Security 补丁全部安装（libpng / freetype / libheif / libde265 / libaom / openssh 等）。
+- 内核 `6.12.48+deb13` → `6.12.101+deb13`，重启生效（此前 257 天未重启）。
+- 修复 `grub-pc` 半配置故障（见下），否则会阻塞后续所有 apt 操作。
+- apt 镜像由 `mirrors.cloud.aliyuncs.com` 改为 `https://mirrors.aliyun.com`（见下）。
+
+### 备份
+
+- `/root/backup/hsts-20260820_221318/`：全部 vhost `.conf`、`nginx.conf`、
+  `dpkg-list-before.txt`、`kernel-before.txt`、`docker-before.txt`、
+  `security-updates-pending.txt`、`debian.sources.bak`
+- 旧内核 `6.12.48` 与 `6.12.43` 均保留在 `/boot`，GRUB 菜单可回退
+
+### 回滚方式
+
+1. Nginx：`cp /root/backup/hsts-20260820_221318/*.conf /www/server/panel/vhost/nginx/`
+   → `nginx -t && nginx -s reload`
+2. 内核：重启时在 GRUB 菜单选 `6.12.48+deb13-amd64`（未删除）
+3. apt 源：`cp /root/backup/hsts-20260820_221318/debian.sources.bak /etc/apt/sources.list.d/debian.sources`
+4. **注意**：HSTS `max-age=2年` 已下发到访问过的浏览器，回滚配置不会撤销客户端已缓存的策略；
+   如需撤销必须下发 `max-age=0` 并等待客户端刷新。**但 `preload` 关键字仅是声明，
+   未向 hstspreload.org 提交前不产生浏览器内置效果。**
+
+### 变更时序
+
+1. 只读勘察：确认 24 个 vhost 全部已有 SSL+HSTS；DNS 与 HTTPS 可达性普查。
+2. 备份 vhost / 包列表 / 内核 / 容器状态到 `/root/backup/hsts-20260820_221318/`。
+3. `perl -i -pe` 批量规范化 24 个文件的 HSTS 头；`0.default.conf` 排除。
+4. 给 4 个 vhost 插入 `#HTTP-TO-HTTPS-START` 301 跳转块。
+   `api.acquilangai.com` 因系人工改过、无 `#SSL-END` 锚点，改锚定 `error_page 497` 单独插入。
+5. `nginx -t` 通过 → `nginx -s reload`（平滑，无断连）→ 全站 smoke 通过。
+6. **踩坑 1**：`apt-get update` 失败，`mirrors.cloud.aliyuncs.com` 解析到 **`100.100.2.148`**，
+   落在 Tailscale CGNAT `100.64/10`，被 `ts-input` 规则 5 `DROP`（与 2026-08-11 记录的
+   `100.100.2.136/138` DNS 事故同源，当时的 host route 兜底只覆盖了 DNS，没覆盖镜像）。
+   处理：改用 `https://mirrors.aliyun.com`（非 CGNAT 段），**不动 Tailscale 托管的 iptables 链**
+   —— 后者会在 tailscaled 重启时被重写，改了也活不过重启。
+7. **踩坑 2**：`apt upgrade` 末尾 `grub-pc` 配置失败 —— debconf 里 `install_devices` 记录着
+   已不存在的 `/dev/vda`。核实本机实为 **UEFI 启动**（`/sys/firmware/efi` 存在，
+   `BootCurrent: 0006`，`grub-efi-amd64-signed` 已装，EFI 分区引导链完整），
+   `grub-pc` 属遗留包、不参与实际引导。处理：`debconf-set-selections` 清空 `install_devices`
+   → `dpkg --configure -a` 通过，`grub-pc` 恢复 `ii`。
+   **若不修，该半配置状态会阻塞内核安装。**
+8. `apt install linux-image-amd64` → `6.12.101-1`，initramfs 生成、GRUB 更新、旧内核保留。
+9. 重启前核对：docker/nginx/fail2ban/tailscaled/bt/supervisor/ssh 全部 `enabled`；
+   9 个容器均有 restart policy；`fix-aliyun-dns-vs-tailscale.service` `enabled`；ufw active。
+10. `systemctl reboot`，**30 秒**恢复 SSH。
+
+### 验证
+
+- `uname -r` = **`6.12.101+deb13-amd64`**；`apt-get -s upgrade` 待更新安全包 = **0**，总待更新 = **0**
+- 9 个容器全部自动拉起且 `healthy`，与重启前列表**逐一对齐**（无遗漏）
+- 服务：docker / nginx / fail2ban / tailscaled / bt / supervisor / ssh / ufw 全部 `active`
+- Tailscale：`nyh-prod` `100.78.12.107` 仍 `offers exit node`（用户规避劫持的手段未受影响）
+- HSTS 实测：`bnsg.konghai.me`、`konghai.me`、`ddricher.ai`、`load.nanyahui.com`、
+  `vip.nanyahui.cn` 均返回 `max-age=63072000; includeSubDomains; preload`
+- 301 跳转实测：4 个新增 vhost + 原有域名全部 `http → https` 301
+- 站点 smoke（重启后）：`bnsg` / `konghai.me` / `ddricher.ai` / `admin.ddricher.ai` /
+  `load.nanyahui.com` / `vip.nanyahui.com` / `vip.nanyahui.cn` / `fa` / `yysg` / `nyh-2025` = 200；
+  `load.nanyahui.cn` 301、`center` 302、`smith` 302、`numbers`(Cloudflare) 403 —— 均为应用层原有行为
+- **`api.ddricher.ai` 502 系既有故障，非本次引入**：上游 `127.0.0.1:7800` 无监听，
+  错误日志自 **2026-02-18** 起累计 32705 条，且重启前 21:33 已是 502（早于本次动手的 22:13）
+
+### 未完成 / 待用户决策：preload 尚未提交
+
+服务器侧已就绪（配置含 `preload` 关键字），但**未向 hstspreload.org 提交任何域名**。
+用户选择「5 个域全部立即提交」，实测后发现 **4 个域现在提交会造成生产故障**，故暂停待确认：
+
+| 注册域 | apex | www | 可提交 |
+|---|---|---|---|
+| `konghai.me` | 200 | **TLS 失败**（`www` 悬空指向 `103.47.81.71`，返回 `*.lifekey.top` 证书） | 否 |
+| `nanyahui.com` | **NXDOMAIN** | **TLS 失败**（`103.47.81.71`） | 否 |
+| `nanyahui.cn` | **NXDOMAIN** | **TLS 失败**（`103.47.81.71`） | 否 |
+| `acquilangai.com` | **502** | **502** | 否 |
+| `ddricher.ai` | 200 | 200 | **是** |
+
+- preload 按**注册域**提交且强制 `includeSubDomains`，会波及该域下所有子域（含不在本机的）。
+- `nanyahui.com` / `nanyahui.cn` apex 无 DNS 记录，提交会被拒；若强行补 apex 再提交，
+  `load.` / `vip.` / `center.` / `fa.` / `yysg.` 等**在产子域**将被连带绑定，
+  而 `www.*` 当前 TLS 失败 → 提交通过当天即不可访问，**移出列表需数月**。
+- `www.konghai.me` / `www.nanyahui.com` / `www.nanyahui.cn` 同时指向 `103.47.81.71`
+  （非本机、非自有证书）—— 属**悬空 DNS 记录 / 子域接管风险**，建议直接在 DNS 侧删除。
+  用户已选择「删除该 DNS 记录」，但 DNS 面板操作需用户本人执行。
+
+### 其他待办（本次未做）
+
+- **TLS 协议**：多个 vhost 仍启用 `ssl_protocols TLSv1.1`（已废弃且不安全），
+  仅 `api.acquilangai.com` 已收敛为 `TLSv1.2 TLSv1.3`。建议全站统一去掉 TLSv1.1/1.0。
+- **CI 部署密钥具备 root**：`/root/.ssh/authorized_keys` 中 3 把 GitHub Actions 部署密钥
+  拥有 root 权限，任一仓库 Secrets 泄露即等同 root。属结构性改动，需单独排期。
+- **服务监听 `0.0.0.0`**：宝塔面板 10463、Redis 7480 等仅靠云防火墙隔离，缺纵深防御。
+- `duowei.konghai.me` 返回 502（既有故障，与本次无关）。
+
 ## 2026-08-11 14:23 CST - 部署 Tailscale Exit Node（个人手机固定出口 IP）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`）
