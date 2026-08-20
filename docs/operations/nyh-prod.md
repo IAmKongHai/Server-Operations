@@ -1,5 +1,40 @@
 # nyh-prod 运维时间线
 
+## 2026-08-20 23:55-00:05 CST - load.nanyahui.com 换 Let's Encrypt，全部 15 张证书纳入自动续期
+
+- 服务器：`nyh-prod`（`47.239.167.8`）
+- 操作人：用户在宝塔面板重新申请 Let's Encrypt 证书；`Claude` 负责验证
+- 原因：接上一条。`load.nanyahui.com` 原用**宝塔自家 CA**（广东堡塔安全技术有限公司，
+  `宝塔 DV TLS RSA CA 2025`，2027-01-24 到期）签发的商业证书，不走 ACME 协议，
+  续签任务日志长期提示「非 Let's Encrypt 或 TrustAsia 证书，无法续签，请尝试手动续签」。
+  该提示属**预期行为而非故障**（与前一条 44 次 `unauthorized` 静默失败性质不同），
+  但需人工介入续签。用户选择统一换成 Let's Encrypt 以纳入自动续期。
+
+### 变化
+
+- 证书由「宝塔 DV TLS RSA CA 2025」换为 **Let's Encrypt YR2**，到期 **2026-11-18**。
+- **SAN 由 1 个域扩为 2 个**：`api.nanyahui.com`、`load.nanyahui.com`
+  （原证书仅含 `load.nanyahui.com`）。已核实 `api.nanyahui.com` 确实存在
+  （解析 `47.239.167.8`，HTTPS 200），该 SAN 为有效扩展而非误加。
+- `ssl_info` 新记录 id=119，hash `2c827c854528b3a912d09cdf029f2f1d`。
+  旧宝塔 CA 记录 id=48/49（hash `785ecbbe...` / `14fa6cc0...`）保留在库中未清理。
+
+### 验证（手工执行 acme_v2.py --renew_v2=1 复验）
+
+- **「无法续签」提示数 = 0**（原有 1 条，即本域）
+- **`unauthorized` 错误数 = 0**（延续上一条修复结果）
+- 证书总数 15 张，**全部进入正常 ARI 续期轨道**
+- `load.nanyahui.com`（hash `2c827c85...`）计划续签时间 **2026-10-19 17:29**，
+  CA 建议窗口 2026-10-19 ~ 2026-10-20
+
+**至此 nyh-prod 全部 15 张证书均可自动续期，无需人工介入。**
+
+### 备注
+
+`load.nanyahui.com` 属 `nanyahui.com`，该域已决定放弃 HSTS preload，
+故此证书即便出问题也只是普通浏览器告警（可点「继续访问」），
+不同于 `konghai.me` / `ddricher.ai` 下子域的硬故障风险。本次纯为运维简化。
+
 ## 2026-08-20 23:30-23:55 CST - 修复 nyh-2025 / ddricher.ai / gateway.ddricher.ai 证书自动续期失效
 
 - 服务器：`nyh-prod`（`47.239.167.8`）
