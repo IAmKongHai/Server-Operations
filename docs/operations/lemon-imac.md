@@ -1,5 +1,23 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-20 11:22 CST - 放入重启 Tailscale LaunchDaemon 脚本，待本机 sudo
+
+- 服务器：`lemon-imac`
+- 操作人：`Grok`（写脚本 / scp）、`konghai`（待 sudo）
+- 原因：iCare-backend Sonar 在 lemon 上因 Tailscale 出站 TCP errno 49 失败。`for-konghai` 无免密 sudo，无法远程 `kickstart` LaunchDaemon。
+- 影响：
+  - 仓库新增 `scripts/restart-lemon-imac-tailscaled.sh`，已拷到 `~/gha/scripts/restart-lemon-imac-tailscaled.sh`
+  - **尚未执行**。执行会 `launchctl kickstart -k system/homebrew.mxcl.tailscale`，经 Tailscale 的 SSH 会断几秒；脚本 `trap '' HUP` 并写 `/tmp/restart-lemon-imac-tailscaled.log`
+  - 未改 runner、未改 hostname、期望节点 IPv4 仍是 `100.81.246.93`
+- 备份：无（新脚本）。现网 daemon 仍是 08-19 起的 pid `5016`
+- 回滚：删该脚本即可；已加载的 LaunchDaemon 不受「只拷脚本」影响
+- 执行（用户 SSH 上 lemon-imac）：
+  ```bash
+  sudo /Users/for-konghai/gha/scripts/restart-lemon-imac-tailscaled.sh
+  ```
+  会话掉线后重连：`ssh lemon-imac`，再 `cat /tmp/restart-lemon-imac-tailscaled.log`
+- 备注：11:18 已用 operator 做了一次 `tailscale down --accept-risk=lose-ssh` + `up`（**未**换 pid）。之后本机 `curl http://mac-mini:9000/api/system/status` 已是 HTTP 200，TCP errno 49 暂时消失。完整重启 daemon 仍建议跑本脚本，避免只是 userspace down/up 的临时恢复。
+
 ## 2026-08-20 11:11 CST - 放入 ToDesk 干净卸载脚本，待本机 sudo
 
 - 服务器：`lemon-imac`
