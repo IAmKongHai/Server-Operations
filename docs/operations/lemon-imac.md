@@ -1,13 +1,34 @@
 # lemon-imac 运维操作时间线
 
-## 2026-08-20 11:22 CST - 放入重启 Tailscale LaunchDaemon 脚本，待本机 sudo
+## 2026-08-20 11:25 CST - 已 sudo 重启 brew tailscaled LaunchDaemon，Sonar TCP 恢复
+
+- 服务器：`lemon-imac`
+- 操作人：`konghai`（`sudo` 跑脚本）、`Grok`（核对日志 / 复测）
+- 原因：08-19 换成 brew LaunchDaemon 后出站 TCP 对 tailnet `100.x` 报 errno 49，iCare-backend Sonar 扫 `mac-mini:9000` 失败。
+- 影响：只 `kickstart -k system/homebrew.mxcl.tailscale`，随后 `tailscale up --hostname=lemon-imac --operator=for-konghai --accept-dns=true --accept-routes=false`。未改 runner、未改节点 IPv4、未装 GUI。
+- 备份：无配置改动。旧进程 pid `5016`（08-19 17:13 起）。
+- 回滚：再跑同一脚本，或 `sudo launchctl kickstart -k system/homebrew.mxcl.tailscale`。不要重装 GUI Standalone。
+- 变更时序：
+  1. 用户 SSH 执行 `sudo /Users/for-konghai/gha/scripts/restart-lemon-imac-tailscaled.sh`
+  2. 脚本 `kickstart -k`，新 pid **79923**，IPv4 仍是 `100.81.246.93`
+  3. 日志：`/tmp/restart-lemon-imac-tailscaled.log`（11:25:17–11:25:26 CST）
+- 验证：
+  - `curl http://mac-mini:9000/api/system/status` HTTP **200**，`"status":"UP"`（~27ms）
+  - 直连 IP `100.108.64.126:9000` HTTP 200；`python` TCP `OK 100.81.246.93 → 100.108.64.126:9000`
+  - `/api/v2/analysis/version` 无 token 返回 **401**（通了，不是 connect 失败）
+  - `tailscale debug dial-types`：BareDial / UserDial / PeerDial 均为 `connected=true`（重启前全是 errno 49）
+  - runner `lemon-imac-1/2` 仍 `running`
+- 备注：日志里 `Some peers are advertising routes but --accept-routes is false` 是预期（本机不当 subnet router 客户端）。失败 Job [96292948777](https://github.com/cypressoai/iCare-backend/actions/runs/32320380460/job/96292948777) 现可 re-run。
+
+## 2026-08-20 11:22 CST - 放入重启 Tailscale LaunchDaemon 脚本，已于 11:25 sudo 执行
+
 
 - 服务器：`lemon-imac`
 - 操作人：`Grok`（写脚本 / scp）、`konghai`（待 sudo）
 - 原因：iCare-backend Sonar 在 lemon 上因 Tailscale 出站 TCP errno 49 失败。`for-konghai` 无免密 sudo，无法远程 `kickstart` LaunchDaemon。
 - 影响：
   - 仓库新增 `scripts/restart-lemon-imac-tailscaled.sh`，已拷到 `~/gha/scripts/restart-lemon-imac-tailscaled.sh`
-  - **尚未执行**。执行会 `launchctl kickstart -k system/homebrew.mxcl.tailscale`，经 Tailscale 的 SSH 会断几秒；脚本 `trap '' HUP` 并写 `/tmp/restart-lemon-imac-tailscaled.log`
+  - 当时尚未执行。已于 11:25 由用户 `sudo` 跑完，见上一条。
   - 未改 runner、未改 hostname、期望节点 IPv4 仍是 `100.81.246.93`
 - 备份：无（新脚本）。现网 daemon 仍是 08-19 起的 pid `5016`
 - 回滚：删该脚本即可；已加载的 LaunchDaemon 不受「只拷脚本」影响
