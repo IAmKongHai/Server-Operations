@@ -1,5 +1,78 @@
 # nyh-prod 运维时间线
 
+## 2026-08-20 23:30-23:55 CST - 修复 nyh-2025 / ddricher.ai / gateway.ddricher.ai 证书自动续期失效
+
+- 服务器：`nyh-prod`（`47.239.167.8`）
+- 操作人：用户在宝塔面板重新申请三张 Let's Encrypt 证书；`Claude` 负责定位与验证
+- 起因：`konghai.me`、`ddricher.ai` 已提交 HSTS preload，收录后**证书过期 = 子域彻底不可访问
+  且浏览器无「继续访问」选项**，故对 `nyh-2025.konghai.me`（9-07 到期，仅剩 18 天）做续期核查。
+
+### 排查过程与真因
+
+1. 自定义脚本 `docker-panel-letsencrypt-renew.py` 日志显示
+   `skip vhost=nyh-2025.konghai.me.conf reason=managed by bt site/domain table`
+   —— 该脚本主动让位，由宝塔自身续签任务负责。
+2. 直接读 `/www/server/panel/data/default.db` 查不到该站点，一度误判「宝塔也不管」；
+   改用脚本自身的 `public.M()` 接口复现，确认 **`nyh-2025.konghai.me` 在宝塔站点库中存在**
+   （宝塔实际使用的库文件与 `default.db` 不同）。**教训：查宝塔数据用 `public.M()`，别直接读 db 文件。**
+3. 宝塔计划任务「续签Let's Encrypt证书」（每天 01:58，`status=1`）确实在跑，
+   任务结尾还打印 `★ Successful` —— **但那只表示批处理跑完，单张证书失败不影响总状态**。
+4. 翻任务日志 `/www/server/cron/3ab48c27ec99cb9787749c362afae517.log` 发现真相：
+   ```
+   error:unauthorized
+   requester account did not request the certificate being replaced by this order
+   ```
+   `nyh-2025`（hash `396a0308...`）、`ddricher.ai`（`088f7c32...`）、
+   `gateway.ddricher.ai`（`591c6e48...`）每天都失败，**累计 44 次**。
+5. 排除验证路径问题：手工放置探针文件，
+   `http://nyh-2025.konghai.me/.well-known/acme-challenge/probe-test.txt` 正常返回（已清理）。
+   HTTP-01 通路完好，不是网络/目录/站点未启动的问题。
+
+**真因**：ACME 的 **ARI（证书续期指示）替换机制**。宝塔以「替换旧证书」方式下单，
+但那三张 TrustAsia 证书**并非当前 ACME 账户申请**（历史时间线显示 2026-05-11 前后
+由 Let's Encrypt 切换到 TrustAsia，推测该次切换引入账户不匹配），CA 拒绝替换。
+
+### 处理
+
+用户在宝塔面板对三个站点**重新申请 Let's Encrypt 证书**（而非续签），
+绕开 ARI 替换、由当前账户重新签发。
+
+### 验证（全部实测）
+
+线上证书（`openssl s_client` 实测，非面板显示）：
+
+| 域名 | 签发方 | 到期 |
+|---|---|---|
+| `nyh-2025.konghai.me` | Let's Encrypt YR1 | **2026-11-18** |
+| `ddricher.ai`（SAN 含 `www.ddricher.ai`） | Let's Encrypt YR2 | **2026-11-18** |
+| `gateway.ddricher.ai` | Let's Encrypt YR2 | **2026-11-18** |
+
+`ssl_info` 新记录 id=115/116/117，hash 全部更新
+（`ceca38c6...` / `991429780ab2...` / `81645615308c...`），不再是失败的旧 hash。
+
+**手工执行续签任务复验**（`acme_v2.py --renew_v2=1`，对未到期证书为只读跳过）：
+
+- **`unauthorized` 错误数 = 0**（原累计 44 次）
+- 三张新证书均进入正常 ARI 轨道，下次计划续签时间：
+  - `nyh-2025.konghai.me` → 2026-10-20
+  - `ddricher.ai` → 2026-10-20
+  - `gateway.ddricher.ai` → 2026-10-19
+
+**自动续期已恢复正常。**
+
+### 遗留
+
+日志中 `14fa6cc069cf12c94a8edab0f88794ae` 提示
+「非 Let's Encrypt 或 TrustAsia 证书，无法续签，请尝试手动续签」——
+属另一张第三方证书，本次未处理，需确认其归属与到期时间。
+
+### 经验
+
+- **宝塔续签任务的 `★ Successful` 不代表每张证书都续成功**，必须翻
+  `/www/server/cron/<echo-hash>.log` 逐张确认；任务 hash 取自 `crontab` 表的 `echo` 字段。
+- preload 生效后证书过期是硬故障，`konghai.me` / `ddricher.ai` 下的所有子域
+  都需纳入证书到期监控。
+
 ## 2026-08-20 23:15-23:25 CST - konghai.me / ddricher.ai 已提交 HSTS preload；修复 HTTP 上多余的 HSTS 头
 
 - 服务器：`nyh-prod`（`47.239.167.8`）
