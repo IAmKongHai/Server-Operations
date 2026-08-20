@@ -1,5 +1,20 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 10:13 CST - 屏幕共享已开；清掉一条卡住的 VNC 连接
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：用户说屏幕共享连不上。
+- 影响：只 `launchctl kickstart -k system/com.apple.screensharing`，清掉半开连接。未改防火墙、未改 ACL、未动 runner / Tailscale。
+- 备份：无。
+- 回滚：不必；服务本就该开着。
+- 核实：
+  - `screensharingd` 本来就是 running，`*.5900` LISTEN，防火墙关着
+  - ACL 是 admin 组：`for-konghai`、`u` 都有权
+  - 卡住的是 `100.113.23.49:5900 ← 100.92.181.15:60973` ESTABLISHED（用户 Air 的 Tailscale 地址），Recv-Q=12，新会话会被挡
+  - kickstart 后新 pid 1350，旧连接变 FIN_WAIT_2，5900 仍在听
+- 用户侧：先退出本机卡住的「屏幕共享」窗口，再连 `vnc://100.113.23.49`，账号用 `for-konghai`
+
 ## 2026-08-20 09:58 CST - Tailscale 已换成 brew LaunchDaemon，IP 仍是 100.113.23.49
 
 - 服务器：`umacbook-pro`
