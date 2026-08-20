@@ -437,7 +437,11 @@ http://192.168.2.21:4859/   # Webkit API（无默认页，根路径 403）
 - `HRLinkPortal` 根路径：HTTP 200（title: iCare HR Link；入口 `index.9d92b79b.js`）
 - `MAS-API` / `MAS-Webkit-API` 根路径：HTTP 403
 - MemberPortal store 生产 Profile URL：HTTP 200 `image/png`
-- 业务账号完整登录：本轮未跑，待浏览器强刷验证
+- 业务账号完整登录（2026-08-20 14:40 补齐）：
+  - `9021` Dashboard - MAS Web Insular（ADMIN）
+  - `9022` Dashboard - Member Portal（`RIVERA, ARC FREDERICK` / `02826185`）
+  - `9023` `/dashboard?from=login`（`San Jose, Lourence T`）
+- 参考库补丁：`maswebkit.dbo.sp_getmaswebmemberdetailsv6`（v5 + `dentalinformation`）；`tblsubscriptionmembers.verifieddepinfo*` 两列
 
 注意：
 

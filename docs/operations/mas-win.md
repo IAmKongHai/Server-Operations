@@ -1,5 +1,35 @@
 # mas-win 运维操作时间线
 
+## 2026-08-20 14:40 CST - 三个门户登录级 smoke 通过（含 Webkit 缺对象补齐）
+
+- 服务器：`mas-win`（`192.168.2.21`）+ `mssql-ref`（`maswebkit`）
+- 操作人：`Grok`
+- 原因：`birnaries_20082026` 覆盖后 HTTP 200 已通，但登录级 smoke 未完成。浏览器实测暴露新 Webkit / 新 MemberPortal 依赖参考库里没有的对象。
+- 选型 / 影响：
+  - 五站进程未重启以外的 IIS 配置；未改防火墙 / crontab / SSH。
+  - `maswebkit` 新增兼容存储过程与两列，仅服务参考环境 MemberPortal 登录。
+  - 管理端 `ADMIN` 密码按 SQL `dbo.decoder` 方案对齐（不记明文）。
+- 备份：PVE 快照仍是 `pre-birnaries-20082026`。`maswebkit` 变更前 `sp_getmaswebmemberdetailsv6` 不存在；`tblsubscriptionmembers` 无 `verifieddepinfo*` 列。
+- 回滚方式：
+  - 站点：停池后恢复快照 `pre-birnaries-20082026`。
+  - 库：`DROP PROCEDURE dbo.sp_getmaswebmemberdetailsv6`；`ALTER TABLE dbo.tblsubscriptionmembers DROP CONSTRAINT DF_tblsubscriptionmembers_verifieddepinfo, DF_tblsubscriptionmembers_verifieddepinfodatetime; ALTER TABLE dbo.tblsubscriptionmembers DROP COLUMN verifieddepinfo, verifieddepinfodatetime;`（在 `maswebkit`）。
+- 变更时序：
+  1. MAS-API 新 `Helpers.dll` 需要 `DATA_SOURCE_SEARCH` 等 AppSettings（覆盖时还原的旧 Web.config 没有）——已补 SEARCH 键并 remap catalog 到 `maswebkit`，回收 MAS-API 池。
+  2. MemberPortal `SignInUser` 现走 Webkit `login?` + `login_type=portal`（AES 加密参数）。`LoginV2` 调用缺失的 `dbo.sp_getmaswebmemberdetailsv6`。
+  3. 在 `maswebkit` 用 v5 全文复制出 v6，并增加 `dentalinformation` 列，满足 EF 结果集。
+  4. `GetPortalMemberDetailsV10` 读 `tblsubscriptionmembers.verifieddepinfo` / `verifieddepinfodatetime`——表上补两列（bit / datetime，默认 0 与 `19000101`）。
+  5. 浏览器跑完 9021 / 9022 / 9023 登录。
+- 验证（浏览器，非只贴 HTTP）：
+  - `9021` MAS-WEB：title `Dashboard - MAS Web Insular`（ADMIN）。
+  - `9022` MemberPortal：邮箱检查 → 密码 → 隐私同意双勾 → `http://192.168.2.21:9022/home/dashboard`，title `Dashboard - Member Portal`，会员 `RIVERA, ARC FREDERICK` / `02826185`。`SignInUser` ≈ 22s，`ContinueSignIn` ≈ 0s。
+  - `9023` HR Link：表单走 `/api/auth`（入口 JS 无 `with-otp`）→ `http://192.168.2.21:9023/dashboard?from=login`，用户 `San Jose, Lourence T`，可见 POLICY PERIOD、Member Enrollment、Event Logs。
+- 已知限制：
+  - v6 是参考环境兼容包装，不是生产脚本同步；`dentalinformation` 固定 0。
+  - 新包 `searchengine_db` 仍未接入。
+  - Staging / PVE tar 仍在，删除前需确认。
+  - Webkit `/me` 与 memberdetails 20–30s 慢路径仍在。
+- 计划：`docs/plans/2026-08-20-001-ops-mas-win-csharp-replace-plan.md`
+
 ## 2026-08-20 13:50 CST - 用 birnaries_20082026 原地覆盖五个 IIS 站点
 
 - 服务器：`mas-win`（PVE VM `120`，`192.168.2.21`）

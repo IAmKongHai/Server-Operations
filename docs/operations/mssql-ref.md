@@ -1,5 +1,23 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-20 14:32 CST - maswebkit 补 MemberPortal 新包登录缺的 v6 过程与两列
+
+- 服务器：`mssql-ref` / 库 `maswebkit`
+- 操作人：`Grok`
+- 原因：`mas-win` 覆盖 `birnaries_20082026` 后，Webkit `LoginV2` 调 `dbo.sp_getmaswebmemberdetailsv6`（库里只有 v5）；随后 `GetPortalMemberDetailsV10` 读 `tblsubscriptionmembers.verifieddepinfo` / `verifieddepinfodatetime`（列不存在）。不补则 MemberPortal 登录 500。
+- 影响：仅 `maswebkit`。未改 `medicalassistance_preprod` 业务数据。v6 结果集在 v5 基础上多一列 `dentalinformation`（固定 `CAST(0 AS bit)`）。
+- 备份：变更前对象不存在；可用 `sp_getmaswebmemberdetailsv5` 原文重建 v6。
+- 回滚方式：
+  ```sql
+  USE maswebkit;
+  DROP PROCEDURE IF EXISTS dbo.sp_getmaswebmemberdetailsv6;
+  ALTER TABLE dbo.tblsubscriptionmembers DROP CONSTRAINT DF_tblsubscriptionmembers_verifieddepinfo;
+  ALTER TABLE dbo.tblsubscriptionmembers DROP CONSTRAINT DF_tblsubscriptionmembers_verifieddepinfodatetime;
+  ALTER TABLE dbo.tblsubscriptionmembers DROP COLUMN verifieddepinfo, verifieddepinfodatetime;
+  ```
+- 验证：Webkit `POST /login`（`login_type=portal`）200 返回 `access_token`；MemberPortal `SignInUser` + `ContinueSignIn` 均 `success=true`；浏览器进入 Dashboard。
+- 相关：`docs/operations/mas-win.md` 2026-08-20 14:40 条目。
+
 ## 2026-08-12 12:45 CST - 为两套 SIT SUP 创建最小权限 AUTH_DB 身份
 
 - 服务器：`mssql-ref`
