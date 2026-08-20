@@ -1,5 +1,77 @@
 # nyh-prod 运维时间线
 
+## 2026-08-20 22:55-23:10 CST - TLS 协议与加密套件收敛（TLSv1.1 下线、3DES 清除）+ preload 范围收敛
+
+- 服务器：`nyh-prod`（`47.239.167.8`）
+- 操作人：`Claude`（用户明确要求「ssl_protocols TLSv1.1 都收敛到 1.2/1.3」）
+- 原因：接上一条加固。宝塔默认模板给每个 vhost 写死了 `TLSv1.1` 与含 3DES 的套件，
+  属已废弃且不安全的配置。
+
+### 影响
+
+- 25 处 `ssl_protocols` 统一为 `TLSv1.2 TLSv1.3`（原 22 处含 `TLSv1.1`）。
+- `ssl_ciphers` 统一为纯 ECDHE 套件
+  `ECDHE+CHACHA20:ECDHE+AESGCM:ECDHE+AES256:ECDHE+AES128:!aNULL:!eNULL:!MD5:!DSS:!3DES`，
+  清除宝塔默认里的 **`EECDH+3DES:RSA+3DES`（Sweet32 CVE-2016-2183）** 与
+  **`RSA+AES` 非前向保密套件**。
+- 影响面：仅 TLS 1.0/1.1 客户端（Android 4.x、IE10-、老 Java 7）无法握手。
+  当前业务无此类客户端，实测全站正常。
+
+### 备份
+
+- `/root/backup/tls-20260820_225544/`（32 个文件：全部 vhost `.conf` + `nginx.conf`）
+
+### 回滚方式
+
+`cp /root/backup/tls-20260820_225544/*.conf /www/server/panel/vhost/nginx/`
+→ `nginx -t && nginx -s reload`
+
+### 验证
+
+- TLS 1.1 握手：**被拒绝**（`curl --tlsv1.1 --tls-max 1.1` 失败）
+- TLS 1.2 / TLS 1.3：均 200
+- 全站 15 个站点 smoke 通过，与变更前逐一对齐，无回归
+
+---
+
+## preload 最终结论（本轮收敛，未提交任何域名）
+
+服务器侧配置已含 `preload` 关键字并就绪，但**未向 hstspreload.org 提交**。
+提交需浏览器 + Google 账号，属用户侧动作。实测四项预检结果：
+
+| 注册域 | apex | HTTP 301 | HSTS 头 | www | 结论 |
+|---|---|---|---|---|---|
+| `ddricher.ai` | 200 | ✅ | ✅ 2 年 | 200 | **可提交，无副作用** |
+| `konghai.me` | 200 | ✅ | ✅ 2 年 | **证书不匹配** | 可提交，但 www 会打不开 |
+| `acquilangai.com` | **502** | ✅ | ✅ | 502 | 校验会挂，暂不提交 |
+| `nanyahui.com` / `.cn` | **NXDOMAIN** | — | — | 证书不匹配 | **用户决定放弃处理** |
+
+### 关键发现：三条 www 记录都指向备案服务商
+
+`www.konghai.me`、`www.nanyahui.com`、`www.nanyahui.cn` 均 CNAME 到
+**`dnsbgp.idc-icp.com` → `103.47.81.71`**，该主机返回 `*.lifekey.top` 证书。
+早先误判为「悬空 DNS / 子域接管风险」，实为**用户的 ICP 备案服务商记录**，因备案需要不能删。
+
+- 后果：这些 `www.*` 目前 **HTTP 可访问、HTTPS 握手失败**。
+- 一旦对应注册域提交 preload，浏览器会强制改写为 HTTPS →
+  证书不匹配 → **彻底打不开且不可绕过**（preload 的 HSTS 错误无「继续访问」选项）。
+- 因此 `konghai.me` 提交前需权衡；`nanyahui.com/.cn` 因 apex 无 A 记录，
+  **技术上根本提交不进去**（校验器读不到 apex 的 HSTS 头），非「接受后果」即可绕过。
+
+### 放弃处理 nanyahui.com / nanyahui.cn（用户决定）
+
+曾评估把两域的 `www`（乃至 apex）指向 `km-landui`（`43.228.79.237`）自建站点配证书。
+勘察结论：该机 Ubuntu 22.04，**`:443` 被 `derper` 占用**，无 nginx/docker，需从零搭建；
+且只配 `www` 并不能解除 preload 阻塞（阻塞点在 apex）。
+成本与收益不匹配，**用户决定放弃这两个域的 preload**。`km-landui` 全程只读勘察，未做任何改动。
+
+### 重要澄清：preload 不解决本次的移动网络证书告警
+
+用户最初的诉求是修复移动网络下 `bnsg.konghai.me` 的证书告警。已确认该告警是
+**TLS 层劫持**（证书 SAN 为运营商 IP `117.55.193.146`），**preload 对此无效**。
+可用手段仍是 Tailscale Exit Node + 向 10086 / 工信部投诉。
+不要为「修复该告警」而牺牲 `www.konghai.me` 去提交 preload。
+
 ## 2026-08-20 22:13-22:30 CST - 安全加固：全站 HSTS 规范化 + 93 个安全补丁 + 内核 6.12.48→6.12.101 + 重启
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Debian 13.1）
