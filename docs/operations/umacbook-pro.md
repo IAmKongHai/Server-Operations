@@ -1,5 +1,16 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 10:25 CST - 重启 ToDesk GUI，供用户进去跑屏幕共享 SRP 脚本
+
+- 服务器：`umacbook-pro`
+- 操作人：`Grok`
+- 原因：直连 `vnc://100.113.23.49` 和本机隧道 `vnc://127.0.0.1:5901` 都过不了屏幕共享登录框（本机 `dscl -authonly` 已证明账号密码正确，疑为 `AllowSRPForNetworkNodes=false`）。用户要用 ToDesk 进去跑 `enable-screensharing-srp.sh`。
+- 影响：只重启了 `for-konghai` 的 ToDesk GUI（新 pid 2832，监听 `127.0.0.1:37600`）。`ToDesk_Service` 仍是开机后的 pid 735（无 sudo 杀不掉）。未动 runner / Tailscale / 屏幕共享配置。
+- 备份：无。
+- 回滚：不必。
+- 验证：GUI 10:25 新起；Service 仍 running。设备码沿用 **`254880455`**。
+- 用户下一步：ToDesk 连上后执行 `sudo /Users/for-konghai/gha/scripts/enable-screensharing-srp.sh`。SSH 仍可用，也可在 `ssh umacbook-pro` 里跑同一条。
+
 ## 2026-08-20 10:13 CST - 屏幕共享已开；清掉一条卡住的 VNC 连接
 
 - 服务器：`umacbook-pro`
