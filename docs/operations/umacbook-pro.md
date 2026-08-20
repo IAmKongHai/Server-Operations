@@ -1,5 +1,14 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-20 10:55 CST - 完整重启 ToDesk 仍不可用；用户放弃 ToDesk，不重启整机
+
+- 服务器：`umacbook-pro`
+- 操作人：`konghai`（`sudo ~/gha/scripts/restart-todesk.sh`）、`Grok`（写脚本 / 核对）
+- 原因：屏幕共享登录不过；ToDesk 也不稳。用户一度想整机重启，后改先完整重启 ToDesk，试完后决定彻底放弃 ToDesk。
+- 影响：`ToDesk_Service` + GUI 已于 10:49 左右完整拉起（新 pid 19409 / 19413，`--AutoRun YES`）。**未 reboot**。未卸 ToDesk App。
+- 核实：FileVault **关着**（远程 reboot 不会锁死，但当时有 CI 在跑所以没转整机）。`tailscale` 仍 `100.113.23.49`；两 slot Listener 在，Worker idle。
+- 结论：这台的可靠远程通道是 **SSH / Tailscale Daemon**。ToDesk 不再当作运维入口。屏幕共享仍未通，需要时另做 kickstart 配置或 VNC legacy，不绑 ToDesk。
+
 ## 2026-08-20 10:30 CST - 屏幕共享仍失败；SRP 已开，不建议为此重启整机
 
 - 服务器：`umacbook-pro`
