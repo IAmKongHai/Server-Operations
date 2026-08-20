@@ -1,5 +1,22 @@
 # mas-win 运维操作时间线
 
+## 2026-08-20 15:36 CST - 登录页 version 改回新包显示值
+
+- 服务器：`mas-win` / `MAS-WEB:9021`、`MemberPortal:9022`
+- 操作人：`Grok`
+- 原因：覆盖时还原了已本地化的旧 `Web.config`，页脚 `ver` 仍显示覆盖前版本，看起来像没换包。
+- 选型 / 影响：只改正文版本号；SQL / OAuth / 路径 / SkipOTP 等本地化项未动。改 `Web.config` 会让 IIS 自动回收对应应用池（短暂中断）。
+- 备份：`C:\MAS\Apps\MAS-WEB\Web.config.bak.version-20260820`、`C:\MAS\Apps\MemberPortal\Web.config.bak.version-20260820`
+- 回滚方式：用上述 bak 覆盖回 `Web.config`（池会再回收一次）。
+- 变更：
+  - MAS-WEB `version`：`2026.02.19.00` → `2026.08.05.00`
+  - MemberPortal `version` / `layoutver`：`2026.01.27.00` → `2026.07.28.00`
+  - HRLink：新包登录 JS 自身写死 `ver 2022.12.28.02`，不是旧配置还原，未改。
+- 验证（VM 本机 `Invoke-WebRequest`）：
+  - `http://127.0.0.1:9021/` HTTP 200，footer / `?v=` = `2026.08.05.00`
+  - `http://127.0.0.1:9022/` HTTP 200，footer / `?v=` = `2026.07.28.00`
+- 说明：浏览器若仍见旧号，强刷或清缓存（静态资源 `cacheControlMaxAge=7d`）。
+
 ## 2026-08-20 14:40 CST - 三个门户登录级 smoke 通过（含 Webkit 缺对象补齐）
 
 - 服务器：`mas-win`（`192.168.2.21`）+ `mssql-ref`（`maswebkit`）
