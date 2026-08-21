@@ -1,5 +1,24 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-21 21:28 CST - 只读确认 iCare-backend Sonar 失败为 Quality Gate，不是 runner
+
+- 服务器：`lemon-imac`（runner `lemon-imac-1`）；对照 `mac-mini` SonarQube、`umacbook-pro-2`
+- 操作人：`Grok`
+- 原因：排查 [iCare-backend Job 96778459722](https://github.com/cypressoai/iCare-backend/actions/runs/32484688601/job/96778459722)（run `32484688601`，PR [#1580](https://github.com/cypressoai/iCare-backend/pull/1580) `feature/CYP-2252/login-db-target`）是 runner 侧还是代码侧失败。
+- 影响：仅 `gh` 读 Actions / check-run 与后续 run，本机 `curl` 确认 `mac-mini:9000` 健康；未改 runner、Tailscale、SonarQube、workflow 或业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 全部步骤及同一 PR 前后 `SonarQube Analysis` runs。
+  2. 本机确认 `http://mac-mini:9000/api/system/status` 为 `"status":"UP"`（Community Build `26.3.0.120487`，server id 与 Job 日志一致）。
+  3. 对照失败 SHA `da2be8be…` 的 GitHub check-run 摘要，以及修复 commit `311a8765…` 后的 run `32485795797`。
+- 验证结果：
+  - 目标 Job 的 checkout、Setup Go、C toolchain、依赖下载、全量测试与 coverage 合并全部成功。同 run 的 `Lint` 也成功。Scanner 使用缓存 CLI `8.1.0.6389`，成功连上 SonarQube、上传 1.3 MB 分析报告。
+  - 唯一失败是 Quality Gate：`QUALITY GATE STATUS: FAILED`，scanner 退出码 3。GitHub check `SonarQube Code Analysis` 摘要为 **1 New Issues (is greater than 0)**。
+  - 根因在业务代码：`internal/server/handler/meta.go` 的 `hideDatabaseTarget` 对 `APP_ENV` 做 `switch` 只有 `prod`/`production` 分支、没有 `default`，命中规则 **S131**。不是 runner PATH / GPG / Tailscale / Sonar 宿主故障。
+  - 同一 PR 随后提交 `CYP-2252 fix Sonar S131: add default to hideDatabaseTarget switch`。下一轮 `SonarQube Scan`（run `32485795797`，落在 `umacbook-pro-2`）已通过；当前 PR checks 全绿。
+- 备注：lemon-imac 8GB 机仍适合承接 backend PR Sonar；本次约 11 分钟，其中测试 8 分钟、扫描 38 秒。与 2026-08-20 Tailscale errno 49 导致的 `Failed to query server version` 不是同一类失败。
+
 ## 2026-08-20 11:44 CST - SSH 注销 for-konghai 图形会话，runner / Tailscale 仍在
 
 - 服务器：`lemon-imac`
