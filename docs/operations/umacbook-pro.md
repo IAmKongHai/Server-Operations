@@ -1,5 +1,24 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-22 18:26 CST - 只读确认 iCare-Operations-frontend Sonar 失败为 Quality Gate，不是 runner
+
+- 服务器：`umacbook-pro`（runner `umacbook-pro-2`）；对照 `mac-mini` SonarQube
+- 操作人：`Grok`
+- 原因：排查 [iCare-Operations-frontend Job 97017663194](https://github.com/cypressoai/iCare-Operations-frontend/actions/runs/32567233692/job/97017663194)（run `32567233692`，PR [#6](https://github.com/cypressoai/iCare-Operations-frontend/pull/6) `feature/CYP-2262-dark-theme`）是 runner 侧还是代码侧失败。
+- 影响：仅 `gh` 读 Actions / commit 与后续 run，本机 `curl` 确认 `mac-mini:9000` 健康；未改 runner、Tailscale、SonarQube、workflow 或业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 全部步骤及同一 PR 前后 `SonarQube Scan` runs。
+  2. 本机确认 `http://mac-mini:9000/api/system/status` 为 `"status":"UP"`（Community Build `26.3.0.120487`，server id 与 Job 日志一致）。
+  3. 对照失败 SHA `106b4abe…` 的提交说明，以及修复 commit `27972885…` 后的 run `32567470568`。
+- 验证结果：
+  - 目标 Job 的 checkout、pnpm install、coverage artifact 下载、LCOV 校验全部成功。同 run 的 `verify`（format / lint / typecheck / tests / build）也成功。Scanner 使用缓存 CLI `8.1.0.6389`，成功连上 SonarQube、上传 156.1 kB 分析报告。
+  - 唯一失败是 Quality Gate：`QUALITY GATE STATUS: FAILED`，scanner 退出码 3。不是 runner PATH / GPG / Tailscale / Sonar 宿主故障。
+  - 根因在业务代码门禁：`new_coverage` 79.3% 过、`new_duplicated_lines_density` 1.5% 过，真正红的是 **`new_violations = 5 > 0`**。作者随后定位为 `status.tsx:35` **S3358**（嵌套三元）与 `board-page.tsx:664-678` **S2004**（函数嵌套超 4 层）。SHA `106b4abe` 只抽了 `SectionLabel` 降重复，没命中这两条规则。
+  - 同一 PR 随后提交 `fix(ui): CYP-2262 clear SonarQube new-violation quality gate`。下一轮 `SonarQube Scan`（run `32567470568`，SHA `27972885…`）已通过；当前 PR checks 全绿。
+- 备注：`https://sonar.cypresso.ai/api/system/status` 当时经 nginx 返回 **502**，但 Job 走的是 runner → `mac-mini:9000`，该入口 UP，与本次失败无关。
+
 ## 2026-08-20 11:44 CST - SSH 注销 for-konghai 图形会话，runner / Tailscale 仍在
 
 - 服务器：`umacbook-pro`
