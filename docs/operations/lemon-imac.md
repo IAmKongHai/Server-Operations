@@ -1,5 +1,22 @@
 # lemon-imac 运维操作时间线
 
+## 2026-08-22 23:49 CST - 只读确认 iCare-Operations-frontend verify 失败为 Prettier，不是 runner
+
+- 服务器：`lemon-imac`（runner `lemon-imac-2`）
+- 操作人：`Grok`
+- 原因：排查 [iCare-Operations-frontend Job 97053728949](https://github.com/cypressoai/iCare-Operations-frontend/actions/runs/32582436907/job/97053728949)（run `32582436907`，PR [#8](https://github.com/cypressoai/iCare-Operations-frontend/pull/8) `docs/CYP-2262-agents-md`）是 runner 侧还是代码侧失败。
+- 影响：仅 `gh` 读 Actions / PR；未改 runner、PATH、workflow 或业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 的 runner 标签、全部步骤结论，以及失败步骤完整日志。
+  2. 对照 PR #8 的唯一 commit `92c939aa…`（`docs: CYP-2262 add AGENTS.md for operations-frontend`）。
+- 验证结果：
+  - 目标 Job 落在 `lemon-imac-2`，labels `frontend-quality-ci`。checkout、`pnpm/action-setup@v4`、`setup-node`、`pnpm install --frozen-lockfile` 全部成功。
+  - 唯一失败是 `pnpm format:check`：`prettier --check "**/*.{ts,tsx,css,md,json,yml}"` 报 **`AGENTS.md` Code style issues**，exit 1。lint / typecheck / tests / build 因前置失败被 skip；同 run 的 `SonarQube Scan` 因 `needs: verify` 未跑。
+  - 不是 runner PATH / pnpm 未装 / 磁盘 / Tailscale 故障。根因在业务仓新增的 `AGENTS.md` 没过 Prettier。本地 `pnpm format` 或 `prettier --write AGENTS.md` 后重推即可。
+- 备注：与 2026-08-22 `umacbook-pro` 上把 PR #6 Sonar Quality Gate 误判成 `pnpm: command not found` 同类——不要把后续 step skip 当成 runner 坏了。
+
 ## 2026-08-21 21:28 CST - 只读确认 iCare-backend Sonar 失败为 Quality Gate，不是 runner
 
 - 服务器：`lemon-imac`（runner `lemon-imac-1`）；对照 `mac-mini` SonarQube、`umacbook-pro-2`
