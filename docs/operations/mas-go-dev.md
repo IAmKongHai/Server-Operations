@@ -1,5 +1,21 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-22 18:40 CST - 只读确认 Operations Portal UAT verify 失败是单测，不是 pnpm PATH
+
+- 服务器：`mas-go-dev`（runner `mas-go-dev-ci-1`）
+- 操作人：`Grok`
+- 原因：业务仓 session 把 iCare-Operations-frontend 失败归因为自托管 runner `pnpm: command not found`。本机实际领到的是 [Deploy Azure UAT run 32567471377](https://github.com/cypressoai/iCare-Operations-frontend/actions/runs/32567471377) / Job [97018102290](https://github.com/cypressoai/iCare-Operations-frontend/actions/runs/32567471377/job/97018102290)。
+- 影响：只读；未改 runner、`PNPM_STORE_PATH`、workflow，未重跑。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：读 Job 日志与 `deploy-azure-uat.yml`。
+- 验证结果：
+  - `pnpm/action-setup@v4` success，装上 pnpm 11.18.0；`pnpm install --frozen-lockfile` **Done in 4.6s**。不是 PATH / action-setup 失效。
+  - 失败在 `Install and verify` 里的 `pnpm test:coverage`：2 files / **11 tests failed**（24 passed）。断言期望 `fetch('/session/v1/login')` 等相对路径，实际打到 `https://icare2-uat-operations-api.ambitioussea-…`。同 step 导出了 `VITE_API_BASE_URL`（给 `pnpm build` 写死 UAT API origin），vitest 一并吃到，测试环境被污染。
+  - 更早的 dispatch [32565550318](https://github.com/cypressoai/iCare-Operations-frontend/actions/runs/32565550318) 未分配 runner：OIDC `claim 'environment' cannot be null`（workflow-level `id-token: write`），与 pnpm 无关；已在后续 yaml 里改成只给 deploy job 开 OIDC。
+  - `Upload private SWA` 因 quality 红而 skipped，属连带，不是 runner 挂了。
+- 修法在业务仓：UAT quality 的 test 不要带 `VITE_API_BASE_URL`，或测试里对 base URL 做归一化。重跑同一 SHA 仍会红。
+
 ## 2026-08-17 17:35 CST - 只读确认 Backend Deploy #32010421100 失败为 swagger 注解冲突
 
 - 服务器：`mas-go-dev`（self-hosted runner `mas-go-dev`）；对照 GitHub Actions `Backend Deploy`
