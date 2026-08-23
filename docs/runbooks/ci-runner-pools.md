@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-08-19  
+> 最后更新：2026-08-23  
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -13,12 +13,12 @@
 | 后端质量 | `backend-ci` | mac-mini、lemon-imac、umacbook-pro、mas-go-dev-ci | 后端 Lint / Build and Test / Sonar | Docker 镜像 build-push 到 GHCR（仍走 dev-cypresso） |
 | 现网/集成部署构建 | `dev-cypresso-ci` | **仅** dev-cypresso | set-vars、Build and Push、Deploy to Server（前后端） | 任何 Lint / Sonar / Tests |
 | mas-go-dev 本机部署 | `mas-go-dev` | **仅** mas-go-dev 部署 runner | Deploy to mas-go-dev（前后端） | 质量门禁（质量用 `mas-go-dev-ci`） |
-| Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner | Deploy MAS to Azure UAT、UAT 镜像 mirror | 日常 PR CI |
+| Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner、**icare-2-uat-runner-2**（CYP-2263 burst） | Deploy MAS to Azure UAT、UAT 镜像构建 / mirror | 日常 PR CI |
 | 会员端 preview 本机构建 | `mobile-preview-ci` | **仅** `mac-mini-mobile-1` | iCare-mobile-app preview `eas build --local`（Android APK / iOS IPA，串行） | 质量门、backend CI、EAS 云构建、production |
 
 历史标签 `frontend-sonar-ci` 仍保留在部分 runner 上便于回滚；**新 workflow 应使用 `frontend-quality-ci`（PR）与 `mac-mini-sonar`（full）**。
 
-## 机器与 runner 快照（2026-08-05）
+## 机器与 runner 快照（2026-08-23）
 
 | Runner name | 主机 | 关键 labels（含默认） |
 |-------------|------|---------------------|
@@ -30,7 +30,9 @@
 | `mas-go-dev-ci-1/2` | mas-go-dev | **`self-hosted`**, `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`） |
 | `ip-172-31-42-99.ec2.internal` | dev-cypresso | `dev-cypresso-ci`（**仅**部署） |
 | `ip-172-31-42-99.ec2.internal-2` | dev-cypresso | 默认 Linux labels，不进专用池 |
-| `icare-2-uat-runner` | UAT VM | `azure`, `uat` |
+| `icare-2-uat-runner` | UAT VM `icare-2-uat-ci-runner`（`ssh icare-uat-runner`） | `azure`, `uat` |
+| `icare-2-uat-runner-2` | UAT burst VM `icare-2-uat-ci-runner-2`（`ssh icare-uat-runner-2`，CYP-2263 D8s_v5） | `azure`, `uat`；**必须**预建 `/var/cache/buildx` 属主 `icareadmin` |
+| `icare-2-uat-wait` | 原 UAT VM `icare-2-uat-ci-runner` 上的 wait slot | `uat-wait`（**不要**进 group `icare-2-uat`） |
 
 **调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
@@ -50,7 +52,7 @@
 | Verify MAS UAT static bundle | `mac-mini-sonar` + `macos` + `arm64` |
 | set-vars / build-push / Deploy to Server | `dev-cypresso-ci` |
 | Deploy to mas-go-dev | `mas-go-dev` |
-| Deploy MAS to Azure UAT | runner group `icare-2-uat` |
+| Deploy MAS to Azure UAT | wait：`uat-wait`；deploy：runner group `icare-2-uat` |
 
 ### `iCare-backend`
 
@@ -59,6 +61,7 @@
 | Lint / SonarQube / Build and Test | `backend-ci` |
 | set-vars / build-push / Deploy to Server | `dev-cypresso-ci` |
 | Deploy to mas-go-dev | `mas-go-dev` |
+| Build Azure UAT Images / Migrate then roll | runner group `icare-2-uat` |
 
 ## 容量注意
 

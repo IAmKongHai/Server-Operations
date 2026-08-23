@@ -101,6 +101,8 @@
 | `home-router`  | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问（本机已卸载 Tailscale）              | **是**（改动影响家里所有联网设备） |
 | `office-router`| 办公室路由器，原托管的 GitHub Actions runner 已于 2026-06-30 移除                        | **是**（改动影响办公室所有联网设备） |
 | `cursor-box`   | Cursor Cloud Agent 沙箱（容器 hostname `cursor`，Tailscale 名 `3x-ui`，`100.102.171.1`）；`ssh box@100.102.171.1`。无独立公网 IP，入站只走 Tailscale。**不是** `tizi-ddy` 的 3x-ui 面板 | 否（云端临时沙箱，会话结束可能销毁） |
+| `icare-uat-runner` | Azure UAT 原构建 VM（主机名 `icare-2-uat-ci-runner`），runner `icare-2-uat-runner`，组 `icare-2-uat`；`ssh icare-uat-runner` 以 `icareadmin` 登录 | **是**（挡住 Azure UAT 发版；改 runner / Docker / `/var/cache/buildx` 前仍需确认） |
+| `icare-uat-runner-2` | CYP-2263 临时 D8s_v5 burst VM（主机名 `icare-2-uat-ci-runner-2`，`10.30.6.5`），runner `icare-2-uat-runner-2`，组 `icare-2-uat`；`ssh icare-uat-runner-2` 以 `icareadmin` 登录 | **是**（与原机同组抢 UAT 镜像构建；新机必须预建 `/var/cache/buildx` 属主 `icareadmin`） |
 
 注意：
 - `nyh-prod` 上同时跑着多个项目的生产数据库与站点，任何重启 / 配置改动都要先想清楚波及哪些项目
@@ -110,6 +112,7 @@
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
 - `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认
 - `mas-go-dev` 是 MAS 老系统 Go 重构版的开发测试 VM，过往文档常以 `192.168.2.22` 指代；同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI
+- `icare-uat-runner` / `icare-uat-runner-2` 是 Azure UAT 发版机（组 `icare-2-uat`）。Buildx local cache 路径是 `/var/cache/buildx`，属主必须是 runner 用户 `icareadmin`；`/var/cache` 属 root，新 burst 机不预建就会在 `Prepare backend build cache` 上 Permission denied。`icare-uat-runner-2` 已于 2026-08-23 补齐。
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
   - `/Users/for-konghai/gha/li{1,2}` — 对应 slot 的短路径 workFolder（2026-08-08 由不对称的 `li`/`li2` 统一而来）
