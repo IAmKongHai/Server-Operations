@@ -40,6 +40,8 @@ server/
 | `home-router`  | 本地 / 网络       | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问                                                |
 | `office-router`| 本地 / 网络       | 办公室路由器，原托管的 GitHub Actions runner 已于 2026-06-30 移除                                 |
 | `cursor-box`   | 云端 / 临时       | Cursor Cloud Agent 沙箱（`100.102.171.1`，Tailscale 名 `3x-ui`）；不是 3x-ui 代理面板             |
+| `icare-uat-runner-1` | Azure UAT / 发版 | 原 UAT 构建 VM（`10.30.6.4`，`Standard_B2s`）；`ssh icare-uat-runner-1`（兼容 `icare-uat-runner`） |
+| `icare-uat-runner-2` | Azure UAT / burst | CYP-2263 临时 D8s_v5（`10.30.6.5`）；`ssh icare-uat-runner-2`；必须预建 `/var/cache/buildx` |
 
 > 详细的服务运行清单、域名、端口、备份策略等，按需在 `<server>/` 子目录或 `docs/solutions/<server>/` 下补充。
 >

@@ -43,7 +43,7 @@ Docker / Azure login / Buildx setup 都已成功，镜像还没开始 build。�
 
 | 机 | GitHub runner | `/var/cache/buildx` |
 |----|---------------|---------------------|
-| `icare-2-uat-ci-runner` | `icare-2-uat-runner` | 已有，属主 `icareadmin`，含三份 `*-uat` cache；`v2026-08-23.02` 成功 |
+| `icare-2-uat-ci-runner`（`ssh icare-uat-runner-1`） | `icare-2-uat-runner` | 已有，属主 `icareadmin`，含三份 `*-uat` cache；`v2026-08-23.02` 成功 |
 | `icare-2-uat-ci-runner-2` | `icare-2-uat-runner-2` | **不存在**；CYP-2263 临时 D8s_v5 burst 机，label / group 与原机相同 |
 
 两台都在 runner group `icare-2-uat`，GitHub 把 `v2026-08-23.03` 第一次派到 runner-2。

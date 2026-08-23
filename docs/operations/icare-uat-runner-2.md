@@ -1,6 +1,18 @@
 # icare-uat-runner-2 运维时间线
 
+机器档案：[`icare-uat-runner-2/README.md`](../../icare-uat-runner-2/README.md)
+
 SSH：`ssh icare-uat-runner-2`（`icareadmin@10.30.6.5`）。主机名 `icare-2-uat-ci-runner-2`，CYP-2263 临时 D8s_v5 burst runner，GitHub runner 名 `icare-2-uat-runner-2`，组 `icare-2-uat`。
+
+## 2026-08-23 18:26 CST - 建立机器档案
+
+- 服务器：`icare-uat-runner-2`
+- 操作人：`Grok`
+- 原因：与 `icare-uat-runner-1` 一并固化连接信息、SKU、runner slot、Buildx 约定。
+- 影响：只新增 `icare-uat-runner-2/README.md`；SSH 别名原本已指向 `10.30.6.5`，未改。
+- 备份：无（文档）。
+- 回滚：删该 README。
+- 验证：档案中的 hostname / `Standard_D8s_v5` / 无 wait slot / 无 `gh` / `/var/cache/buildx` 已存在，与只读 SSH 盘点一致。当时有 `Runner.Worker`，未动进程。
 
 ## 2026-08-23 18:18 CST - 预建 `/var/cache/buildx`，对齐原 UAT runner
 
@@ -10,7 +22,7 @@ SSH：`ssh icare-uat-runner-2`（`icareadmin@10.30.6.5`）。主机名 `icare-2-
 - 影响：只新增空目录，**未**重启 runner / Docker，**未**重跑 UAT 发版 workflow。
 - 备份：改前状态留在对话与本条：
   - `/var/cache` 为 `root:root` `drwxr-xr-x`，无 `buildx` 子目录
-  - 原机 `icare-uat-runner` 上已有 `drwxr-xr-x icareadmin:icareadmin /var/cache/buildx`（含 `icare-backend-uat` / `ecom` / `sup` 三份 cache）
+  - 原机 `icare-uat-runner-1` 上已有 `drwxr-xr-x icareadmin:icareadmin /var/cache/buildx`（含 `icare-backend-uat` / `ecom` / `sup` 三份 cache）
 - 回滚方式：
   ```bash
   ssh icare-uat-runner-2 'sudo rm -rf /var/cache/buildx'
