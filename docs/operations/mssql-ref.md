@@ -1,5 +1,26 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-24 22:22 CST - 收到 ihc-db-uat 五份 20260824 bak（只存放，未恢复）
+
+- 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）
+- 操作人：`Grok`（用户离开前要求把 bak 传到本机存好，回来再决定恢复库名）
+- 原因：源 `F:\icare2bak\*_20260824.bak` 需要落到 `/restore/backups/ihc20260824/`，供稍后还原；本次不选 catalog、不 `RESTORE`。
+- 影响：
+  - 新增目录 `/restore/backups/ihc20260824/`，五份 `*_20260824.bak`，属主 `mssql:mssql`，权限 `640`。合计 **17.0 GB**（17801592 KiB 列表合计）。
+  - 传输：`ihc-db-uat` AzCopy → 私网 container `icare2uaticare2st/ihc-db-bak-20260824` → `icare-uat-runner-1` → 本机 `scp -3` → `mssql-ref`。未传 `*.trn`、未传 `*_20260821.bak`。
+  - **未** `RESTORE DATABASE` / `REPLACE` / 改名 / SHRINK / 改 login / 改应用配置。现网 catalog 未动。
+- 备份：源 `F:\icare2bak\*_20260824.bak` 仍在（未删）。中转 container 已删；runner `~/ihc-bak` 已删。
+- 回滚：删 `/restore/backups/ihc20260824/` 即可；不影响正在用的库。
+- 验证：
+  - 源与目标 MD5 一致：
+    - `authprovidermasuat_20260824.bak` 45110272 `f20505da43ced2fda9526faf822acc2d`
+    - `insularsalesportal_preprod_20260824.bak` 1284608 `b673be5173306cda20a1d022783c9066`
+    - `masprepaid_preprod_20260824.bak` 169820672 `b4d228d04203e8f4e0af9d41e1fd4fde`
+    - `maswebkit_preprod_20260824.bak` 2780155392 `f820bcb836e21c7c866d29d27a9c703e`
+    - `medicalassistance_preprod_20260824.bak` 15232439296 `2f258d2db42d104e8323e72f654f4053`
+  - `sys.databases` 仍为 `authprovidermasweb` / `insularsalesportal` / `masprepaid` / `maswebkit` / `medicalassistance_preprod` / `medicalassistance_replicated` / `maswebkit-uat-old` / `operations`（无新恢复库）。
+- 相关：`docs/plans/2026-08-24-001-ops-mssql-ref-sync-from-ihc-db-uat-plan.md`
+
 ## 2026-08-24 20:53 CST - 源 ihc-db-uat 打最新 COPY_ONLY（不用 20260821）
 
 - 服务器：源 `ihc-db-uat`（`10.100.0.4`）；跳板 `icare-uat-runner-1`；目的地仍是 `mssql-ref`
