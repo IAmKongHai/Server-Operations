@@ -78,12 +78,15 @@
 - 遗留物：快照 `TVS-Server-osdisk-snap-20260824-preboot` 保留（标签 `delete-after=2026-09-24`），会产生少量存储费用，待用户决定是否删除。
 - 横向排查「哪个服务在访问这台 DB」（2026-08-24 同日进行）：
   - 方法：对**运行中**的 Windows VM 用 run-command 只读执行 `Select-String`，在 `C:\Toplogic`、`C:\inetpub`、IIS `applicationHost.config`、UiPath 目录、用户 Documents/Desktop 等位置搜连接串特征 `172.0.3.4` / `TVS-Server` / `MSSQLSERVER01` / `mastvsdb` / `tvsadminsp` / `Server=...4330`。脚本内置密码遮蔽（`password=***`），不输出明文口令。
-  - 踩坑：初版正则含 `,4330`，命中 2021 年理赔日志里的金额 `4330.00`（`finalamount` / `basicclaim` 等）造成大量误报；收紧为只匹配连接串上下文后复扫。
-  - 阴性结论（**0 真命中**），本订阅 `e026db6e-...` 19 台：`MAS-WEB-APP`、`MAS-Search-Engine-Server`、`RPA-Commander`、`RPA-Worker01`~`RPA-Worker13`（13 台全扫）、`ihc-poc-db`、`Pre-Prod-Server`、`ihc-app-uat-1`。其中 `RPA-Commander` 作为 RPA 编排中心无 TVS 连接串，是较有分量的阴性证据。
+  - 踩坑一（误报）：初版正则含 `,4330`，命中 2021 年理赔日志里的金额 `4330.00`（`finalamount` / `basicclaim` 等）造成大量误报；收紧为只匹配连接串上下文（`Server=...4330` / `Data Source=...4330`）后复扫。
+  - 踩坑二（run-command 串行）：同一台 VM **同时只能有一个 run-command 在执行**，重复下发会报 `(Conflict) Run command extension execution is in progress`。在大目录（如报表服务器）上跑深递归 `Select-String` 可能长时间不返回，占住通道。对策：脚本要按机器角色收窄搜索根目录与文件类型，必要时先等前一次执行结束（轮询重试）再下发。
+  - 阴性结论（**0 真命中**），本订阅 `e026db6e-...` 20 台：`MAS-WEB-APP`、`MAS-Search-Engine-Server`、`RPA-Commander`、`RPA-Worker01`~`RPA-Worker13`（13 台全扫）、`ihc-poc-db`、`Pre-Prod-Server`、`ihc-app-uat-1`、`ihc-poc-web-app`（严格模式复扫确认，此前宽正则的命中全是理赔金额 `4330.00` 误报）。其中 `RPA-Commander` 作为 RPA 编排中心无 TVS 连接串，是较有分量的阴性证据。
+  - `Ihc-report-server` 单独处理：初版宽正则脚本在该机大目录上深递归 `Select-String`，运行 1.5 小时未返回并持续占用 run-command 通道，导致后续下发全部 `Conflict`。改用**不遍历文件系统**的取证方式——直接查 SSRS 目录库 `ReportServer` 的 `dbo.Catalog` + `dbo.DataSource`（`Type = 5` 即共享数据源），把 `ConnectionString` 从 image 类型转出并遮蔽口令，这是「报表实际连哪个库」的权威来源，且秒级返回（通道被占，重试 29 次约 15 分钟后成功）。
+    结果：**该机没有安装 SSRS**（`ReportServer` / `SQLServerReportingServices` 服务均不存在），只有本地 SQL 实例 `MSSQLSERVER` 在跑，SSRS 目录库查询无任何输出 → 阴性。名字叫 report server 但实际未部署 Reporting Services。
   - 阴性结论（**0 真命中**），跨订阅 `408f1434-...` 6 台（覆盖与 `ihc-poc-vnet` 有 peering 的 VNet）：`icare-2-uat-app01`、`icare-2-uat-db01`、`ihc-phws-001`、`ihc-phdb-001`、`iCare-Companion-Apps`、`E-Billing-APP-UAT`。
   - Azure 侧补充阴性证据：
     - 无 App Service / Function App（`az webapp list`、`az functionapp list` 均空）
     - Application Gateway `ihc-poc-waf` / `ihc-uat-app-gw` 后端池无 `172.0.3.4`；无 Load Balancer
     - **Network Watcher 存在但未配置任何 NSG flow log**（`az network watcher flow-log list` 返回空）→ 无历史流量记录可查，只能靠客户端连接串取证
-  - 初步判断（待剩余机器扫完确认）：这套 tvs 库很可能**尚无任何服务在使用**。证据链：库 2026-06-24 建立 → 6/26 有人把实例从「仅 Windows 认证」改为混合模式并尝试 `tvsadminsp` 登录（失败）→ 该登录名至今不存在 → NSG 从未放通 4330 → DB 侧历史无任何外部 IP 连入 → 客户端侧遍扫无连接串。像是**搭了一半停下的迁移/新建项目**。
+  - **最终结论（27 台运行中 Windows VM 全部扫完，0 真命中）**：这套 tvs 库**尚无任何服务在使用**。证据链：库 2026-06-24 建立 → 6/26 有人把实例从「仅 Windows 认证」改为混合模式并尝试 `tvsadminsp` 登录（失败）→ 该登录名至今不存在 → NSG 从未放通 4330 → DB 侧历史无任何外部 IP 连入 → 客户端侧遍扫无连接串。像是**搭了一半停下的迁移/新建项目**。
 - 交叉参考：`docs/operations/pre-prod-server.md`、`docs/operations/mas-web-app.md` 同日条目。
