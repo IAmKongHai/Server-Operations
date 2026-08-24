@@ -1,5 +1,22 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-24 20:32 CST - 只读盘点：从 ihc-db-uat 同步五库的前置
+
+- 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）；对照源 `ihc-db-uat` `10.100.0.4`；跳板 `icare-uat-runner-1`
+- 操作人：`Grok`
+- 原因：用户要把 `10.100.0.4` 上 `medicalassistance_preprod` / `maswebkit_preprod` / `insularsalesportal_preprod` / `authprovidermasuat` / `masprepaid_preprod` 同步到内网 DB。先只读调查，不出手恢复。
+- 影响：**只读**。查了本机库清单/磁盘/会话、mas-go-dev 连接名、runner 到源库连通性，以及源 VM 上 `F:\icare2bak` 与 `RESTORE FILELISTONLY`。未重启、未改库、未传文件、未建 blob。
+- 备份：无（无变更）。
+- 回滚：无变更。
+- 本机：
+  - SQL Server 2022 Developer `16.0.4252.3`，`/restore` 393G / 用 168G / 剩 206G。
+  - 现网 catalog 是 `medicalassistance_preprod`、`maswebkit`、`insularsalesportal`、`masprepaid`、`authprovidermasweb`（不是源后缀那套）；另有 `medicalassistance_replicated` 不要动。
+  - `schema_migrations` version 46；活连接来自 mas-go-dev 容器。无 PVE 快照。
+- 源 bak（2026-08-21 COPY_ONLY，仍在 `F:\icare2bak`）：合计 17.3 GB；恢复预占约 131 GB（`authprovidermasuat` 日志元数据 12.8G、`maswebkit_preprod` 日志 8.6G）。
+- 传输：runner `10.30.6.4` 到源 1433/445 通、到本机 TS 不通；源 VM 到 `icare2uaticare2st` PE `10.30.5.9:443` 通，AzCopy 已装。该 storage 公网关闭，不能让 mssql-ref 直接拉。
+- 方案：`docs/plans/2026-08-24-001-ops-mssql-ref-sync-from-ihc-db-uat-plan.md`（旁路恢复，不 REPLACE 现网库）。
+- 验证：`sys.databases` 与调查前一致；源 bak 列表与 handoff 一致。
+
 ## 2026-08-20 14:32 CST - maswebkit 补 MemberPortal 新包登录缺的 v6 过程与两列
 
 - 服务器：`mssql-ref` / 库 `maswebkit`

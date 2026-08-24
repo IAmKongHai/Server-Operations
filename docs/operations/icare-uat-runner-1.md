@@ -4,6 +4,21 @@
 
 SSH：`ssh icare-uat-runner-1`（兼容 `ssh icare-uat-runner`）→ `icareadmin@10.30.6.4`。主机名 `icare-2-uat-ci-runner`。
 
+## 2026-08-24 20:32 CST - 只读确认到 ihc-db-uat 的跳板能力
+
+- 服务器：`icare-uat-runner-1`（`10.30.6.4`）
+- 操作人：`Grok`
+- 原因：评估把 `10.100.0.4` 上 17 GB `.bak` 运到 `mssql-ref` 的中转点。
+- 影响：**只读**。ping / TCP 探测 / `df`。未改 runner、Docker、`/var/cache/buildx`。
+- 备份：无。
+- 回滚：无变更。
+- 验证：
+  - `10.100.0.4` ping ~1.5ms；1433 / 445 / 3389 开，22 拒绝。
+  - 本机无 Tailscale，`100.124.140.78` ICMP/22 不通，不能直送 mssql-ref。
+  - 根分区剩约 59G，够暂存 17G bak。
+  - 已装 `/opt/mssql-tools18/bin/sqlcmd`。
+- 相关：`docs/plans/2026-08-24-001-ops-mssql-ref-sync-from-ihc-db-uat-plan.md`
+
 ## 2026-08-23 18:26 CST - 纳入 SSH 别名 `icare-uat-runner-1` 并建立档案
 
 - 服务器：`icare-uat-runner-1`（Azure Linux 3.0，`Standard_B2s`，`10.30.6.4`）
