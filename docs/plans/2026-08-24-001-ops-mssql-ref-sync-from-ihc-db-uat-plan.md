@@ -28,32 +28,56 @@ tags:
 | 4 | `authprovidermasuat` | ecom / sup（只读 `oauth_clients`） |
 | 5 | `masprepaid_preprod` | ecom |
 
-2026-08-24 只读核实：`F:\icare2bak\` 上 2026-08-21 的 `COPY_ONLY, COMPRESSION` 全备**还在**，合计约 **17.3 GB**。
+**不用 2026-08-21 的 bak。** 2026-08-24 20:46–20:52 CST 已在源机打了最新 `COPY_ONLY, COMPRESSION`（先 `BACKUP LOG` 截断 FULL 库日志）。传输只搬 `F:\icare2bak\*_20260824.bak`，合计 **17.0 GB**。`.trn` 留在 `D:\icare2bak\`，不传。
 
 ## 目标终态
 
-`mssql-ref` 上有一份与 `10.100.0.4` 2026-08-21（或更新一次 COPY_ONLY 之后）一致的五库数据，
+`mssql-ref` 上有一份与 `10.100.0.4` **2026-08-24 20:52 CST** 一致的五库数据，
 可供 mas-go-dev / mas-win 对照 preprod。现网 SIT / mas-go-dev / mas-win **先不切**，
 等旁路库验证通过再决定是否改名替换。
 
+## 为什么传 bak（传输量最小）
+
+全量、时间点一致的拷贝里，**`BACKUP DATABASE … WITH COPY_ONLY, COMPRESSION` 是线上最小的**：
+
+| 办法 | 大约要搬 | 为什么不用 |
+| --- | ---: | --- |
+| 拷 MDF/LDF | ~140 GB | 按分配大小搬，还要卸库 |
+| 源上夜间 COPY_ONLY（未压缩） | ~126 GB | msdb 里 `compressed_mb = backup_mb` |
+| 不截断 auth 日志就打全备 | auth 一项就 ~18 GB 未压缩 / 昨晚 5.9 GB 压缩 | `authprovidermasuat` 当时日志 used **21 GB**（FULL + `LOG_BACKUP`） |
+| **本次：LOG 截断 + COPY_ONLY COMPRESSION** | **17.0 GB** | 主库 14.2 GB + webkit 2.6 GB + 其余 <0.3 GB |
+
+再压一层 zstd 最多再削 10–20%，不值得为这点多一道。BACPAC / 逐表导出更慢，主库通常更大。差异备份对不上 `mssql-ref` 上的旧库（不是同一条 LSN 链）。
+
+`.trn` 只为截断日志，**不传到家里**。
+
 ## 调查结论（2026-08-24）
 
-### 源 bak（ihc-db-uat `F:\icare2bak\`）
+### 源 bak（ihc-db-uat `F:\icare2bak\*_20260824.bak`，已生成）
 
-`RESTORE HEADERONLY` / `FILELISTONLY` 只读结果。版本均为 869（SQL 2017），Compressed=1。
-`RESTORE` 按**分配大小**预占磁盘，不是 `.bak` 文件大小。
+2026-08-24 20:46–20:52 CST，从 `icare-uat-runner-1` 用 `mas_ref_owner` 执行。
+`BACKUP DATABASE … WITH COPY_ONLY, COMPRESSION, INIT, CHECKSUM`。未覆盖 `*_20260821.bak`。
 
-| bak | 文件 | 备份开始 | 源库 | MDF | LDF | 恢复预占 |
-| --- | ---: | --- | --- | ---: | ---: | ---: |
-| `medicalassistance_preprod_20260821.bak` | 14.1 GB | 2026-08-21 19:51 | `medicalassistance_preprod` | 99.2 GB | 2.1 GB | **101.3 GB** |
-| `maswebkit_preprod_20260821.bak` | 2.59 GB | 2026-08-21 19:50 | `maswebkit_preprod` | 5.8 GB | 8.6 GB | **14.4 GB** |
-| `authprovidermasuat_20260821.bak` | 42.6 MB | 2026-08-21 19:51 | `authprovidermasuat` | 0.24 GB | **12.8 GB** | **13.0 GB** |
-| `masprepaid_preprod_20260821.bak` | 162 MB | 2026-08-21 19:50 | `masprepaid_preprod` | 0.54 GB | 1.1 GB | **1.6 GB** |
-| `insularsalesportal_preprod_20260821.bak` | 1.2 MB | 2026-08-21 19:50 | `insularsalesportal_preprod` | 9 MB | 0.37 GB | **0.4 GB** |
+| bak | 压缩后 | COPY_ONLY 起止（CST） |
+| --- | ---: | --- |
+| `medicalassistance_preprod_20260824.bak` | **14.19 GB** | 20:48:25–20:52:57 |
+| `maswebkit_preprod_20260824.bak` | 2.59 GB | 20:47:44–20:48:25 |
+| `masprepaid_preprod_20260824.bak` | 162 MB | 20:47:40–20:47:42 |
+| `authprovidermasuat_20260824.bak` | 43 MB | 20:47:42–20:47:44 |
+| `insularsalesportal_preprod_20260824.bak` | 1.2 MB | 20:47:38–20:47:40 |
+| **合计（要传的）** | **17.0 GB** | |
 
-五库恢复预占合计约 **130.7 GB**，加上暂存 bak 17.3 GB ≈ **148 GB**。
+FULL 库先打了 `BACKUP LOG`（非 COPY_ONLY，为截断；`.trn` 不传）：
 
-源盘：`F:` 空闲 257 GB，`D:` 空闲 109 GB。日志 `.trn` 在 `D:\icare2bak\`，本方案不用。
+| trn | 压缩后 | 说明 |
+| --- | ---: | --- |
+| `authprovidermasuat_20260824.trn` | 5.81 GB | 截断前日志 used 21.3 GB；不截断则全备会把这段日志打进去 |
+| `masprepaid_preprod_20260824.trn` | 48 MB | |
+| `maswebkit_preprod_20260824.trn` | 2 MB | |
+| `insularsalesportal_preprod_20260824.trn` | 1 MB | |
+| `medicalassistance_preprod` | — | SIMPLE，不能 / 不必 `BACKUP LOG` |
+
+备份后 `F:` 空闲 240 GB，`D:` 空闲 103.5 GB。`RESTORE` 仍按源文件**分配大小**预占（auth 日志文件还是 ~23 GB，本次未 SHRINK）。旁路五库预占仍大约 130–145 GB，`/restore` 剩 206 GB，够。
 
 ### 应用连接（iCare `backend/.env.preprod`）
 
@@ -77,7 +101,7 @@ CYP-2250 给本机连 live preprod 用的 env。2026-08-24 从 `icare-uat-runner
 
 handoff 写「`mas_ref_owner` 不会在 10.100.0.4 上、老应用用 `mas_user`」已过时：我们这条链路用的就是 `mas_ref_owner`。同实例上 `authprovidermas_preprod` 也在，本方案默认仍跟 8443 那条 `authprovidermasuat`。
 
-`db_owner` 具备对该库 `BACKUP DATABASE`。若要打比 08-21 更新的 COPY_ONLY，可以从 runner `sqlcmd` 写到 `F:\icare2bak\`（仍是客户 live 上的 IO，要另确认）。传文件本身不依赖这个 SQL 账号，走 AzCopy / SMB。
+`db_owner` 已用来打 2026-08-24 的 LOG + COPY_ONLY。传文件走 AzCopy / SMB，不靠这个 SQL 账号。
 
 逻辑文件名（RESTORE `MOVE` 要用）：
 
@@ -142,11 +166,11 @@ api / worker / ecom / sup / public-hr / public-map 当时均为 healthy。
 
 | 源库 | 恢复成 | 数据文件落点 |
 | --- | --- | --- |
-| `medicalassistance_preprod` | `medicalassistance_preprod_ihc20260821` | `/restore/data/ihc20260821/medicalassistance/` |
-| `maswebkit_preprod` | `maswebkit_preprod` | `/restore/data/ihc20260821/maswebkit/` |
-| `insularsalesportal_preprod` | `insularsalesportal_preprod` | `/restore/data/ihc20260821/insularsalesportal/` |
-| `masprepaid_preprod` | `masprepaid_preprod` | `/restore/data/ihc20260821/masprepaid/` |
-| `authprovidermasuat` | `authprovidermasuat` | `/restore/data/ihc20260821/authprovidermasuat/` |
+| `medicalassistance_preprod` | `medicalassistance_preprod_ihc20260824` | `/restore/data/ihc20260824/medicalassistance/` |
+| `maswebkit_preprod` | `maswebkit_preprod` | `/restore/data/ihc20260824/maswebkit/` |
+| `insularsalesportal_preprod` | `insularsalesportal_preprod` | `/restore/data/ihc20260824/insularsalesportal/` |
+| `masprepaid_preprod` | `masprepaid_preprod` | `/restore/data/ihc20260824/masprepaid/` |
+| `authprovidermasuat` | `authprovidermasuat` | `/restore/data/ihc20260824/authprovidermasuat/` |
 
 然后 `SIMPLE` + `SHRINKFILE` 收 `authprovidermasuat` 的 12.8G 日志和 `maswebkit_preprod` 的 8.6G 日志。
 给 `mas_ref_owner` 映射 `db_owner`（orphaned user 处理）。**先不改**任何 `.env` / `Web.config`。
@@ -158,7 +182,7 @@ api / worker / ecom / sup / public-hr / public-map 当时均为 healthy。
 推荐链（数据不离开 UAT VNet，直到 runner → 笔记本 → 家）：
 
 ```
-ihc-db-uat F:\icare2bak\*.bak
+ihc-db-uat F:\icare2bak\*_20260824.bak
     -- AzCopy / PE 10.30.5.9 -->
 icare2uaticare2st 临时 container（短 TTL SAS，禁止公开）
     -- 同 VNet -->
@@ -166,16 +190,16 @@ icare-uat-runner-1  (~59G 空闲，够 17G)
     -- scp -->
 本机
     -- scp -->
-mssql-ref:/restore/backups/ihc20260821/
+mssql-ref:/restore/backups/ihc20260824/
 ```
 
 步骤：
 
-1. 在 `icare2uaticare2st` 建临时 container，例如 `ihc-db-bak-20260821`，默认拒绝公共访问。
+1. 在 `icare2uaticare2st` 建临时 container，例如 `ihc-db-bak-20260824`，默认拒绝公共访问。
 2. 生成有时限的 SAS（写给源 VM，读给 runner）。不要把 SAS 写入仓库。
-3. 在 `ihc-db-uat` 上 `az vm run-command` 调 `C:\Program Files\AzCopy\azcopy.exe copy F:\icare2bak\*20260821.bak <sas> --overwrite=false`。这是读 bak + 出站上传，不改库、不断 Azure Backup 链。
+3. 在 `ihc-db-uat` 上 `az vm run-command` 调 `C:\Program Files\AzCopy\azcopy.exe copy F:\icare2bak\*20260824.bak <sas> --overwrite=false`。只拷今日 bak，不拷 `.trn`、不拷 `*_20260821.bak`。
 4. runner 上 `azcopy copy` 下到 `/home/icareadmin/ihc-bak/`，`md5sum`。
-5. 本机中转 `scp` 到 `mssql-ref:/restore/backups/ihc20260821/`，属主 `mssql:mssql`，再对 md5。
+5. 本机中转 `scp` 到 `mssql-ref:/restore/backups/ihc20260824/`，属主 `mssql:mssql`，再对 md5。
 6. 目标校验完成后删 runner 本地副本和 blob container。源 `F:\icare2bak` **先留着**，不删。
 
 备选：runner 经 SMB `\\10.100.0.4\F$\icare2bak` 直拷（445 已开），可跳过 blob；需要 Windows 凭据，且不要把密码写进命令历史/仓库。
@@ -187,13 +211,13 @@ mssql-ref:/restore/backups/ihc20260821/
 每库同一套：
 
 ```sql
--- 以 maswebkit 为例；主库改目标名为 medicalassistance_preprod_ihc20260821
-RESTORE FILELISTONLY FROM DISK = N'/restore/backups/ihc20260821/maswebkit_preprod_20260821.bak';
-RESTORE VERIFYONLY FROM DISK = N'/restore/backups/ihc20260821/maswebkit_preprod_20260821.bak';
+-- 以 maswebkit 为例；主库改目标名为 medicalassistance_preprod_ihc20260824
+RESTORE FILELISTONLY FROM DISK = N'/restore/backups/ihc20260824/maswebkit_preprod_20260824.bak';
+RESTORE VERIFYONLY FROM DISK = N'/restore/backups/ihc20260824/maswebkit_preprod_20260824.bak';
 RESTORE DATABASE [maswebkit_preprod]
-  FROM DISK = N'/restore/backups/ihc20260821/maswebkit_preprod_20260821.bak'
-  WITH MOVE N'maswebkit' TO N'/restore/data/ihc20260821/maswebkit/maswebkit.mdf',
-       MOVE N'maswebkit_log' TO N'/restore/data/ihc20260821/maswebkit/maswebkit.ldf',
+  FROM DISK = N'/restore/backups/ihc20260824/maswebkit_preprod_20260824.bak'
+  WITH MOVE N'maswebkit' TO N'/restore/data/ihc20260824/maswebkit/maswebkit.mdf',
+       MOVE N'maswebkit_log' TO N'/restore/data/ihc20260824/maswebkit/maswebkit.ldf',
        RECOVERY, STATS = 10;
 ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 ```
@@ -205,7 +229,7 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 1. `DBCC SHRINKFILE` 收 auth 12.8G、webkit 8.6G 日志（SIMPLE + CHECKPOINT 之后）。
 2. 孤立用户：`ALTER USER [mas_ref_owner] WITH LOGIN = [mas_ref_owner]` 或 `CREATE USER ... FOR LOGIN` + `db_owner`。不要在旁路库上建 ecom/sup 专用 login，除非准备切换。
 3. 抽查：`sys.databases` ONLINE；表数量级；`authprovidermasuat.dbo.oauth_clients` 行数 vs 本机 `authprovidermasweb`（这是切 AUTH_DB 前必须对的）。
-4. 抽查 SP 是否仍写 `medicalassistance_replicated`（旁路主库名带 `_ihc20260821` 时，三段式不会自动改名——这是**切主库名之前**要修的）。
+4. 抽查 SP 是否仍写 `medicalassistance_replicated`（旁路主库名带 `_ihc20260824` 时，三段式不会自动改名——这是**切主库名之前**要修的）。
 
 ## 切现网（第二阶段，必须再确认）
 
@@ -217,7 +241,7 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 
 | 旁路名 | 切成现网名 |
 | --- | --- |
-| `medicalassistance_preprod_ihc20260821` | `medicalassistance_preprod`（旧的改 `medicalassistance_preprod_old`） |
+| `medicalassistance_preprod_ihc20260824` | `medicalassistance_preprod`（旧的改 `medicalassistance_preprod_old`） |
 | `maswebkit_preprod` | `maswebkit` |
 | `insularsalesportal_preprod` | `insularsalesportal` |
 | `masprepaid_preprod` | `masprepaid` |
@@ -226,7 +250,7 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 切主库后必做：
 
 1. 把 Go 的 `schema_migrations`（version 46）和 `casbin_rule` 从 `*_old` 拷回，或 `migrate version 46` stamp + 视差补跑。禁止放任 deploy 从 1 打到新库。
-2. 三段式 SP：旁路主库改名后，其它库里写死的 `medicalassistance_preprod_ihc20260821` 必须改回 `medicalassistance_preprod`。
+2. 三段式 SP：旁路主库改名后，其它库里写死的 `medicalassistance_preprod_ihc20260824` 必须改回 `medicalassistance_preprod`。
 3. mas-win MemberPortal：若源 `maswebkit` 没有 v6 / 那两列，按 `docs/operations/mssql-ref.md` 2026-08-20 重打。
 4. 旧库改名保留至少到 smoke 通过；确认后再 `DROP`（属删除，需单独确认）。
 
@@ -244,12 +268,13 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 - 不 `REPLACE` 正在用的 `medicalassistance_preprod` / `maswebkit` / `insularsalesportal` / `masprepaid` / `authprovidermasweb`（第一阶段）。
 - 不动 `medicalassistance_replicated`。
 - 不接 `*_uat` / `*_archive` / 裸名 `medicalassistance` / `authprovidermas_preprod`（除非要比对 oauth，单独立项）。
-- 不在 `10.100.0.4` 上 `SHRINK` / 改配置 / 删 bak / 非 COPY_ONLY 的备份。
+- 不在 `10.100.0.4` 上 `SHRINK` / 改配置 / 删 bak。已做的例外：FULL 库 `BACKUP LOG`（截断，`.trn` 留源机）+ 五库 `COPY_ONLY COMPRESSION`。
 - 不把 bak 或 SAS 提交进 git。
+- **不传、不还原 `*_20260821.bak`。**
 
 ## 执行前需要确认
 
-1. 用 2026-08-21 这份 COPY_ONLY，还是再打一份新的（live preprod 上有 IO）？
+1. ~~用 2026-08-21 还是新备~~ **已决：2026-08-24 20:52 CST 的 COPY_ONLY，17.0 GB。**
 2. 第一阶段只旁路恢复、不切 mas-go-dev / mas-win，可以吗？（推荐：可以）
 3. 传输走「AzCopy → `icare2uaticare2st` 临时 container → runner → 本机 → mssql-ref」，可以建短 TTL SAS 吗？
 4. `authprovidermasuat` 只作为新库并存，ecom/sup 暂不改 `AUTH_DB_NAME`，可以吗？

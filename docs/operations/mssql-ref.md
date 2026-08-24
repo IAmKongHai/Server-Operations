@@ -1,5 +1,22 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-24 20:53 CST - 源 ihc-db-uat 打最新 COPY_ONLY（不用 20260821）
+
+- 服务器：源 `ihc-db-uat`（`10.100.0.4`）；跳板 `icare-uat-runner-1`；目的地仍是 `mssql-ref`
+- 操作人：`Grok`（用户要求最新数据，不能用 20260821 bak）
+- 原因：同步方案改为传当前库；压缩 bak 是全量一致拷贝里传输量最小的路径。
+- 影响：
+  - FULL 库 `BACKUP LOG` 截断（非 COPY_ONLY）：`authprovidermasuat` / `maswebkit_preprod` / `masprepaid_preprod` / `insularsalesportal_preprod`。`authprovidermasuat` 日志 used 从 21.3 GB 截断；`.trn` 留在 `D:\icare2bak\`，**不传**。
+  - 五库 `BACKUP DATABASE … WITH COPY_ONLY, COMPRESSION, INIT, CHECKSUM` 写到 `F:\icare2bak\*_20260824.bak`。未覆盖 `*_20260821.bak`。未 SHRINK、未改配置、未重启。
+  - `medicalassistance_preprod` 是 SIMPLE，只打了全备。
+- 备份：本次产出即为备份。旧 20260821 文件仍在 F:/D:。
+- 回滚：源库数据未改。日志截断后不能靠这些 `.trn` 做源库时间点回滚到截断前（Azure 夜间 COPY_ONLY 全备链本身也不靠我们的 log）。
+- 验证：
+  - 全备压缩合计 **17.0 GB**（主库 14.19 / webkit 2.59 / prepaid 162MB / auth 43MB / insular 1.2MB），checksum 开启。
+  - 主库 20:48:25–20:52:57 CST，13029970 pages，375 MB/s。
+  - 不截断 auth 日志的话，昨晚同库未压缩 COPY_ONLY 是 17.8 GB；截断后全备 43 MB。
+- 相关：`docs/plans/2026-08-24-001-ops-mssql-ref-sync-from-ihc-db-uat-plan.md`
+
 ## 2026-08-24 20:32 CST - 只读盘点：从 ihc-db-uat 同步五库的前置
 
 - 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）；对照源 `ihc-db-uat` `10.100.0.4`；跳板 `icare-uat-runner-1`
