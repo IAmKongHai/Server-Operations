@@ -55,6 +55,30 @@ tags:
 
 源盘：`F:` 空闲 257 GB，`D:` 空闲 109 GB。日志 `.trn` 在 `D:\icare2bak\`，本方案不用。
 
+### 应用连接（iCare `backend/.env.preprod`）
+
+CYP-2250 给本机连 live preprod 用的 env。2026-08-24 从 `icare-uat-runner-1` 用该账号只读登录成功。
+
+| 项 | 值 |
+| --- | --- |
+| 文件 | iCare 仓 `backend/.env.preprod`（密码不入库、不写进本 plan） |
+| Host | `10.100.0.4:1433`，`ENCRYPT=disable` |
+| 账号 | `mas_ref_owner`（主库角色 `db_owner`） |
+| 本机直连 | 需要 iCare-2-vnet / P2S VPN；无 VPN 时走 runner `10.30.6.4` |
+| 实测实例 | `ihc-db-uat` / `14.0.3540.1` |
+
+| env | catalog |
+| --- | --- |
+| `DB_NAME` | `medicalassistance_preprod` |
+| `WEBKIT_DB_NAME` | `maswebkit_preprod` |
+| `SALESPORTAL_DB_NAME` | `insularsalesportal_preprod` |
+| `AUTH_DB_NAME` | `authprovidermasuat` |
+| `PREPAID_DB_*` | **文件里没有**（MAS backend 不用；ecom 才要 `masprepaid_preprod`） |
+
+handoff 写「`mas_ref_owner` 不会在 10.100.0.4 上、老应用用 `mas_user`」已过时：我们这条链路用的就是 `mas_ref_owner`。同实例上 `authprovidermas_preprod` 也在，本方案默认仍跟 8443 那条 `authprovidermasuat`。
+
+`db_owner` 具备对该库 `BACKUP DATABASE`。若要打比 08-21 更新的 COPY_ONLY，可以从 runner `sqlcmd` 写到 `F:\icare2bak\`（仍是客户 live 上的 IO，要另确认）。传文件本身不依赖这个 SQL 账号，走 AzCopy / SMB。
+
 逻辑文件名（RESTORE `MOVE` 要用）：
 
 | 源库 | ROWS logical | LOG logical |

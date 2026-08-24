@@ -14,8 +14,9 @@
   - `schema_migrations` version 46；活连接来自 mas-go-dev 容器。无 PVE 快照。
 - 源 bak（2026-08-21 COPY_ONLY，仍在 `F:\icare2bak`）：合计 17.3 GB；恢复预占约 131 GB（`authprovidermasuat` 日志元数据 12.8G、`maswebkit_preprod` 日志 8.6G）。
 - 传输：runner `10.30.6.4` 到源 1433/445 通、到本机 TS 不通；源 VM 到 `icare2uaticare2st` PE `10.30.5.9:443` 通，AzCopy 已装。该 storage 公网关闭，不能让 mssql-ref 直接拉。
+- 应用连接：iCare `backend/.env.preprod`（host `10.100.0.4`，账号 `mas_ref_owner`，`ENCRYPT=disable`）。从 runner 只读登录成功，实例 `ihc-db-uat` 14.0.3540.1，主库角色 `db_owner`。五库都在；env 无 `PREPAID_DB_*`（ecom 才用 `masprepaid_preprod`）。密码未写入仓库。
 - 方案：`docs/plans/2026-08-24-001-ops-mssql-ref-sync-from-ihc-db-uat-plan.md`（旁路恢复，不 REPLACE 现网库）。
-- 验证：`sys.databases` 与调查前一致；源 bak 列表与 handoff 一致。
+- 验证：`sys.databases` 与调查前一致；源 bak 列表与 handoff 一致；runner 上 `mas_ref_owner` 能列出五库。
 
 ## 2026-08-20 14:32 CST - maswebkit 补 MemberPortal 新包登录缺的 v6 过程与两列
 
