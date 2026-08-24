@@ -67,7 +67,7 @@ head: "6e407c4eeae6f98bbdc1211c22f9e1d6e5bb9ee4"
 6. 现有 `on: push tags: v*` 部署接棒
 7. 不部署、不做 release→develop 回流；hotfix 用 `skip_develop_sync`
 
-MAS 脚本仍读 `statusCheckRollup`；public 因 CYP-2186 去掉了。新仓跟 public：只看 CLEAN + 先配 Protect release。
+MAS 脚本曾读 `statusCheckRollup`；token 换成 fine-grained 后正式 cut 会 403（run 32718244629）。修复 PR：`iCare-backend` [#1616](https://github.com/cypressoai/iCare-backend/pull/1616)。public 因 CYP-2186 已去掉。新仓跟 public：只看 CLEAN + 先配 Protect release。
 
 ## Track A — `iCare-mobile-app`（代码仓做）
 

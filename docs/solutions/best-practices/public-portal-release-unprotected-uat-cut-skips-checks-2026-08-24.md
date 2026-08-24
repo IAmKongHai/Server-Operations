@@ -91,7 +91,7 @@ gh api --method DELETE repos/cypressoai/iCare-public-frontend/rulesets/21262058
 
 | 仓库 | 冻结线 | 自动 cut | 结论 |
 |------|--------|----------|------|
-| `iCare-backend` / `iCare-frontend-mas` | `release` 有 Protect release；检查与 develop 对齐 | 有（CYP-1923，还读 `statusCheckRollup`） | **无此问题**；同日 cut 等约 8–10 分钟 |
+| `iCare-backend` / `iCare-frontend-mas` | `release` 有 Protect release；检查与 develop 对齐 | 有（CYP-1923；[#1616](https://github.com/cypressoai/iCare-backend/pull/1616) 起只看 CLEAN，对齐 CYP-2186） | **不是本条秒合问题**。token 换成 fine-grained 后旧脚本读 `statusCheckRollup` 会 403，见 `uat-cut-statuscheckrollup-403-fine-grained-pat-2026-08-24.md` |
 | `iCare-public-backend` / `iCare-public-frontend` | 已补 Protect release | 有（CYP-2163，只看 CLEAN） | **本条已修** |
 | `iCare-Operations-backend` / `frontend` | 无 `release`；`develop`+`main` 检查一致 | 无 | **无此问题**。注意 CI `on.branches` 已含 `release`，一旦建该分支且不补 ruleset 会重演 |
 | **`iCare-mobile-app`** | 有活跃 `release`+`main`；**只** Protect develop（`CI Quality`+`SonarQube Scan`） | 无脚本，但是人工秒合 | **同型问题，仍在** |
