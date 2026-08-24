@@ -1,5 +1,15 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-24 23:18 CST - 为 mas-go-dev ecom/sup 在 authprovidermasuat_preprod 建最小权限用户
+
+- 服务器：`mssql-ref` / 库 `authprovidermasuat_preprod`
+- 操作人：`Grok`
+- 原因：ecom/sup 切 `AUTH_DB_NAME` 后仍用既有 login `icare_sit_mas_ecom_auth` / `icare_sit_mas_sup_auth`，新库里没有对应 user。
+- 影响：在 `authprovidermasuat_preprod` 为两个 login 建 user，只授 `CONNECT` + `SELECT dbo.oauth_clients`。未改 login 密码、未动 `authprovidermasweb`。
+- 备份：变更前目标 user 不存在。
+- 回滚：待 mas-go-dev 改回 `AUTH_DB_NAME=authprovidermasweb` 后，在该库 `DROP USER` 两个主体（不要删 server login，旧库还在用）。
+- 验证：两个 user 权限仅 CONNECT + 该表 SELECT；`oauth_clients` 16 行。mas-go-dev ecom/sup 随后连上 `authprovidermasuat_preprod` 且 healthy。
+
 ## 2026-08-24 23:14 CST - 恢复 ihc20260824 五库并切换主库 catalog
 
 - 服务器：`mssql-ref`

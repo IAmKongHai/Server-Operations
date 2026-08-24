@@ -13,18 +13,18 @@
 
 | catalog | 来源 | 数据 MB | 日志 MB | 谁在用 |
 | --- | --- | ---: | ---: | --- |
-| **`medicalassistance_preprod`** | ihc-db-uat bak 2026-08-24 | 101799 | 2110 | mas-go-dev / mas-win / SIT 主库（切过来了） |
-| **`medicalassistance_v2026.02.19`** | 原现网主库改名（适配 MAS 2026.02.19） | 100284 | 2110 | 旧参考，应用未改连它 |
+| **`medicalassistance_preprod`** | ihc-db-uat bak 2026-08-24 | 101799 | 2110 | mas-go-dev api/worker/ecom/sup 主库 |
+| **`medicalassistance_v2026.02.19`** | 原现网主库改名（适配 MAS 2026.02.19） | 100284 | 2110 | 旧参考，应用不连 |
 | `medicalassistance_replicated` | 旧对照 | 21704 | 10056 | 不要动 |
-| `maswebkit` | 原现网 | 5911 | 68 | mas-go-dev `WEBKIT_DB_NAME`；mas-win |
-| **`maswebkit_preprod`** | ihc-db-uat bak | 5911 | 259 | 旁路，应用未切 |
+| `maswebkit` | 原现网 | 5911 | 68 | mas-win（mas-go-dev 已切走） |
+| **`maswebkit_preprod`** | ihc-db-uat bak | 5911 | 259 | mas-go-dev `WEBKIT_DB_NAME`；public-app/hr/map |
 | `maswebkit-uat-old` | 遗留 | 24 | 379 | 无应用 |
-| `insularsalesportal` | 原现网 | 9 | 16 | mas-go-dev / sup `SALESPORTAL_DB_NAME` |
-| **`insularsalesportal_preprod`** | ihc-db-uat bak | 9 | 68 | 旁路，应用未切 |
-| `masprepaid` | 原现网 | 24 | 8 | ecom `PREPAID_DB_NAME` |
-| **`masprepaid_preprod`** | ihc-db-uat bak | 548 | 133 | 旁路，应用未切 |
-| `authprovidermasweb` | 原现网 | 10733 | 65 | ecom/sup `AUTH_DB_NAME`；mas-win |
-| **`authprovidermasuat_preprod`** | ihc-db-uat `authprovidermasuat` bak | 245 | 264 | 旁路，应用未切 |
+| `insularsalesportal` | 原现网 | 9 | 16 | 旧参考（mas-go-dev 已切走） |
+| **`insularsalesportal_preprod`** | ihc-db-uat bak | 9 | 68 | mas-go-dev / sup `SALESPORTAL_DB_NAME` |
+| `masprepaid` | 原现网 | 24 | 8 | 旧参考（ecom 已切走） |
+| **`masprepaid_preprod`** | ihc-db-uat bak | 548 | 133 | ecom `PREPAID_DB_NAME` |
+| `authprovidermasweb` | 原现网 | 10733 | 65 | mas-win（mas-go-dev ecom/sup 已切走） |
+| **`authprovidermasuat_preprod`** | ihc-db-uat `authprovidermasuat` bak | 245 | 264 | ecom/sup `AUTH_DB_NAME` |
 | `operations` | 本机运维 | 8 | 8 | 与 MAS 无关 |
 
 加粗 = 本次从 `/restore/backups/ihc20260824/` 恢复或改名得到。数据文件在 `/restore/data/ihc20260824/<slug>/`（旧主库文件仍在 `/restore/data/medicalassistance_full/`）。
@@ -40,6 +40,8 @@
 | `authprovidermasuat` | `authprovidermasuat_preprod` | 旧 `authprovidermasweb` 保留 |
 
 切主库前把旧库 `casbin_rule` 6344 行拷进新库（源 bak 里只有 14 行）；`schema_migrations` 两边都是 version 46 / dirty=0，未改。`mas_ref_owner` 在五个新库都是 `db_owner`。
+
+2026-08-24 23:18 CST：mas-go-dev 已切到上表加粗 catalog（SIT 当时无人测试）。env 备份 `*.bak.20260824-ihc-cut`。ecom/sup 的 `icare_sit_mas_*_auth` 已在 `authprovidermasuat_preprod` 授 `SELECT dbo.oauth_clients`。mas-win 仍连旧 `maswebkit` / `insularsalesportal` / `authprovidermasweb`。
 
 ## 回滚主库
 

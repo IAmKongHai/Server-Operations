@@ -1,5 +1,22 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-08-24 23:18 CST - 后端与 public-backend 切到 ihc20260824 新 catalog
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`（用户确认 SIT 无人测试、可不考虑中断）
+- 原因：mssql-ref 已恢复 10.100.0.4 最新库；应用仍指旧 catalog。
+- 影响：
+  - `.env.docker`：`WEBKIT_DB_NAME=maswebkit_preprod`，`SALESPORTAL_DB_NAME=insularsalesportal_preprod`
+  - `.env.ecom`：`PREPAID_DB_NAME=masprepaid_preprod`，`AUTH_DB_NAME=authprovidermasuat_preprod`
+  - `.env.sup`：`SALESPORTAL_DB_NAME=insularsalesportal_preprod`，`AUTH_DB_NAME=authprovidermasuat_preprod`
+  - public-backend `.env.{app,hr,map}`：`WEBKIT_DB_NAME=maswebkit_preprod`
+  - `DB_NAME` 已是 `medicalassistance_preprod`（新 bak），未改。
+  - 以当前镜像 `--no-build --force-recreate` 重建 api/worker/ecom-api/sup-api/public-app/hr/map。
+- 备份：`/opt/mas-go-dev/backend/.env.{docker,ecom,sup}.bak.20260824-ihc-cut`；public-backend 同戳。
+- 回滚：用上述 bak 覆盖 env 后同样 `--force-recreate --no-build`。
+- 验证：容器 healthy；日志 `database connected` 到新 catalog（api: 主库 + maswebkit_preprod + insularsalesportal_preprod；ecom: 主库 + authprovidermasuat_preprod；sup: 主库 + insularsalesportal_preprod + authprovidermasuat_preprod；hr: maswebkit_preprod）。
+- 相关：`mssql-ref/databases.md`；ecom/sup auth 用户在新库的授权见 `docs/operations/mssql-ref.md` 同时段。
+
 ## 2026-08-22 18:40 CST - 只读确认 Operations Portal UAT verify 失败是单测，不是 pnpm PATH
 
 - 服务器：`mas-go-dev`（runner `mas-go-dev-ci-1`）
