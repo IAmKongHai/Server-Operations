@@ -75,7 +75,7 @@
   | 公网地址 | `20.195.101.224` | `20.195.101.224`（未变） |
   | NSG 入站规则 | HTTP 300 / HTTPS 443@320 | 同初始，临时规则无残留 |
 
-- 遗留物：快照 `TVS-Server-osdisk-snap-20260824-preboot` 保留（标签 `delete-after=2026-09-24`），会产生少量存储费用，待用户决定是否删除。
+- 遗留物：无。快照 `TVS-Server-osdisk-snap-20260824-preboot` 已于 **2026-08-24 由用户确认后删除**（删除前核验：无磁盘从该快照派生；删除后核验：快照查询返回 `NotFound`，资源组内无残留快照，源盘 `TVS-Server_OsDisk_1_c04af...` 仍 `Succeeded`/`Reserved` 且挂在 VM 上，VM 保持 `deallocated` + `Standard_B8as_v2`）。
 - 横向排查「哪个服务在访问这台 DB」（2026-08-24 同日进行）：
   - 方法：对**运行中**的 Windows VM 用 run-command 只读执行 `Select-String`，在 `C:\Toplogic`、`C:\inetpub`、IIS `applicationHost.config`、UiPath 目录、用户 Documents/Desktop 等位置搜连接串特征 `172.0.3.4` / `TVS-Server` / `MSSQLSERVER01` / `mastvsdb` / `tvsadminsp` / `Server=...4330`。脚本内置密码遮蔽（`password=***`），不输出明文口令。
   - 踩坑一（误报）：初版正则含 `,4330`，命中 2021 年理赔日志里的金额 `4330.00`（`finalamount` / `basicclaim` 等）造成大量误报；收紧为只匹配连接串上下文（`Server=...4330` / `Data Source=...4330`）后复扫。
