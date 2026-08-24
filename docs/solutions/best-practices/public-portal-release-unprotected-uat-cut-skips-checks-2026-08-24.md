@@ -2,6 +2,10 @@
 title: 公网门户 release 未设 required checks，UAT cut 秒合跳过 Sonar
 date: 2026-08-24
 last_updated: 2026-08-24
+applies_when:
+  - 仓库有 develop/release/main 冻结线，CI 会跑，但 ruleset 只保护了其中一条
+  - UAT cut / 同步 PR 只看 mergeStateStatus=CLEAN
+  - 新仓抄了 CYP-2163 的 CI `on.branches` 但没抄 Protect release
 category: docs/solutions/best-practices
 server: (适用 iCare-public-backend / iCare-public-frontend)
 module: iCare public portal / GitHub rulesets / UAT Cut Tag
@@ -80,6 +84,34 @@ gh api --method DELETE repos/cypressoai/iCare-public-frontend/rulesets/21262058
 
 - `GET .../rules/branches/release` 两侧都返回 `required_status_checks`，check 名与上表一致
 - 下次正式 UAT cut：sync PR 应停数分钟（等 CI），不应再 5 秒合入；Sonar checkout 时 PR 仍开着，`refs/pull/N/merge` 还在
+
+## 其它 iCare 仓排查（2026-08-24）
+
+判据：有没有自动/人工秒合进冻结线、冻结线有没有 required checks、CI 会不会在合入后再跑。
+
+| 仓库 | 冻结线 | 自动 cut | 结论 |
+|------|--------|----------|------|
+| `iCare-backend` / `iCare-frontend-mas` | `release` 有 Protect release；检查与 develop 对齐 | 有（CYP-1923，还读 `statusCheckRollup`） | **无此问题**；同日 cut 等约 8–10 分钟 |
+| `iCare-public-backend` / `iCare-public-frontend` | 已补 Protect release | 有（CYP-2163，只看 CLEAN） | **本条已修** |
+| `iCare-Operations-backend` / `frontend` | 无 `release`；`develop`+`main` 检查一致 | 无 | **无此问题**。注意 CI `on.branches` 已含 `release`，一旦建该分支且不补 ruleset 会重演 |
+| **`iCare-mobile-app`** | 有活跃 `release`+`main`；**只** Protect develop（`CI Quality`+`SonarQube Scan`） | 无脚本，但是人工秒合 | **同型问题，仍在** |
+| `iCare` root | 非 develop 全冻结（不能推） | 无 | 不是质量门问题 |
+| `iCare-terraform` | 只有 develop | 无 | 无此问题 |
+| `iCare-frontend-fraud` / `iCare-devDB` / `iCare-Pencil-design` | 无 ruleset | 无 | 无 UAT cut，不在本条范围 |
+
+`iCare-mobile-app` 证据：
+
+- CI 明确跑 `[develop, release, main]`，ruleset 注释写着 `CI Quality` 是 required check，但 **只挂在 develop**
+- [`#202`](https://github.com/cypressoai/iCare-mobile-app/pull/202) develop→main：开 PR 到 merge **9 秒**；`CI Quality` 合入后 4 分钟才绿，`SonarQube Scan` **失败**
+- `release` 无任何 ruleset、无以它为 base 的 PR；develop #243 合入后同 commit 出现在 `release` 上，等于直推/快进，完全不经 Sonar
+
+若要堵：按 develop 的 `CI Quality` + `SonarQube Scan` 给 **`main` 和 `release` 各补一条** Protect ruleset（禁止直推、必须走 PR）。`main` 是默认分支（Actions 侧边栏可见性），`release` 是生产壳/热更冻结线，两边都会跑 CI，不保护则 Sonar 仍是空跑。
+
+次要不一致（不是秒合空门，只是门比 develop 窄）：
+
+- `iCare-backend` Protect main 只要 `SonarQube Scan`，没有 develop/release 的 `Lint`
+- `iCare-frontend-mas` Protect main 没有 develop/release 的 `Typecheck`
+- 两个 public 仓的 `main` 无保护，但已停更（backend 停在 2026-07-13，frontend 仍是 init）
 
 ## 不要误判成
 
