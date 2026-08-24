@@ -1,5 +1,20 @@
 # mas-win 运维操作时间线
 
+## 2026-08-24 23:32 CST - MAS-API / Webkit 连到 ihc20260824 preprod catalog
+
+- 服务器：`mas-win`（`192.168.2.21`）
+- 操作人：`Grok`
+- 原因：mssql-ref 已恢复 10.100.0.4 最新库；C# 参考站仍指旧 `maswebkit` / `insularsalesportal` / `masprepaid` / `authprovidermasweb`。
+- 影响：
+  - 只改现网 `C:\MAS\Apps\MAS-API\Web.config` 与 `MAS-Webkit-API\Web.config`。
+  - `maswebkit` → `maswebkit_preprod`；`insularsalesportal` → `insularsalesportal_preprod`；`masprepaid` → `masprepaid_preprod`；`authprovidermasweb` → `authprovidermasuat_preprod`。
+  - `medicalassistance_preprod`、`msdb`、`medicalassistance_replicated`（`pvLinkedServerMAS`）未改。
+  - MemberPortal / HRLink / MAS-WEB 无直连 SQL，未改。回收 `MAS-API`、`MAS-Webkit-API` 池。
+- 备份：`Web.config.bak.20260824-ihc-cut`（两站各一份）。
+- 回滚：用上述 bak 覆盖回 `Web.config` 后再 recycle 对应池。
+- 验证：CATALOG_B/C/D/SEARCH 与 Auth 连接串已是新名；`pvLinkedServer=maswebkit_preprod`。HTTP `9021/9022/9023` **200**，`9020/4859` **403**（API 无默认页，预期）。
+- 相关：`mssql-ref/databases.md`
+
 ## 2026-08-20 15:36 CST - 登录页 version 改回新包显示值
 
 - 服务器：`mas-win` / `MAS-WEB:9021`、`MemberPortal:9022`
