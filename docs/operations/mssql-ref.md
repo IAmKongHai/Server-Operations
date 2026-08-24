@@ -1,5 +1,25 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-24 23:14 CST - 恢复 ihc20260824 五库并切换主库 catalog
+
+- 服务器：`mssql-ref`
+- 操作人：`Grok`（用户指定命名）
+- 原因：把 10.100.0.4 最新 COPY_ONLY 落成可用 catalog；旧主库保留为 MAS 2026.02.19 参考。
+- 影响：
+  - 现网 `medicalassistance_preprod` 改名为 `[medicalassistance_v2026.02.19]`（含点，须括号引用）。
+  - bak 恢复：`medicalassistance_preprod`（先还原到临时名再秒切）、`maswebkit_preprod`、`insularsalesportal_preprod`、`masprepaid_preprod`、`authprovidermasuat_preprod`。文件在 `/restore/data/ihc20260824/`。
+  - 未改 `maswebkit` / `insularsalesportal` / `masprepaid` / `authprovidermasweb`。未改 mas-go-dev / mas-win `.env`。
+  - 切主库时 `SINGLE_USER WITH ROLLBACK IMMEDIATE` 踢掉 mas-go-dev 连接，数秒后已重连 `medicalassistance_preprod`。
+  - 新主库 `casbin_rule` 从旧库拷了 6344 行（bak 内仅 14 行）；`schema_migrations` 两边都是 46/0。
+  - `mas_ref_owner` 在五个新库 `db_owner`。auth/webkit 日志已 SHRINK（auth 22.7G→264MB）。
+- 备份：旧主库整库改名保留，即回滚点。bak 文件仍在 `/restore/backups/ihc20260824/`。
+- 回滚主库：把 `medicalassistance_preprod` 改回临时名，再把 `[medicalassistance_v2026.02.19]` 改回 `medicalassistance_preprod`。见 `mssql-ref/databases.md`。
+- 验证：
+  - 13 个用户 catalog 均 ONLINE / MULTI_USER。
+  - `mas_ref_owner` 可读新 `medicalassistance_preprod`（casbin 6344、migrate 46）。
+  - mas-go-dev api/ecom/sup 容器仍 healthy，有会话回到新主库。
+- 相关：`mssql-ref/databases.md`
+
 ## 2026-08-24 22:52 CST - 落盘当前库清单（供新 bak 定名）
 
 - 服务器：`mssql-ref`
