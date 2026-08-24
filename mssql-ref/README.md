@@ -27,4 +27,5 @@ ssh ubuntu@192.168.2.20
 
 ## 相关资料
 
+- 当前用户库 / 待导入 bak 命名冲突：[`databases.md`](databases.md)（2026-08-24 实查）
 - PVE VM 详细配置、SQL Server 版本、数据库清单：[`../pve/README.md`](../pve/README.md)

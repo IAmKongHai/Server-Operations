@@ -1,5 +1,16 @@
 # mssql-ref 运维操作时间线
 
+## 2026-08-24 22:52 CST - 落盘当前库清单（供新 bak 定名）
+
+- 服务器：`mssql-ref`
+- 操作人：`Grok`
+- 原因：用户要研究新导入库叫什么才不和现网冲突。
+- 影响：**只读**。查 `sys.databases` / `sys.master_files`，对 `/restore/backups/ihc20260824/*.bak` 跑 `HEADERONLY` / `FILELISTONLY`。未 `RESTORE`、未改文件。
+- 备份：无。
+- 回滚：无变更。
+- 产出：`mssql-ref/databases.md`。要点：现网 8 个用户 catalog 占用中；bak 源名里只有 `medicalassistance_preprod` 与现网同名；`insularsalesportal` 的物理文件仍叫 `insularsalesportal_preprod.mdf`，MOVE 时不能踩。
+- 验证：文档中的 12 个库名与实查 `sys.databases` 一致；五份 bak 源库名与 HEADERONLY 一致。
+
 ## 2026-08-24 22:22 CST - 收到 ihc-db-uat 五份 20260824 bak（只存放，未恢复）
 
 - 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）
