@@ -19,6 +19,11 @@ The dedicated fifth self-hosted runner on `mac-mini` (`mac-mini-mobile-1`, workF
 
 It is not a member of the `mac-mini-sonar runner` pool. It must not carry `mac-mini-sonar`, `frontend-quality-ci`, `frontend-tests-ci`, `frontend-sonar-ci`, or `backend-ci`. iOS and Android compiles on this host are serial.
 
+### ypf-yunshu-1 runner
+The dedicated repo-level GitHub Actions runner on `mac-mini` for `konghai-friends-lab/YPF-YunShu` (`ypf-yunshu-1`, workFolder `~/gha/ypf1`, label `ypf-deploy`).
+
+It is not a `cypressoai` pool member and must not carry iCare CI labels. Workflows should use `runs-on: [self-hosted, ypf-deploy]`.
+
 ## 代理服务器流量监控
 
 ### VPS Traffic Monitor

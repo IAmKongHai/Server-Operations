@@ -1,8 +1,9 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-08-19  
+> 最后更新：2026-08-24  
 > org runner：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
-> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）  
+> 仓库级 runner：`ypf-yunshu-1`（`konghai-friends-lab/YPF-YunShu`，label `ypf-deploy`，workFolder `~/gha/ypf1`）  
+> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/ypf-yunshu-1`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
 > 旧 LaunchAgent plist 停在 `~/Library/LaunchAgents.disabled-20260815/`。  
@@ -50,6 +51,27 @@ for n in 1 2 3 4; do
   sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
 sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-mobile-1
+```
+
+## YPF-YunShu `ypf-yunshu-1`
+
+仓库级 runner，**不是** `cypressoai` 池成员。workflow 用 `runs-on: [self-hosted, ypf-deploy]`。
+
+当前（2026-08-24）以 `nohup ./runsvc.sh` 运行，重启后会掉。本机 sudo 一次后改成 LaunchDaemon：
+
+```bash
+sudo /Users/konghai/gha/scripts/install-ypf-yunshu-runner-daemon.sh
+```
+
+不要 `./svc.sh install`。装上 Daemon 之后：
+
+```bash
+sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab-YPF-YunShu.ypf-yunshu-1
+```
+
+```bash
+gh api repos/konghai-friends-lab/YPF-YunShu/actions/runners \
+  --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
 ## 校验

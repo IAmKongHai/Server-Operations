@@ -1,5 +1,39 @@
 # mac-mini 运维时间线
 
+## 2026-08-24 17:19 CST - 注册 YPF-YunShu 仓库级 runner `ypf-yunshu-1`
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：org `konghai-friends-lab` Free 计划 8 月 Linux 分钟已用满 2000，GitHub-hosted `ubuntu-latest` 的 `deploy` job 秒失败（spending limit）。用户要把 `YPF-YunShu` 的 `deploy` 改到 self-hosted。
+- 影响：
+  - 仓库 `konghai-friends-lab/YPF-YunShu` 新增 runner `ypf-yunshu-1`（agentId 21），label：`self-hosted`, `macOS`, `ARM64`, `ypf-deploy`。
+  - **未**注册到 org `konghai-friends-lab`，**未**碰 `cypressoai` 的 sonar / mobile runner。
+  - 当前以 `nohup ./runsvc.sh` 在跑（PPID=1），GitHub `online`。图形用户已是 `root`，LaunchAgent 会掉线。
+  - **重启后会 offline**：本机免密 sudo 只覆盖 `/bin/launchctl` 等，写 `/Library/LaunchDaemons` 需要密码，LaunchDaemon 尚未装上。
+- 选型：runner 2.336.0 osx-arm64；SHA-256 `8e8839c49b7060b6b2154f4931f815df330c27f167d53ef2239ee3dfce28b079`。workFolder `~/gha/ypf1`。未用 `--no-default-labels`。
+- 备份：无覆盖。新目录 `~/actions-runner/ypf-yunshu-1`、`~/gha/ypf1`。
+- 回滚方式：
+  ```bash
+  ssh mac-mini 'kill -TERM $(pgrep -f /Users/konghai/actions-runner/ypf-yunshu-1/bin/Runner.Listener) $(pgrep -f /Users/konghai/actions-runner/ypf-yunshu-1/runsvc.sh)'
+  TOKEN=$(gh api -X POST repos/konghai-friends-lab/YPF-YunShu/actions/runners/remove-token --jq .token)
+  ssh mac-mini "cd /Users/konghai/actions-runner/ypf-yunshu-1 && ./config.sh remove --token '$TOKEN'"
+  ```
+- 变更时序：
+  1. 下载并校验 runner tarball，解压到 `~/actions-runner/ypf-yunshu-1`。
+  2. `config.sh` 注册到仓库 URL（不是 org）。
+  3. 从 `mac-mini-mobile-1` 拷 `runsvc.sh`；写好 Daemon plist，但 `sudo cp` 到 `/Library/LaunchDaemons` 因要密码失败。
+  4. `nohup ./runsvc.sh` 拉起 Listener。
+  5. 安装脚本放到 `~/gha/scripts/install-ypf-yunshu-runner-daemon.sh`（仓库 `scripts/` 同步）。
+- 验证：
+  - Listener：`~/actions-runner/ypf-yunshu-1/bin/Runner.Listener run --startuptype service`，日志 `Listening for Jobs`。
+  - `gh api repos/konghai-friends-lab/YPF-YunShu/actions/runners` → `ypf-yunshu-1` `online` `busy=false`，labels 含 `ypf-deploy`。
+- 未做：未改 `YPF-YunShu` 的 `deploy.yml`（用户自己改）。未装 LaunchDaemon。未改 `mac-mini-runner-resume.sh`。
+- 下一步（本机 sudo 一次即可常驻）：
+  ```bash
+  sudo /Users/konghai/gha/scripts/install-ypf-yunshu-runner-daemon.sh
+  ```
+  workflow 应写 `runs-on: [self-hosted, ypf-deploy]`。`deploy` 若仍 `needs: quality` 且 `quality` 走 `ubuntu-latest`，分钟用完时仍会被 quality 挡住。
+
 ## 2026-08-20 12:38 CST - Host github.com 改用工作号 k-cypresso 钥匙
 
 - 服务器：`mac-mini`
