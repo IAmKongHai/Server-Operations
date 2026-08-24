@@ -1,5 +1,38 @@
 # mac-mini 运维时间线
 
+## 2026-08-24 17:30 CST - 仓库级 `ypf-yunshu-1` 改为组织级 `konghai-friends-lab-1`
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户要把 runner 改名为 `konghai-friends-lab-1`，并给 org 内其它仓库共用。仓库级 runner 做不到这一点。
+- 影响：
+  - 已从 `YPF-YunShu` 注销 `ypf-yunshu-1`（原 agentId 21）。
+  - org `konghai-friends-lab` Default group 新增 `konghai-friends-lab-1`（agentId 8），label：`self-hosted`, `macOS`, `ARM64`, `konghai-friends-lab`。
+  - Default group `visibility=all`、`allows_public_repositories=false`，org 内私有仓都能用。
+  - 目录改为 `~/actions-runner/konghai-friends-lab-1`，workFolder `~/gha/kfl1`。
+  - 仍以 `nohup ./runsvc.sh` 运行（PPID=1），GitHub `online`。重启后仍会掉，LaunchDaemon 还没装（写 `/Library/LaunchDaemons` 要密码）。
+  - **未**碰 `cypressoai` runner。
+- 选型：同一份 runner 2.336.0 二进制，重新 `config.sh` 指到 org URL。自定义 label 从 `ypf-deploy` 改为 `konghai-friends-lab`。未用 `--no-default-labels`。
+- 备份：无覆盖。旧仓库级凭证已由 `config.sh remove` 清掉。
+- 回滚方式：停 Listener 后用 org remove-token 注销；若要回到只给 YPF-YunShu 用，再按仓库 URL 注册。
+- 变更时序：
+  1. `gh auth refresh` 给 `IAmKongHai` 补 `admin:org`。
+  2. 停 nohup Listener，`config.sh remove` 注销仓库级 runner。
+  3. 目录改名，workFolder `ypf1` → `kfl1`。
+  4. `config.sh --url https://github.com/konghai-friends-lab --name konghai-friends-lab-1 --labels konghai-friends-lab`。
+  5. `nohup ./runsvc.sh` 拉起。
+- 验证：
+  - `.runner` 里 `gitHubUrl` 为 org，`poolName=Default`。
+  - 日志 `Listening for Jobs`。
+  - `gh api orgs/konghai-friends-lab/actions/runners` → `konghai-friends-lab-1` `online`，含 `konghai-friends-lab`。
+  - `YPF-YunShu` 仓库级 runner 列表为空。
+- 未做：未改 `YPF-YunShu` 的 `deploy.yml`。未装 LaunchDaemon。未改 `mac-mini-runner-resume.sh`。
+- 下一步（本机 sudo 一次即可常驻）：
+  ```bash
+  sudo /Users/konghai/gha/scripts/install-konghai-friends-lab-runner-daemon.sh
+  ```
+  workflow 应写 `runs-on: [self-hosted, konghai-friends-lab]`。不要再用 `ypf-deploy`。
+
 ## 2026-08-24 17:19 CST - 注册 YPF-YunShu 仓库级 runner `ypf-yunshu-1`
 
 - 服务器：`mac-mini`
@@ -33,6 +66,7 @@
   sudo /Users/konghai/gha/scripts/install-ypf-yunshu-runner-daemon.sh
   ```
   workflow 应写 `runs-on: [self-hosted, ypf-deploy]`。`deploy` 若仍 `needs: quality` 且 `quality` 走 `ubuntu-latest`，分钟用完时仍会被 quality 挡住。
+- 后续：同日 17:30 已注销并改成组织级 `konghai-friends-lab-1`，上面的安装脚本路径不要再用。
 
 ## 2026-08-20 12:38 CST - Host github.com 改用工作号 k-cypresso 钥匙
 

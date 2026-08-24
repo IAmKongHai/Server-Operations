@@ -1,7 +1,7 @@
 #!/bin/bash
-# 把 YPF-YunShu 仓库级 runner ypf-yunshu-1 装成 LaunchDaemon。
+# 把 org `konghai-friends-lab` 的 runner konghai-friends-lab-1 装成 LaunchDaemon。
 # 注销图形用户、重启后仍在线。必须在 mac-mini 上以 root 运行：
-#   sudo /Users/konghai/gha/scripts/install-ypf-yunshu-runner-daemon.sh
+#   sudo /Users/konghai/gha/scripts/install-konghai-friends-lab-runner-daemon.sh
 #
 # 不要运行 ./svc.sh install / start，那会把 LaunchAgent 装回
 # ~/Library/LaunchAgents，登录后和 Daemon 双开。
@@ -12,20 +12,20 @@ if [[ $(id -u) -ne 0 ]]; then
   exit 1
 fi
 
-if pgrep -f '/Users/konghai/actions-runner/ypf-yunshu-1/.*/Runner.Worker' >/dev/null; then
+if pgrep -f '/Users/konghai/actions-runner/konghai-friends-lab-1/.*/Runner.Worker' >/dev/null; then
   echo "ERROR: Runner.Worker is running; wait for the job to finish." >&2
-  pgrep -lf 'ypf-yunshu-1.*Runner.Worker' || true
+  pgrep -lf 'konghai-friends-lab-1.*Runner.Worker' || true
   exit 1
 fi
 
 USER_NAME="konghai"
 GROUP_NAME="staff"
 USER_HOME="/Users/${USER_NAME}"
-ROOT="${USER_HOME}/actions-runner/ypf-yunshu-1"
-LABEL="actions.runner.konghai-friends-lab-YPF-YunShu.ypf-yunshu-1"
+ROOT="${USER_HOME}/actions-runner/konghai-friends-lab-1"
+LABEL="actions.runner.konghai-friends-lab.konghai-friends-lab-1"
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
 SRC_PLIST="${ROOT}/${LABEL}.plist"
-LOG_DIR="${USER_HOME}/Library/Logs/actions.runner.ypf-yunshu.ypf-yunshu-1"
+LOG_DIR="${USER_HOME}/Library/Logs/${LABEL}"
 
 if [[ ! -x "${ROOT}/runsvc.sh" ]]; then
   echo "missing ${ROOT}/runsvc.sh" >&2
@@ -40,11 +40,11 @@ fi
 while read -r pid; do
   [[ -n "$pid" ]] || continue
   kill -TERM "$pid" 2>/dev/null || true
-done < <(pgrep -f '/Users/konghai/actions-runner/ypf-yunshu-1/bin/Runner.Listener' || true)
+done < <(pgrep -f '/Users/konghai/actions-runner/konghai-friends-lab-1/bin/Runner.Listener' || true)
 while read -r pid; do
   [[ -n "$pid" ]] || continue
   kill -TERM "$pid" 2>/dev/null || true
-done < <(pgrep -f '/Users/konghai/actions-runner/ypf-yunshu-1/runsvc.sh' || true)
+done < <(pgrep -f '/Users/konghai/actions-runner/konghai-friends-lab-1/runsvc.sh' || true)
 sleep 1
 
 mkdir -p "$LOG_DIR"
@@ -69,5 +69,5 @@ sleep 2
 echo "=== launchd ==="
 launchctl print "system/${LABEL}" | grep -E 'state =|pid =|path =' || true
 echo "=== processes ==="
-ps aux | grep -E "ypf-yunshu-1.*(runsvc|Runner.Listener)" | grep -v grep || true
+ps aux | grep -E "konghai-friends-lab-1.*(runsvc|Runner.Listener)" | grep -v grep || true
 echo "done: system/${LABEL}"
