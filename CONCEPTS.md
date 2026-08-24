@@ -31,6 +31,15 @@ The day of month when a VPS provider resets a server's traffic allowance.
 
 For proxy traffic monitoring, this reset day defines the accounting cycle; calendar-month `vnstat -m` totals are not treated as authoritative when the provider's billing cycle starts on a different day.
 
+## iCare UAT cut
+
+### Protect release
+GitHub repository ruleset on `release` that makes `mergeStateStatus=CLEAN` wait for required CI checks.
+
+UAT cut scripts (`uat-cut-tag.sh`) cannot read Checks — `UAT_CUT_TOKEN` has no Checks permission (CYP-2186) — so they only poll `mergeStateStatus`. Without this ruleset, a develop→release sync PR is `CLEAN` immediately and merges in seconds, skipping Sonar.
+
+MAS (`iCare-backend` / `iCare-frontend-mas`) has had it since CYP-1923. Public portal (`iCare-public-backend` / `iCare-public-frontend`) was missing it until 2026-08-24; required checks must match that repo's develop gate, not MAS check names.
+
 ## Sub2API / Gemini 订阅网关
 
 ### Sub2API
