@@ -1,5 +1,26 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-08-24 11:31 CST - 只读确认 iCare-Operations-backend Sonar 失败为 Quality Gate，不是 runner
+
+- 服务器：`umacbook-pro`（runner `umacbook-pro-1`）；对照 `mac-mini-sonar-1`、`mas-go-dev-ci-1`、`mac-mini` SonarQube
+- 操作人：`Grok`
+- 原因：排查 [iCare-Operations-backend Job 97312142152](https://github.com/cypressoai/iCare-Operations-backend/actions/runs/32686256580/job/97312142152)（run `32686256580`，PR [#9](https://github.com/cypressoai/iCare-Operations-backend/pull/9) `bugfix/CYP-2260-front-door-timeouts`）是 runner 侧还是代码侧失败。
+- 影响：仅 `gh` 读 Actions / PR / 后续 run；本机 Tailscale 未开，未能直连 `mac-mini:9000`；未改 runner、Tailscale、SonarQube、workflow 或业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 全部步骤、同 run 的 `test-lint-build`，以及同一 PR 前后 4 次 `SonarQube Scan`。
+  2. 对照失败 SHA `7b6b751f…` 与后续只改 workflow 的 SHA `bbc349ea…`（run `32686596773` 新增 `Diagnose failed SonarQube quality gate`）。
+- 验证结果：
+  - 目标 Job 落在 `umacbook-pro-1`，labels `[self-hosted, backend-ci]`。checkout、Setup Go、依赖下载、coverage artifact 下载与合并全部成功；`Run Tests with Coverage` 按设计 skip（PR 复用 `test-lint-build` 的 artifact）。同 run 的 `test-lint-build` 在 `mas-go-dev-ci-1` 上全绿（Test / Lint / Build）。
+  - Scanner 使用缓存 CLI `8.1.0.6389`，成功连上 SonarQube Community Build `26.3.0.120487`（server id `6A4192E1-AZ0pWpBAREjmC3q_HCWj`），上传 94.9 kB 分析报告。唯一失败是 Quality Gate：`QUALITY GATE STATUS: FAILED`，scanner 退出码 3。不是 runner PATH / GPG / Tailscale / Sonar 宿主故障。
+  - 同一 PR 首跑（run `32684452619`，SHA `ee6405c9…`）已在 **`mac-mini-sonar-1`** 上以同样的 QG FAILED / exit 3 挂掉；后续三次都是 `test-lint-build` 绿、`SonarQube Scan` 红。换 runner 复现，排除单机故障。
+  - 根因在业务代码门禁：`new_violations = 2 > 0`。后续诊断 run 定位为：
+    - `internal/opsmode/operation.go:187` **go:S1067**（`sameOperationRequest` 的 `||` 条件运算符 6 个，上限 3）
+    - `internal/opsmode/service.go:352` **go:S1186**（`cancelAudit := func() {}` 空函数，需注释或补实现）
+  - SHA `bbc349ea` 只加了 CI 诊断步骤，没有改业务代码，所以下一轮 Sonar 仍红。作者已多次尝试用 `group operation change parameters` / `reduce operation flow complexity` 压 QG，这两条还没清掉。
+- 备注：与 2026-08-22 本机上 iCare-Operations-frontend PR #6、2026-08-21 lemon-imac 上 iCare-backend PR #1580 同类——scanner 跑通后 exit 3 是 **Quality Gate**，不要当成 runner 坏了。本机当时 Tailscale stopped，`mac-mini` / `umacbook-pro` / `lemon-imac` SSH 均超时，门禁细节来自后续 run 的诊断 step，不是本机直连 Sonar API。
+
 ## 2026-08-22 18:26 CST - 只读确认 iCare-Operations-frontend Sonar 失败为 Quality Gate，不是 runner
 
 - 服务器：`umacbook-pro`（runner `umacbook-pro-2`）；对照 `mac-mini` SonarQube
