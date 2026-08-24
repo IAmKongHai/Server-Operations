@@ -44,3 +44,4 @@
   - 私网 `172.0.3.4`（注意与 UAT 网段 `10.100.0.x` 不同段），公网 `20.195.101.224`
   - 关联资源：`TVS-Server-nsg`、`TVS-Servers-nsg`、`TVSServernsg167`、`TVS-Server-Public-IP`、`tvs-server259`（NIC）、`TVS-Server_OsDisk_1_c04af...`
   - **电源状态：`VM deallocated`（已解除分配）**——所以无法用 `run-command` 看它内部跑什么服务；要查需先启动 VM，属状态变更动作，未执行，待用户确认。
+- 后续（2026-08-24）：又只读排查了生产机 `MAS-WEB-APP`（`172.0.0.8`，rg `IHC-POC-RG`），同样七路搜索无 tvs 命中，详见 `docs/operations/mas-web-app.md`。
