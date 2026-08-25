@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-08-25 12:54 CST - 只读确认 iCare-frontend-mas CI 红叉为 Draft PR 门禁
+
+- 服务器：`mac-mini`（runner `mac-mini-sonar-1`）；对照 `umacbook-pro-1`
+- 操作人：`Grok`
+- 原因：排查 [iCare-frontend-mas Actions run 32810598308](https://github.com/cypressoai/iCare-frontend-mas/actions/runs/32810598308)（PR [#1640](https://github.com/cypressoai/iCare-frontend-mas/pull/1640) `bugfix/CYP-2321/loa-diagnosis-insert-context`）的 job 失败是 runner 侧还是代码侧。
+- 影响：仅通过 `gh` 读取 run / job / PR；未 SSH、未改 runner、workflow、PR 状态或业务代码，未重跑 job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对 run 全部 job 结论、失败步骤与日志。
+  2. 核对 PR `isDraft` 与后续步骤是否被 skip。
+- 验证结果：
+  - Runner 正常接活：`Frontend Tests 3/4` 落在 `mac-mini-sonar-1`，`Frontend Tests 1/4`、`2/4`、`4/4` 落在 `umacbook-pro-1`；`Set up job` 成功，runner 版本 `2.336.0`，能下载 `actions/checkout@v4` 与 `actions/setup-node@v4`。排除 runner 初始化或网络故障。
+  - 全部业务 job（Typecheck / Lint / Frontend Tests 1–4/4 / Frontend Tests 汇总 / SonarQube Scan）都在第一步 `Block while draft` 命中 draft 门禁，日志为 `Draft PR — CI is intentionally not run.` 后按设计 `exit 1`。Checkout、Setup Node、Install、test、lint、Sonar 扫描全部 skipped，业务代码实际上未被检查。
+  - PR #1640 当前 `isDraft=true`。`Frontend Coverage` 因上游失败被 skip。
+  - SonarQube Scan 另有一步 `Print open PR Sonar issues` 因 `if: always()` 仍执行，失败为 `node: command not found`（exit 127），因为前面的 `Setup Node.js` 已被 skip。这是草稿门禁的连带噪声，不是 runner PATH 故障。
+  - 结论：不是 runner 故障，也不是业务代码失败，而是 Draft PR 的预期 required-check 门禁。点 **Ready for review** 后会自动跑真实 CI。
+
 ## 2026-08-24 17:30 CST - 仓库级 `ypf-yunshu-1` 改为组织级 `konghai-friends-lab-1`
 
 - 服务器：`mac-mini`
