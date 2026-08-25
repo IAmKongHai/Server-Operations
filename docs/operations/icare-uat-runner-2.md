@@ -4,6 +4,29 @@
 
 SSH：`ssh icare-uat-runner-2`（`icareadmin@10.30.6.5`）。主机名 `icare-2-uat-ci-runner-2`，CYP-2263 临时 D8s_v5 burst runner，GitHub runner 名 `icare-2-uat-runner-2`，组 `icare-2-uat`。
 
+## 2026-08-25 15:20 CST - Deploy Azure UAT Portals 的 hr job 因 SWA CLI 拉不到 StaticSitesClient 失败，重跑通过
+
+- 服务器：`icare-uat-runner-2`（GitHub runner `icare-2-uat-runner-2`，组 `icare-2-uat`）
+- 操作人：`Claude`
+- 原因：排查 `iCare-public-frontend` workflow `Deploy Azure UAT Portals` run [32820490312](https://github.com/cypressoai/iCare-public-frontend/actions/runs/32820490312) 中 `Deploy hr portal` 失败。
+- 影响：**只读排查 + 一次 workflow 重跑**。未登录该 VM，未改 runner、Docker、网络、`/var/cache/buildx`。
+- 备份：无（无配置变更）。
+- 回滚方式：无变更可回滚。
+- 现象：
+  - 失败在 `Deploy to Static Web App` 这一步，job 仅跑 22s，进入 SWA CLI 后约 4.5s 即失败——是立即失败，不是超时。
+  - 报错：`Deployment Failure Reason: Could not load StaticSitesClient metadata from remote. Please check your internet connection.`
+  - OIDC 登录、`az staticwebapp secrets list` 取部署 token 均已通过（否则会先打 `FAIL could not read the deployment token`），故与 Azure 权限/自定义角色无关。
+- 定位：
+  - `@azure/static-web-apps-cli@2` 部署时不自己上传，先从公网 CDN（`*.azureedge.net`）拉版本元数据、再下载 `StaticSitesClient` 二进制到 `~/.swa/deploy/`，由它完成上传。这一段与 `az` 登录无关，是独立的出网依赖。
+  - 同 run 的 `Deploy member portal` 同时成功，但它跑在 **`icare-2-uat-runner-1`**，不是同一台机器；两个 portal job 分别落在 runner-2 / runner-1，因此**不是**两 job 争抢同一个 `~/.swa` 缓存目录导致的。
+  - 回看最近 12 次 `Deploy Azure UAT Portals`，hr job 长期稳定跑在 runner-2 且全部成功，无该机固有失败模式。
+- 处置：用户执行 failed job 重跑，`Deploy hr portal` 在 runner-2 上通过（07:35 那次尝试）。
+- 验证：run 32820490312 重跑后 hr / member 两个 portal job 均 success。
+- 结论：判定为一次性的 CDN / 出网抖动，未做任何配置变更。
+- 后续（暂未实施，复发再做）：
+  - 给 `Deploy to Static Web App` 加重试，并在重试前 `rm -rf ~/.swa/deploy` 清掉可能损坏的半份二进制；
+  - 若 UAT 网络有出站白名单，确认 `swalocaldeploy.azureedge.net` 在名单内。
+
 ## 2026-08-23 18:26 CST - 建立机器档案
 
 - 服务器：`icare-uat-runner-2`
