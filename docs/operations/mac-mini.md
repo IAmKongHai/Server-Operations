@@ -1,5 +1,36 @@
 # mac-mini 运维时间线
 
+## 2026-08-25 13:57 CST - 恢复 mac-mini-sonar-3/4
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户要求把 2026-08-19 为 Multica 留并发而停掉的两个 sonar slot 重新拉起来。
+- 影响：
+  - `mac-mini-sonar` 独占重活（Coverage / 全量 branch Sonar / deploy quality-gate）回到最多四路并行。
+  - 共享池多回 2 个 mac-mini slot（`frontend-tests-ci` / `frontend-quality-ci` / `backend-ci`）。
+  - 本机 Multica（konghai daemon / hon daemon + `colima-multica`）仍在跑；四路 CI 高峰会再和本地 agent 抢 10 核。
+  - **未**碰 `mac-mini-sonar-1/2`（当时正在跑 job）、`mac-mini-mobile-1`、`konghai-friends-lab-1`。未注销、未改 label。
+- 选型：沿用 08-19 的回滚路径：`launchctl enable` + `bootstrap` 既有 LaunchDaemon plist；resume 脚本从当天备份还原为 kickstart 1..4 + mobile-1。未对 1/2 `kickstart -k`，避免打断进行中的 job。
+- 备份：`~/bin/mac-mini-runner-resume.sh.bak.20260825-1356`（还原前那份只含 1/2 + mobile-1）
+- 回滚方式（再停 3/4，不注销）：
+  ```bash
+  sudo /bin/launchctl disable system/actions.runner.cypressoai.mac-mini-sonar-3
+  sudo /bin/launchctl disable system/actions.runner.cypressoai.mac-mini-sonar-4
+  sudo /bin/launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-3
+  sudo /bin/launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-4
+  cp ~/bin/mac-mini-runner-resume.sh.bak.20260825-1356 ~/bin/mac-mini-runner-resume.sh
+  ```
+- 变更时序：
+  1. 只读确认：3/4 `launchctl disabled` 且 service 不在 domain；plist 仍在 `/Library/LaunchDaemons/`；GitHub `offline`；1/2 `online` 且 `busy=true`。
+  2. `cp` 备份当前 resume 脚本，再 `cp ~/bin/mac-mini-runner-resume.sh.bak.20260819-1634` 还原为含 1..4 + mobile-1。
+  3. `sudo /bin/launchctl enable` 3/4。
+  4. `bootstrap` 对应 plist（KeepAlive / RunAtLoad 仍为 true）。
+- 验证结果：
+  - launchd：3/4 `enabled`、`state=running`（pid 57164 / 57167）。
+  - Listener：`mac-mini-sonar-3/4` 各一个 `Runner.Listener`（pid 57173 / 57174），日志 `Connected to GitHub` / `Listening for Jobs`，runner `2.336.0`。
+  - GitHub：1..4 与 `mac-mini-mobile-1` 全部 `status=online`；3/4 拉起后立刻接活（3 → `SonarQube Scan`，4 → `Flag shared-code changes`）。
+  - labels 未变：`self-hosted`, `mac-mini-sonar`, `macos`, `arm64`, `backend-ci`, `frontend-sonar-ci`, `frontend-tests-ci`, `frontend-quality-ci`。
+
 ## 2026-08-25 12:54 CST - 只读确认 iCare-frontend-mas CI 红叉为 Draft PR 门禁
 
 - 服务器：`mac-mini`（runner `mac-mini-sonar-1`）；对照 `umacbook-pro-1`

@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-08-23  
+> 最后更新：2026-08-25  
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -18,11 +18,11 @@
 
 历史标签 `frontend-sonar-ci` 仍保留在部分 runner 上便于回滚；**新 workflow 应使用 `frontend-quality-ci`（PR）与 `mac-mini-sonar`（full）**。
 
-## 机器与 runner 快照（2026-08-23）
+## 机器与 runner 快照（2026-08-25）
 
 | Runner name | 主机 | 关键 labels（含默认） |
 |-------------|------|---------------------|
-| `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci`。**2026-08-19 起 3/4 `launchctl disable` / GitHub offline**，在线只剩 1/2 |
+| `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci`。2026-08-19 曾停 3/4；**2026-08-25 已恢复四 slot 在线** |
 | `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签） |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
@@ -176,7 +176,7 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 ### 并发建议
 
 - 同物理机 N 个 slot = N 倍 `_work` + 出口流量；8GB 机（lemon / umacbook）**1～2 slot** 已足够质量门。
-- mac-mini 10 核 / 32GB 历史上可保留 4 slot（重活 + 分片），但仍受磁盘峰值约束。**2026-08-19 起主动停 3/4**，给本机 Multica runtime 留并发；独占 `mac-mini-sonar` 重活只剩两路。
+- mac-mini 10 核 / 32GB 可保留 4 slot（重活 + 分片），但仍受磁盘峰值约束。2026-08-19 曾停 3/4 给本机 Multica 留并发；**2026-08-25 已恢复四 slot**。高峰时 CI 会再和 Multica / Colima 抢核。
 - **不要**为减流量去清空整个 `_tool`（Sonar Scanner / setup-go 会重新大流量下载）。
 
 ## 标签运维命令

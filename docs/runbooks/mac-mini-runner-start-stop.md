@@ -1,18 +1,17 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-08-24  
+> 最后更新：2026-08-25  
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
 > 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
 > 旧 LaunchAgent plist 停在 `~/Library/LaunchAgents.disabled-20260815/`。  
-> 固定恢复脚本：`~/bin/mac-mini-runner-resume.sh`  
+> 固定恢复脚本：`~/bin/mac-mini-runner-resume.sh`（kickstart 1..4 + mobile-1）  
 > 日志：`~/Library/Logs/mac-mini-runner-resume.log`  
 > 池与 label 定义见 [ci-runner-pools.md](./ci-runner-pools.md)
 >
-> **2026-08-19 起 `mac-mini-sonar-3/4` 已停（`launchctl disable`，GitHub `offline`），把并发留给 Multica。**  
-> 未注销。resume 脚本只拉 1/2 + mobile-1。回滚见 [operations/mac-mini.md](../operations/mac-mini.md) 当天条目。
+> 2026-08-19 曾 `launchctl disable` 停掉 `mac-mini-sonar-3/4` 给 Multica 留并发；**2026-08-25 已 enable + bootstrap 恢复**，四 slot 重新 online。当时条目见 [operations/mac-mini.md](../operations/mac-mini.md)。
 
 **不要再运行 `./svc.sh install` / `./svc.sh start`。** 那会把 LaunchAgent 装回 `~/Library/LaunchAgents`，登录后和 Daemon 双开。
 
@@ -35,8 +34,7 @@ ssh mac-mini 'sudo ~/bin/mac-mini-runner-resume.sh'
 或：
 
 ```bash
-# 当前常态：只恢复仍启用的 1/2 + mobile。3/4 需先 enable 再 bootstrap/kickstart。
-for n in 1 2; do
+for n in 1 2 3 4; do
   sudo /bin/launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
 sudo /bin/launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-mobile-1
