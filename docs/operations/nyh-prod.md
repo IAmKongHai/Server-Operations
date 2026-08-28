@@ -1,5 +1,56 @@
 # nyh-prod 运维时间线
 
+## 2026-08-28 13:25 CST - 排查 Tailscale 到 nyh-prod Exit Node 是直连还是 DERP
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`）
+- 操作人：`Grok`（只读排查，未改 Tailscale / 防火墙 / Exit Node）
+- 原因：用户反馈以该节点作为 Exit Node 时连接很慢，怀疑走了官方中继。
+- 影响：无配置变更。本机 `macbook-air-2`（`100.92.181.15`）当时 **未** 选用任何 Exit Node。
+- 回滚方式：无需回滚。
+
+### 结论
+
+**当前能直连，没有走官方 DERP。** 双向路径均为 peer 公网 UDP：
+
+| 方向 | 路径 | RTT |
+| --- | --- | --- |
+| 本机 → `nyh-prod` | `direct 47.239.167.8:41641` | `tailscale ping` 44–50ms；ICMP 平均 69ms（45–91ms，0% 丢包） |
+| `nyh-prod` → 本机 | `direct 182.245.10.198:11291` | 44ms |
+
+`tailscale status` 在握手后显示 `active; offers exit node; direct 47.239.167.8:41641`。`Relay: hkg` 只是该节点的 **home DERP 区域**，不是当前实际路径。
+
+### 若掉回中继会很慢（解释体感）
+
+本机 `netcheck`：
+
+- UDP 可用；公网映射 `182.245.10.198:12567`；网关有 UPnP / NAT-PMP / PCP
+- `MappingVariesByDestIP: true`（较硬的 NAT，直连可能偶发掉回中继）
+- 最近 DERP：**昆明自建** `km` `derp.local`（`43.228.79.237:443`）10.3ms
+- 官方香港 DERP `hkg`：**545ms**（大陆到官方 DERP 被干扰的典型表现）
+
+`nyh-prod` `netcheck`：
+
+- 公网 `47.239.167.8:36748`，NAT 简单（`MappingVariesByDestIP: false`）
+- 最近 DERP：官方香港 1.9ms
+- **昆明自建 DERP 测不到**（空延迟），HK 节点到家里 DERP 不通
+
+因此一旦直连失败，双方很难用昆明 DERP 碰头，更可能落到官方 `hkg`：本机单程已约 545ms，Exit Node 会明显卡。2026-08-11 部署时本机验收也曾是 `direct 47.239.167.8:41641`。
+
+### 验证命令（只读）
+
+```bash
+tailscale status          # nyh-prod: direct 47.239.167.8:41641
+tailscale ping nyh-prod   # via 47.239.167.8:41641，非 derp-
+ping 100.78.12.107
+ssh nyh-prod 'tailscale ping macbook-air-2'
+```
+
+### 后续（未做）
+
+- 本机未开启 Exit Node，未测「作为出口上网」的公网速度（那是 HK 出网质量，不是 overlay 延迟）。
+- 若手机 Exit 仍慢：在手机看是否 `via DERP`；硬 NAT 设备更容易掉中继。
+- 未改 `advertise-exit-node`、未开 3x-ui。
+
 ## 2026-08-20 23:55-00:05 CST - load.nanyahui.com 换 Let's Encrypt，全部 15 张证书纳入自动续期
 
 - 服务器：`nyh-prod`（`47.239.167.8`）
