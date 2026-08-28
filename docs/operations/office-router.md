@@ -1,5 +1,46 @@
 # office-router 运维操作时间线
 
+## 2026-08-28 13:02 CST - PassWall Geo 改为 tmpfs bind-mount，挡住自动更新写爆闪存
+
+- 服务器：`office-router`（Kwrt / OpenWrt 25.12-SNAPSHOT，LAN `192.168.6.1`）
+- 操作人：`Grok`
+- 原因：overlay 只有约 39MB，未压缩的 `geoip.dat`（16MB）+ `geosite.dat`（11MB）合计约 27MB，超过当时约 17MB 空闲。当天中午的软链+xz 临时方案挡不住 PassWall `rule_update.lua` 的 `mv /tmp/*.dat → /usr/share/v2ray/`（busybox `mv` 会拆掉软链、把普通文件写回闪存）。
+- 选型：不改 PassWall 本体（避免 opkg 升级冲掉补丁），把 `/tmp/v2ray-geo` bind-mount 到 `/usr/share/v2ray`。更新仍走原路径，但落点在内存；闪存只保留 xz。后台每 120 秒对比 md5，有变化再压回 `/usr/lib/v2ray-geo/`。
+- 影响：
+  - 未重启 PassWall / xray / 网络 / 防火墙。xray PID 保持 `14833`。
+  - 办公室透明代理继续走节点 `cyp-tizi`。
+  - 开机多一次 xz 解压（约 28MB RAM，机器 489MB 够用）。
+  - PassWall 规则自动更新真正生效：每天 04:00 跑 `rule_update.lua`（原先 UCI 只剩旧字段 `week_update`/`time_update`，新版读 `update_week_mode`，crontab 实际是空的）。
+- 备份：
+  - 路由器 `/root/backup-v2ray-geo-20260828/`（旧 init、`passwall` UCI export、crontab）
+  - 本仓库 `scripts/office-router-v2ray-geo.init`
+- 回滚方式：
+  1. `/etc/init.d/v2ray-geo stop`（会先 persist，再 umount）
+  2. 用 `/root/backup-v2ray-geo-20260828/v2ray-geo.init.bak` 覆盖 `/etc/init.d/v2ray-geo`
+  3. 按需 `uci import` 那份 `passwall.uci.bak`，crontab 从 `crontab.root.bak` 恢复
+  4. 不要把未压缩 `.dat` 拷回 `/usr/share/v2ray/`，会再次写满 overlay
+- 变更时序：
+  1. 只读确认：overlay 54% / 空闲 17.3MB；`/usr/share/v2ray/*.dat` 是指向 `/tmp/v2ray-geo` 的软链；xz 约 3.9MB 在闪存。
+  2. 备份 init / UCI / crontab。
+  3. 安装新 `/etc/init.d/v2ray-geo`（`START=19`，已 enable）。
+  4. `/etc/init.d/v2ray-geo start`：把 xz 迁到 `/usr/lib/v2ray-geo/`，bind-mount，拉起 persist 循环。
+  5. 用 2MB 探测文件 `mv` 到 `/usr/share/v2ray/`：出现在 `/tmp/v2ray-geo/`，overlay Used 未增加。
+  6. `geoview` 从 `geoip.dat` 抽出 `cn` 共 6222 条，文件可读。
+  7. UCI：`update_week_mode=7`，`update_time_mode=4:00`（`geoip_update`/`geosite_update` 本来就是 1）。
+  8. crontab 追加 `0 4 * * * lua /usr/share/passwall/rule_update.lua log all cron`（未重启 crond；busybox crond 会自行重读）。
+  9. `/etc/sysupgrade.conf` 保留 init 与 `/usr/lib/v2ray-geo/`。
+- 验证：
+  - `/proc/mounts`：`tmpfs /usr/share/v2ray`
+  - overlay 仍约 `20.1M/39.4M`（54%），空闲 17.3MB
+  - persist：`geoip.dat.xz` 1.7M + `geosite.dat.xz` 2.2M，md5 与 RAM 文件一致
+  - xray 仍在跑，未重启
+  - PassWall 12:51 那次启动日志是成功的（ChinaDNS-NG + nftables + 节点 `cyp-tizi`）；本次未再改代理规则
+- 备注：
+  - 本机 `~/.ssh/config` 里 `Host office-router` 仍指向 `192.168.8.1`，这次实际操作的是 LAN `192.168.6.1`
+  - overlay 大头仍是 `/usr/bin/xray`（约 31MB）；本次未动
+  - PassWall 日志里 Dnsmasq 2.91 < 2.92 只是建议，未升级
+  - 方案说明：`docs/solutions/office-router/best-practices/passwall-geo-small-flash-2026-08-28.md`
+
 ## 2026-06-30 12:28 CST - 移除闲置 GitHub Actions runner
 
 - 服务器：`office-router`

@@ -1,0 +1,165 @@
+#!/bin/sh /etc/rc.common
+
+# PassWall / Xray Geo 数据库：闪存只保留 xz，运行时把 tmpfs bind-mount 到
+# /usr/share/v2ray。这样 PassWall 的 rule_update.lua（mv /tmp/*.dat 到 asset 目录）
+# 只会写内存，不会把 27MB 的 geoip.dat + geosite.dat 写爆 overlay。
+#
+# 持久化目录: /usr/lib/v2ray-geo/*.dat.xz
+# 运行时目录: /tmp/v2ray-geo/*.dat  (bind 到 /usr/share/v2ray)
+
+START=19
+EXTRA_COMMANDS="persist"
+EXTRA_HELP="        persist Persist RAM geo files back to flash as xz"
+
+PERSIST=/usr/lib/v2ray-geo
+RAM=/tmp/v2ray-geo
+ASSET=/usr/share/v2ray
+PIDFILE=/var/run/v2ray-geo-persist.pid
+INTERVAL=120
+
+log() {
+	logger -t v2ray-geo "$*"
+}
+
+ensure_dirs() {
+	mkdir -p "$PERSIST" "$RAM" "$ASSET"
+}
+
+file_md5() {
+	md5sum "$1" 2>/dev/null | awk '{print $1}'
+}
+
+is_bound() {
+	grep -q " $ASSET " /proc/mounts
+}
+
+migrate_old_xz() {
+	local f
+	for f in geoip geosite; do
+		if [ -s "$ASSET/$f.dat.xz" ] && [ ! -s "$PERSIST/$f.dat.xz" ]; then
+			mv "$ASSET/$f.dat.xz" "$PERSIST/$f.dat.xz"
+			log "migrated $f.dat.xz to $PERSIST"
+		fi
+	done
+}
+
+unpack() {
+	local f
+	for f in geoip geosite; do
+		if [ ! -s "$RAM/$f.dat" ]; then
+			if [ -s "$PERSIST/$f.dat.xz" ]; then
+				if xz -dc "$PERSIST/$f.dat.xz" > "$RAM/$f.dat"; then
+					log "decompressed $f.dat to RAM"
+				else
+					rm -f "$RAM/$f.dat"
+					log "FAILED to decompress $f.dat.xz"
+					continue
+				fi
+			else
+				log "missing persist file $PERSIST/$f.dat.xz"
+				continue
+			fi
+		fi
+		# 从已有 xz 解出来的 RAM 文件，记下 md5，避免开机再压一遍
+		if [ -s "$RAM/$f.dat" ] && [ ! -s "$PERSIST/$f.dat.md5" ]; then
+			file_md5 "$RAM/$f.dat" > "$PERSIST/$f.dat.md5"
+		fi
+	done
+}
+
+bind_asset() {
+	if is_bound; then
+		return 0
+	fi
+	# bind 前去掉 asset 目录里的软链/残留普通文件，避免挡住 mount
+	rm -f "$ASSET/geoip.dat" "$ASSET/geosite.dat"
+	if mount --bind "$RAM" "$ASSET"; then
+		log "bind-mounted $RAM -> $ASSET"
+		return 0
+	fi
+	log "FAILED bind-mount, falling back to symlinks"
+	local f
+	for f in geoip geosite; do
+		[ -s "$RAM/$f.dat" ] && ln -sf "$RAM/$f.dat" "$ASSET/$f.dat"
+	done
+	return 1
+}
+
+cleanup_overlay_residue() {
+	local ov=/overlay/upper/usr/share/v2ray
+	[ -d "$ov" ] || return 0
+	rm -f "$ov/geoip.dat" "$ov/geosite.dat" "$ov/geoip.dat.xz" "$ov/geosite.dat.xz"
+}
+
+persist() {
+	local f hash old s1 s2 free
+	ensure_dirs
+	free=$(df -k /overlay | awk 'NR==2 {print $4}')
+	for f in geoip geosite; do
+		[ -s "$RAM/$f.dat" ] || continue
+		s1=$(wc -c < "$RAM/$f.dat")
+		sleep 1
+		s2=$(wc -c < "$RAM/$f.dat")
+		[ "$s1" = "$s2" ] || {
+			log "$f.dat size unstable, skip persist"
+			continue
+		}
+		hash=$(file_md5 "$RAM/$f.dat")
+		old=$(cat "$PERSIST/$f.dat.md5" 2>/dev/null)
+		[ -n "$hash" ] && [ "$hash" = "$old" ] && [ -s "$PERSIST/$f.dat.xz" ] && continue
+
+		if [ -n "$free" ] && [ "$free" -lt 4096 ]; then
+			log "overlay free ${free}K too low, skip persist $f"
+			continue
+		fi
+		if xz -c "$RAM/$f.dat" > "$PERSIST/$f.dat.xz.tmp"; then
+			mv "$PERSIST/$f.dat.xz.tmp" "$PERSIST/$f.dat.xz"
+			echo "$hash" > "$PERSIST/$f.dat.md5"
+			log "persisted $f.dat md5=$hash"
+		else
+			rm -f "$PERSIST/$f.dat.xz.tmp"
+			log "FAILED persist $f.dat"
+		fi
+	done
+}
+
+stop_loop() {
+	if [ -f "$PIDFILE" ]; then
+		kill "$(cat "$PIDFILE")" 2>/dev/null
+		rm -f "$PIDFILE"
+	fi
+}
+
+start_loop() {
+	stop_loop
+	(
+		while true; do
+			sleep "$INTERVAL"
+			persist
+		done
+	) &
+	echo $! > "$PIDFILE"
+}
+
+start() {
+	ensure_dirs
+	migrate_old_xz
+	unpack
+	bind_asset
+	cleanup_overlay_residue
+	start_loop
+	return 0
+}
+
+stop() {
+	stop_loop
+	persist
+	if is_bound; then
+		umount "$ASSET" 2>/dev/null
+		log "unmounted $ASSET"
+	fi
+}
+
+reload() {
+	persist
+}
