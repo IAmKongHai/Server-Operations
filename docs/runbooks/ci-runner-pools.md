@@ -67,7 +67,7 @@
 
 - **8GB 机**（lemon / umacbook / mas-go-dev）：适合轻中质量活与测试分片；**禁止**挂完整 Coverage / 全量 branch Sonar。
 - 同机多 runner **不增加** CPU/内存，只增加抢占；8GB 机若 Vitest 与 Sonar 同时打满可考虑减 slot 或降 `VITEST_MAX_WORKERS`。
-- umacbook-pro 为个人本：合盖/断网会掉线，只作吞吐扩容，不当唯一关键路径。
+- umacbook-pro 为个人本：合盖/断网会掉线，只作吞吐扩容，不当唯一关键路径。**2026-09-01 起带到学校，`umacbook-pro-1/2` 已 disable+bootout（保留 Tailscale，未注销 GitHub）；回来用 `umacbook-pro-runner-resume.sh`。**
 - lemon / umacbook 的 Go 由 job 内 `setup-go` 安装；本机 login PATH 可能没有 `go`/`node`，属正常。
 
 ## 上线 checklist（贴 `backend-ci` / `frontend-quality-ci` 前）
@@ -205,3 +205,4 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 - 2026-08-03 CI 池加固：共享 `PNPM_STORE_PATH`、日/周维护脚本（work + go-build + store prune）、mas/dev-cypresso systemd timer、lemon LaunchAgent（见各机 `docs/operations/*.md`）；仓库 `scripts/gha-runner-maintenance.sh`
 - 2026-08-19 lemon-imac runner + 维护任务改为 LaunchDaemon（注销图形用户后仍在线）；不要再 `./svc.sh install`。见 `docs/runbooks/lemon-imac-runner-start-stop.md`、`docs/operations/lemon-imac.md`
 - 2026-08-19 umacbook-pro 同样改为 LaunchDaemon；原 crontab 已删避免双跑。见 `docs/runbooks/umacbook-pro-runner-start-stop.md`
+- 2026-09-01 umacbook-pro 带到学校：pause 脚本 `disable`+`bootout` 两 slot 与维护任务，清 GOCACHE / work / modcache；Tailscale 仍在。见 `docs/operations/umacbook-pro.md`

@@ -1,5 +1,34 @@
 # umacbook-pro 运维操作时间线
 
+## 2026-09-01 15:19 CST - 带到学校：停 runner、清缓存、保留 Tailscale
+
+- 服务器：`umacbook-pro`（runner `umacbook-pro-1/2`）
+- 操作人：`Grok`（脚本 / 核对）、`konghai`（SSH 里 sudo 暂停脚本）
+- 原因：侄女明天开学要把这台 MacBook Pro 带到学校。停掉 self-hosted runner，清掉 runner 缓存给本机留盘，Tailscale 留着方便以后 SSH。
+- 影响：
+  - org `cypressoai` 少 2 个 macOS slot（`frontend-tests-ci` / `frontend-quality-ci` / `backend-ci`）。活改由 `mac-mini`、`lemon-imac` 接。
+  - **未**注销 GitHub runner，**未**删程序目录，**未**动 `system/homebrew.mxcl.tailscale`。
+  - 维护定时 `com.cypressoai.gha-runner-maintenance{,-weekly}` 一并 disable，避免在学校凌晨跑清理。
+- 选型：`launchctl disable` + `bootout`（与 2026-08-19 mac-mini-sonar-3/4 相同），不 `config.sh remove`。回校一条 resume 即可。
+- 备份：runner `.runner` / `.credentials` / `.env` 仍在；LaunchDaemon plist 仍在 `/Library/LaunchDaemons/`。
+- 回滚方式（回校后）：
+  ```bash
+  ssh umacbook-pro 'sudo /Users/for-konghai/gha/scripts/umacbook-pro-runner-resume.sh'
+  ```
+  脚本会 `enable` + `bootstrap` 两 slot 与维护任务，并对 runner `kickstart`。第一次 job 会重新拉 GOCACHE / `_tool` / modcache。
+- 变更时序：
+  1. 14:38 只读：Data 卷 110Gi used / 96Gi avail；GOCACHE 11G+7.6G，workFolder 4.3G+3.7G，GOMODCACHE 2.3G。`umacbook-pro-2` 正忙。
+  2. 当时 job 是 iCare-public-backend [UAT Cut Tag run 33477108836](https://github.com/cypressoai/iCare-public-backend/actions/runs/33477108836) `Sync release + dual tag`，未杀。该 run 已成功（25m44s）。
+  3. 这台 sudo 没有 `/bin/launchctl` 免密（只有 `pmset`）。15:14 在已有 SSH 里 `sudo .../umacbook-pro-runner-pause.sh --clean-cache`。
+  4. 第一版脚本 `disable` 后 SIGTERM Listener，KeepAlive 把 Listener 拉回来，wait 循环卡死。`disable` 对已经加载的 job **不会**关掉 KeepAlive。Ctrl+C 后换成「等 Worker 结束再 bootout」。
+  5. 15:17 第二趟：两 slot 与两个维护任务 `disable`+`bootout`；随后清缓存。
+- 验证结果：
+  - launchd：`umacbook-pro-1/2`、`gha-runner-maintenance{,-weekly}` 均为 **disabled** 且未加载；`homebrew.mxcl.tailscale` **enabled**，`tailscaled` 仍是开机后的 pid 300，IPv4 `100.113.23.49`。
+  - 本机没有 `Runner.Listener` / `Runner.Worker`。
+  - GitHub：`umacbook-pro-1` id 35、`umacbook-pro-2` id 36 均为 `status=offline` `busy=false`。未注销。
+  - 磁盘：Data 卷 110Gi → 80Gi used，avail 96Gi → 125Gi（约腾出 29G）。各 slot 程序目录剩 434M（`bin.2.336.0` + `externals.2.336.0`）；`~/gha/u{1,2}`、GOCACHE、GOMODCACHE 为空目录。
+- 备注：pause / resume 仓库副本 `scripts/umacbook-pro-runner-pause.sh`、`scripts/umacbook-pro-runner-resume.sh`；本机 `~/gha/scripts/`。启停见 `docs/runbooks/umacbook-pro-runner-start-stop.md`。
+
 ## 2026-08-25 12:54 CST - 只读确认 iCare-frontend-mas CI 红叉为 Draft PR 门禁
 
 - 服务器：`umacbook-pro`（runner `umacbook-pro-1`）；对照 `mac-mini-sonar-1`
