@@ -1,5 +1,31 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 11:20 CST - 评估本机出站「开梯子」（只读）
+
+- 服务器：`km-landui`（`43.228.79.237`）
+- 操作人：`Grok`（只读；未装 clash/xray、未改路由、未动 tizi 族）
+- 原因：用户想在本机开梯子，以便访问 Docker Hub / GitHub / Google。
+- 影响：无配置变更。
+
+### 出站实测
+
+| 目标 | 结果 |
+| --- | --- |
+| `github.com` / `ghcr.io` | **已通**（200 / 405） |
+| `google.com` / `hub.docker.com` / `registry-1.docker.io` | **超时**（被墙） |
+| `tizi` `74.211.103.83:443` | OPEN，ping ~175ms |
+| `tizi-ddy` `80.251.215.131:443` | OPEN，ping ~204ms |
+| `nyh-prod` `47.239.167.8:443` | FAIL（与此前跨境结论一致） |
+
+本机无 clash / xray / sing-box 客户端。443 仍由 `derper` 占用。
+
+### 结论（未实施）
+
+- **不要在昆明这台机上开代理服务端**（3x-ui / clash 入站）：出口仍在境内，Google / Docker Hub 一样过不了 GFW，还会和 derper 抢 443。
+- **正确做法**：当现有 `tizi` / `tizi-ddy` 的**客户端**，本机只监听 `127.0.0.1` mixed/SOCKS，给 docker/git/curl 用。
+- **不要 TUN / 改默认路由**：会伤 RustDesk `hbbs`/`hbbr` 与 derper。
+- 给 tizi 族加客户端可能闪断代理数据面，需用户确认后再做。
+
 ## 2026-09-03 11:04 CST - 部署 RustDesk OSS（hbbs/hbbr 1.1.16）
 
 - 服务器：`km-landui`（`43.228.79.237`）
