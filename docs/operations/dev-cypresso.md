@@ -1,5 +1,39 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-03 14:24 CST - 部署 moo-ticket 到 https://t.001.gs
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（目标：域名可访问并登录）
+- 原因：把 `cypressoai/moo-ticket` 接到这台集成测试机，公网入口 `https://t.001.gs`。
+- 影响：
+  - 新增容器 `moo-ticket`（镜像 `moo-ticket:local`），只绑 `127.0.0.1:8180`
+  - 加入已有网络 `shared-services`，连 `shared-postgres` 里新建的库/角色 `moo_ticket`（**未** recreate 共享 Postgres，StartedAt 仍为 `2026-05-28T07:24:56Z`）
+  - 新增 nginx vhost + Let's Encrypt 证书 `t.001.gs`（HTTP→HTTPS 301）
+  - 附件走已有 AWS bucket `cypresso-moo-ticket`
+  - **未**改防火墙、crontab、SSH、其它 iCare 容器
+- 选型：部署走 GitHub Actions，runner 钉死 `[self-hosted, Linux, X64, dev-cypresso-ci]`（同机 `ip-172-31-42-99.ec2.internal`），密钥只放服务器 `.env`（600），不进 GitHub Secrets。`main` 有 PR + required check 规则，所以先合 [PR #1](https://github.com/cypressoai/moo-ticket/pull/1) 再触发部署。
+- 备份：
+  - `/etc/nginx/conf.d/t.001.gs.conf.bak.20260903-deploy`
+  - 应用密钥在本地 gitignore 的 `dev-cypresso/secrets.local.md` 与服务器 `/home/ec2-user/stacks/moo-ticket/.env`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'docker-compose -f /home/ec2-user/stacks/moo-ticket/docker-compose.prod.yml --project-directory /home/ec2-user/stacks/moo-ticket down
+  sudo rm /etc/nginx/conf.d/t.001.gs.conf
+  sudo nginx -t && sudo systemctl reload nginx'
+  ```
+  证书 lineage `t.001.gs` 可随后 `certbot delete`；Postgres 库/角色需另确认后再 DROP。
+- 变更时序：
+  1. 在运行中的 `shared-postgres` 上 `CREATE ROLE/DATABASE moo_ticket`（psql DDL only）。
+  2. 写入 `/home/ec2-user/stacks/moo-ticket/.env`（`APP_ENV=prod`，`BASE_URL=https://t.001.gs`）。
+  3. 仓库增加 `docker-compose.prod.yml` 与 `.github/workflows/deploy.yml`；prod 不再把空 `S3_ENDPOINT` 当成 MinIO。
+  4. 安装 nginx vhost（`proxy_buffering off`），`certbot --nginx -d t.001.gs`，`nginx -t` 后 reload。
+  5. 合并 PR 后 Actions run [33723027224](https://github.com/cypressoai/moo-ticket/actions/runs/33723027224) `success`（59s）。
+- 验证：
+  - `https://t.001.gs/` → **200**，`<title>Moo Ticket</title>`，Let's Encrypt CN=`t.001.gs`
+  - `POST /api/v1/auth/login` → **200** + `Set-Cookie: moo_session`（Secure）；`GET /api/v1/auth/me` → **200**，`admin@001.gs`，`is_home_org=true`
+  - 容器端口 `127.0.0.1:8180->8080`，网络 `shared-services`，`S3_BUCKET=cypresso-moo-ticket`
+  - DNS A `t.001.gs` = `32.192.186.193`；S3 CORS Origin `https://t.001.gs`
+
 ## 2026-08-18 20:54 CST - 关闭 MAS / HR / MAP SIT 公网入口，改为 UAT 引导页
 
 - 服务器：`dev-cypresso`（SIT Server）
