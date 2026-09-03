@@ -1,5 +1,45 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 10:45 CST - 评估作为 RustDesk 自托管中继（只读）
+
+- 服务器：`km-landui`（`43.228.79.237`，昆明 / 电信云南 IDC `AS134765`，主机名 `ldclouda31514`）
+- 操作人：`Grok`（只读；未改防火墙、未装包、未停 derper）
+- 原因：方案 B（要控不在 Tailscale 上的公网/客户机器）。用户提议用这台「空闲」昆明 VPS，并担心 GFW。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+### 现场基线（不是空机）
+
+| 项 | 实测 |
+| --- | --- |
+| 规格 | 2 vCPU / 1.8 GiB RAM / 39G 盘（剩 22G）/ swap 3.8G；Hyper-V（Azure 内核） |
+| 负载 | up 138 天；load 0.01；内存 available 1.2 GiB |
+| 已有服务 | **`derper.service` 仍在跑**：TCP 443 + UDP 3478（自签 `derp.local`，证书不合格，DERP 实际不可用） |
+| Docker | **未安装** |
+| OS 防火墙 | ufw inactive；iptables `INPUT ACCEPT` |
+| 端口 21115–21119 | 本机未监听 |
+
+本机访问：`github.com` / `rustdesk.com` / `ghcr.io` 通；`google.com`、`hub.docker.com`、`registry-1.docker.io` **超时**（出站被墙）。`1.1.1.1` ping 68ms。
+
+### 路径实测（GFW / 跨境）
+
+| 源 | 到 `43.228.79.237` | 结果 |
+| --- | --- | --- |
+| 家宽（滇，本机） | ICMP ~6.7ms；TCP 443 / SSH 28285 | **通** |
+| `tizi-ddy`（境外 `80.251.215.131`） | ICMP ~178ms；TCP 443 / 28285 | **通** |
+| `nyh-prod`（香港阿里云） | ICMP 100% 丢；TCP 443 / 28285 | **全不通** |
+
+家宽对未监听的 TCP 21116 是 **SYN 超时**（不是 RST）→ 云前置/安全组在丢未放行端口，部署时必须在厂商控制台放行，不能只改 ufw。
+
+### 结论（未部署）
+
+- **控国内机器：适合。** 境内到昆明不走 GFW；家宽 RTT ~7ms。这比把中继放 `nyh-prod` 更合理。
+- **控香港/部分境外云主机：不适合当唯一中继。** 香港阿里云现在完全打不到这台机。
+- **不要用 Docker Hub 拉镜像**（出站超时）；若部署，用 GitHub release 二进制 + systemd，与现有 derper 共存（RustDesk 不抢 443）。
+- 用户观感「空着」不准确：derper 仍 enabled 且占 443，只是 DERP 因证书未生效。本次未停。
+
+部署属另开确认（装包、开安全组端口）。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`km-landui`
