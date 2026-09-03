@@ -1,5 +1,45 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 11:04 CST - 部署 RustDesk OSS（hbbs/hbbr 1.1.16）
+
+- 服务器：`km-landui`（`43.228.79.237`）
+- 操作人：`Grok`（用户已在云安全组放行 TCP 21115–21117、UDP 21116；被控端全在国内）
+- 原因：方案 B，自托管 ID + 中继，替代公网 ToDesk 一类服务。
+- 影响：新增 `rustdesk-hbbs` / `rustdesk-hbbr` 常驻进程（约 2–8 MB RSS）；**未**停 `derper`、**未**改 ufw/SSH、**未**开 21118/21119。
+- 选型：GitHub 二进制 + systemd（本机 Docker Hub 出站超时，不装 Docker）。
+- 客户端填法：`docs/runbooks/rustdesk-km-landui.md`
+
+### 做了什么
+
+1. 家宽复核安全组：未监听时 21115–21117 为 RST（已放行）；21118 仍 TIMEOUT（保持不开）。
+2. 下载 `rustdesk-server-linux-amd64.zip` **1.1.16**，sha256 `0565c41affe6c3f409b0bddfaf5a24ccbf3f64f5f8e3fec250b69a0d5f6bdbcf` 校验通过。
+3. 系统用户 `rustdesk`；二进制 `/usr/local/bin/{hbbs,hbbr,rustdesk-utils}`。
+4. systemd：`hbbr -k _`；`hbbs -r 43.228.79.237:21117 -k _`；`WorkingDirectory=/var/lib/rustdesk-server`；enabled + running。
+5. 私钥权限改为 `600`。安装临时目录已删。
+
+### 验证
+
+| 检查 | 结果 |
+| --- | --- |
+| `systemctl is-active rustdesk-hbbs rustdesk-hbbr derper` | 三个都 active |
+| 本机监听 | TCP 21115/21116/21117；UDP 21116。21118/21119 进程在听但安全组未放行 |
+| 家宽 TCP | **21115/21116/21117 OPEN**；21118/21119 TIMEOUT；443 仍是 derper |
+| 内存 | hbbr ~2 MB、hbbs ~8 MB RSS |
+
+公钥（客户端「密钥」栏）：
+
+```
+mLupdW95mI8GfMLicW0sJbHL6tR6IVgyk2HRN6sL+Gs=
+```
+
+### 回滚
+
+```bash
+systemctl disable --now rustdesk-hbbs rustdesk-hbbr
+```
+
+数据与密钥留在 `/var/lib/rustdesk-server/`，需要时可再拉起。云安全组端口由用户自行决定是否收回。
+
 ## 2026-09-03 10:45 CST - 评估作为 RustDesk 自托管中继（只读）
 
 - 服务器：`km-landui`（`43.228.79.237`，昆明 / 电信云南 IDC `AS134765`，主机名 `ldclouda31514`）
@@ -92,5 +132,6 @@
 | OS | Ubuntu 22.04 |
 | derper 单元 | `/etc/systemd/system/derper.service` |
 | 证书目录 | `/etc/derper/certs/`（当前 `derp.local.crt` / `.key`） |
+| RustDesk | OSS 1.1.16；`rustdesk-hbbs` / `rustdesk-hbbr`；数据 `/var/lib/rustdesk-server/`；客户端见 `docs/runbooks/rustdesk-km-landui.md` |
 | 相关 tailnet | `cypresso.ai` / MagicDNS `taila93443.ts.net` |
 | ACL 自定义区（截至记录时） | RegionID `900`，code `km`，`InsecureForTests: true` |
