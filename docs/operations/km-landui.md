@@ -1,5 +1,37 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 14:41 CST - derper 首页改为 Coming soon
+
+- 服务器：`km-landui`（`derp.nanyahui.com`）
+- 操作人：`Grok`
+- 原因：默认首页会写出 Tailscale / DERP / 文档链接；用户要求页面只显示大大的 `Coming soon`，源码里也不留其它信息。
+- 影响：`derper` 短暂重启（数秒）。数据面随后 `debug derp 900` 仍成功。RustDesk 未动。
+- 备份：`/root/backup/derper-home-20260903-063905/derper.bin`（改首页前的二进制）
+
+### 做了什么
+
+官方 `-home` 只支持默认页 / 空白 / 跳转 URL，没有自定义 HTML。按 v1.96.5 源码改首页模板后重编 `/root/go/bin/derper`（`-trimpath -ldflags=-s -w`），编译树随即删除，盘上不留补丁源码。
+
+### 验证
+
+`curl https://derp.nanyahui.com/` 仅：
+
+```html
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Coming soon</title>
+<center><h1><font size="7">Coming soon</font></h1></center>
+```
+
+无 Tailscale / DERP / 文档链接。`tailscale debug derp 900`：Successfully established a DERP connection。
+
+### 回滚
+
+```bash
+cp -a /root/backup/derper-home-20260903-063905/derper.bin /root/go/bin/derper
+systemctl restart derper
+```
+
 ## 2026-09-03 13:02 CST - Tailscale ACL derpMap HostName 改为 derp.nanyahui.com
 
 - 操作人：`Grok`（用户已登录 Tailscale console，ego-browser 改 JSON editor 并保存）
