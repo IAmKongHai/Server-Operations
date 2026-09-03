@@ -1,5 +1,24 @@
 # lemon-imac 运维操作时间线
 
+## 2026-09-03 10:25 CST - 只读检查 lemon-imac-1/2 runner 状态
+
+- 服务器：`lemon-imac`（runner `lemon-imac-1` / `lemon-imac-2`）
+- 操作人：`Grok`
+- 原因：用户要求检查本机 GitHub Actions runner 状态。
+- 影响：仅 SSH 只读查询 + `gh api` 读 org runners；未改 LaunchDaemon、runner、Tailscale 或业务代码。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 查 LaunchDaemon `system/actions.runner.cypressoai.lemon-imac-{1,2}`、`Runner.Listener` / `Runner.Worker`、磁盘与内存、Tailscale、`_diag` 日志。
+  2. `gh api orgs/cypressoai/actions/runners` 核对 GitHub 侧 `status` / `busy` / labels。
+- 验证结果：
+  - GitHub：两 slot 均 `online`、`busy=false`。id `32`=`lemon-imac-1`，id `31`=`lemon-imac-2`。labels：`self-hosted,macos,arm64,macos-arm64,lemon-imac,frontend-tests-ci,frontend-quality-ci,backend-ci`。runner 版本 `2.336.0`。
+  - 本机：两份 LaunchDaemon `state=running`、`enabled`、`runs=1`、`last exit code=(never exited)`。`runsvc.sh` / `RunnerService.js` 自 2026-08-26 00:17 起未退。Listener 进程于 2026-09-02 19:49 CST 起来（slot2 pid `11430`，slot1 pid `11444`），无 `Runner.Worker`（当前空闲）。维护任务 `gha-runner-maintenance{,-weekly}` 已 enabled、此刻未在跑。
+  - Tailscale：`100.81.246.93` / MagicDNS `lemon-imac` 在线。控制台用户是 `zhangli`（自 08-26 00:17），不是 `for-konghai`。
+  - 资源：uptime 8 天，load `2.03 1.88 1.69`（8 核）。内存 8GB，系统报告 free 约 69%，但 free pages 很少、compressor ~56k pages、swapins/swapouts 已过百万，8GB + GUI 占用仍紧。磁盘 Data 卷 228Gi 用 138Gi / 剩 65Gi（68%）。workFolder `gha/li1` 4.2G、`li2` 3.7G；runner 目录 `lemon-imac-1` 11G、`lemon-imac-2` 9.5G。
+  - 日志：slot1 于 10:21:49 CST、slot2 于 10:22:19 CST 各 `Runner reconnected` 一次后 `Listening for Jobs`。当前 Listener 日志里各有约 840 次 `TaskCanceledException`（心跳超时后自愈），不是 LaunchDaemon 崩溃。最近 Worker 日志停在 09-02 17:54 / 17:51 CST。
+- 备注：`umacbook-pro` 当时 Tailscale `offline, last seen 1d ago`，同池另一半不在线；本次未排查那台。
+
 ## 2026-08-22 23:49 CST - 只读确认 iCare-Operations-frontend verify 失败为 Prettier，不是 runner
 
 - 服务器：`lemon-imac`（runner `lemon-imac-2`）
