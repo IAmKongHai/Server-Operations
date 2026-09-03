@@ -1,5 +1,35 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 12:38 CST - 复核 derper 证书不合格（只读，未切证书）
+
+- 服务器：`km-landui`（`43.228.79.237`）
+- 操作人：`Grok`（只读；未改 derper / DNS / Tailscale ACL）
+- 原因：RustDesk 已通，用户要顺手修自定义 DERP 证书。
+- 影响：无配置变更。梯子客户端**不装**（GitHub 已通，Docker Hub/Google 目前用不上）。
+
+### 证书为什么不合格
+
+- 现证：自签 `CN/SAN=derp.local`，且 `Basic Constraints: CA:TRUE`（2026-04-15 ~ 2036-04-12）
+- 本机 `tailscale debug derp 900` 仍报：  
+  `x509: “derp.local” certificate is not standards compliant`
+- STUN 是好的：`netcheck` Nearest DERP **Kunming 8.8ms**（UDP 3478），所以看起来「很近」，TLS 数据面其实没连上
+- `InsecureForTests: true` 也救不了「standards compliant」这一关；`.local` 自签不是解
+
+### 现场条件
+
+| 项 | 结果 |
+| --- | --- |
+| TCP 80 从家宽 | **RST**（安全组已放行，本机无进程监听）→ HTTP-01 可用 |
+| `derp.skysms.xyz` 等候选 | **无 A 记录**；`43.228.79.237` 无 PTR |
+| derper | `-certmode manual -hostname derp.local -http-port -1`，占 443 |
+
+### 下一步（等 DNS）
+
+1. 用户把 `derp.skysms.xyz`（建议，与 `tz`/`cyp-tz`/`ddy-tizi.skysms.xyz` 同区）A 到 `43.228.79.237`
+2. derper 改 `-certmode letsencrypt -hostname derp.skysms.xyz -http-port 80`（本机申请并续期）
+3. Tailscale ACL derpMap `HostName` 改为该域名，去掉 `InsecureForTests`
+4. `tailscale debug derp 900` 无 TLS 错误才算修好
+
 ## 2026-09-03 11:20 CST - 评估本机出站「开梯子」（只读）
 
 - 服务器：`km-landui`（`43.228.79.237`）
