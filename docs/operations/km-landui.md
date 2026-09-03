@@ -1,5 +1,47 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 12:47 CST - derper 换 Let's Encrypt（derp.nanyahui.com）
+
+- 服务器：`km-landui`（`43.228.79.237`）
+- 操作人：`Grok`（用户已把 `derp.nanyahui.com` A 到本机）
+- 原因：自签 `derp.local` 不合格，自定义 DERP 数据面从未真正工作。
+- 影响：derper 短暂重启（约数秒）。RustDesk `hbbs`/`hbbr` 未动，21115–21117 仍通。443 现由 Let's Encrypt 证书提供 HTTPS。80 端口现由 derper 监听（ACME 续期）。
+- 备份：`/root/backup/derper-le-20260903-044657/`（旧 unit + `derp.local.crt/.key`）
+
+### 做了什么
+
+1. 核实 DNS：本机 / `1.1.1.1` / `8.8.8.8` / `223.5.5.5` 均为 `derp.nanyahui.com` → `43.228.79.237`；Cloudflare NS 且返回源站 IP（灰云）；无 CAA。
+2. `derper.service` 改为  
+   `-http-port 80 -certmode letsencrypt -hostname derp.nanyahui.com`（其余 STUN / `verify-clients=false` 不变）
+3. `systemctl daemon-reload && restart derper`；autocert 签发成功。
+
+### 验证
+
+| 检查 | 结果 |
+| --- | --- |
+| Python `ssl` 校验 `derp.nanyahui.com:443` | **OK**，CN/SAN=`derp.nanyahui.com`，签发 Let's Encrypt YE2，有效至 **2026-12-02** |
+| `curl -sI https://derp.nanyahui.com/` | HTTP/2 **200** |
+| derper 监听 | TCP 80 + 443，UDP 3478 |
+| RustDesk | `hbbs`/`hbbr` active；家宽 TCP 21115–21117 OPEN |
+| `tailscale debug derp 900` | **仍失败**：ACL 还在用 `HostName=derp.local`，SNI 被 HostWhitelist 拒绝（`tls: internal error`） |
+
+### 你还需要改 Tailscale ACL
+
+把 region 900 节点的 `HostName` 改成 `derp.nanyahui.com`，并去掉 `InsecureForTests`（可保留 `IPv4: 43.228.79.237`）。保存后本机执行：
+
+```bash
+tailscale debug derp 900
+```
+
+不再报 TLS 错误才算 DERP 真正可用。
+
+### 回滚
+
+```bash
+cp -a /root/backup/derper-le-20260903-044657/derper.service /etc/systemd/system/derper.service
+systemctl daemon-reload && systemctl restart derper
+```
+
 ## 2026-09-03 12:38 CST - 复核 derper 证书不合格（只读，未切证书）
 
 - 服务器：`km-landui`（`43.228.79.237`）
@@ -186,8 +228,9 @@ systemctl disable --now rustdesk-hbbs rustdesk-hbbr
 | 公网 IP | `43.228.79.237` |
 | SSH | 端口 `28285`，用户 `root` |
 | OS | Ubuntu 22.04 |
-| derper 单元 | `/etc/systemd/system/derper.service` |
-| 证书目录 | `/etc/derper/certs/`（当前 `derp.local.crt` / `.key`） |
+| derper 单元 | `/etc/systemd/system/derper.service`（`-certmode letsencrypt -hostname derp.nanyahui.com -http-port 80`） |
+| DERP 域名 | `derp.nanyahui.com` → `43.228.79.237` |
+| 证书目录 | `/etc/derper/certs/`（LE：`derp.nanyahui.com`；旧自签 `derp.local.crt/.key` 仍在） |
 | RustDesk | OSS 1.1.16；`rustdesk-hbbs` / `rustdesk-hbbr`；数据 `/var/lib/rustdesk-server/`；客户端见 `docs/runbooks/rustdesk-km-landui.md` |
 | 相关 tailnet | `cypresso.ai` / MagicDNS `taila93443.ts.net` |
 | ACL 自定义区（截至记录时） | RegionID `900`，code `km`，`InsecureForTests: true` |
