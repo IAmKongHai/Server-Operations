@@ -1,5 +1,20 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-03 14:36 CST - 修复 t.001.gs SPA 静态资源被 index.html 盖住
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`
+- 原因：首次部署后 `GET /` 是 SPA HTML，但 `GET /assets/*.js` / CSS / favicon 也被 `e.GET("/*")` 回成 460 字节的 `index.html`，浏览器白屏。
+- 影响：合入 [moo-ticket#2](https://github.com/cypressoai/moo-ticket/pull/2) 后 Actions [33724019973](https://github.com/cypressoai/moo-ticket/actions/runs/33724019973) 重建 `moo-ticket` 容器。未改 nginx / Postgres / `.env`。
+- 备份：无（应用代码回滚即上一镜像）。
+- 回滚方式：把 `cypressoai/moo-ticket` `main` 回到 `99776e3` 再跑 Deploy workflow。
+- 变更时序：修 `spaFileHandler`（文件存在则原样返回，无扩展名的客户端路由才回 `index.html`）→ PR CI 通过 → squash merge → `dev-cypresso-ci` 部署 success。
+- 验证：
+  - `https://t.001.gs/assets/index-DtK3NthZ.js` → **200** `text/javascript` 1590841 bytes，前缀 `var e=Object.create`
+  - `https://t.001.gs/assets/index-msuTWJjP.css` → **200** `text/css` 4701 bytes
+  - `https://t.001.gs/favicon.svg` → **200** `image/svg+xml`
+  - `POST /api/v1/auth/login` + `GET /api/v1/auth/me` 仍为 `admin@001.gs`
+
 ## 2026-09-03 14:24 CST - 部署 moo-ticket 到 https://t.001.gs
 
 - 服务器：`dev-cypresso`
