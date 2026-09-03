@@ -1,5 +1,23 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-03 17:06 CST - moo-ticket SMTP 改为 Resend，补上 starttls
+
+- 服务器：`dev-cypresso`
+- 操作人：用户改 `.env` 为 Resend 并重启容器；`Grok` 探测后补 `SMTP_TLS_MODE=starttls` 再 recreate
+- 原因：发信走 Resend。`.env` 未设 `SMTP_TLS_MODE` 时应用默认 `none`，`smtp.resend.com:587` 要求先 STARTTLS，否则 538。
+- 影响：只重建 `moo-ticket`。未动 nginx / Postgres / S3。
+- 备份：`/home/ec2-user/stacks/moo-ticket/.env.bak.20260903-smtp-tls`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'cp /home/ec2-user/stacks/moo-ticket/.env.bak.20260903-smtp-tls /home/ec2-user/stacks/moo-ticket/.env
+  docker-compose -f /home/ec2-user/stacks/moo-ticket/docker-compose.prod.yml --project-directory /home/ec2-user/stacks/moo-ticket up -d --force-recreate --no-deps --no-build app'
+  ```
+- 变更时序：探测 AUTH（none 失败 / starttls 成功并发出探测信）→ `.env` 追加 `SMTP_TLS_MODE=starttls` → recreate。
+- 验证：
+  - 容器 env：`SMTP_HOST=smtp.resend.com` `SMTP_PORT=587` `SMTP_USER=resend` `SMTP_FROM=Moo Ticket <support@t.001.gs>` `SMTP_TLS_MODE=starttls`
+  - STARTTLS 登录成功，探测信 `SEND_OK` 到 `support@t.001.gs`
+  - `GET /api/v1/auth/providers` 仍为 google+microsoft true
+
 ## 2026-09-03 15:50 CST - t.001.gs 开通 Google / Microsoft 登录
 
 - 服务器：`dev-cypresso`
