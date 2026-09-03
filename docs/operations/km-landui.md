@@ -1,5 +1,31 @@
 # km-landui 运维操作时间线
 
+## 2026-09-03 13:02 CST - Tailscale ACL derpMap HostName 改为 derp.nanyahui.com
+
+- 操作人：`Grok`（用户已登录 Tailscale console，ego-browser 改 JSON editor 并保存）
+- 原因：derper 证书已换成 Let's Encrypt，但 ACL 仍指向 `derp.local`，客户端 SNI 被拒。
+- 影响：仅改 cypresso.ai tailnet 的 derpMap 节点主机名；grants / SSH / 其它规则未动。
+
+### 变更
+
+Region 900 节点 `km1`：
+
+- `HostName`: `derp.local` → **`derp.nanyahui.com`**
+- 删除 `InsecureForTests: true`
+- 保留 `IPv4: 43.228.79.237`、`DERPPort: 443`、`STUNPort: 3478`
+
+控制面已确认：`GET login.tailscale.com/admin/api/acls` 中无 `derp.local`、无 `InsecureForTests`。
+
+### 验证（本机）
+
+```text
+tailscale debug derp 900
+Successfully established a DERP connection with node "derp.nanyahui.com"
+Node "derp.nanyahui.com" returned IPv4 STUN response: ...
+```
+
+仅剩无害的 IPv6 失败（该域名没有 AAAA）。`netcheck` Nearest DERP 仍为 Kunming ~9ms，这次 TLS 数据面是真通的。
+
 ## 2026-09-03 12:47 CST - derper 换 Let's Encrypt（derp.nanyahui.com）
 
 - 服务器：`km-landui`（`43.228.79.237`）
