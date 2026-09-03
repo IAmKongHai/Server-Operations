@@ -1,5 +1,37 @@
 # nyh-prod 运维时间线
 
+## 2026-09-03 10:34 CST - 评估在 nyh-prod 自托管 RustDesk 的可行性（只读）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读排查，未改防火墙 / Docker / 安全组 / 业务进程）
+- 原因：用户询问能否在本机部署自托管 RustDesk（`hbbs` + `hbbr`）。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+### 现场基线
+
+| 项 | 实测 |
+| --- | --- |
+| 规格 | 4 vCPU（AMD EPYC 9T24，2 核 2 线程）、7.2 GiB RAM、无 swap |
+| 负载 | uptime 13 天；load 0.66 / 0.26 / 0.19 |
+| 内存 | used 3.3 GiB，available 3.9 GiB |
+| 磁盘 | `/` 79G 用 41%（剩 45G）；`/www` 147G 用 25%（剩 106G） |
+| Docker | 26.1.4；无 RustDesk 镜像/容器 |
+| 端口 21115–21119 | **空闲**（TCP/UDP 均未监听） |
+| 现网流量 | eth0 自开机 RX 74.8 GB / TX 45.5 GB，约合 0.53 / 0.32 Mbps；瞬时 ~50 KB/s |
+| 防火墙 | ufw active + 宝塔 `IN_BT` + iptables `INPUT DROP`；ufw **未**放行 21115–21119；阿里云安全组未在本机核验 |
+
+现网容器：`yunshu-api`、`richer-*`、`archery`、`acquilang-backend`、`acquilang-admin`。80/443 由宿主机 Nginx 占用。
+
+### 结论（未部署）
+
+- **CPU / 内存 / 磁盘 / 端口占用**：个人或小团队自托管 OSS **资源上可行**；`hbbs`/`hbbr` 空闲约百 MB 级。
+- **不建议把公网 RustDesk 直接开在这台生产机上**：本机同时跑 NYH / AcquilangAi / DDRicher 生产站点与数据库；打洞失败时整段桌面流量走 `hbbr` 中继（办公约 100 KB/s，1080p 可达 3 MB/s），会与业务带宽争抢；还要在 ufw **和** 阿里云安全组新开 TCP 21115–21117 + UDP 21116。
+- **若仍要落在 nyh-prod**：优先只绑 Tailscale `100.78.12.107`（不改公网安全组、不抢 80/443、不用 `--net=host`、不开 Web Client 的 21118/21119）。
+- **更稳妥**：独立小 VPS 跑公网中继；本机已有 Tailscale，仅本人控自家设备时甚至可以不用 RustDesk 服务器。
+
+本次未改任何东西，部署需另开确认（防火墙 / 安全组属危险动作）。
+
 ## 2026-08-28 13:25 CST - 排查 Tailscale 到 nyh-prod Exit Node 是直连还是 DERP
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`）
