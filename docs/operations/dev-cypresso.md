@@ -1,5 +1,25 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-03 15:50 CST - t.001.gs 开通 Google / Microsoft 登录
+
+- 服务器：`dev-cypresso`
+- 操作人：用户配置 OAuth 客户端并重建容器；`Grok` 只读复核后记录
+- 原因：登录页要启用全局 Google 与 Microsoft Entra 按钮。
+- 影响：
+  - `/home/ec2-user/stacks/moo-ticket/.env` 增加 `GOOGLE_CLIENT_ID/SECRET`、`MICROSOFT_CLIENT_ID/SECRET/TENANT_ID`（仍 600）
+  - 容器 `moo-ticket` 于 `2026-09-03 07:36 UTC` recreate（`--no-build` 量级）；未动 nginx / `shared-postgres` / S3
+- 选型：密钥只放宿主机 `.env`，不进仓库、不进 GitHub Secrets。回调仍是 `https://t.001.gs/api/v1/auth/oauth/callback`。
+- 备份：无新备份；回滚即从 `.env` 删这 5 行后 `up -d --force-recreate --no-deps --no-build app`。
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'docker-compose -f /home/ec2-user/stacks/moo-ticket/docker-compose.prod.yml --project-directory /home/ec2-user/stacks/moo-ticket up -d --force-recreate --no-deps --no-build app'
+  ```
+  （先从 `.env` 去掉 `GOOGLE_*` / `MICROSOFT_*`）
+- 变更时序：写 `.env` → 重建 `moo-ticket`。
+- 验证：
+  - `GET https://t.001.gs/api/v1/auth/providers` → `{"google":true,"microsoft":true}`
+  - 用户确认 Google 登录、Microsoft 登录均已走通
+
 ## 2026-09-03 14:36 CST - 修复 t.001.gs SPA 静态资源被 index.html 盖住
 
 - 服务器：`dev-cypresso`
