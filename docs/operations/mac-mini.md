@@ -1,5 +1,21 @@
 # mac-mini 运维时间线
 
+## 2026-09-07 16:05 CST - 只读核查 PostgreSQL 共享情况
+
+- 服务器：`mac-mini`
+- 操作人：`Codex`
+- 原因：用户询问是否有公共 PostgreSQL 可用。
+- 影响：只读查询容器、端口、Compose 归属与数据库名称；未修改服务配置或数据库。
+- 备份：无（只读）。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：通过 SSH 查询当前 Docker endpoint（Colima default）的全部容器，读取 Compose project / working directory 标签，并在四个 PostgreSQL 容器内查询 `pg_database`；核对宿主机 5432 / 5433 监听。
+- 验证结果：
+  - `richer-postgres`：`postgres:16-alpine`，healthy，业务库 `richer`，宿主机 `0.0.0.0:5432` / `[::]:5432` 映射至容器 5432；Compose 目录 `~/stacks/richer`。
+  - `cmm-postgres`：`postgres:18-alpine`，healthy，业务库 `cmm`，宿主机 `0.0.0.0:5433` / `[::]:5433` 映射至容器 5432；Compose 目录 `~/stacks/cmm-postgres`。
+  - `sub2api-postgres`：`postgres:18-alpine`，healthy，业务库 `sub2api`，未映射宿主机端口。
+  - `sonar-postgres`：`postgres:17-alpine`，healthy，业务库 `sonarqube`，未映射宿主机端口。
+  - 四个实例均另有默认 `postgres` 库。当前查询范围内未发现专门的公共共享 PostgreSQL；5432 / 5433 已被项目实例占用。端口映射不代表公网可达，本次未验证外部网络连通性或共享账号权限。
+
 ## 2026-08-25 13:57 CST - 恢复 mac-mini-sonar-3/4
 
 - 服务器：`mac-mini`
