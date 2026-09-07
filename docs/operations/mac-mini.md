@@ -1,5 +1,40 @@
 # mac-mini 运维时间线
 
+## 2026-09-07 23:34 CST - 建立 Tailscale 共享开发 S3 并接入 moo-ticket 附件存储
+
+- 服务器：`mac-mini`
+- 操作人：`Codex`
+- 原因：用户要求为 moo-ticket 本地调试补齐兼容 S3 的对象存储，沿用本会话的 Tailscale 访问和 `.env.konghai` 配置方式。
+- 影响：新增 `shared-dev-s3` 容器、独立网络和持久化数据卷；新增 `moo-ticket` 私有 bucket 及专用访问密钥；保留 PostgreSQL 的 5434 转发和全部原有服务。
+- 选型：
+  - Garage **v2.3.0**，ARM64 镜像 `dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690`。
+  - 项目采用 AWS SDK for Go v2，存储接口只需预签名 PUT / GET、删除对象及浏览器 CORS。Garage 支持这些接口；MinIO 社区仓库已于 2026-04-25 归档并明确停止维护，因此此次新服务使用 Garage。参考 [MinIO 仓库](https://github.com/minio/minio)、[Garage 快速部署](https://garagehq.deuxfleurs.fr/documentation/quick-start/)、[S3 兼容范围](https://garagehq.deuxfleurs.fr/documentation/reference-manual/s3-compatibility/)。Garage 并非完整 AWS S3 模拟器，例如 IAM bucket policy / ACL 不在本次兼容范围内。
+  - Compose 目录 `~/stacks/shared-dev-s3/`；`garage.toml` 使用 SQLite 元数据、`replication_factor=1`，`/garage server --single-node` 初始化单节点布局。
+  - named volume `shared_dev_s3_data` 挂载 `/var/lib/garage`，同时持久化 `meta/` 和 `data/`。单节点开发服务无副本冗余，本次未配置定时备份。
+  - `restart: always`，内存上限 512 MiB、CPU 上限 1 核；日志轮转 10 MiB × 3，健康检查 `/garage status`。
+  - S3 只映射宿主机 `127.0.0.1:3900`；Tailscale Serve 持久化 TCP 转发 `3900 -> 127.0.0.1:3900`，入口 `http://100.108.64.126:3900`。RPC 仅监听容器内 `127.0.0.1:3901`，没有暴露管理 API 或网站端点，不启用 Funnel。
+  - 区域 `us-east-1`，bucket `moo-ticket`，密钥名称 `moo-ticket-dev`，仅授予该 bucket 的读写权限；配置 CORS 时短暂授予 owner，完成后撤销。`Website access=false`，匿名对象读取返回 403。
+- 备份：
+  - 本机环境文件：`/Users/konghai/Code/Project/moo-ticket/.env.konghai.bak.20260907-232917`（600）。
+  - 服务器变更前状态：`~/stacks/shared-dev-s3/tailscale-serve.before.json`（仅含 PostgreSQL 5434 转发）及 `containers.before.txt`。
+  - 首版 CORS：`~/stacks/shared-dev-s3/cors.json.bak.20260907-2332`。
+- 回滚方式：
+  1. `ssh mac-mini 'tailscale serve --tcp=3900 off'`，只撤销新增 S3 转发，保留 PostgreSQL 5434。
+  2. `ssh mac-mini 'cd ~/stacks/shared-dev-s3 && docker-compose stop'`，保留对象和元数据卷，不使用 `down -v`。
+  3. 在本机用上述环境文件备份恢复 `.env.konghai`，保持 600 权限。重新启用服务时运行 `docker-compose up -d` 和 `tailscale serve --bg --tcp=3900 tcp://127.0.0.1:3900`。
+- 做了什么：
+  1. 核对项目 `internal/storage/s3.go` 的实际签名 / 下载 / 删除实现与配置字段，确认 3900 空闲，备份后部署 Garage 并等待 healthy。
+  2. 创建 bucket / 专用密钥；服务器密钥文件为 `~/stacks/shared-dev-s3/moo-ticket-key.secret.txt`，RPC secret 在 `garage.toml`，均位于 700 目录内且文件权限为 600，不进入 Git。
+  3. 配置 bucket CORS，允许 `http://localhost:5173`、`http://127.0.0.1:5173`、`http://localhost:8080`、`http://127.0.0.1:8080`；方法 GET / HEAD / PUT，允许请求头 `*`，暴露 ETag / Content-Disposition。最终配置保存在服务器 `cors.json`。
+  4. 写入 `.env.konghai` 的 `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`、`S3_FORCE_PATH_STYLE=true`；保留全部非 S3 配置，环境文件及其备份继续使用既有 Git 本地忽略规则。
+- 验证结果：
+  - 通过本机 Tailscale 调用项目实际 `storage.New` / `PresignPut` / `PresignGet` / `Delete`：上传约 96 KiB 对象成功，下载内容逐字节一致，Content-Disposition 下载文件名正确，删除本次测试对象后再读返回 404；bucket 最终对象数为 0。
+  - 私有对象匿名下载为 403；四个本地来源的预检均返回 200 和对应的单一 Allow-Origin，无关来源的预检返回 403。
+  - **Garage v2.3.0 CORS 注意事项**：首版在一条规则内列多个 AllowedOrigins，实测响应把它们用逗号拼接为 Allow-Origin，浏览器不能接受。改成每个来源一条独立规则后通过验证。拒绝请求的 403 响应仍可能带 `Allow-Origin: *`，应同时判断预检 HTTP 状态，不能只看该头。
+  - 容器 healthy；宿主机 3900 只监听回环；Serve 同时保留 5434 与新增 3900；内存快照约 3.2 MiB（仅本次轻负载采样，不代表峰值）。
+  - `.env.konghai` 与备份均为 600，shell 语法检查通过，PostgreSQL 连接串及其它非 S3 设置与备份一致；未改 moo-ticket 项目源码。此次使用真实 S3 接口验证，没有重复运行仅覆盖数据库的全套 Go 测试，也未做浏览器 UI 操作。
+- 本地使用：在 moo-ticket 目录执行 `set -a`、`source .env.konghai`、`set +a` 后启动后端；浏览器和后端所在电脑均需能通过 Tailscale 到达上述 S3 地址。若前端改用其它端口，需在 bucket CORS 增加对应来源。
+
 ## 2026-09-07 16:20 CST - 建立 Tailscale 共享开发 PostgreSQL 并接入 moo-ticket
 
 - 服务器：`mac-mini`
