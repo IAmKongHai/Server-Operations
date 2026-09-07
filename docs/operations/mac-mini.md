@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-09-07 16:09 CST - 只读评估 moo-ticket 开发数据库资源
+
+- 服务器：`mac-mini`
+- 操作人：`Codex`
+- 原因：用户考虑为 moo-ticket 增加开发测试 PostgreSQL，询问共享实例与项目独立实例的性能取舍。
+- 影响：只读采样主机及容器资源，并检查本地 moo-ticket 项目文档和测试初始化代码；未创建实例、数据库或账号，未运行测试。
+- 备份：无（只读）。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：通过 SSH 查询 `uptime`、`sysctl`、`memory_pressure -Q`、`docker stats --no-stream`、`colima list`。
+- 验证结果：
+  - 主机 10 核 / 32 GiB；Colima default 配置 6 vCPU / 12 GiB。主机 load average 为 `13.71 / 10.36 / 10.22`；swap 使用约 `1.12 MiB`。
+  - PostgreSQL 容器内存快照：`cmm-postgres` 69.66 MiB、`sub2api-postgres` 76.53 MiB、`richer-postgres` 47.89 MiB、`sonar-postgres` 229.2 MiB，合计约 423 MiB；各容器 CPU 约 0.34%–1.58%。SonarQube 约 3.168 GiB。此为单次 Docker 统计，不能代表峰值或完整宿主机内存成本；当前无证据表明 PostgreSQL 是主机高负载的主要来源。
+  - moo-ticket 的 `docker-compose.prod.yml` 已采用 dev-cypresso 的 `shared-postgres`；本地文档要求 `moo_ticket` / `moo_ticket_test` 两库。`internal/service/authz_test.go:testStore` 会删除所连库的业务表数据，接入时应显式设置 `TEST_DATABASE_URL`，开发与测试使用不同账号并限制各自数据库权限。
+  - 建议新增供轻量开发项目共用的实例，各项目独立数据库和账号；现有项目专用实例不在此次建议中迁移。该建议尚未执行。
+
 ## 2026-09-07 16:05 CST - 只读核查 PostgreSQL 共享情况
 
 - 服务器：`mac-mini`
