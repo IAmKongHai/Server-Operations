@@ -1,5 +1,48 @@
 # mac-mini 运维时间线
 
+## 2026-09-07 16:20 CST - 建立 Tailscale 共享开发 PostgreSQL 并接入 moo-ticket
+
+- 服务器：`mac-mini`
+- 操作人：`Codex`
+- 原因：用户确认建立共享开发 PostgreSQL，通过 Tailscale 连接，并把 moo-ticket 开发 / 测试连接写入本地 `.env.konghai`。
+- 影响：新增 `shared-dev-postgres`、独立网络及数据卷；新增 moo-ticket 两个数据库和账号；现有 PostgreSQL、SonarQube 等容器未重建或重启。
+- 选型：
+  - PostgreSQL **18.6**，镜像 `postgres:18-alpine@sha256:a1d02e4bd40c94d3bf2bdd3678c137388e76d9efcd23c285e9429d336a834b44`。
+  - Compose 目录 `~/stacks/shared-dev-postgres/`；管理命令使用 `docker-compose`（此机没有 `docker compose` 插件）。
+  - 容器 `restart: always`，内存上限 1 GiB、CPU 上限 2 核、`shm_size=256m`；`shared_buffers=128MB`、`max_connections=80`、`work_mem=4MB`；日志轮转 10 MiB × 3。
+  - named volume `shared_dev_pg_data` 挂载 `/var/lib/postgresql`，采用 PostgreSQL 18 镜像的数据目录布局。
+  - Docker 只发布 `127.0.0.1:5434 -> 5432`，Tailscale Serve 持久化 TCP 转发 `5434 -> 127.0.0.1:5434`。入口 `100.108.64.126:5434`，亦可使用 `mac-mini.taila93443.ts.net:5434`。仅 tailnet 内可用，不使用 Funnel；权限沿用现有 tailnet 访问策略及数据库密码认证。
+  - 开发库 / 账号 `moo_ticket`，连接数上限 20；测试库 / 账号 `moo_ticket_test`，连接数上限 40。两者均非超级用户、无建库 / 建角色权限；各库撤销 PUBLIC 权限，账号仅能连接自己的库。另撤销默认 `postgres` / `template1` 的 PUBLIC CONNECT。
+  - 密码随机生成；管理员密码仅在服务器 Compose `.env`（600）维护。项目连接保存在本地 `/Users/konghai/Code/Project/moo-ticket/.env.konghai`（600），不写入文档或 Git。连接串使用 `sslmode=disable`，跨设备传输由 Tailscale 加密。
+- 备份：
+  - 原环境文件：`/Users/konghai/Code/Project/moo-ticket/.env.konghai.bak.20260907-161626`（600）。
+  - 原本地忽略配置：moo-ticket 的 `.git/info/exclude.bak.20260907-161626`。
+  - 服务器变更前快照：`~/stacks/shared-dev-postgres/tailscale-serve.before.json`（原值 `{}`）及 `containers.before.txt`。新实例没有既有数据库数据需要备份；本次未配置定时备份。
+- 回滚方式：
+  1. `ssh mac-mini 'tailscale serve --tcp=5434 off'`，仅撤销新端口。
+  2. `ssh mac-mini 'cd ~/stacks/shared-dev-postgres && docker-compose stop'`，保留数据库卷；不要使用 `down -v`。
+  3. 本机将上述 `.env.konghai` 备份复制回原位置并维持 600 权限。恢复服务时运行 `docker-compose up -d`，再执行 `tailscale serve --bg --tcp=5434 tcp://127.0.0.1:5434`。
+- 变更时序：
+  1. 确认 5434 未占用、新目录与卷不存在，记录现有状态；备份本地环境文件和 Git 本地忽略规则。
+  2. 写入 Compose 与管理员 `.env`，配置校验通过后启动并等待 healthy。
+  3. 创建两个数据库和独立角色，收紧访问权限，再开启 Tailscale TCP 转发。
+  4. 在 `.env.konghai` 更新 `DATABASE_URL`、增加显式 `TEST_DATABASE_URL`，保留其它原有配置；将该文件及 `.bak.*` 加入项目 `.git/info/exclude`，不修改项目源码。
+  5. 首轮 Go 集成测试触发测试账号 20 连接上限；测试初始化会建立多个连接池且未在各测试结束关闭，结合并发编号测试超过 20。记录原值后将测试角色上限调至 40，重跑全部 Go 测试通过。
+- 验证结果：
+  - 本机经 `100.108.64.126:5434` 分别登录两个库；身份匹配、非超级用户，事务内建表 / 写入 / 回滚成功，双方交叉连接均被拒绝。
+  - 显式加载新连接变量并设置 `CI=true` 后，`go test ./... -count=1 -timeout=120s` 全部通过，数据库测试未因连接失败而跳过；测试仅操作新建的 `moo_ticket_test`。
+  - 宿主机 `lsof` 确认 5434 仅监听 `127.0.0.1`；Serve 配置仅新增 TCP 5434。容器 healthy，内存快照约 51 MiB；资源限制与 restart policy 符合配置。
+  - `.env.konghai` 与备份均为 600，Git 忽略校验通过，其它原有配置行保持一致。现有容器仍运行正常。
+- 本地调试：项目默认只自动读取 `.env`，因此在 moo-ticket 目录显式加载个人配置后启动：
+  ```bash
+  set -a
+  source .env.konghai
+  set +a
+  go run ./cmd/server
+  # 同一终端也可执行 go test ./...
+  ```
+- 后续接入：新项目需单独创建数据库 / 角色并撤销 PUBLIC 权限，核算实例总连接数预算；不向应用分发管理员账号。定期关注容器 healthy / OOM 状态、内存及连接数。
+
 ## 2026-09-07 16:09 CST - 只读评估 moo-ticket 开发数据库资源
 
 - 服务器：`mac-mini`
