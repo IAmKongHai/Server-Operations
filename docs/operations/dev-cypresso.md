@@ -1,5 +1,45 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-09 12:56 CST - 手工部署 EVP 生产到 evp.cypresso.ai / evp-admin.cypresso.ai
+
+- 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）
+- 操作人：`Grok`（用户确认 7 条推荐方案后离开；第 5 条选 A 随机密码）
+- 原因：把 EVP 生产入口放到公网双域名，容器只听回环，nginx + Let's Encrypt 出网。不沿用 Tailscale SIT 端口直出。
+- 影响：
+  - 新增 compose 项目 `evp`，目录 `/home/ec2-user/stacks/evp`，四个容器 `evp-provider-api` / `evp-admin-api` / `evp-provider-web` / `evp-admin-web`，`restart: always`
+  - 医院 web `127.0.0.1:8273`，管理 web `127.0.0.1:8274`；两个 API **无**宿主端口
+  - 加入已有网络 `shared-services`；在运行中的 `shared-postgres` 上新建角色/库 `evp`（非 superuser；**未** recreate 共享 Postgres，StartedAt 仍为 `2026-05-28T07:24:56Z`）
+  - 新增 nginx vhost + Let's Encrypt lineage `evp.cypresso.ai`、`evp-admin.cypresso.ai`（HTTP→HTTPS 301），然后 **reload** nginx
+  - `COOKIE_SECURE=true`，`PUBLIC_ORIGIN` 为对应 https origin；`S3_BUCKET` 空；未注入 Redis
+  - 一次性 `manage migrate` + `create-user`（`hospital.admin` / `platform.admin`，org `demo-hospital`）
+  - **未**改防火墙、crontab、SSH；**未**碰 iCare / moo-ticket 容器；**未** `--remove-orphans` / `docker system prune`；**未**改 `cypressoai/evp` 的 `main`（避免重跑 Deploy SIT）
+- 选型：对齐同机 moo-ticket（回环 + nginx TLS）。镜像从本机 `evp` `ff6f6a4` rsync 后在服务器 `docker-compose` 串行构建，标签 `evp/*:prod` 与 `evp/*:prod-ff6f6a418b4f93f33eba6aa7b86b41de51c86099`。凭据只在 gitignore 的 `dev-cypresso/secrets.local.md` 与服务器 `/home/ec2-user/stacks/evp/.env`（600）。
+- 备份：
+  - `/etc/nginx/conf.d.bak.20260909-evp-pre/`（改前全量 conf.d）
+  - `/etc/nginx/conf.d/evp.cypresso.ai.conf.bak.20260909-deploy`
+  - `/etc/nginx/conf.d/evp-admin.cypresso.ai.conf.bak.20260909-deploy`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'cd /home/ec2-user/stacks/evp
+  docker-compose --project-directory /home/ec2-user/stacks/evp -f docker-compose.yml down
+  sudo rm /etc/nginx/conf.d/evp.cypresso.ai.conf /etc/nginx/conf.d/evp-admin.cypresso.ai.conf
+  sudo nginx -t && sudo systemctl reload nginx'
+  ```
+  证书 lineage 可随后 `certbot delete`；Postgres 库/角色需另确认后再 DROP。
+- 变更时序：
+  1. CSPRNG 生成库密码与两个账号密码，写入本地 gitignore secrets 与服务器 600 `.env`。
+  2. 备份 nginx conf.d；在运行中的 `shared-postgres` 上 `CREATE ROLE/DATABASE evp`（psql DDL only）。
+  3. rsync `ff6f6a4` 到 `/home/ec2-user/stacks/evp/src`，串行 `docker-compose build`，`up -d --no-build`（无 `--remove-orphans`）。
+  4. 写入 HTTP vhost 并立刻 `.bak.20260909-deploy`，`certbot --nginx` 两个域名，`nginx -t` 后 reload。
+  5. `manage migrate` 一次，`create-user` 各一次。
+- 验证：
+  - `https://evp.cypresso.ai/health/ready` 与 `https://evp-admin.cypresso.ai/health/ready` 两次均为 **200** `{"status":"ok"}`；证书 CN/SAN 分别为对应域名（Let's Encrypt，至 2026-12-08）
+  - `http://evp.cypresso.ai/` → **301** `https://evp.cypresso.ai/`；管理端同样 301
+  - `POST /api/provider/v1/auth/login`（`Origin: https://evp.cypresso.ai`）→ **200** + `Set-Cookie: evp_provider_session`（Secure）；`GET .../auth/me` → `hospital.admin`
+  - `POST /api/admin/v1/auth/login`（`Origin: https://evp-admin.cypresso.ai`）→ **200** + `evp_admin_session`（Secure）；`GET .../auth/me` → `platform.admin`
+  - 缺少 Origin 的登录 → **403**
+  - 容器端口医院 `127.0.0.1:8273`、管理 `127.0.0.1:8274`；API 仅容器内 `8080/tcp`；`moo-ticket` 与 `icare-backend-api-1` 仍 Up；`t.001.gs` nginx 仍响应
+
 ## 2026-09-09 12:42 CST - EVP 生产部署前只读盘点
 
 - 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，`m6a.xlarge`，`us-east-1d`，公网 `32.192.186.193`）
