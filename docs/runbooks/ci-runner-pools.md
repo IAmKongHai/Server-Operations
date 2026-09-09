@@ -11,7 +11,7 @@
 | 前端质量 | `frontend-quality-ci` | 上表 Mac + mas-go-dev-ci-1/2 | Lint、Typecheck、Frontend Tests 汇总、**PR** SonarQube Scan | Coverage、完整 branch Sonar、生产 Docker 部署 |
 | 前端重活 | `mac-mini-sonar`（+ `macos`,`arm64`） | **仅** mac-mini | Frontend Coverage、完整 Branch Sonar、deploy quality-gate、Verify MAS UAT static bundle | — |
 | 后端质量 | `backend-ci` | mac-mini、lemon-imac、umacbook-pro、mas-go-dev-ci | 后端 Lint / Build and Test / Sonar | Docker 镜像 build-push 到 GHCR（仍走 dev-cypresso） |
-| 现网/集成部署构建 | `dev-cypresso-ci` | **仅** dev-cypresso | set-vars、Build and Push、Deploy to Server（前后端） | 任何 Lint / Sonar / Tests |
+| 现网/集成部署构建 | `dev-cypresso-ci` | **仅** dev-cypresso | set-vars、Build and Push、Deploy to Server（前后端）；EVP 生产 `workflow_dispatch`（`deploy-prod.yml`） | 任何 Lint / Sonar / Tests |
 | mas-go-dev 本机部署 | `mas-go-dev` | **仅** mas-go-dev 部署 runner | Deploy to mas-go-dev（前后端） | 质量门禁（质量用 `mas-go-dev-ci`） |
 | 非 iCare SIT 本机部署 | `shared-sit` / runner group `shared-sit` | **仅** mas-go-dev 上的 `shared-sit` runner | EVP 等非 iCare 项目部署到 `/opt/evp-sit` 等 | 质量门禁、iCare 仓库、`mas-go-dev` label |
 | Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner、**icare-2-uat-runner-2**（CYP-2263 burst） | Deploy MAS to Azure UAT、UAT 镜像构建 / mirror | 日常 PR CI |
@@ -64,6 +64,14 @@
 | set-vars / build-push / Deploy to Server | `dev-cypresso-ci` |
 | Deploy to mas-go-dev | `mas-go-dev` |
 | Build Azure UAT Images / Migrate then roll | runner group `icare-2-uat` |
+
+### `evp`
+
+| Job | Label / group |
+|-----|----------------|
+| Checks（Lint / Test / 镜像构建检查） | GitHub-hosted `ubuntu-latest` |
+| Deploy SIT | runner group `shared-sit` + labels `self-hosted, Linux, X64, shared-sit`（`mas-go-dev` 上的 `shared-sit`） |
+| Deploy production | **仅** `workflow_dispatch`；`[self-hosted, Linux, X64, dev-cypresso-ci]`（dev-cypresso 本机）。不要用 `shared-sit` / `mas-go-dev` |
 
 ## 容量注意
 

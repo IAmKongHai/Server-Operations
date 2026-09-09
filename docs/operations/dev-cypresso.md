@@ -1,5 +1,24 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-09 13:18 CST - EVP 生产改为 GitHub Actions 手动部署
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（用户要求：不要自动部署，但要能在 Actions 上手动触发；runner 用本机 `dev-cypresso-ci`）
+- 原因：首次是手工 `docker-compose` 拉起；后续发版走 GitHub `workflow_dispatch`，避免 `main` 推送直接滚生产。
+- 影响：
+  - `cypressoai/evp` 增加 `.github/workflows/deploy-prod.yml`（**仅** `workflow_dispatch`）与 `deploy/prod/{docker-compose.yml,deploy.sh}`
+  - Job `runs-on: [self-hosted, Linux, X64, dev-cypresso-ci]`，组 Default，runner `ip-172-31-42-99.ec2.internal`
+  - 脚本仍只动 `/home/ec2-user/stacks/evp`：rsync src、串行 build、`migrate`、`up -d --no-build`；**不** `create-user`、**不** `--remove-orphans`、**不** prune
+  - Deploy SIT 的 `paths-ignore` 增加 `deploy/prod/**` 与 `deploy-prod.yml`，避免以后只改生产部署文件时重跑 SIT。本次因为改了 `deploy-sit.yml` 本身，SIT 仍跑了一次（success）
+  - **未**改 nginx / 防火墙 / crontab / SSH / 共享 Postgres；**未**新建 runner
+- 备份：无（只加 workflow；现网 `.env` 未改）
+- 回滚方式：在 `cypressoai/evp` 删除或 disable `Deploy production` workflow；生产容器保持当前镜像即可。
+- 变更时序：合入 `585b822` → 手动 dispatch [34314322796](https://github.com/cypressoai/evp/actions/runs/34314322796) success（8s，镜像 CACHED，health 8273/8274 ok，`prod deploy ok sha=585b822…`）。
+- 验证：
+  - Job labels `self-hosted, Linux, X64, dev-cypresso-ci`；runner_name `ip-172-31-42-99.ec2.internal`；group `default`
+  - `https://evp.cypresso.ai/health/ready` 与管理端仍为 **200** `{"status":"ok"}`
+  - 工作流 YAML 无 `push:` 触发
+
 ## 2026-09-09 12:56 CST - 手工部署 EVP 生产到 evp.cypresso.ai / evp-admin.cypresso.ai
 
 - 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）
