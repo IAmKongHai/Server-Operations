@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-09-09 13:34 CST - 只读检查 SonarQube 是否有可升级新版
+
+- 服务器：`mac-mini`（SonarQube 宿主，`~/stacks/sonarqube/`）
+- 操作人：`Grok`
+- 原因：用户要求检查当前部署的 SonarQube 是否有新版需要更新。
+- 影响：只读查询容器、HTTP API、Docker Hub 与 community-branch-plugin 发布；未改 compose、镜像、plugin、数据库或重启任何服务。
+- 回滚方式：无变更，无需回滚。
+- 做了什么：
+  1. 对照 runbook `docs/runbooks/sonarqube-upgrade.md` 的约束 ①（plugin 主版本必须与 SQ 匹配），读取本机运行版本与上游发布。
+  2. 本机：`http://127.0.0.1:9000/api/system/status` → `UP` / `26.3.0.120487`；compose 钉 `sonarqube:26.3.0.120487-community` + `sonarqube-community-branch-plugin-26.3.0.jar`；`sonar-postgres` 为 `postgres:17-alpine`，`postgres --version` = **17.11**；两容器均为 `Up 2 weeks (healthy)`。
+  3. 上游：Docker Hub Community 最新为 **26.9.0.129388**（2026-09-02）；community-branch-plugin 最新正式版仍是 **26.5.0**（2026-06-01）。26.6 / 26.7 / 26.8 / 26.9 的 plugin PR 均未合入（#1280 / #1296 / #1298 仍 open）。
+- 验证结果：
+  - **有新版，但不能直接跟到最新。** Community Build 已连发 26.4–26.9，当前 26.3 按 [endoflife.date](https://endoflife.date/sonarqube-community) 已于 2026-04-10 结束支持。
+  - 按 runbook：没有匹配 plugin 的 SQ 版本绝对不要升。因此 **可升的最高组合是 SQ 26.5.0.122743-community + plugin 26.5.0**，不是 26.9。
+  - PG 17.11 仍在 26.5 支持范围内；若将来升到 26.8+，还需确认 Scanner 已是 Java 21（26.8 去掉 Java 17 Scanner），以及 Security Hotspots → issues 的 26.9 数据迁移。
+  - 本次未执行升级。若要升到 26.5，按 `docs/runbooks/sonarqube-upgrade.md` 走：pg_dump、换 plugin jar、处理 `sonarqube-web` fork、改 compose tag、短暂停 CI。
+- 关联：`docs/runbooks/sonarqube-upgrade.md`、`docs/solutions/mac-mini/sonarqube-migrated-from-dev-cypresso-2026-05-13.md`
+
 ## 2026-09-07 23:34 CST - 建立 Tailscale 共享开发 S3 并接入 moo-ticket 附件存储
 
 - 服务器：`mac-mini`
