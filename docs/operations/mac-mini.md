@@ -27,7 +27,7 @@
   - `/api/projects/search?q=evp` 可见两个项目。
   - 两个项目的 GitHub binding 均为 `cypressoai/evp` + `monorepo=true`。
   - `gh secret list -R cypressoai/evp` 可见 `SONAR_HOST_URL`、`SONAR_TOKEN`。
-  - 端到端扫描结果以 push 后 Checks 的 `SonarQube Scan (backend/frontend)` 为准。
+  - 端到端：[Checks run 34315555366](https://github.com/cypressoai/evp/actions/runs/34315555366) `success`。`SonarQube Scan (backend)` 落在 `mac-mini-sonar-4`，`SonarQube Scan (frontend)` 落在 `mac-mini-sonar-3`。两个项目 Quality Gate 均为 OK（本次是 main 基线扫描，`new_*` 条件尚未生效）。
 
 ## 2026-09-09 13:34 CST - 只读检查 SonarQube 是否有可升级新版
 
