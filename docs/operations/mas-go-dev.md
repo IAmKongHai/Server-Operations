@@ -1,5 +1,24 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 13:45 CST - EVP Checks 从 ubuntu-latest 改到 self-hosted
+
+- 服务器：`mas-go-dev`（质量 runner `mas-go-dev-ci-1`；对照 lemon / mac-mini 质量池）
+- 操作人：`Grok`
+- 原因：`cypressoai/evp` 的 Checks 还在 GitHub-hosted 上烧免费分钟。Sonar 已在 self-hosted；把 backend 测试、frontend lint/build、镜像构建也迁走。
+- 影响：同机 8GB 上的 `mas-go-dev-ci-1` 会跑临时 Postgres 容器和四次 `docker build`。不占用 `shared-sit` / `mas-go-dev` 部署 runner，不绑宿主机 5432（`shared-sit-postgres` 已占用）。
+- 选型：
+  - frontend：`[self-hosted, frontend-quality-ci]`，可落到 mac-mini / lemon / mas-go-dev-ci。
+  - backend 测试 + 镜像：`[self-hosted, Linux, docker, backend-ci]`。当前只有 `mas-go-dev-ci-1` 同时有这些标签（`ci-2` 无 docker）。
+  - 不用 GHA `services:` 映射 5432；job 里 `docker run -p 127.0.0.1::5432` 拿随机端口，结束 `docker rm -f`。
+  - 四镜像改为一个 job 内串行构建，避免单 runner 上 4 个 docker build 抢内存。
+- 备份：只改 evp 仓库 workflow / 文档，未改本机 Docker、runner label、SIT compose。
+- 回滚方式：把 `evp/.github/workflows/ci.yml` 的 backend / frontend / images 改回 `ubuntu-latest` 并恢复 `services.postgres`。
+- 做了什么：
+  1. 只读确认 `actions-runner` 可用 docker、`127.0.0.1:5432` 已被 shared-sit 占用、可用内存约 5.4GiB。
+  2. 改 `ci.yml` 去掉全部 `ubuntu-latest`。
+  3. 更新 evp `docs/deployment.md` 与本仓 runner 池对照表。
+- 验证结果：以 push 后 Checks run 为准（backend / frontend / images 均应落 self-hosted，且无 GitHub-hosted 计费 runner）。
+
 ## 2026-09-09 12:24 CST - EVP Deploy SIT workflow 首次跑通
 
 - 服务器：`mas-go-dev`（runner `shared-sit`）
