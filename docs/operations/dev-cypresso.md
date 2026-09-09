@@ -1,5 +1,27 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-09 12:42 CST - EVP 生产部署前只读盘点
+
+- 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，`m6a.xlarge`，`us-east-1d`，公网 `32.192.186.193`）
+- 操作人：`Grok`（只读，未改配置 / 未启停容器 / 未 reload nginx）
+- 原因：用户要把 EVP 生产放到这台公网机，域名 `evp.cypresso.ai` / `evp-admin.cypresso.ai`。先盘点现网占用，再等用户拍板。
+- 影响：无。未写文件、未改库、未碰防火墙。
+- 备份：无（只读）。
+- 回滚方式：无需回滚。
+- 变更时序：SSH 只读查询 hostname / docker / nginx / certbot / postgres / redis / 端口 / runner；本机 `dig` 两个域名。
+- 验证 / 盘点结论：
+  - 资源：Amazon Linux 2023，4 vCPU / 15Gi RAM（可用约 11Gi），根盘 250G 用 46%（115G/136G）。load 低。共享 Postgres 内存上限 2Gi、现用 ~81MiB；Redis 上限 480MiB、现用 1.70MiB。
+  - DNS：`evp.cypresso.ai` 与 `evp-admin.cypresso.ai` A 记录均为 `32.192.186.193`，无 AAAA。
+  - 无 EVP：`/home/ec2-user/stacks/`、`/opt/`、`/var/www/`、nginx `conf.d` 均无 `evp*`。Let's Encrypt 无这两条 lineage。
+  - 现网入口：nginx 已有 `t.001.gs`、`*.icare.cypress.sg`、`sonar.cypresso.ai`、`dev.cypresso.ai`、`api-icare.cypress.sg`、`api-public-icare.cypress.sg`。80/443 已对公网监听；INPUT 策略 ACCEPT（Tailscale `ts-input`）。`nginx -t` 通过（既有 warn：冲突 `server_name "_"`）。
+  - 回环端口已占用：`8080–8082`、`8090–8092`、`5173–5175`、`8180`、`5432`、`6379`、`1433`、`10000`。`82xx`/`83xx` 空闲。
+  - 共享 Postgres 18.3（`shared-postgres`，仅 `127.0.0.1:5432`）：库 `cypresso` / `moo_ticket` / `sonarqube` / `telegram_bot`；角色 `moo_ticket` / `sonarqube` / `telegram_bot_user`；**无** `evp`。连接 14/100。
+  - 共享 Redis 8.4（`shared-redis`，仅 `127.0.0.1:6379`）：16 个 DB，目前只用 `db0`（81 keys）。EVP 应用代码当前不读 Redis。
+  - 对齐样本：`moo-ticket` 在 `/home/ec2-user/stacks/moo-ticket`，容器只绑 `127.0.0.1:8180`，网络 `shared-services`，nginx + certbot 出 `https://t.001.gs`。
+  - Runner：`ip-172-31-42-99.ec2.internal` online，labels `self-hosted, Linux, X64, dev-cypresso-ci`，组 Default。另有 runner-2/3 目录，systemd 未拉起。
+  - 同机仍跑 iCare 门户/API（公网入口已改 UAT 引导页）、moo-ticket、telegram-bot、5 个 buildkit。禁止 `--remove-orphans` 与 `docker system prune`。
+  - README 里的 Mongo / RabbitMQ / ClickHouse / SonarQube 容器当前不在 `docker compose ps` 里；与本次 EVP 无关。
+
 ## 2026-09-03 17:06 CST - moo-ticket SMTP 改为 Resend，补上 starttls
 
 - 服务器：`dev-cypresso`
