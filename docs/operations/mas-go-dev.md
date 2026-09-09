@@ -1,5 +1,35 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 11:41 CST - 共享 Redis + 部署 EVP SIT 四容器
+
+- 服务器：`mas-go-dev`（Tailscale `100.109.223.53`）
+- 操作人：`Grok`（用户要求公共层补 Redis，并部署 EVP 四个容器）
+- 原因：后续项目肯定用 Redis；EVP SIT 先借住本机，独立 compose、只走 Tailscale。
+- 影响：
+  - 新增 `shared-sit-redis`（`6380`，requirepass + AOF）。iCare `redis:6379` 未改。
+  - 新增 compose `evp-sit`：provider/admin 的 api+web 四个容器。未动 `/opt/mas-go-dev`。
+- 选型：
+  - Redis 镜像与 iCare 相同 `redis:7-alpine` digest，**容器名不能叫 `redis`**（已被 iCare 占用）。网络别名 `redis` 仅在 `shared-sit`。宿主端口 `6380`。
+  - EVP 当前代码不用 Redis（会话在 Postgres）；租户连接串先写好 DB `/1`，应用未注入。
+  - EVP 源码 rsync 到 `/opt/evp-sit/src/`，本机 `docker compose build`（未用 iCare runner）。
+  - 端口：医院 `25173` / 管理 `25174`，API `28081` / `28082`，只绑 Tailscale + 回环。`S3_BUCKET` 空。
+- 备份：新服务无旧数据。iCare Redis 未重建。
+- 回滚：
+  ```bash
+  docker compose -f /opt/evp-sit/docker-compose.yml --project-directory /opt/evp-sit stop
+  docker compose -f /opt/shared-sit/redis/docker-compose.yml --project-directory /opt/shared-sit/redis stop
+  ```
+  保留 volume，不要 `down -v` / `--remove-orphans`。
+- 变更时序：
+  1. 起 Redis，AUTH `PONG`，无密码 `NOAUTH`；iCare `PING` 仍通。
+  2. 构建并启动两 API → `manage migrate` → 创建 `platform.admin` / `hospital.admin`。
+  3. 构建并启动两前端。
+- 验证：
+  - 四容器 healthy。本机 Tailscale 打开 `/` 与 `/health/ready` 均为 200。
+  - 医院/管理登录 200 且种上对应 session cookie；缺 Origin 返回 403。医院前端访问 `/api/admin/v1` 为 404。
+  - 空闲内存：四容器合计约 35MiB，Redis 约 4MiB。iCare api healthy。
+- 账号密码见本机 `mas-go-dev/secrets.local.md`（gitignore）。入口见 `mas-go-dev/README.md`。
+
 ## 2026-09-09 11:14 CST - 部署共享 SIT PostgreSQL 与 Garage
 
 - 服务器：`mas-go-dev`（PVE VM `130`，Tailscale `100.109.223.53`）

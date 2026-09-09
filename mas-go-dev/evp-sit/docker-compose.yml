@@ -1,0 +1,128 @@
+name: evp-sit
+services:
+  provider-api:
+    image: evp/provider-api:sit
+    build:
+      context: ./src/backend
+      args: {APP: provider}
+    container_name: evp-sit-provider-api
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PUBLIC_ORIGIN: http://100.109.223.53:25173
+      COOKIE_SECURE: "false"
+      HTTP_ADDR: 0.0.0.0:8080
+      S3_BUCKET: ""
+    ports:
+      - "127.0.0.1:28081:8080"
+      - "100.109.223.53:28081:8080"
+    mem_limit: 128m
+    cpus: 0.5
+    networks: [shared-sit]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  admin-api:
+    image: evp/admin-api:sit
+    build:
+      context: ./src/backend
+      args: {APP: admin}
+    container_name: evp-sit-admin-api
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PUBLIC_ORIGIN: http://100.109.223.53:25174
+      COOKIE_SECURE: "false"
+      HTTP_ADDR: 0.0.0.0:8080
+      S3_BUCKET: ""
+    ports:
+      - "127.0.0.1:28082:8080"
+      - "100.109.223.53:28082:8080"
+    mem_limit: 128m
+    cpus: 0.5
+    networks: [shared-sit]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  provider-web:
+    image: evp/provider-web:sit
+    build:
+      context: ./src/frontend
+      args: {APP: provider}
+    container_name: evp-sit-provider-web
+    restart: always
+    environment:
+      APP: provider
+      API_UPSTREAM: http://provider-api:8080
+    ports:
+      - "127.0.0.1:25173:80"
+      - "100.109.223.53:25173:80"
+    mem_limit: 64m
+    cpus: 0.25
+    depends_on:
+      provider-api:
+        condition: service_started
+    networks: [shared-sit]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  admin-web:
+    image: evp/admin-web:sit
+    build:
+      context: ./src/frontend
+      args: {APP: admin}
+    container_name: evp-sit-admin-web
+    restart: always
+    environment:
+      APP: admin
+      API_UPSTREAM: http://admin-api:8080
+    ports:
+      - "127.0.0.1:25174:80"
+      - "100.109.223.53:25174:80"
+    mem_limit: 64m
+    cpus: 0.25
+    depends_on:
+      admin-api:
+        condition: service_started
+    networks: [shared-sit]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  shared-sit:
+    name: shared-sit
+    external: true

@@ -263,7 +263,7 @@ MAS Go + React 重构版内网自动部署 VM；2026-09-09 起同时作为内网
 - 运行 GitHub Actions self-hosted runner（iCare 仓库）。
 - 在 VM 内本地 checkout/build/deploy MAS Go 后端和 React 前端。
 - 连接 `mssql-ref` 上的 SQL Server：`192.168.2.20:1433`。
-- 作为内网多项目 SIT 合部署目标：共享 PostgreSQL（`100.109.223.53:5432`）与 Garage S3（`100.109.223.53:3900`），应用走独立 compose，不与 iCare `shared-services` 混网。
+- 作为内网多项目 SIT 合部署目标：共享 PostgreSQL（`100.109.223.53:5432`）、Garage S3（`:3900`）与 Redis（`:6380`，避开 iCare 的 `:6379`），应用走独立 compose，不与 iCare `shared-services` 混网。
 - 通过 Tailscale 暴露给团队访问（共享库/S3 只绑 Tailscale IP + 回环，不绑 `192.168.2.22`）。
 
 当前状态：
