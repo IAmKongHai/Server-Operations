@@ -1,5 +1,34 @@
 # mac-mini 运维时间线
 
+## 2026-09-09 13:35 CST - 为 cypressoai/evp 新建 SonarQube 项目并接入 Checks
+
+- 服务器：`mac-mini`（SonarQube `sonarqube:26.3.0.120487-community`）
+- 操作人：`Grok`
+- 原因：`cypressoai/evp` 的 Checks 原先全在 GitHub-hosted `ubuntu-latest`，没有静态分析门禁。Sonar 只走 Tailscale `http://mac-mini:9000`，hosted runner 连不上。
+- 影响：新增两个 Sonar 项目并绑到同一 GitHub 仓（monorepo）；`evp` 仓库写入 `SONAR_HOST_URL` / `SONAR_TOKEN`。未改 Sonar 容器、PG、Quality Gate 或已有 iCare 项目。
+- 选型：
+  - 项目 key：`cypressoai_evp-backend`、`cypressoai_evp-frontend`（Go / TS 门禁分开）。
+  - 默认 Quality Profile 已是 Cypresso Go Way / Cypresso typescript Way；默认 Quality Gate 仍是 Cypresso Way 50%。
+  - GitHub 绑定 `GitHub-Cypresso`，`repository=cypressoai/evp`，`monorepo=true`（两个项目绑同一仓必须开）。
+  - Checks 里新增 job：后端 `[self-hosted, backend-ci]`，前端 `[self-hosted, frontend-quality-ci]`。现有 test / lint / 镜像构建仍留 `ubuntu-latest`。
+  - 暂不导入覆盖率（`sonar.coverage.exclusions=**/*`），避免无报告时 `new_coverage` 按 0% 撞 50% 门槛。医院/管理端平行入口按 capability 排除 CPD。
+- 备份：未改容器或 `~/stacks/sonarqube/` 文件；项目创建走 Web API，可在 UI 里删除这两个项目回滚。
+- 回滚方式：
+  1. 从 `evp` 的 `.github/workflows/ci.yml` 去掉两个 Sonar job，并删除 `backend/sonar-project.properties`、`frontend/sonar-project.properties`。
+  2. 删除 GitHub secrets `SONAR_TOKEN` / `SONAR_HOST_URL`。
+  3. Sonar UI 或 `POST /api/projects/bulk_delete` 删掉上述两个 project key。
+- 做了什么：
+  1. 只读确认 Sonar `UP`、默认 QG 为 Cypresso Way 50%、Go/TS 默认 profile 为 Cypresso Way。
+  2. `POST /api/projects/create` 建项目，`mainBranch=main`，New Code = previous version。
+  3. `POST /api/alm_settings/set_github_binding` 绑 `sonar-cypresso-ai`（org 安装范围 all）。
+  4. 给 `cypressoai/evp` 写入仓库 secrets（token 不入库）。
+  5. 在 evp 仓 Checks workflow 增加两个扫描 job。
+- 验证结果：
+  - `/api/projects/search?q=evp` 可见两个项目。
+  - 两个项目的 GitHub binding 均为 `cypressoai/evp` + `monorepo=true`。
+  - `gh secret list -R cypressoai/evp` 可见 `SONAR_HOST_URL`、`SONAR_TOKEN`。
+  - 端到端扫描结果以 push 后 Checks 的 `SonarQube Scan (backend/frontend)` 为准。
+
 ## 2026-09-09 13:34 CST - 只读检查 SonarQube 是否有可升级新版
 
 - 服务器：`mac-mini`（SonarQube 宿主，`~/stacks/sonarqube/`）

@@ -70,6 +70,8 @@
 | Job | Label / group |
 |-----|----------------|
 | Checks（Lint / Test / 镜像构建检查） | GitHub-hosted `ubuntu-latest` |
+| SonarQube Scan（backend） | `[self-hosted, backend-ci]`（可达 `http://mac-mini:9000`；不要用 `ubuntu-latest`） |
+| SonarQube Scan（frontend） | `[self-hosted, frontend-quality-ci]`（同上；PR 快扫，不含覆盖率） |
 | Deploy SIT | runner group `shared-sit` + labels `self-hosted, Linux, X64, shared-sit`（`mas-go-dev` 上的 `shared-sit`） |
 | Deploy production | **仅** `workflow_dispatch`；`[self-hosted, Linux, X64, dev-cypresso-ci]`（dev-cypresso 本机）。不要用 `shared-sit` / `mas-go-dev` |
 
