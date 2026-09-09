@@ -1,5 +1,18 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 13:59 CST - 把 cypressoai/evp 加入 mas-go-dev runner 组
+
+- 服务器：GitHub org `cypressoai` runner group `mas-go-dev`（id 3）；对照本机 `mas-go-dev-ci-1`
+- 操作人：`Grok`
+- 原因：EVP Checks 的 `backend` / `images` 要求 `[self-hosted, Linux, docker, backend-ci]`。唯一匹配 runner 是 `mas-go-dev-ci-1`，但它在 selected 组 `mas-go-dev` 里，名单原先只有 iCare 仓 + `vps-traffic-monitor`，不含 `evp`。job 一直 queued，runner 空闲。
+- 影响：`evp` 现在也能调度到该组的三台 runner。部署 runner `mas-go-dev` 没有 `backend-ci`，现有 Checks 不会落到它头上。SIT 仍走 `shared-sit` 组。未改本机 systemd / Docker / label。
+- 备份：加仓前名单：`iCare-backend`、`iCare-frontend-mas`、`iCare-Operations-backend`、`iCare-Operations-frontend`、`iCare-public-backend`、`iCare-public-frontend`、`vps-traffic-monitor`。
+- 回滚方式：`gh api -X DELETE orgs/cypressoai/actions/runner-groups/3/repositories/1361034755`（`cypressoai/evp` 的 repo id）。
+- 做了什么：
+  1. `PUT orgs/cypressoai/actions/runner-groups/3/repositories/1361034755`。
+  2. 取消卡住的 Checks [run 34316200682](https://github.com/cypressoai/evp/actions/runs/34316200682) 并 rerun（已 queued 的 job 不会因为后来加仓而自行匹配）。
+- 验证结果：rerun 后 `backend` 已由 `mas-go-dev-ci-1` 接走；`images` 排队等同一台 docker runner。端到端以该 rerun 完成为准。
+
 ## 2026-09-09 13:45 CST - EVP Checks 从 ubuntu-latest 改到 self-hosted
 
 - 服务器：`mas-go-dev`（质量 runner `mas-go-dev-ci-1`；对照 lemon / mac-mini 质量池）

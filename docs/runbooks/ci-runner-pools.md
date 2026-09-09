@@ -38,6 +38,8 @@
 
 **调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
+**组 visibility 同样硬匹配**：label 对上但仓库不在该 runner group 的 selected 名单里，job 会一直 `queued`、runner 空闲。`mas-go-dev` 组（id 3）里是 `mas-go-dev` 部署 runner + `mas-go-dev-ci-1/2`。2026-09-09 已把 `cypressoai/evp` 加进该组，否则 EVP 的 `Linux + docker + backend-ci` job 永远没人接（唯一匹配者是 `mas-go-dev-ci-1`）。SIT 部署仍走 `shared-sit` 组。EVP workflow **不要**写裸 `docker` / 不要贴 `mas-go-dev` label，避免抢部署 runner。
+
 ## 仓库 workflow 对照
 
 ### `iCare-frontend-mas`
