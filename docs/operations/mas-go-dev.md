@@ -1,5 +1,21 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 10:57 CST - 只读评估能否把 EVP SIT 放到本机
+
+- 服务器：`mas-go-dev`（PVE VM `130`，Tailscale `100.109.223.53` / 内网 `192.168.2.22`）
+- 操作人：`Grok`
+- 原因：用户计划把 `/Users/konghai/Code/Project/evp` 的 SIT 部署到 `100.109.223.53`，需先确认这台机是什么、现占用、端口与资源是否允许轻量共存。
+- 影响：只读；未改 Docker / compose / runner / 防火墙，未创建目录或容器。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：`ssh mas-go-dev` 查 hostname、内存、磁盘、`docker ps`/`stats`、监听端口、compose 项目、`/opt`；对照 PVE 宿主机 `qm config 130` 与节点内存。
+- 验证结果：
+  - 本机就是 iCare MAS Go 内网 SIT + org runner，不是空 VM。规格 4 vCPU / 8 GiB / 300G，根盘约 73G/300G（25%）。
+  - 运行中 compose：`frontend-mas`、`icare-backend`（5）、`icare-backend-infra`（azurite+redis）、`icare-public-backend`（3）、`public-frontend`（2）、`vps-traffic-monitor`。无 PostgreSQL 端口。
+  - 空闲时 available 约 4.4Gi；采样时有 CI buildkit（约 1.65Gi / 42% CPU），load 3.88，swap 已用 1.1Gi。
+  - EVP 本地 compose 端口 `25173/25174/28081/28082/54329` 本机未占用。仓库 `compose.yaml` 绑 `127.0.0.1`，不能原样给 Tailscale 客户端用。
+  - 结论留给对话：短期可独立 compose 项目挤进去；长期不建议把 EVP SIT 绑在这台 iCare 专用机。PVE 宿主机 31Gi 已用约 29.4Gi 且在用 swap，短期也很难再开独立 VM 或给本机加内存。
+
 ## 2026-08-24 23:18 CST - 后端与 public-backend 切到 ihc20260824 新 catalog
 
 - 服务器：`mas-go-dev`

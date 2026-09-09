@@ -1,5 +1,19 @@
 # pve 运维操作时间线
 
+## 2026-09-09 10:57 CST - 只读核对 VM 130 规格与宿主机余量（EVP SIT 选址）
+
+- 服务器：`pve`
+- 操作人：`Grok`
+- 原因：评估能否把 EVP SIT 放到 `100.109.223.53`（`mas-go-dev` / VM `130`），或在 PVE 上另开小 VM。
+- 影响：只读（`qm list` / `qm config 130` / `pvesm status` / 节点内存）；未改 VM、存储、网络。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 验证结果：
+  - 运行中：`110 mssql-ref` 20Gi、`120 mas-win` 6Gi、`130 mas-go-dev` 8Gi；`140 fnos-nas` 已 stopped。
+  - VM 130：4 核 / 8192 MiB（balloon=8192，没有可再挤的 balloon 余量），盘 `nvme-data:vm-130-disk-1` 300G。
+  - 宿主机 31.26Gi 已用约 29.4Gi，available 约 2Gi，swap 4.1/8Gi。`nvme-data` 约 53.5%（可用约 435G）。
+  - 结论：盘够开新盘，**内存不够**再给 130 加配或稳定新增一台常驻 VM。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`pve`
