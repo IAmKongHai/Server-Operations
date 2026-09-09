@@ -239,7 +239,7 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 
 ### `mas-go-dev`
 
-MAS Go + React 重构版内网自动部署 VM。该 VM 只作为并行开发/测试部署目标，不替换 `dev-cypresso` 现有公网测试部署。
+MAS Go + React 重构版内网自动部署 VM；2026-09-09 起同时作为内网 **SIT 合部署机**（共享 PostgreSQL / Garage 给其它项目，目录 `/opt/shared-sit/`）。该 VM 不替换 `dev-cypresso` 现有公网测试部署。档案见 `mas-go-dev/README.md`。
 
 2026-05-17 创建完成：
 
@@ -260,10 +260,11 @@ MAS Go + React 重构版内网自动部署 VM。该 VM 只作为并行开发/测
 
 目标用途：
 
-- 运行 GitHub Actions self-hosted runner。
+- 运行 GitHub Actions self-hosted runner（iCare 仓库）。
 - 在 VM 内本地 checkout/build/deploy MAS Go 后端和 React 前端。
 - 连接 `mssql-ref` 上的 SQL Server：`192.168.2.20:1433`。
-- 通过 Tailscale subnet route 暴露给团队访问。
+- 作为内网多项目 SIT 合部署目标：共享 PostgreSQL（`100.109.223.53:5432`）与 Garage S3（`100.109.223.53:3900`），应用走独立 compose，不与 iCare `shared-services` 混网。
+- 通过 Tailscale 暴露给团队访问（共享库/S3 只绑 Tailscale IP + 回环，不绑 `192.168.2.22`）。
 
 当前状态：
 

@@ -1,0 +1,36 @@
+name: shared-sit-s3
+services:
+  garage:
+    image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
+    container_name: shared-sit-s3
+    restart: always
+    command: ["/garage", "server", "--single-node"]
+    ports:
+      - "127.0.0.1:3900:3900"
+      - "100.109.223.53:3900:3900"
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - data:/var/lib/garage
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      shared-sit:
+        aliases: [garage, s3]
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  data:
+    name: shared_sit_s3_data
+networks:
+  shared-sit:
+    name: shared-sit
+    external: true

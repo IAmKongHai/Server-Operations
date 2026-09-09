@@ -95,7 +95,7 @@
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
 | `pve`          | Proxmox VE 虚拟化宿主，计划承载开发测试 VM；当前可通过 `ssh pve` 以 root 密钥登录    | 否（测试环境，但仍需备份后再改）  |
 | `mssql-ref`    | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库；当前可通过 `ssh ubuntu@192.168.2.20` 登录 | 否（参考/测试数据库，改库前仍需备份确认） |
-| `mas-go-dev`   | PVE 上的 Amazon Linux 2023 VM（`192.168.2.22`，原裸 IP 访问），承载 MAS Go 重构版开发/集成测试环境，跑后端容器与 self-hosted GitHub Actions runner；`ssh mas-go-dev` 以 `ec2-user` 登录 | 否（开发测试环境，但改 Docker / runner 前仍需备份确认） |
+| `mas-go-dev`   | PVE 上的 Amazon Linux 2023 VM（`192.168.2.22` / Tailscale `100.109.223.53`），iCare MAS Go 内网 SIT + 其它项目合部署的 SIT VM，跑后端容器、共享 PostgreSQL/Garage 与 self-hosted GitHub Actions runner；`ssh mas-go-dev` 以 `ec2-user` 登录 | 否（开发测试环境，但改 Docker / runner 前仍需备份确认） |
 | `fnos-nas`     | PVE 上的飞牛 fnOS VM（VMID 140，`192.168.2.9`），存放可重新下载的影视资源                | 否（不承诺数据可恢复；曾出现 SSH 超时不可达）  |
 | `km-landui`    | 内网设备，纳入例行安全扫描清单                                                          | 否                                |
 | `home-router`  | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问（本机已卸载 Tailscale）              | **是**（改动影响家里所有联网设备） |
@@ -111,7 +111,7 @@
 - `nas` 上的 SQL Server 容器承载历史业务数据库（`medicalassistance` 等），关键容器统一用 `--restart=always` 而非 `unless-stopped`，避免 NAS 重启后不自动拉起
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
 - `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认
-- `mas-go-dev` 是 MAS 老系统 Go 重构版的开发测试 VM，过往文档常以 `192.168.2.22` 指代；同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI
+- `mas-go-dev` 是 MAS Go 内网 SIT，并作为其它项目的合部署 SIT VM（共享 PostgreSQL / Garage 在 `/opt/shared-sit/`）；过往文档常以 `192.168.2.22` 指代，现以 Tailscale `100.109.223.53` 为对外入口。同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI 与已部署的 SIT
 - `icare-uat-runner-1` / `icare-uat-runner-2` 是 Azure UAT 发版机（组 `icare-2-uat`）。档案见 `icare-uat-runner-1/README.md`、`icare-uat-runner-2/README.md`。Buildx local cache 路径是 `/var/cache/buildx`，属主必须是 runner 用户 `icareadmin`；`/var/cache` 属 root，新 burst 机不预建就会在 `Prepare backend build cache` 上 Permission denied。`icare-uat-runner-2` 已于 2026-08-23 补齐。wait slot 只在 runner-1，不要装到 runner-2。
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
@@ -136,6 +136,7 @@
   - `/opt/mas-go-dev/frontend-mas/` — iCare frontend-mas 部署目录，同上由 runner 维护
   - `/opt/mas-go-dev/infra/` — iCare 集成测试基础设施目录，承载 `infra.compose.yaml`（`icare-backend-infra` compose project），跑 `azurite` + `redis` 两个常驻容器供 worker / api 经 `shared-services` 网络通过 DNS 名 `azurite` / `redis` 访问。**不由 runner 自动管理**，仅在仓库内 `backend/infra.compose.yaml` 变更或手动调整基础设施时执行 `sudo -u actions-runner docker compose -f infra.compose.yaml up -d`；容器使用 `restart: always`，VM 重启后自动拉起
   - `/opt/mas-go-dev/logs/` — 运维日志归档
+  - `/opt/shared-sit/` — 全项目 SIT 共享基础设施（属主 `ec2-user`，**不要**放进 `/opt/mas-go-dev`，runner 不管）。`postgres/` 为 PostgreSQL 18，`s3/` 为 Garage；Docker 网络 `shared-sit`，端口只绑 Tailscale `100.109.223.53` 与回环。新项目单独建库/角色和 bucket/密钥，不要用管理员账号，也不要复用 iCare 的 `shared-services` / azurite / redis。凭据在服务器 600 文件；本仓库 `mas-go-dev/secrets.local.md`（gitignore）。档案见 `mas-go-dev/README.md`
 
 ## 检索历史方案
 

@@ -1,0 +1,42 @@
+name: shared-sit-postgres
+services:
+  postgres:
+    image: postgres:18-alpine@sha256:a1d02e4bd40c94d3bf2bdd3678c137388e76d9efcd23c285e9429d336a834b44
+    container_name: shared-sit-postgres
+    restart: always
+    env_file: .env
+    ports:
+      - "127.0.0.1:5432:5432"
+      - "100.109.223.53:5432:5432"
+    mem_limit: 1g
+    cpus: 1.0
+    shm_size: 256m
+    command:
+      [
+        "postgres",
+        "-c", "shared_buffers=128MB",
+        "-c", "max_connections=80",
+        "-c", "work_mem=4MB",
+      ]
+    volumes:
+      - pg_data:/var/lib/postgresql
+    networks:
+      shared-sit:
+        aliases: [postgres]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  pg_data:
+    name: shared_sit_pg_data
+networks:
+  shared-sit:
+    name: shared-sit
+    external: true

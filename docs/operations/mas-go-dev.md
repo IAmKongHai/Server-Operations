@@ -1,5 +1,36 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 11:14 CST - 部署共享 SIT PostgreSQL 与 Garage
+
+- 服务器：`mas-go-dev`（PVE VM `130`，Tailscale `100.109.223.53`）
+- 操作人：`Grok`（用户确认本机作为多项目 SIT 合部署 VM，先上公共 Postgres / Garage）
+- 原因：EVP 及其后项目的 SIT 借住本机；每个项目各自起一份数据库/对象存储更浪费，也比再开 VM 更吃 PVE 内存。
+- 影响：新增独立 compose `shared-sit-postgres`、`shared-sit-s3` 与 Docker 网络 `shared-sit`。未改 `/opt/mas-go-dev`、未加入 iCare `shared-services`。端口只绑 `127.0.0.1` 与 `100.109.223.53` 的 `5432` / `3900`。
+- 选型：
+  - 目录 `/opt/shared-sit/`，属主 `ec2-user`，不放进 runner 管理的 `/opt/mas-go-dev`。
+  - PostgreSQL **18.6**（`postgres:18-alpine` 钉 digest，与 mac-mini / `dev-cypresso` 共享库大版本一致），`restart: always`，内存上限 1 GiB、CPU 上限 1 核、`shared_buffers=128MB`、`max_connections=80`。
+  - Garage **v2.3.0** 单节点 SQLite，区域 `ap-southeast-1`，内存上限 512 MiB。不启用 website / Funnel。
+  - 与 mac-mini `shared-dev-*` 分离：那边给笔记本调试，这边给 SIT。
+  - 首个租户 EVP：角色/库 `evp`（非超级用户，连接上限 40）、bucket `evp`、key 名 `evp-sit`（只读写该 bucket）。
+- 备份：`/opt/shared-sit/backup-before-*/state.txt`（变更前 `docker ps` / compose / 端口 / 内存）。新实例无旧数据。
+- 回滚方式：
+  ```bash
+  docker compose -f /opt/shared-sit/postgres/docker-compose.yml --project-directory /opt/shared-sit/postgres stop
+  docker compose -f /opt/shared-sit/s3/docker-compose.yml --project-directory /opt/shared-sit/s3 stop
+  ```
+  保留 named volume `shared_sit_pg_data` / `shared_sit_s3_data`，不要 `down -v`。
+- 变更时序：
+  1. 写 compose 到 `/opt/shared-sit/`，建外部网络 `shared-sit`，生成 600 凭据后 `up -d`。
+  2. 首轮把 SQL 文件 `docker cp` 进容器，postgres 用户读 600 文件 Permission denied；改为 `psql` stdin 后租户初始化成功。
+  3. Garage `--single-node` 自动 layout；`key create evp-sit` + `bucket create evp` + `allow --read --write`。
+- 验证：
+  - 两容器 healthy。本机 Tailscale `nc` 通 `100.109.223.53:5432` / `:3900`；`192.168.2.22:5432` 不通。
+  - `evp` 可在本库建表写入；连接 `postgres` 库被拒绝。
+  - 经 Tailscale 对 bucket `evp` 做 PUT/GET/DELETE 探针对象成功后删除。
+  - 空闲内存约 postgres 56MiB / Garage 13MiB。
+  - 同期 iCare `api`/`worker`/`ecom`/`sup` 被 **本机已在跑的 GitHub Actions / buildkit** 滚动（StartedAt 约 03:13 UTC），不是 shared-sit compose recreate；`azurite` / `redis` / 门户未动。事后 `api`/`ecom`/`sup` healthy。
+- 备注：当前 EVP 代码无 `S3_ENDPOINT`，SIT 应用先留空 `S3_BUCKET` 即可启动。档案 `mas-go-dev/README.md`，凭据 `mas-go-dev/secrets.local.md`（gitignore）。
+
 ## 2026-09-09 10:57 CST - 只读评估能否把 EVP SIT 放到本机
 
 - 服务器：`mas-go-dev`（PVE VM `130`，Tailscale `100.109.223.53` / 内网 `192.168.2.22`）
