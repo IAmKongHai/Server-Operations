@@ -11,7 +11,7 @@
 - 做了什么：
   1. `PUT orgs/cypressoai/actions/runner-groups/3/repositories/1361034755`。
   2. 取消卡住的 Checks [run 34316200682](https://github.com/cypressoai/evp/actions/runs/34316200682) 并 rerun（已 queued 的 job 不会因为后来加仓而自行匹配）。
-- 验证结果：rerun 后 `backend` 已由 `mas-go-dev-ci-1` 接走；`images` 排队等同一台 docker runner。端到端以该 rerun 完成为准。
+- 验证结果：rerun 后 [Checks 34316200682](https://github.com/cypressoai/evp/actions/runs/34316200682) `success`。`backend` / `images` 均落 `mas-go-dev-ci-1`；frontend 在 mac-mini / lemon；Sonar 在 mas-go-dev-ci-2 与 mac-mini。没有 GitHub-hosted job。
 
 ## 2026-09-09 13:45 CST - EVP Checks 从 ubuntu-latest 改到 self-hosted
 
