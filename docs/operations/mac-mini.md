@@ -1,5 +1,42 @@
 # mac-mini 运维时间线
 
+## 2026-09-09 16:04 CST - 原地升级 SonarQube 26.3 → 26.5（可回滚 kit 保留）
+
+- 服务器：`mac-mini`（`~/stacks/sonarqube/`）
+- 操作人：`Grok`
+- 原因：Community Build 已到 26.9，但 community-branch-plugin 最高匹配对是 **26.5.0**。用户确认一跳 26.3→26.5、原地 + dump，失败则回 26.3。
+- 影响：`sonarqube` 在 15:12–15:50 CST 停机（15:53 因 healthcheck 重建又短暂重启一次）；`sonar-postgres` 全程未停。iCare / evp 的 `SonarQube Scan*` 在窗口内会失败，混合负载 runner 保持 online。未改 `SONAR_HOST_URL`、token、OAuth callback。
+- 选型：
+  - 目标：`sonarqube:26.5.0.122743-community` + plugin `26.5.0` + plugin `sonarqube-webapp.zip` 整树替换 web（保留 `.git`）。
+  - 不升 26.9、不经 26.4、不做并行栈。
+  - Compose CLI 实测为 `docker-compose`（无 `docker compose` v2 插件）。
+  - dump：`pg_dump -Fc`（SQ `Exited` 之后）；kit 目录 700，dump / `.env` 副本 600。
+  - 回滚：超级用户 `sonarqube` 连库 `postgres` 后 DROP/CREATE `sonarqube`，再 `pg_restore --no-owner --no-privileges --exit-on-error`；擦 `sonarqube_data` 卷内 `data/es8`。禁止 `compose down -v`、禁止 `--clean` 打到已迁移 catalog。
+- 备份：
+  - kit：`~/backups/sonarqube/upgrade-26.3-to-26.5/`（在 `backup.sh` 的 `sonarqube-*.dump` prune glob 之外）。
+  - 含：`sonarqube-26.3.custom.dump`（855M）、`docker-compose.yml.bak`、26.3 jar、web HEAD `4581dd1`、sidecar 计数。
+  - 一次性 PG 17 restore-test 与 sidecar 一致后销毁容器 `sonarqube_restore_test`。
+- 回滚方式：
+  1. 停 `sonarqube`（postgres 保持运行）。
+  2. 用超级用户 `sonarqube` 连到数据库 `postgres`（本实例没有独立 `postgres` 角色）：终止 `sonarqube` 后端，`DROP DATABASE sonarqube`，`CREATE DATABASE sonarqube OWNER sonarqube`。
+  3. `pg_restore --no-owner --no-privileges --exit-on-error` 灌回 kit dump。
+  4. helper 容器擦 `sonarqube_data` 的 `/data/es8`（不要 `volume rm`）。
+  5. 从 kit 恢复 compose、26.3 jar、javaagent 文件名、`git -C sonarqube-web reset --hard 4581dd1`。
+  6. `docker-compose up -d --no-deps sonarqube`，确认 `26.3.0.120487` 与 sidecar。
+- 变更时序：
+  1. 预检：26.3.0.120487 `UP`、PG 17.11、CE 空、web 干净。拉 26.5 镜像与 plugin 资源。
+  2. 15:12 CST 确认后只停 `sonarqube`；拍 sidecar 后 `pg_dump -Fc`；restore-test 通过。
+  3. 换 extensions 卷里唯一 jar、sed javaagent 文件名、清空 web 树后解压 `sonarqube-webapp.zip`、compose 镜像改为 26.5。
+  4. 15:50 CST 确认后 `docker-compose up -d --no-deps sonarqube`；`/setup` → `MIGRATION_SUCCEEDED` → `UP`。`schema_migrations` max `202601006` → `202603003`。
+  5. 26.5 镜像无 `wget`，原 healthcheck 失败；改为 `curl` 且要求 `status=UP` 后重建一次（RestartCount 仍为 0，postgres 未动）。
+- 验证结果：
+  - `GET /api/server/version` = `26.5.0.122743`，`status=UP`，health=healthy，RestartCount=0。
+  - sidecar：users 5、TRK 4808、issues 15226、user_tokens 10、四套 Cypresso profile/`active_rules` 未漂。`rules` 13174 → 13269（分析器增量，允许）。
+  - 日志：`Deploy Community Branch Plugin / 26.5.0`。GitHub OAuth 登录回到 `http://mac-mini:9000/projects`；登录页布局正常，未补 CSS。分支下拉可见 main/develop/PR。Issues `facets=authors` 为 400（已知噪声，非回滚条件）。
+  - GitHub check 名 **`SonarQube Scan`** 变绿：[iCare-backend run 34324332710](https://github.com/cypressoai/iCare-backend/actions/runs/34324332710)。CE `REPORT SUCCESS`；`snapshots` 7582 → 7584。
+  - 窗口内失败的 frontend `SonarQube Scan` 已 `gh run rerun --failed`（34325174427）。lemon-imac / mas-go-dev-ci / mac-mini-sonar 仍 online。
+- 关联：计划 `docs/plans/2026-09-09-1406-ops-sonarqube-26-5-upgrade-plan.md`；runbook `docs/runbooks/sonarqube-upgrade.md`。
+
 ## 2026-09-09 13:35 CST - 为 cypressoai/evp 新建 SonarQube 项目并接入 Checks
 
 - 服务器：`mac-mini`（SonarQube `sonarqube:26.3.0.120487-community`）

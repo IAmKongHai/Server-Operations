@@ -1,7 +1,7 @@
 ---
 title: SonarQube 升级 runbook（mac-mini 上的 cypressoai SQ 实例）
-last_updated: 2026-05-13
-applies_to: mac-mini ~/stacks/sonarqube/，sonarqube:26.X-community + community-branch-plugin
+last_updated: 2026-09-09
+applies_to: mac-mini ~/stacks/sonarqube/，sonarqube:26.5.0.122743-community + community-branch-plugin 26.5.0
 ---
 
 # SonarQube 升级 runbook
@@ -50,13 +50,13 @@ curl -s 'https://api.github.com/repos/mc1arke/sonarqube-community-branch-plugin/
   | jq -r '.[] | "\(.tag_name)  \(.published_at)  pre=\(.prerelease)"'
 ```
 
-**目标版本选择规则**：找两者主版本号（major.minor）匹配的最高组合。例如：
+**目标版本选择规则**：找两者主版本号（major.minor）匹配的最高组合。2026-09-09 起当前在跑、也是 plugin 能跟上的最高对：
 
-| SQ 版本 | plugin 26.3.0 | plugin 26.4.0 |
+| SQ 版本 | plugin 26.3.0 | plugin 26.5.0 |
 |---|---|---|
-| 26.3.0 | ✅（当前在跑） | ❌ |
-| 26.4.0 | ❌（plugin 较旧） | ✅（**可升的目标**） |
-| 26.5.0 | ❌ | ❌（plugin 尚未发布 26.5） |
+| 26.3.0 | 旧（已迁走） | ❌ |
+| 26.5.0 | ❌ | ✅（**当前在跑**） |
+| 26.6–26.9 | ❌ | ❌（plugin 无对应 release） |
 
 ### 约束 ②：PostgreSQL 版本必须在 SQ 支持矩阵内
 
@@ -76,7 +76,7 @@ SQ 不允许从 24.x 直接跳到 26.x。如果你长时间不升级，必须按
 - 25.1 LTA → 26.1（下一个 LTA）→ 26.5 → ...
 - 每个中间停留版本都要等 ES 索引重建 + DB schema 升级完成才能继续
 
-当前在 26.3，可直接升任意 26.x。如果未来跑到 27.x 出现，需要经过 26.X LTA（社区版的 LTA 标记看官方 release notes）。
+当前在 26.5，可直接升任意更高的 26.x（仍须匹配 plugin）。如果未来跑到 27.x，需要经过官方标明的 LTA 链路。
 
 ### 约束 ④：sonarqube-web fork 与新版本兼容性
 
@@ -111,12 +111,15 @@ SQ 不允许从 24.x 直接跳到 26.x。如果你长时间不升级，必须按
 curl -sS http://mac-mini:9000/api/server/version
 ssh mac-mini "docker exec sonar-postgres postgres --version"
 
-# 1.2 备份：先 pg_dump 一份
-ssh mac-mini "mkdir -p ~/backups/sonarqube && \
+# 1.2 备份：先停 sonarqube（postgres 保持运行），再 pg_dump -Fc（不要 plain SQL，不要分配 TTY）
+# dump 放到 backup.sh 的 `sonarqube-*.dump` prune glob 之外，例如子目录
+ssh mac-mini "docker-compose -f ~/stacks/sonarqube/docker-compose.yml stop -t 180 sonarqube && \
+  mkdir -m 700 -p ~/backups/sonarqube/upgrade-kit && \
   docker exec sonar-postgres pg_dump -U sonarqube -d sonarqube \
-    --no-owner --no-privileges --quote-all-identifiers --format=plain \
-  > ~/backups/sonarqube/pre-upgrade-\$(date +%Y%m%d-%H%M).sql && \
-  ls -lh ~/backups/sonarqube/"
+    --no-owner --no-privileges --format=custom --compress=9 \
+  > ~/backups/sonarqube/upgrade-kit/sonarqube.custom.dump && \
+  chmod 600 ~/backups/sonarqube/upgrade-kit/sonarqube.custom.dump && \
+  docker exec -i sonar-postgres pg_restore -l < ~/backups/sonarqube/upgrade-kit/sonarqube.custom.dump | head"
 
 # 1.3 当前 sonarqube-web 仓库状态（必须 clean，否则本地修改会丢）
 ssh mac-mini "cd ~/stacks/sonarqube/sonarqube-web && \
@@ -139,32 +142,41 @@ ssh mac-mini "docker exec sonar-postgres psql -U sonarqube -d sonarqube -c \"
 
 ### 2.1 选定目标版本组合
 
-按约束 ① 决策表选目标 SQ 版本 + plugin 版本。本节用 `26.3 → 26.4` 作为示例。
+按约束 ① 决策表选目标 SQ 版本 + plugin 版本。当前在跑是 `26.5.0.122743` + plugin `26.5.0`。下一跳必须等匹配 plugin。mac-mini 上 Compose CLI 是 `docker-compose`，不是 `docker compose`。
 
-### 2.2 下载新 plugin jar
-
-```bash
-ssh mac-mini "
-TARGET_PLUGIN_VERSION=26.4.0
-cd /tmp
-curl -fLO https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/\${TARGET_PLUGIN_VERSION}/sonarqube-community-branch-plugin-\${TARGET_PLUGIN_VERSION}.jar
-ls -lh sonarqube-community-branch-plugin-\${TARGET_PLUGIN_VERSION}.jar
-"
-```
-
-### 2.3 处理 sonarqube-web fork
-
-详见 §3。简单情况（新版官方已修 CSS Bug、不再需要 fork）：
+### 2.2 下载新 plugin jar **和** `sonarqube-webapp.zip`
 
 ```bash
 ssh mac-mini "
-cd ~/stacks/sonarqube/sonarqube-web
-# 切到 vendor 分支（用官方原版）
-git checkout vendor-26.4.0    # 假设你已经按 §3 创建好这个分支
+TARGET_PLUGIN_VERSION=26.5.0
+KIT=~/backups/sonarqube/upgrade-kit
+mkdir -m 700 -p \"\$KIT\"
+curl -fL -o \"\$KIT/sonarqube-community-branch-plugin-\${TARGET_PLUGIN_VERSION}.jar\" \
+  https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/\${TARGET_PLUGIN_VERSION}/sonarqube-community-branch-plugin-\${TARGET_PLUGIN_VERSION}.jar
+curl -fL -o \"\$KIT/sonarqube-webapp.zip\" \
+  https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/\${TARGET_PLUGIN_VERSION}/sonarqube-webapp.zip
+ls -lh \"\$KIT\"
 "
 ```
 
-需要继续 fork 的情况见 §3。
+### 2.3 用 plugin 的 `sonarqube-webapp.zip` **替换** web 树（keep `.git`）
+
+不要 `git checkout vendor-*`，也不要把 zip 解在 旧 hashed 文件上面。web 目录常是 `dr-xr-x---`，先 `chmod u+w`。
+
+```bash
+ssh mac-mini "
+WEB=~/stacks/sonarqube/sonarqube-web
+KIT=~/backups/sonarqube/upgrade-kit
+git -C \"\$WEB\" status --short --untracked-files=all   # 必须干净
+git -C \"\$WEB\" rev-parse HEAD                         # 记进 kit，供回滚
+find \"\$WEB\" -path \"\$WEB/.git\" -prune -o -type d -exec chmod u+w {} +
+find \"\$WEB\" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+unzip -q \"\$KIT/sonarqube-webapp.zip\" -d \"\$WEB\"
+# 确认 index.html 不再引用旧 hashed main-*.js
+"
+```
+
+登录页 grid 若坏了，最多在**新** `css/main-*.css` 末尾追加两条 grid utility；不要还原 26.3 hashed 资源。完整 fork 决策树仍见 §3。
 
 ### 2.4 改 compose 配置
 
@@ -173,11 +185,11 @@ ssh mac-mini "
 cd ~/stacks/sonarqube
 cp docker-compose.yml docker-compose.yml.bak.\$(date +%Y%m%d)
 
-# 改 image tag（用 sed 替换）
-sed -i '' 's|sonarqube:26.3.0.120487-community|sonarqube:26.4.0.121862-community|' docker-compose.yml
-
-# 改 JAVAOPTS 中的 plugin jar 文件名
-sed -i '' 's|sonarqube-community-branch-plugin-26.3.0.jar|sonarqube-community-branch-plugin-26.4.0.jar|g' docker-compose.yml
+# 只改 image tag 和已有 SONAR_WEB_JAVAOPTS / SONAR_CE_JAVAOPTS 里的 jar 文件名
+sed -i '' 's|sonarqube:26.3.0.120487-community|sonarqube:26.5.0.122743-community|' docker-compose.yml
+sed -i '' 's|sonarqube-community-branch-plugin-26.3.0.jar|sonarqube-community-branch-plugin-26.5.0.jar|g' docker-compose.yml
+# 26.5 镜像没有 wget，healthcheck 用 curl，要求 status=UP
+# 升级窗口内若要过 /setup，需临时接受 DB_MIGRATION_*，UP 后再改回 UP-only
 
 # 验证
 grep -E 'image:|community-branch-plugin' docker-compose.yml
@@ -188,28 +200,26 @@ grep -E 'image:|community-branch-plugin' docker-compose.yml
 
 ```bash
 ssh mac-mini "
-TARGET_PLUGIN_VERSION=26.4.0
-docker run --rm \
-  -v sonarqube_extensions:/dest \
-  -v /tmp:/src \
-  alpine sh -c '
-    # 删旧 jar，放新 jar
-    rm -f /dest/plugins/sonarqube-community-branch-plugin-*.jar
-    cp /src/sonarqube-community-branch-plugin-'\${TARGET_PLUGIN_VERSION}'.jar /dest/plugins/
-    ls -la /dest/plugins/
-  '
+# kit 目录 700 时 alpine 挂不上，用 docker cp
+docker cp ~/backups/sonarqube/upgrade-kit/sonarqube-community-branch-plugin-26.5.0.jar \
+  sonarqube:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin-26.5.0.jar
+docker run --rm -v sonarqube_extensions:/dest alpine sh -c '
+  chown 1000:0 /dest/plugins/sonarqube-community-branch-plugin-26.5.0.jar
+  rm -f /dest/plugins/sonarqube-community-branch-plugin-26.3.0.jar
+  ls -la /dest/plugins/
+'
+# 不要先 rm glob；不要把 jar 放到 sonarqube-web bind-mount
 "
 ```
 
-### 2.6 拉新镜像 + 重启
+### 2.6 拉新镜像 + 只重启 sonarqube
 
 ```bash
 ssh mac-mini "
 cd ~/stacks/sonarqube
-docker compose pull sonarqube
-docker compose up -d sonarqube
-docker compose logs -f sonarqube
-# 等到看到 'SonarQube is up'，Ctrl-C 退出 logs
+docker-compose pull sonarqube
+docker-compose up -d --no-deps sonarqube
+# 禁止 docker-compose down / down -v / volume prune
 "
 ```
 
@@ -338,7 +348,7 @@ curl -sS http://mac-mini:9000/api/server/version
 
 # 4.2 plugin 加载验证
 ssh mac-mini "docker logs sonarqube 2>&1 | grep -i 'Community Branch'"
-# 期望：Deploy Community Branch Plugin / 26.4.0 / null
+# 期望：Deploy Community Branch Plugin / 26.5.0 / null
 
 # 4.3 数据完整性（对照升级前 §1.4 的数字）
 ssh mac-mini "docker exec sonar-postgres psql -U sonarqube -d sonarqube -c \"
@@ -355,48 +365,59 @@ ssh mac-mini "docker exec sonar-postgres psql -U sonarqube -d sonarqube -c \"
 # - Quality Profile 4 个仍在（Cypresso CSS/Go/Python/typescript Way）
 # - Administration → Marketplace 看 Community Branch Plugin 已安装且版本正确
 
-# 4.5 触发一次真实扫描验证 CI 链路
-gh workflow run "SonarQube Analysis" --repo cypressoai/iCare-backend --ref develop
-# 用 5 分钟监控
+# 4.5 验证 GitHub required check 名「SonarQube Scan」变绿（不是整次 mixed run）
+# 例：iCare-backend 上 job / check 名必须是 SonarQube Scan
+# Quality-gate 超时或 ES 重建导致的红：重跑该 job，不要当回滚条件
+# Issues facets=authors 的 HTTP 400、banner「version no longer active」是已知噪声
 ```
 
 ---
 
 ## 5. 回滚
 
-如果升级后任何步骤失败，回滚到升级前状态：
+如果升级后任何步骤失败，回滚到升级前状态。**不要** `docker-compose down` / `down -v` / `volume prune`。postgres 全程保持运行。
+
+`/setup` 之前（schema 未迁）：只从 kit 恢复 compose、jar、javaagent 文件名、web `git reset --hard`，再 `docker-compose up -d --no-deps sonarqube`。不要 DROP DATABASE，不要擦 `es8`。
+
+`/setup` 之后（schema 已迁）必须 drop/create + restore + 擦 ES，一次确认做完：
 
 ```bash
 ssh mac-mini "
 cd ~/stacks/sonarqube
+KIT=~/backups/sonarqube/upgrade-26.3-to-26.5
+docker-compose stop -t 180 sonarqube
 
-# 5.1 停服
-docker compose down
+# 必须连到数据库 postgres（不能连着 sonarqube 库 DROP 自己）。
+# 本实例 POSTGRES_USER=sonarqube，它就是超级用户，没有独立的 postgres 角色。
+docker exec -i sonar-postgres psql -U sonarqube -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'sonarqube' AND pid <> pg_backend_pid();
+DROP DATABASE sonarqube;
+CREATE DATABASE sonarqube OWNER sonarqube;
+SQL
 
-# 5.2 恢复 compose 配置
-cp docker-compose.yml.bak.YYYYMMDD docker-compose.yml
+# 灌进空库。禁止 --clean / --create，禁止 psql < plain.sql
+docker exec -i sonar-postgres pg_restore -U sonarqube -d sonarqube \
+  --no-owner --no-privileges --exit-on-error \
+  < \"\$KIT/sonarqube-26.3.custom.dump\"
 
-# 5.3 恢复 sonarqube-web 到升级前的 commit（如果换过分支）
-cd sonarqube-web
-git checkout main           # 或者 vendor-26.3.0
-git reset --hard <升级前的 commit hash>
+# 擦 data volume 里的 data/es8，不要 docker volume rm
+docker run --rm -v sonarqube_data:/data alpine rm -rf /data/es8
 
-# 5.4 恢复 plugin（如果换过）
+cp \"\$KIT/docker-compose.yml.bak\" docker-compose.yml
+docker cp \"\$KIT/sonarqube-community-branch-plugin-26.3.0.jar\" \
+  sonarqube:/opt/sonarqube/extensions/plugins/sonarqube-community-branch-plugin-26.3.0.jar
 docker run --rm -v sonarqube_extensions:/dest alpine sh -c '
-  rm -f /dest/plugins/sonarqube-community-branch-plugin-*.jar
+  rm -f /dest/plugins/sonarqube-community-branch-plugin-26.5.0.jar
+  chown 1000:0 /dest/plugins/sonarqube-community-branch-plugin-26.3.0.jar
 '
-# 然后重新放回旧版 jar（从 cypressoai/sonarqube-web-patches 仓库 release attachment 取，或者从备份 plugins.tar.gz 取）
+git -C sonarqube-web reset --hard 4581dd19ea8e1946dc0748e10ed11f6205c4f291
+git -C sonarqube-web clean -fd
 
-# 5.5 恢复 DB（仅当新版跑过 schema migration 时需要）
-docker exec -i sonar-postgres psql -U sonarqube -d sonarqube < ~/backups/sonarqube/pre-upgrade-YYYYMMDD-HHMM.sql
-
-# 5.6 重启
-cd ..
-docker compose up -d
+docker-compose up -d --no-deps sonarqube
 "
 ```
 
-**重要**：跨大版本升级后**数据库 schema 已经变了**，回滚必须用升级前 pg_dump 全量还原，不能只回 compose。所以 §1.2 的备份步骤不能跳过。
+**重要**：schema 迁过之后只改镜像不够。`--clean` restore 打到已迁移 catalog 会留下 26.5 对象。26.5 可能抬高嵌入 ES，旧二进制会拒收新的 `es8`，所以 restore 和擦 `es8` 是同一次确认。
 
 ---
 
@@ -422,15 +443,20 @@ A: 大概率是 ES 索引重建。`docker exec sonarqube tail -f /opt/sonarqube/
 
 A: SonarSource 偶尔会把功能从社区版移到付费版。看官方 release notes。如果是关键功能，回退到前一个版本，或者评估付费。
 
+### Q: 26.5 起来后 healthcheck 一直失败 / `wget: not found`
+
+A: `sonarqube:26.5.0.122743-community` 镜像里没有 `wget`，有 `curl`。healthcheck 改成 `curl -fsS http://127.0.0.1:9000/api/system/status | grep -q '"status":"UP"'`。`/setup` 期间要临时接受 `DB_MIGRATION_*`，否则 `unless-stopped` 虽不会因 unhealthy 自杀，但监控会一直 starting/unhealthy。
+
 ---
 
 ## 7. 维护历史
 
 | 日期 | 操作 | SQ 版本 | plugin 版本 | PG 版本 | 操作人 |
 |---|---|---|---|---|---|
+| 2026-09-09 | 原地 26.3→26.5；kit `~/backups/sonarqube/upgrade-26.3-to-26.5/`；healthcheck 改为 curl | 26.5.0.122743 | 26.5.0 | 17.11 | Grok |
 | 2026-05-13 | 从 dev-cypresso 迁移到 mac-mini | 26.3.0.120487 | 26.3.0 | 17.9 | k-cypresso |
 
-未来每次升级在这里追加一行。
+未来每次升级在这里追加一行。当前服务版本以本表最新一行为准。
 
 ---
 
