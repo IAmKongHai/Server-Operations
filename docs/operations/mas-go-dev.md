@@ -1,5 +1,18 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 12:24 CST - EVP Deploy SIT workflow 首次跑通
+
+- 服务器：`mas-go-dev`（runner `shared-sit`）
+- 操作人：`Grok`
+- 原因：为 `cypressoai/evp` 接上 `shared-sit` 组的自动部署。
+- 影响：仓库新增 `.github/workflows/deploy-sit.yml` 与 `deploy/sit/{docker-compose.yml,deploy.sh}`。本机 `/opt/evp-sit` 由该 job 同步并 `compose build` / migrate / `up -d`。未动 iCare。
+- 备份：无（脚本不删 volume，不用 `--remove-orphans`）。
+- 回滚：`docker tag evp/<svc>:sit-<sha> evp/<svc>:sit` 后在 `/opt/evp-sit` 执行 `docker compose up -d --no-build`。
+- 验证：
+  - Actions [Deploy SIT #34310755339](https://github.com/cypressoai/evp/actions/runs/34310755339) success（29s，镜像层 CACHED）。Runner name/group 均为 `shared-sit`。
+  - 日志 `sit deploy ok sha=ff6f6a418b4f93f33eba6aa7b86b41de51c86099`；四条 `/health/ready` ok。
+  - 本机 Tailscale `25173`/`25174` health 200。iCare `redis` running、`api` healthy。
+
 ## 2026-09-09 12:16 CST - 创建 shared-sit runner 组并注册本机 runner
 
 - 服务器：`mas-go-dev`

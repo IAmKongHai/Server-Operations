@@ -51,7 +51,7 @@ EVP 已建：库/角色 `evp`（连接上限 40）、bucket `evp`、key 名 `evp
 
 ## EVP SIT
 
-位置：`/opt/evp-sit/`（属主 `actions-runner`，供 `shared-sit` runner 部署）。compose 副本在本仓库 `mas-go-dev/evp-sit/`。
+位置：`/opt/evp-sit/`（属主 `actions-runner`，供 `shared-sit` runner 部署）。SIT compose 源文件在 `cypressoai/evp` 的 `deploy/sit/`；本仓库 `mas-go-dev/evp-sit/` 仅作对照。`main` 推送走 [Deploy SIT](https://github.com/cypressoai/evp/actions/workflows/deploy-sit.yml)。
 
 | 入口 | 地址 |
 | --- | --- |
