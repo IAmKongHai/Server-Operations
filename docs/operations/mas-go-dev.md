@@ -1,5 +1,33 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-09 12:16 CST - 创建 shared-sit runner 组并注册本机 runner
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`（用户确认按 `shared-sit` 组创建并注册）
+- 原因：EVP SIT 自动部署不能进 iCare 专用组 `mas-go-dev`。
+- 影响：GitHub org 新增 runner group `shared-sit`（id 6，selected 仅 `cypressoai/evp`）。本机新增 systemd runner `actions.runner.cypressoai.shared-sit`。未改 iCare 三套 runner、未改 Docker 业务容器。
+- 选型：
+  - 目录 `/opt/actions-runner/shared-sit/`，用户 `actions-runner`，版本 2.337.0（与现网一致）。
+  - 名字 / label：`shared-sit`；保留默认 `self-hosted` `Linux` `X64`，另加 `docker` `al2023`。**不**贴 `mas-go-dev` / `backend-ci` / `frontend-quality-ci`。
+  - `/opt/evp-sit` 属主改为 `actions-runner`，便于后续该 runner 写部署目录；共享层 `/opt/shared-sit` 仍属 `ec2-user`。
+- 备份：`/tmp/shared-sit-runner-before-20260909-041448/`（systemd / docker ps / 目录属主）。registration token 用完即删。
+- 回滚：
+  ```bash
+  sudo /opt/actions-runner/shared-sit/svc.sh stop
+  sudo /opt/actions-runner/shared-sit/svc.sh uninstall
+  sudo -u actions-runner /opt/actions-runner/shared-sit/config.sh remove --token <新 remove token>
+  ```
+  然后在 org 删除 group id 6。iCare runner 不在回滚范围内。
+- 变更时序：
+  1. `POST /orgs/cypressoai/actions/runner-groups`，`selected_repository_ids=[1361034755]`（`cypressoai/evp`）。
+  2. 下载 runner 包、`config.sh --unattended --runnergroup shared-sit`，`svc.sh install actions-runner` + `start`。
+  3. 写入 `.env`（`GOCACHE` 独立，`GOMODCACHE` 与同机其它 slot 共享）。
+- 验证：
+  - 组 6 仓库只有 `cypressoai/evp`；组 3 仍是 7 个 iCare 相关仓。
+  - GitHub：`shared-sit` **online**，labels `self-hosted, Linux, X64, docker, al2023, shared-sit`，busy=false。
+  - systemd enabled/active；iCare 三套 runner 仍 active。EVP 四容器仍 healthy。
+- 后续：在 `cypressoai/evp` 加 deploy workflow，`runs-on.group: shared-sit`。Checks 继续 `ubuntu-latest`。
+
 ## 2026-09-09 11:41 CST - 共享 Redis + 部署 EVP SIT 四容器
 
 - 服务器：`mas-go-dev`（Tailscale `100.109.223.53`）

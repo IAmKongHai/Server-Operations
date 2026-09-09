@@ -137,7 +137,8 @@
   - `/opt/mas-go-dev/infra/` — iCare 集成测试基础设施目录，承载 `infra.compose.yaml`（`icare-backend-infra` compose project），跑 `azurite` + `redis` 两个常驻容器供 worker / api 经 `shared-services` 网络通过 DNS 名 `azurite` / `redis` 访问。**不由 runner 自动管理**，仅在仓库内 `backend/infra.compose.yaml` 变更或手动调整基础设施时执行 `sudo -u actions-runner docker compose -f infra.compose.yaml up -d`；容器使用 `restart: always`，VM 重启后自动拉起
   - `/opt/mas-go-dev/logs/` — 运维日志归档
   - `/opt/shared-sit/` — 全项目 SIT 共享基础设施（属主 `ec2-user`，**不要**放进 `/opt/mas-go-dev`，runner 不管）。`postgres/` 为 PostgreSQL 18，`s3/` 为 Garage，`redis/` 为 Redis 7（宿主 `6380`，容器名 `shared-sit-redis`，网络别名 `redis`；`6379` / 容器名 `redis` 是 iCare 的）。Docker 网络 `shared-sit`，端口只绑 Tailscale `100.109.223.53` 与回环。新项目单独建库/角色、bucket/密钥和 Redis DB 号，不要用管理员账号，也不要复用 iCare 的 `shared-services` / azurite / redis。凭据在服务器 600 文件；本仓库 `mas-go-dev/secrets.local.md`（gitignore）。档案见 `mas-go-dev/README.md`
-  - `/opt/evp-sit/` — EVP SIT（`evp-sit` compose）。医院端 `100.109.223.53:25173`，管理端 `:25174`。加入 `shared-sit` 网络，自带镜像构建，不由 iCare runner 管理。
+  - `/opt/evp-sit/` — EVP SIT（`evp-sit` compose，属主 `actions-runner`）。医院端 `100.109.223.53:25173`，管理端 `:25174`。加入 `shared-sit` 网络。由 org runner `shared-sit`（组 `shared-sit`）部署，**不要**用 iCare 的 `mas-go-dev` runner。
+  - `/opt/actions-runner/shared-sit/` — 非 iCare SIT 部署 runner（systemd `actions.runner.cypressoai.shared-sit`）。labels 含 `shared-sit`，不含 `mas-go-dev` / 质量池。工作目录 `_work`。
 
 ## 检索历史方案
 

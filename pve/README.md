@@ -255,12 +255,12 @@ MAS Go + React 重构版内网自动部署 VM；2026-09-09 起同时作为内网
 | On boot | `onboot=1`，`startup=order=30,up=60,down=180` |
 | Docker | `25.0.14` |
 | Docker Compose | `v2.24.5` |
-| GitHub runner | org runner `mas-go-dev`，runner group `mas-go-dev` |
+| GitHub runner | org runner `mas-go-dev`（组 `mas-go-dev`，iCare）+ `shared-sit`（组 `shared-sit`，非 iCare SIT，目前 `cypressoai/evp`） |
 | Runtime root | `/opt/mas-go-dev` |
 
 目标用途：
 
-- 运行 GitHub Actions self-hosted runner（iCare 仓库）。
+- 运行 GitHub Actions self-hosted runner：iCare 用组 `mas-go-dev`；非 iCare SIT 用组 `shared-sit`（目前 `cypressoai/evp`）。
 - 在 VM 内本地 checkout/build/deploy MAS Go 后端和 React 前端。
 - 连接 `mssql-ref` 上的 SQL Server：`192.168.2.20:1433`。
 - 作为内网多项目 SIT 合部署目标：共享 PostgreSQL（`100.109.223.53:5432`）、Garage S3（`:3900`）与 Redis（`:6380`，避开 iCare 的 `:6379`），应用走独立 compose，不与 iCare `shared-services` 混网。

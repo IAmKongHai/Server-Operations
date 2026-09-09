@@ -51,7 +51,7 @@ EVP 已建：库/角色 `evp`（连接上限 40）、bucket `evp`、key 名 `evp
 
 ## EVP SIT
 
-位置：`/opt/evp-sit/`（属主 `ec2-user`）。compose 副本在本仓库 `mas-go-dev/evp-sit/`。
+位置：`/opt/evp-sit/`（属主 `actions-runner`，供 `shared-sit` runner 部署）。compose 副本在本仓库 `mas-go-dev/evp-sit/`。
 
 | 入口 | 地址 |
 | --- | --- |
@@ -68,9 +68,31 @@ ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-dire
 
 回滚：对该目录 `docker compose stop`，不要 `down -v`，也不要 `--remove-orphans`（会扫到别的项目）。
 
+## GitHub Actions runner
+
+同机四套 systemd runner，**不要**混组和混 label。
+
+| 名字 | 组 | 目录 | 用途 |
+| --- | --- | --- | --- |
+| `mas-go-dev` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev` | iCare 本机部署 |
+| `mas-go-dev-ci-1/2` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-{1,2}` | iCare 质量门禁 |
+| `shared-sit` | `shared-sit`（id 6，selected：目前仅 `cypressoai/evp`） | `/opt/actions-runner/shared-sit` | 非 iCare SIT 部署 |
+
+`shared-sit` labels：`self-hosted`, `Linux`, `X64`, `docker`, `al2023`, `shared-sit`。不要贴 `mas-go-dev` / `backend-ci` / `frontend-quality-ci`。EVP Checks 仍走 GitHub-hosted `ubuntu-latest`。
+
+部署 job 应写：
+
+```yaml
+runs-on:
+  group: shared-sit
+  labels: [self-hosted, Linux, X64, shared-sit]
+```
+
+服务：`actions.runner.cypressoai.shared-sit.service`（enabled）。用户 `actions-runner`。registration token 注册后已删，不入库。
+
 ## iCare 目录（未改）
 
 - `/opt/mas-go-dev/backend/`、`frontend-mas/`、`infra/`（azurite + redis，网络 `shared-services`）
-- GitHub org runner `mas-go-dev`，只服务 iCare 仓库
+- GitHub org runner `mas-go-dev`，组 `mas-go-dev`，只服务 iCare 仓库
 
 不要对整机 `docker compose --remove-orphans` 或随意 `docker system prune`。
