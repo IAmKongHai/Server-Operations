@@ -1,5 +1,38 @@
 # nyh-prod 运维时间线
 
+## 2026-09-11 00:08 CST - 修复 AcquiLang 切到 konghai.me 后 m-al 502 与 admin-al 不能登录
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（用户确认后改 Nginx 并 `nginx -s reload`；未改容器 / 证书 / 防火墙）
+- 原因：接上一条。宝塔把三个站点域名换成 `*-al.konghai.me` 时按 Docker 反代模板重生了 vhost，mobile 回到已停的 `:3002`，API 的 CORS 白名单被冲掉，管理中台 JS/CSP 仍指向 `api.acquilangai.com`。
+- 影响：仅这三份 vhost；nginx reload 平滑替换 worker。其它站点、容器、数据库未动。
+- 备份：`/www/backup/nginx-vhost/acquilang-konghai-20260911-0008/`
+- 回滚方式：把备份里的三份 conf 拷回 `/www/server/panel/vhost/nginx/`，再 `nginx -t && nginx -s reload`。
+
+### 变更时序
+
+1. 备份 `m.acquilangai.com.conf` / `admin.acquilangai.com.conf` / `api.acquilangai.com.conf`。
+2. **mobile**：去掉 `proxy_pass 127.0.0.1:3002`，`location ^~ /` 改为静态 `root .../acquilang-mobile-web/out` + `try_files`；保留 `/download` 308 和 `/build-Latest.apk`；`sub_filter` 把旧 API 域名换成 `https://api-al.konghai.me`。
+3. **API**：在 `location ^~ /` 加回 CORS 白名单 `https://admin-al.konghai.me`、`https://m-al.konghai.me`，OPTIONS 返回 204。
+4. **admin**：反代层 `Accept-Encoding ""` + `proxy_buffering on`，`sub_filter` 改 JS 里的 API 地址；`proxy_hide_header Content-Security-Policy` 后改为允许 `connect-src 'self' https://api-al.konghai.me`。
+5. `nginx -t` 通过后 `nginx -s reload`。随后去掉 `sub_filter_types` 里重复的 `text/html` 再 reload 一次（消除 warn）。
+
+### 验证
+
+| URL | 结果 |
+| --- | --- |
+| `https://m-al.konghai.me/` | **200** `text/html`（不再 502） |
+| `https://m-al.konghai.me/download` | **308** → `/download/` |
+| `https://m-al.konghai.me/download/` | **200** |
+| `https://m-al.konghai.me/build-Latest.apk` | **200** APK，42.9 MB |
+| `https://admin-al.konghai.me/` | **200**；CSP `connect-src` 含 `https://api-al.konghai.me` |
+| `/assets/index-DLFr9_Vp.js` | `baseURL:"https://api-al.konghai.me"`（旧域名 0 处） |
+| OPTIONS/POST `/api/v1/admin/auth/login` Origin=`admin-al` | **204** / **401**，均带 `Access-Control-Allow-Origin: https://admin-al.konghai.me` |
+
+长期应重建 `acquilang-admin` 镜像和 mobile `out/`，把构建期 API 域名改掉，不要一直靠 Nginx `sub_filter`。宝塔里再点保存站点会再次冲掉这些自定义段。
+
+复盘见 `docs/solutions/nyh-prod/integration-issues/baota-domain-replace-wipes-custom-nginx-2026-09-11.md`。
+
 ## 2026-09-11 00:03 CST - 排查 AcquiLang 切到 konghai.me 后 m-al 502 / admin-al 不能登录（只读）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
