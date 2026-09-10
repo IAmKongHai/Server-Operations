@@ -1,6 +1,40 @@
 # nyh-prod 运维时间线
 
+## 2026-09-10 23:17 CST - 排查宝塔面板 HTTPS 证书过期（只读）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读排查，未改证书 / 未重启面板 / 未改 crontab）
+- 原因：用户无法用 `https://nyh-2025.konghai.me:10463` 打开宝塔面板，浏览器提示证书过期；此前已配置自动续期。
+- 影响：无配置变更。面板 HTTPS 当前仍过期，业务站点 443 不受影响。
+- 回滚方式：无需回滚。
+
+### 结论
+
+**不是 2026-05-11 那种「磁盘已续签、内存未 reload」。** 磁盘证书和 10463 端口返回的是同一张，都已过期。
+
+| 证书 | 签发方 | notBefore | notAfter | 状态 |
+| --- | --- | --- | --- | --- |
+| 面板 SSL `/www/server/panel/ssl/certificate.pem`（端口 10463） | TrustAsia `LiteSSL RSA CA 2025` | 2026-06-09 | **2026-09-07** | 已过期 3 天 |
+| 站点 `nyh-2025.konghai.me` Nginx 443 | Let's Encrypt YR1 | 2026-08-20 | 2026-11-18 | 有效 |
+
+两张证书 fingerprint 不同，站点续期没有写进面板 SSL 目录。
+
+### 自动续期为什么没生效
+
+1. **`panel-cert-reload.sh`（每天 04:30）在正常工作**，但只对比磁盘 vs 端口 `notBefore`。两边都是 `Jun 9 16:00:00 2026 GMT`，所以每天记 `cert in sync, no action`，不会续签。
+2. **真正负责面板证书的任务是「更新面板SSL证书」**（每天 10:47，`panel_ssl_task.py`）。日志每天都打 `★ Successful`，但这是 cron 包装脚本无条件打印的，不代表续签成功。
+3. **`panel_ssl_task.py` 只处理 Let's Encrypt**（`issuer` 为 `R3/R5/R8/R10/R11` 或 `issuer_O == "Let's Encrypt"`）。当前面板证书 `issuer_O` 是 `TrustAsia Technologies, Inc.`，条件不成立，脚本直接退出，什么都不做。`endtime=-3` 也不会被处理。
+4. 2026-08-20 给站点重新申请 Let's Encrypt 时，只更新了 Nginx 站点证书；面板 SSL 仍停在 6 月那张 TrustAsia LiteSSL。
+
+### 建议修复（未执行，需确认）
+
+1. 备份 `/www/server/panel/ssl/`。
+2. 用站点现成的 Let's Encrypt 证书覆盖面板 SSL（或调用 `setPanelLets.check_cert_update('nyh-2025.konghai.me')`）。
+3. `bt restart`（只重启 BT-Panel / BT-Task，约 1–2 秒，不影响 nginx / MySQL / 业务站点）。
+4. 验证 10463 返回证书到期日为 2026-11-18。换成 Let's Encrypt 后，原每日 10:47 任务才会真正续签。
+
 ## 2026-09-03 10:34 CST - 评估在 nyh-prod 自托管 RustDesk 的可行性（只读）
+
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
 - 操作人：`Grok`（只读排查，未改防火墙 / Docker / 安全组 / 业务进程）
