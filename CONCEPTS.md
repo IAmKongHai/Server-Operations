@@ -69,6 +69,20 @@ Antigravity 上游认的是带 thinking 档位的模型实体名，不是营销�
 
 网关目录里有基础名，不代表上游能创建该实体。订阅 3.7 Flash 要以当时 daily 端点实际返回 200 的变体名为准。
 
+## 宝塔面板证书
+
+### 面板 SSL
+宝塔面板自己的 HTTPS 证书，只给面板端口用，和同域名网站证书不是同一套文件。
+
+站点续期成功不会自动写进面板 SSL。面板进程启动时把证书读进内存，磁盘替换后必须重启面板才会生效。宝塔自带的面板续签任务只处理 Let's Encrypt；TrustAsia LiteSSL 会被静默跳过，任务日志仍可能打印成功。
+
+*Avoid:* 把站点证书到期日当成面板 HTTPS 到期日。
+
+### LiteSSL
+宝塔面板可申请的商业 DV 证书品牌，由 TrustAsia 签发，不走 Let's Encrypt ACME 账户。
+
+它不会进入宝塔 `panel_ssl_task.py` 的 Let's Encrypt 续签分支，到期必须人工替换或改走 Let's Encrypt。
+
 ## Tailscale
 
 ### Exit Node

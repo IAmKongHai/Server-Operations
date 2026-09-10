@@ -1,5 +1,35 @@
 # nyh-prod 运维时间线
 
+## 2026-09-10 23:22 CST - 把站点 Let's Encrypt 套到宝塔面板并重启
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（用户确认后执行：备份面板 SSL、覆盖证书、`bt restart`）
+- 原因：接上一条。面板 10463 的 TrustAsia LiteSSL 已于 2026-09-07 过期；同域名站点 Let's Encrypt 仍有效到 2026-11-18。
+- 影响：BT-Panel / BT-Task 重启约 1–2 秒；nginx / 业务站点 / 数据库未动。面板 HTTPS 恢复可用。
+- 备份：`/www/backup/ssl-cert/panel-ssl/20260910-232244/`
+- 回滚方式：把备份里的 `certificate.pem` / `privateKey.pem` / `info.json` 拷回 `/www/server/panel/ssl/`，再 `bt restart`。
+
+### 变更时序
+
+1. 备份 `/www/server/panel/ssl/` 到 `/www/backup/ssl-cert/panel-ssl/20260910-232244/`。
+2. 调用 `setPanelLets.check_cert_update('nyh-2025.konghai.me')`，返回 `{'status': True, 'msg': '1'}`，并把 `info.json` 写成新证书元数据。
+3. `bt restart`：Stopping/Starting Bt-Panel 成功；BT-Task pid 608539。
+
+### 验证
+
+磁盘与 10463（本机及公网 `nyh-2025.konghai.me:10463`）fingerprint 一致：
+
+| 项 | 值 |
+| --- | --- |
+| 签发方 | Let's Encrypt YR1 |
+| notBefore | 2026-08-20 14:34:56 GMT |
+| notAfter | **2026-11-18 14:34:55 GMT** |
+| SHA256 | `09:34:B9:79:...:2C:58:04`（与站点 Nginx 证书相同） |
+
+本机 SNI 访问 `https://nyh-2025.konghai.me:10463/` 的 `ssl_verify=0`，HTTP 401（未登录，属预期）。`panel_ssl_task.py` 现在 `issuer match LE=True`，剩余 68 天，按脚本逻辑会在剩余天数小于约 30 天时续签。
+
+复盘见 `docs/solutions/nyh-prod/integration-issues/baota-panel-ssl-trustasia-skipped-by-renew-task-2026-09-10.md`。
+
 ## 2026-09-10 23:17 CST - 排查宝塔面板 HTTPS 证书过期（只读）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
