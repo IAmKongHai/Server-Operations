@@ -1,5 +1,41 @@
 # nyh-prod 运维时间线
 
+## 2026-09-11 01:10 CST - 按 AcquiLangAI 137de436 发布 admin 镜像和 mobile out/
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（用户确认后发版：换 `acquilang-admin` 容器、覆盖 mobile `out/`、nginx reload；未改防火墙 / 证书 / 后端容器）
+- 原因：源码已 push（`master` / `137de436`），要把构建期 API 从 `api.acquilangai.com` 换成 `api-al.konghai.me`，去掉宿主机 Nginx `sub_filter`。
+- 影响：admin 容器重建约数秒；mobile 只覆盖静态目录；nginx reload 平滑。其它站点、`acquilang-backend` 未动。
+- 备份：
+  - 旧 admin 镜像 `acquilang-admin:bak.20260911-0105`（`dde74086aded`）
+  - mobile `.env.production` → `/www/backup/nginx-vhost/acquilang-konghai-20260911-0008/mobile.env.production.bak.20260911-0105`
+  - 去 `sub_filter` 前的 vhost → `/www/backup/nginx-vhost/acquilang-konghai-pre-unsub-20260911-011035/`
+- 回滚方式：
+  - admin：`docker tag acquilang-admin:bak.20260911-0105 acquilang-admin:latest && docker-compose -f docker-compose.prod.yml up -d --no-deps admin`
+  - Nginx：把 `pre-unsub` 备份拷回 vhost 再 `nginx -t && nginx -s reload`（会恢复 `sub_filter`）
+  - mobile `out/` 当时未打 tar，回滚需重新构建旧产物
+
+### 变更时序
+
+1. `git pull --ff-only origin master` → `137de436`。
+2. 生产机没有系统 Node，`deploy-admin-manual.sh` 写死的 `acquilang-prod` 和 `/www/server/nodejs/v22.20.0/.../pnpm.cjs` 都不存在。拉了 `node:22-bookworm`，在容器里 `pnpm@9.12.0` 构建（`CI=true`）。
+3. **admin**：`VITE_API_BASE_URL=https://api-al.konghai.me` 做 `pnpm run build`；构建前把 `nginx.conf` `listen 3003` 改成 **3001** 再 `docker build -f Dockerfile.prod`（compose / 健康检查仍是 `3001:3001`）；`docker-compose up -d --no-deps admin`。磁盘上的 `nginx.conf` 随后恢复为仓库的 `listen 3003`，只有镜像内是 3001。
+4. **mobile**：gitignore 的 `.env.production` 改成新 API（不入库）。容器内 `next build` 成功，但 `prepare-static-export.sh` 因只挂了子目录找不到 `../app_build/build-Latest.apk`；在宿主机再跑该脚本把 APK 拷进 `out/`。未启用 `static-fallback`，未拉起 `:3002`。未清全机 `proxy_cache_dir`（脚本会删整个缓存目录，本机还跑着 NYH / DDRicher）。
+5. 抽查产物无旧 API 后，去掉 admin/mobile vhost 里临时 `sub_filter` 和 admin 反代层 CSP 覆盖。**API CORS 白名单留下**。`nginx -t && nginx -s reload`。
+
+### 验证
+
+| 项 | 结果 |
+| --- | --- |
+| `acquilang-admin` | 新镜像 `843d1a319a6b`，healthy，容器内 `listen 3001`，CSP `connect-src ... api-al.konghai.me` |
+| `https://admin-al.konghai.me/assets/index-CAfF4hCQ.js` | `baseURL:"https://api-al.konghai.me"`，旧域名 0 处 |
+| OPTIONS/POST 登录 Origin=`admin-al` | 204 / 401，均带 CORS |
+| `https://m-al.konghai.me/` `/download/` `/build-Latest.apk` | 200 / 200 / 200 APK |
+| `acquilang-mobile` 容器 | 无 |
+| 生产 HEAD | `137de436` |
+
+请浏览器强刷后登录 `https://admin-al.konghai.me/`。原生 App 仍打旧 API，未发版。宝塔里不要再点保存 Docker 反代站点。
+
 ## 2026-09-11 00:08 CST - 修复 AcquiLang 切到 konghai.me 后 m-al 502 与 admin-al 不能登录
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
