@@ -4,7 +4,7 @@
 
 - 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）
 - 操作人：`Grok`（用户要求换域名，并确认新域名已解析）
-- 原因：三个现网站点迁到 `moospark.com`。按前缀对齐（用户消息里前两条新域名交叉了，未按交叉落地）：
+- 原因：三个现网站点迁到 `moospark.com`。首次消息把前两条新域名写交叉了，落地按前缀对齐；用户随后确认正确映射就是这一套：
   - Moo Ticket：`t.001.gs` → `t.moospark.com`（仍反代 `127.0.0.1:8180`）
   - EVP 医院端：`evp.cypresso.ai` → `evp.moospark.com`（仍反代 `127.0.0.1:8273`）
   - EVP 管理端：`evp-admin.cypresso.ai` → `evp-admin.moospark.com`（仍反代 `127.0.0.1:8274`）
@@ -15,7 +15,7 @@
   - EVP compose 的 `PUBLIC_ORIGIN` 改为新 https origin，重建 `provider-api` / `admin-api` / `provider-web` / `admin-web`（web 必须一起重建，否则 nginx 缓存旧 Docker DNS，医院/管理 API 会打到对方容器，登录 404）
   - **未**改防火墙、crontab、SSH、共享 Postgres、iCare 站点
   - 应用仓库未合入前不要跑生产 Deploy：`cypressoai/evp` [PR #4](https://github.com/cypressoai/evp/pull/4) 改 `deploy/prod` 的 origin 校验；`cypressoai/moo-ticket` [PR #16](https://github.com/cypressoai/moo-ticket/pull/16) 改 `BASE_URL` 校验。EVP 若在 PR 合入前 `workflow_dispatch`，会把旧 `*.cypresso.ai` 写回容器
-- 选型：新域名按站点前缀对齐，而不是按用户消息里交叉的前两条箭头；旧域名留 301 而不是立刻删 vhost。
+- 选型：新域名按站点前缀对齐（后经用户确认）；旧域名留 301 而不是立刻删 vhost。
 - 备份：
   - `/etc/nginx/conf.d.bak.20260910-domain-cutover/`
   - `/etc/nginx/conf.d/{t.001.gs,evp.cypresso.ai,evp-admin.cypresso.ai}.conf.bak.20260910-domain-cutover`
