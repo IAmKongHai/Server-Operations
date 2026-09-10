@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-09-10 10:03 CST - 只读确认 iCare-frontend-mas develop 定时 Sonar 失败为 Quality Gate，不是 runner
+
+- 服务器：`mac-mini`（runner `mac-mini-sonar-3`；SonarQube `26.5.0.122743`）
+- 操作人：`Grok`
+- 原因：排查 [iCare-frontend-mas Job 102631573007](https://github.com/cypressoai/iCare-frontend-mas/actions/runs/34399699841/job/102631573007)（run `34399699841`，`schedule` 扫 `develop` @ `52fdba92…`）是 runner 侧还是代码侧失败。
+- 影响：仅 `gh` 读 Actions、SSH 读 SonarQube API/PG；未改 runner、SonarQube、workflow 或业务代码，未重跑 Job。
+- 备份：无（只读）。
+- 回滚方式：无变更。
+- 做了什么：
+  1. 核对目标 Job 步骤与同 run 的 `Frontend Coverage`。
+  2. 本机确认 `http://127.0.0.1:9000/api/system/status` 为 `"status":"UP"`（Community Build `26.5.0.122743`，server id `6A4192E1-AZ0pWpBAREjmC3q_HCWj`，与 Job 日志一致）。
+  3. 从 `measures` / `quality_gate_details` 读 develop 最新一次分析（revision `52fdba92…`，New Code = previous version，起点 `2026-04-02`）。
+- 验证结果：
+  - Job 落在 `mac-mini-sonar-3`，labels `[mac-mini-sonar, macos, arm64]`。checkout、Setup Node、依赖安装、LCOV 下载与校验全部成功。同 run 的 `Frontend Coverage` 全绿（4 shard 合并 LCOV）。Lint / Typecheck / Frontend Tests 按 schedule 设计 skip。
+  - Scanner 使用缓存 CLI `8.1.0.6389`，成功连上 SonarQube、分析 4268 文件、上传 29.6 MB 报告。唯一失败是 Quality Gate：`QUALITY GATE STATUS: FAILED`，scanner 退出码 3。不是 runner PATH / GPG / Tailscale / Sonar 宿主故障。
+  - 门禁是默认 **Cypresso Way 50%**。`new_coverage` 69.0%（≥50）过、`new_duplicated_lines_density` 0.23%（≤3）过，真正红的是 **`new_violations = 86 > 0`**。
+  - 86 条 New Code OPEN issue：`typescript:S4325` 71（MINOR，多余类型断言）、`typescript:S3735` 10（CRITICAL，`void` 运算符）、`typescript:S6551` 5（MINOR）。
+  - 同类 schedule 自 [run 33006224878](https://github.com/cypressoai/iCare-frontend-mas/actions/runs/33006224878)（2026-08-26，SHA `3c46fa8d…`）最后一次绿之后，8/28 起连续失败，模式相同（QG FAILED / exit 3）。
+- 备注：这是 `develop` 长分支扫描，New Code 窗口从 `2026-04-02` 的 previous version 起算（约 66 万 new lines），不是单次 PR 引入的 86 条。修代码或在 Sonar 里处理这 86 条 issue 后，定时扫描才会绿。
+
 ## 2026-09-09 16:04 CST - 原地升级 SonarQube 26.3 → 26.5（可回滚 kit 保留）
 
 - 服务器：`mac-mini`（`~/stacks/sonarqube/`）
