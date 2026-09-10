@@ -1,5 +1,58 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-10 09:59 CST - 三个公网站点切到 moospark.com
+
+- 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）
+- 操作人：`Grok`（用户要求换域名，并确认新域名已解析）
+- 原因：三个现网站点迁到 `moospark.com`。按前缀对齐（用户消息里前两条新域名交叉了，未按交叉落地）：
+  - Moo Ticket：`t.001.gs` → `t.moospark.com`（仍反代 `127.0.0.1:8180`）
+  - EVP 医院端：`evp.cypresso.ai` → `evp.moospark.com`（仍反代 `127.0.0.1:8273`）
+  - EVP 管理端：`evp-admin.cypresso.ai` → `evp-admin.moospark.com`（仍反代 `127.0.0.1:8274`）
+- 影响：
+  - 新增 nginx vhost + Let's Encrypt lineage `t.moospark.com`、`evp.moospark.com`、`evp-admin.moospark.com`（HTTP→HTTPS 301），然后 **reload** nginx
+  - 旧域名 HTTPS/HTTP 均 **301** 到对应新域名；旧证书 lineage 保留，方便 301 在 TLS 下成立
+  - `moo-ticket` `.env` 的 `BASE_URL` 改为 `https://t.moospark.com`；`SMTP_FROM` 仍为 `support@t.001.gs`（Resend 发信域未改）
+  - EVP compose 的 `PUBLIC_ORIGIN` 改为新 https origin，重建 `provider-api` / `admin-api` / `provider-web` / `admin-web`（web 必须一起重建，否则 nginx 缓存旧 Docker DNS，医院/管理 API 会打到对方容器，登录 404）
+  - **未**改防火墙、crontab、SSH、共享 Postgres、iCare 站点
+  - 应用仓库未合入前不要跑生产 Deploy：`cypressoai/evp` [PR #4](https://github.com/cypressoai/evp/pull/4) 改 `deploy/prod` 的 origin 校验；`cypressoai/moo-ticket` [PR #16](https://github.com/cypressoai/moo-ticket/pull/16) 改 `BASE_URL` 校验。EVP 若在 PR 合入前 `workflow_dispatch`，会把旧 `*.cypresso.ai` 写回容器
+- 选型：新域名按站点前缀对齐，而不是按用户消息里交叉的前两条箭头；旧域名留 301 而不是立刻删 vhost。
+- 备份：
+  - `/etc/nginx/conf.d.bak.20260910-domain-cutover/`
+  - `/etc/nginx/conf.d/{t.001.gs,evp.cypresso.ai,evp-admin.cypresso.ai}.conf.bak.20260910-domain-cutover`
+  - `/home/ec2-user/stacks/moo-ticket/.env.bak.20260910-domain-cutover`
+  - `/home/ec2-user/stacks/evp/.env.bak.20260910-domain-cutover`
+  - `/home/ec2-user/stacks/evp/docker-compose.yml.bak.20260910-domain-cutover`
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'STAMP=20260910-domain-cutover
+  sudo cp -a /etc/nginx/conf.d.bak.${STAMP}/. /etc/nginx/conf.d/
+  sudo nginx -t && sudo systemctl reload nginx
+  cp /home/ec2-user/stacks/moo-ticket/.env.bak.${STAMP} /home/ec2-user/stacks/moo-ticket/.env
+  cp /home/ec2-user/stacks/evp/docker-compose.yml.bak.${STAMP} /home/ec2-user/stacks/evp/docker-compose.yml
+  docker-compose -f /home/ec2-user/stacks/moo-ticket/docker-compose.prod.yml --project-directory /home/ec2-user/stacks/moo-ticket up -d --force-recreate --no-deps --no-build app
+  docker-compose --project-directory /home/ec2-user/stacks/evp -f /home/ec2-user/stacks/evp/docker-compose.yml up -d --no-build --no-deps --force-recreate provider-api admin-api provider-web admin-web'
+  ```
+  新域名证书 lineage 可随后 `certbot delete`。
+- 变更时序：
+  1. 备份 nginx conf.d 与两套 `.env` / EVP compose。
+  2. 写入三个新域名 HTTP vhost，`certbot --nginx` 逐张签证书后 reload。
+  3. 改 `BASE_URL` / `PUBLIC_ORIGIN`，重建 moo-ticket 与 EVP API；发现 web 容器 DNS 缓存后补重建两个 web。
+  4. 旧 vhost 改为 301 到新域名，`nginx -t` 后 reload。
+  5. 应用仓库开 PR，避免下次发版回写旧 origin。
+- 验证：
+  - `https://t.moospark.com/` → **200** `<title>Moo Ticket</title>`；证书 SAN=`t.moospark.com`（Let's Encrypt，至 2026-12-09）
+  - `https://evp.moospark.com/` → **200** `EVP 医疗机构端`；`/health/ready` **200** `{"status":"ok"}`
+  - `https://evp-admin.moospark.com/` → **200** `EVP 平台管理端`；`/health/ready` **200**
+  - 三个新域名 HTTP → HTTPS **301**；三个旧域名 HTTP/HTTPS 均 **301** 到对应新域名
+  - `POST /api/v1/auth/login`（`Origin: https://t.moospark.com`）→ **200** + `Set-Cookie: moo_session`（Secure）
+  - `POST /api/provider/v1/auth/login`（`Origin: https://evp.moospark.com`）→ **200** + `evp_provider_session`（Secure）；旧 Origin / 错误 Origin → **403**
+  - `POST /api/admin/v1/auth/login`（`Origin: https://evp-admin.moospark.com`）→ **200** + `evp_admin_session`（Secure）
+  - `GET /api/v1/auth/providers` 仍为 google+microsoft true（OAuth 回调 URL 仍指向旧域名，需在 Google / Microsoft 控制台加新回调）
+- 未完成 / 需人工：
+  - Google / Microsoft OAuth 回调加 `https://t.moospark.com/api/v1/auth/oauth/callback`
+  - S3 bucket `cypresso-moo-ticket` CORS 加 `https://t.moospark.com`（`moo-ticket` IAM 无 `s3:GetBucketCORS` / `PutBucketCORS`）
+  - 合入 [evp#4](https://github.com/cypressoai/evp/pull/4) 与 [moo-ticket#16](https://github.com/cypressoai/moo-ticket/pull/16) 后，以后发版才不会回写旧域名
+
 ## 2026-09-09 13:18 CST - EVP 生产改为 GitHub Actions 手动部署
 
 - 服务器：`dev-cypresso`
