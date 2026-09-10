@@ -1,5 +1,47 @@
 # nyh-prod 运维时间线
 
+## 2026-09-11 00:03 CST - 排查 AcquiLang 切到 konghai.me 后 m-al 502 / admin-al 不能登录（只读）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读排查，未改 Nginx / 未 reload / 未启停容器）
+- 原因：`acquilangai.com` 正式废除，临时改用 `konghai.me`。用户已把 `m-al` / `admin-al` / `api-al.konghai.me` 解析到生产机，并在宝塔里替换了原域名。现场 `m-al` 打不开，`admin-al` 不能登录。
+- 影响：无配置变更。三站点现状如下。
+- 回滚方式：无需回滚。
+
+### 现场基线
+
+| 项 | 实测 |
+| --- | --- |
+| DNS | `m-al` / `admin-al` / `api-al.konghai.me` 均 A 到 `47.239.167.8`；旧域名同样仍指向该 IP |
+| 证书 | 三张新 Let's Encrypt 均有效到 2026-12-09，SAN 只覆盖新域名 |
+| `https://api-al.konghai.me/` | 200，后端健康（`runtime_profile=full`） |
+| `https://admin-al.konghai.me/` | 200，管理中台 HTML 能打开 |
+| `https://m-al.konghai.me/` | **502** |
+| 容器 | `acquilang-backend` `:8000`、`acquilang-admin` `:3001` 在跑；**没有** `acquilang-mobile`，本机也无该镜像；`:3002` 无人监听 |
+| 宝塔 vhost | 文件名仍是旧域名，`server_name` 已改成新域名（mtime 2026-09-10 23:41–23:46） |
+
+### 结论
+
+**1. `m-al.konghai.me` 502：反代到已不存在的 `:3002`。**
+
+宿主机 Nginx `location ^~ /` 仍 `proxy_pass http://127.0.0.1:3002`。error log 全是 `connect() failed (111: Connection refused) while connecting to upstream ... 127.0.0.1:3002`。生产约定是宿主机 Nginx 直接托管静态目录 `/www/wwwroot/python/acquilang/acquilang-mobile-web/out`（见 AcquiLang 仓库 `docs/deployment/MOBILE-WEB-STATIC-HOSTING.md`），不再跑 mobile 容器。`out/` 目录在，含 `index.html` / `download/` / `build-Latest.apk`。宝塔换域名时按 Docker 反代模板重生了配置，把静态托管冲掉了。
+
+**2. `admin-al.konghai.me` 不能登录：前端仍打旧 API，且新 API 站点 CORS 被冲掉。**
+
+- 管理中台 JS 构建时写死 `baseURL:"https://api.acquilangai.com"`（`/assets/index-DLFr9_Vp.js`）。容器内 Nginx CSP 也只允许 `connect-src 'self' https://api.acquilangai.com`。
+- 宝塔把 API 站点 `server_name` 改成 `api-al.konghai.me` 后，SNI `api.acquilangai.com` 落到默认站，证书 subject 为空、有效期 2025–2035，浏览器会在 TLS 阶段失败。
+- 当前 `api.acquilangai.com.conf` **没有** CORS 白名单。登录 POST 到新 API 业务上是通的（错误密码返回 401 `用户名或密码错误`），但响应头无 `Access-Control-Allow-Origin`；OPTIONS 预检是 405。后端 `APP_ENV=production`，按设计不自己加 CORS，必须由 Nginx 加。2025-11-15「正常登陆」备份里有 CORS，白名单还是旧的 `admin.acquilangai.com` / `m.acquilangai.com`。宝塔换域名按模板重生后，这段自定义 CORS 丢了。
+
+旧三域名 DNS 仍指向本机，但已无匹配 `server_name`，不能当兼容入口。
+
+### 建议修复（未执行，需确认后改 Nginx 并 `nginx -s reload`）
+
+1. **mobile**：去掉 `:3002` 反代，按静态托管手册把 `root` 指到 `acquilang-mobile-web/out`，保留 `/download` 与 `/build-Latest.apk`。静态 JS 里仍有 `api.acquilangai.com`，需 `sub_filter` 换成 `https://api-al.konghai.me`（长期应重建 `out/`）。
+2. **API**：把 CORS 白名单加回 `location ^~ /`，允许 `https://admin-al.konghai.me` 与 `https://m-al.konghai.me`，OPTIONS 返回 204。
+3. **admin**：宿主机反代层隐藏容器 CSP，改为允许 `connect-src 'self' https://api-al.konghai.me`；对 JS 做 `sub_filter` 把 `https://api.acquilangai.com` 换成新 API（关闭上游 gzip，否则替换无效）。长期应重建 `acquilang-admin` 镜像。
+
+回滚：先备份三份 vhost，reload 后若异常把备份拷回再 reload。不改容器、不改证书、不改防火墙。
+
 ## 2026-09-10 23:22 CST - 把站点 Let's Encrypt 套到宝塔面板并重启
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
