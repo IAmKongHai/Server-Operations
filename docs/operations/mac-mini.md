@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-09-11 23:08 CST - AcquiLang 首次本机 preview `--local` 已在 mac-mini 打通
+
+- 服务器：`mac-mini`
+- 操作人：用户图形 Terminal 跑 `~/gha/scripts/acquilang-first-local-eas-builds.sh`；`Grok` 核对产物
+- 原因：Expo 要求每个平台先在本机成功一次 `--local`，CI `--non-interactive` 才能过。
+- 影响：只跑了 `preview` 本机构建，未 submit、未改 runner、未写 Secret。
+- 验证：
+  - Android APK `~/Builds/acquilang-native-first-local/android-preview.apk` 41MB，`unzip -t` 通过；包名 `com.acquilang.mobile`，versionName `1.7.0` / versionCode `19`，含 `classes.dex`、Hermes、`arm64-v8a`。
+  - iOS IPA `~/Builds/acquilang-native-first-local/ios-preview.ipa` 7.8MB，`unzip -t` 通过；bundle `com.acquilang.mobile`，version `1.7.0` (29)，有 `_CodeSignature`、`Payload/AcquiLangAI.app/AcquiLangAI`、`main.jsbundle`。
+  - 日志两次 `Build successful`，23:08:25 +08 `done`。`expo-doctor` 非零退出被 EAS 当成警告，没有挡住打包。
+- 未做：未跑 `production`，未点 GitHub Actions。本机门槛已满足。
+
 ## 2026-09-11 22:50 CST - 放置 AcquiLang 首次本机 eas build --local 脚本
 
 - 服务器：`mac-mini`
