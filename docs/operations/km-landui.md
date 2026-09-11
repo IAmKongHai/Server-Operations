@@ -1,5 +1,30 @@
 # km-landui 运维操作时间线
 
+## 2026-09-11 14:00 CST - 把 kh-tizi 写成原生 VLESS outbound
+
+- 服务器：`km-landui`
+- 操作人：`Grok`
+- 原因：Tun 已启动，但 `curl https://www.google.com` 仍 RST。`www.google.com` 被污染成 Facebook IP（`157.240.7.20`）。
+- 影响：ShellCrash 短暂重启。SSH 保护规则仍在，会话未断。出国流量现走 `kh-tizi`（tizi `74.211.103.83`）。
+- 备份：`/etc/ShellCrash/jsons/config.json.bak.20260911`
+
+### 根因
+
+`crashcore=singboxr`，实际二进制是官方 **sing-box 1.13.14**。它不把 `providers/uri_group` 里的 `vless://` 分享链接展开成节点。URLTest 组只剩占位 `Compatible`（Direct），DNS/443 都从昆明直出。
+
+### 做了什么
+
+从 `providers_uri.cfg` 生成原生 `vless` outbound `kh-tizi`（REALITY / vision），写入 `jsons/config.json`；selector / Uri_group 指向该节点。去掉无效的 `providers` 块。
+
+### 验证
+
+- API：`kh-tizi` type=VLESS，urltest delay **173ms**
+- `getent www.google.com` → `142.251.151.119`（真 Google，不再是 Facebook）
+- `curl https://www.google.com` → **http=200**（透明代理）
+- Cloudflare trace：`ip=74.211.103.83` `loc=US`
+
+回滚：`cp -a /etc/ShellCrash/jsons/config.json.bak.20260911 /etc/ShellCrash/jsons/config.json && systemctl restart shellcrash`
+
 ## 2026-09-11 13:14 CST - ShellCrash 本机 Tun 放行入站回程后启动
 
 - 服务器：`km-landui`（`43.228.79.237:28285`）
