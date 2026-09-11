@@ -1,5 +1,28 @@
 # nyh-prod 运维时间线
 
+## 2026-09-12 00:20 CST - 在 nyh-prod 冒烟 japitech SOAP CA bundle（未改生产代码、未启停进程）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读探测 + `/tmp` 临时文件；未覆盖 `/www/wwwroot/python/vtsi-*`，未 `supervisorctl` 启停）
+- 原因：japitech 有 IP 白名单，本机 TLS 测不了。用户已自行停止全部 Supervisor 服务，避免干扰测试。
+- 影响：无生产代码/进程变更。`/tmp` 留下探测用 PEM 与 `/tmp/vtsi-ssl-test/` 隔离树。
+- 回滚方式：无需回滚。临时文件可事后清理。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| 系统 curl | `ssl=20`，`-k` HTTP 200；链仍缺 R1v1 中间证，服务本身还在 |
+| 对端送出 | 叶子 `CN=*.japitech.com`（issuer=R1v1）+ `GoDaddy TLS Root CA - R1`（G2 交叉签）+ G2 根；**没有** R1v1 中间证 |
+| certifi 2024.2.2 | 有 G2 根，**没有** `GoDaddy TLS Root CA - R1` |
+| `certifi` + 仅 R1v1 中间证 | OpenSSL 3.5.6 `Verify return code: 2`；Python `unable to get issuer certificate` |
+| `certifi` + R1v1 + 官方 TLS Root R1 | OpenSSL `Verify return code: 0`；`requests` HTTP 200；zeep `Client(wsdl)` 成功，操作 `CreateSession,Execute` |
+| 隔离树 `/tmp/vtsi-ssl-test` | 用待发版 `SoapWeb` 建连成功，`client_ok True`。未调 `CreateSession` 业务 |
+
+### 结论
+
+只加中间证不够：OpenSSL 3 会继续追 R1v1 的签发者。代码仓已改为运行时拼接 `certifi` + `gd_tls_issuing_dv-r1v1.pem` + `gd_tls_root-r1.pem`。生产目录尚未覆盖，Supervisor 仍由用户停着。
+
 ## 2026-09-12 00:07 CST - 复测 japitech 证书链（只读，用户已重启）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
