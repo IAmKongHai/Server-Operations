@@ -1,5 +1,33 @@
 # km-landui 运维操作时间线
 
+## 2026-09-11 13:14 CST - ShellCrash 本机 Tun 放行入站回程后启动
+
+- 服务器：`km-landui`（`43.228.79.237:28285`）
+- 操作人：`Grok`
+- 原因：用户要继续用本机 Tun 透明代理，但不能再掐 SSH。
+- 影响：`shellcrash.service` 现为 **active**（仍 **disabled**，开机不自启）。SSH / derper / RustDesk 入站回程不再进 `utun`；本机主动出站仍走 Tun。
+- 备份：
+  - `/etc/ShellCrash/starts/fw_nftables.sh.bak.20260911`
+  - `/etc/ShellCrash/starts/afstart.sh.bak.20260911`
+  - `/etc/ShellCrash/configs/task/afstart.bak.20260911`
+- 回滚：把两个 `.bak.20260911` 拷回后 `systemctl stop shellcrash`。
+
+### 做了什么
+
+1. 新增 `/etc/ShellCrash/configs/fw_protect_inbound.sh`：`ct direction reply return` + `tcp sport 28285 return`
+2. 在 `fw_nftables.sh` 的 OUTPUT 建链、JUMP 之前 `add` 这两条（无窗口）
+3. `afstart.sh` 在 `fw_start.sh` 之后再 `insert` 一次；`configs/task/afstart` 作第三备份
+4. `systemd-run` 180s 看门狗：没有 `/tmp/shellcrash-ssh-ok` 就停服务。新 SSH 通了之后已停掉看门狗
+
+### 验证
+
+- 原 SSH 会话未断；`ssh -o ControlMaster=no km-landui` 新建也通
+- nft OUTPUT 顺序：dns / mark / skgid → **reply + sport 28285** → 保留地址 → `mark set 0x1ed4`
+- `CrashCore` 听 `7890` / `9999`，`utun` UP
+- 节点组当前落到 Direct，出国流量还没走代理（另案）
+
+升级 `starts/*.sh` 后必须重打补丁。详见 `docs/solutions/km-landui/runtime-errors/shellcrash-tun-kills-ssh-2026-09-11.md`。
+
 ## 2026-09-11 12:51 CST - 排查 ShellCrash 启动后 SSH 断连（只读）
 
 - 服务器：`km-landui`（`43.228.79.237:28285`）

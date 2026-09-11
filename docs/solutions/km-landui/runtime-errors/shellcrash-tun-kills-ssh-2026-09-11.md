@@ -75,25 +75,47 @@ journal 对得上（两次，都是启动后约 1 秒）：
 
 2026-09-10 08:21 UTC 同一模式，SSH 与多条 DERP 连接一起 RST。本机没有 `systemd-resolved`，`resolvectl` 那三步失败，DNS 劫持不是主因；真正掐断会话的是 nftables OUTPUT mark + TUN 默认路由。
 
-## 不要再这样用
+## Resolution
 
-`km-landui` 是公网 VPS，靠 SSH 管理，还要给 Tailscale 当 DERP。Tun / Tproxy **本机透明代理**会劫持本机所有出站（含 sshd、derper）。这套模式适合路由器，不适合这台机。
+保留 `firewall_area=2` + `redir_mod=Tun` + `common_ports=OFF`（全端口本机透明代理），在 nftables OUTPUT 链的 JUMP **之前**放行入站回程：
 
-## Resolution（推荐，尚未改机）
+```text
+ct direction reply return
+tcp sport 28285 return
+```
 
-按安全程度：
+- `ct direction reply`：所有入站连接的回包（SSH / derper / RustDesk）不进 `utun`
+- `tcp sport 28285`：即使 conntrack 丢了，sshd 回包也直出 `eth0`
+- 本机主动发起的 NEW 连接仍被 mark 进 Tun
 
-1. **纯净模式（推荐）**  
-   `crash` → 内核功能设置 → 防火墙运行区域 → **纯净模式**（`firewall_area=4`）。  
-   只监听 mixed-port `7890`，不改路由 / nft。需要代理的进程自己走 `http://127.0.0.1:7890` / SOCKS。
+落地文件：
 
-2. **若必须透明代理本机**  
-   不要用 Tun。至少打开「常用端口」（`common_ports=ON`，默认只拦 `22,80,443,8080,8443`）。SSH 回程目的端口是高位端口，会被这条规则放行。  
-   仍不要对这台机开局域网透明代理（`firewall_area=1/3`）。
+| 路径 | 作用 |
+| --- | --- |
+| `/etc/ShellCrash/configs/fw_protect_inbound.sh` | 规则本体（升级一般不会覆盖 `configs/`） |
+| `/etc/ShellCrash/starts/fw_nftables.sh` | 建链时 `add`（无窗口，主路径） |
+| `/etc/ShellCrash/starts/afstart.sh` | `fw_start.sh` 之后立刻 `insert`（备份） |
+| `/etc/ShellCrash/configs/task/afstart` | 官方钩子再 insert 一次（备份；后台跑） |
 
-3. **未改配置前不要点启动**  
-   当前 systemd 已 disable，保持即可。不要 `systemctl enable shellcrash`。
+备份：`fw_nftables.sh.bak.20260911`、`afstart.sh.bak.20260911`。
 
-改完后先用 **第二路会话** 验证：一个 SSH 保持登录，另一个再 `crash` 启动；确认原会话还在、新 SSH 还能连上，再看 `ss -tlnp | grep 7890`。
+回滚：
 
-不要在唯一的 SSH 会话里直接启动旧配置做实验——会再次锁死，只能走云厂商重启。
+```bash
+cp -a /etc/ShellCrash/starts/fw_nftables.sh.bak.20260911 /etc/ShellCrash/starts/fw_nftables.sh
+cp -a /etc/ShellCrash/starts/afstart.sh.bak.20260911 /etc/ShellCrash/starts/afstart.sh
+systemctl stop shellcrash
+```
+
+**不要**用「常用端口」当主方案：那会把透明代理收成只拦 `22,80,443,8080,8443`。
+
+### 验证（2026-09-11 13:12 CST）
+
+- `shellcrash.service` **active**，`utun` UP，OUTPUT 链里上述两条 return 在 JUMP 之前
+- 原 SSH 会话还在；`ControlMaster=no` 新建 SSH 成功
+- derper / hbbs / hbbr 仍在听
+- systemd 保持 **disabled**（开机不自启）。升级 ShellCrash 会覆盖 `starts/*.sh`，覆盖后必须再打补丁，否则会再次锁死 SSH
+
+### 透明代理与节点
+
+流量劫持路径已通。当前 `Uri_group` 健康检查落到 `Compatible`（Direct），`cloudflare.com/cdn-cgi/trace` 仍显示 `ip=43.228.79.237`。这是节点/订阅问题，不是 SSH 劫持。要出国先把 VLESS 组调到可用节点。
