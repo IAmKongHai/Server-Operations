@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-09-11 22:50 CST - 放置 AcquiLang 首次本机 eas build --local 脚本
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：用户已自行写入 GitHub Secret `EXPO_TOKEN`；接下来要在图形界面打通 Expo 的本机 `--local` 门槛。
+- 影响：只新增可执行脚本，未跑构建、未改 runner、未写 token。
+- 路径：`~/gha/scripts/acquilang-first-local-eas-builds.sh`（仓库副本 `scripts/acquilang-first-local-eas-builds.sh`）
+- 回滚：删该脚本即可。
+- 用法（图形登录后的 Terminal，不要 sudo、不要纯 SSH）：
+  ```bash
+  /Users/konghai/gha/scripts/acquilang-first-local-eas-builds.sh
+  ```
+- 脚本行为：`git fetch` + ff-only 到 `origin/master`；pnpm 9.15.1；`eas-cli@latest`；若未登录则交互 `eas login`；串行 `preview` Android APK、iOS IPA；产物 `$HOME/Builds/acquilang-native-first-local/`；日志 `~/Library/Logs/acquilang-first-local-eas-builds.log`。有 `Runner.Worker` 则退出。不 submit。
+
 ## 2026-09-11 21:44 CST - `mac-mini-acquilang-native-1` 已改为 LaunchDaemon
 
 - 服务器：`mac-mini`
