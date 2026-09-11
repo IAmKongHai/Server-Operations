@@ -1,5 +1,15 @@
 # mac-mini 运维时间线
 
+## 2026-09-12 01:12 CST - AcquiLang Android JDK 探测已改，等待只重跑 android
+
+- 服务器：`mac-mini`（文档/workflow；未改本机 JDK）
+- 操作人：`Grok`（用户确认后改 AcquiLangAI `master`）
+- 原因：首次 CI Android 在 `java_home -v 17` 失败。
+- 影响：只改探测逻辑。iOS 路径不动。未触发新的 workflow。
+- 变更：AcquiLangAI `ci: Android JDK 探测回退到 Homebrew openjdk@17`。顺序：`java_home` → 已有 `JAVA_HOME`（须 17）→ `/opt/homebrew/opt/openjdk@17`。
+- 回滚：revert 该 commit。
+- 验证：未重跑。下一步由用户 `workflow_dispatch` `platform=android`（不必再打 iOS）。
+
 ## 2026-09-12 01:05 CST - AcquiLang 第一次 CI Android 在 JDK 探测步失败（构建未开始）
 
 - 服务器：`mac-mini`（`mac-mini-acquilang-native-1`）
