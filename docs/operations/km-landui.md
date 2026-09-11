@@ -1,5 +1,45 @@
 # km-landui 运维操作时间线
 
+## 2026-09-11 12:51 CST - 排查 ShellCrash 启动后 SSH 断连（只读）
+
+- 服务器：`km-landui`（`43.228.79.237:28285`）
+- 操作人：`Grok`（只读；未改配置、未启停服务）
+- 原因：用户在本机装了 [ShellCrash](https://github.com/juewuy/ShellCrash)；`crash` 菜单选启动服务后 SSH 立刻断开，必须重启机器才能再连上。
+- 影响：无配置变更。当前 `shellcrash.service` 为 `disabled` + `inactive`，`.dis_startup` 存在，重启后不会自启，所以现在 SSH 是通的。
+- 备份：无（只读）。
+- 回滚：无变更。
+
+### 现场状态
+
+| 项 | 值 |
+| --- | --- |
+| OS | Ubuntu 22.04，内核 `6.8.0-1065-azure`，主机名 `ldclouda31514` |
+| 当前 uptime | 约 14 分钟（用户重启后恢复 SSH） |
+| ShellCrash | `/etc/ShellCrash`，版本 `1.9.5beta3`，内核 `singboxr 1.13.14` |
+| systemd | `disabled` / `inactive` |
+| 透明代理 | `firewall_area=2`（仅本机）+ `redir_mod=Tun` + `common_ports=OFF` + `firewall_mod=nftables` |
+| 面板端口 | `9999`；mixed-port `7890` |
+
+### 复现时间线（上一次启动，journal `-b -1`）
+
+全部 UTC：
+
+1. `04:29:58` — `root` 从 `112.117.55.212` SSH 登录 `:28285`
+2. `04:30:28` — `systemd` `Starting ShellCrash Core...`
+3. `04:30:30` — 内核 `utun` 起来；CrashCore 调 `resolvectl domain utun ~.` / `default-route utun true` / `dns utun 198.18.0.2`（本机没有 systemd-resolved，这三步失败，但 TUN 已在）
+4. `04:30:31` — `Started ShellCrash Core`（`afstart.sh` 下 nftables OUTPUT mark + `ip route add default dev utun table …`）
+5. `04:30:32` — `sshd: Read error from remote host 112.117.55.212 port 14839: Connection reset by peer`
+
+同一秒 `derper` 到同一客户端 IP 的已建连也被 RST。2026-09-10 08:21 UTC 是同一模式：启动后 1 秒 SSH + 多条 DERP 连接一起 RST。
+
+### 根因
+
+本机透明代理（仅本机 + Tun + 拦截全部端口）把 **sshd 回程包** mark 进 `utun`。SSH 源端口是 `28285`（不在默认 22），客户端回程是高位 ephemeral 端口；`common_ports=OFF` 时 nftables **不按目的端口放行**，已建立 SSH 和新建 SSH 的 SYN-ACK 都被劫持。sshd 本身没挂，所以只能重启清掉 TUN / nft / policy routing。
+
+详解与推荐改法：`docs/solutions/km-landui/runtime-errors/shellcrash-tun-kills-ssh-2026-09-11.md`。
+
+**未改 ShellCrash 配置。** 下次启动前需要先改模式，否则会再次锁死 SSH。
+
 ## 2026-09-03 14:41 CST - derper 首页改为 Coming soon
 
 - 服务器：`km-landui`（`derp.nanyahui.com`）
