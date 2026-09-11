@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-09-12 01:05 CST - AcquiLang 第一次 CI Android 在 JDK 探测步失败（构建未开始）
+
+- 服务器：`mac-mini`（`mac-mini-acquilang-native-1`）
+- 操作人：`Grok`（只读 [job 103323225625](https://github.com/konghai-friends-lab/AcquiLangAI/actions/runs/34617561195/job/103323225625)）
+- 原因：同一 run 里 iOS 已成功，Android 红。
+- 影响：未改 runner、未重跑、未改 workflow。
+- 结论：
+  - 失败步是 `🔧 导出 Android SDK / JDK 17`，不是 Gradle / EAS。
+  - 工作流只用 `/usr/libexec/java_home -v 17`。本机 Homebrew OpenJDK 17.0.17 在 `/opt/homebrew/opt/openjdk@17`，**没有**登记进 macOS `java_home`（`/Library/Java/JavaVirtualMachines` 与 `~/Library/Java` 皆空），`java_home -V` 报 `Unable to locate a Java Runtime`。
+  - 槽 `.env` 已有 `JAVA_HOME=/opt/homebrew/opt/openjdk@17`，昨晚交互式 preview APK 就是用这条路径打出来的。工作流没回退到 `JAVA_HOME` / Homebrew keg。
+  - Android SDK 探测会通过；没走到 `eas build`。
+- 未做：未改 AcquiLangAI workflow。修复应让探测接受 Homebrew JDK 17，或给用户目录挂 `openjdk.jdk` 软链让 `java_home` 看见。
+
 ## 2026-09-12 00:57 CST - AcquiLang 第一次 CI：iOS 不是卡住，是 `eas submit --wait` 等 TestFlight
 
 - 服务器：`mac-mini`（`mac-mini-acquilang-native-1`）
