@@ -1,5 +1,37 @@
 # nyh-prod 运维时间线
 
+## 2026-09-12 00:07 CST - 复测 japitech 证书链（只读，用户已重启）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读。用户在 00:04:41 重启了 VTSI Supervisor 程序；本会话未改配置、未再重启）
+- 原因：japitech 让再试一次。用户重启后仍查不到订单状态。
+- 影响：无配置变更。`vtsi_smart_check` 仍 RUNNING（pid 861836，uptime 从 00:04:41 起）。5 笔 `status=1` 任务仍在。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| 重启 | 00:04:41 CST，`vtsi_smart_check` / `vts_smart_create` / dito / globe 一起拉起 |
+| 启动瞬间 | `00:04:42` `开启会话错误: SSLCertVerificationError: unable to get local issuer certificate`，WSDL `/partners/soap/index.php?wsdl` |
+| 之后 | 每秒 `'SoapWeb' object has no attribute 'client'`，30 次后 `Failed to get valid SessionIdData: {}` |
+| 中心任务 | 仍 5 笔：`1428147` `1428149` `1428150` `1428151` `1428152`，`api_result=None` |
+| 本机 `curl` | 仍 `ssl=20` / curl 60 |
+
+### 对端链（相对 21:05 有变，仍不完整）
+
+叶子没变：`CN=*.japitech.com`，issuer 仍是 `GoDaddy TLS Intermediate CA DV - R1v1`。
+
+现在服务器送出：
+
+1. 叶子
+2. `GoDaddy TLS Root CA - R1`（由旧 `Go Daddy Root G2` 交叉签发）
+3. `Go Daddy Root Certificate Authority - G2`
+
+**仍没有** 签发叶子的中间证 `GoDaddy TLS Intermediate CA DV - R1v1`。校验器从叶子找不到 issuer，所以 verify 20/21。重启解决不了。
+
+告诉 japitech：链里要加上官方中间证 `http://certificates.godaddy.com/repository/gd_tls_issuing_dv-r1v1.crt`，夹在叶子和 `GoDaddy TLS Root CA - R1` 之间。配好后本机 `curl` 应为 `http=200 ssl=0`，不必再重启。
+
 ## 2026-09-11 23:40 CST - 排查 vtsi-smart 订单状态不返回（只读）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）

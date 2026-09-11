@@ -43,19 +43,29 @@ tags: [vtsi, vtsi-smart, japitech, ssl-cert, soap, supervisor, nyh-prod]
 
 对端送出的链：
 
+故障刚发生时（2026-09-11 21:05）：
+
 | 位置 | subject | issuer |
 | --- | --- | --- |
 | 叶子 | `CN=*.japitech.com` | `GoDaddy TLS Intermediate CA DV - R1v1` |
 | 中间（错） | `Go Daddy Secure Certificate Authority - G2` | `Go Daddy Root Certificate Authority - G2` |
 | 再往上 | Go Daddy Root G2 / Class 2 | 与叶子无关 |
 
-叶子要的是 **R1v1** 中间证，服务器给的是 **G2**。校验器找不到 issuer，Python `requests`/`zeep` 拒绝握手。SOAP 服务本身还在（`-k` 200）。
+2026-09-12 00:07 复测（japitech 让再试、用户已重启）叶子没变，链改成了：
+
+| 位置 | subject | issuer |
+| --- | --- | --- |
+| 叶子 | `CN=*.japitech.com` | `GoDaddy TLS Intermediate CA DV - R1v1` |
+| 下一张 | `GoDaddy TLS Root CA - R1` | `Go Daddy Root Certificate Authority - G2`（交叉签） |
+| 再下一张 | `Go Daddy Root Certificate Authority - G2` | 自签 |
+
+**始终缺** 签发叶子的中间证 `GoDaddy TLS Intermediate CA DV - R1v1`。校验器从叶子找不到 issuer，Python `requests`/`zeep` 仍拒绝握手（verify 20/21）。SOAP 服务本身还在（`-k` 200）。重启后 `SoapWeb` 建 Client 失败，错误变成 `'SoapWeb' object has no attribute 'client'`。
 
 `common/soap_web.py` 捕获建连异常后只打日志，不重试、不设 `self.client`，所以全量重启后错误形态从 SSL 变成缺属性。
 
 ## Solution
 
-正确修复在 japitech / VTSI：HTTPS 必须带上与叶子 issuer 一致的 `GoDaddy TLS Intermediate CA DV - R1v1`，不要配 G2。本机不要关 SSL 校验。
+正确修复在 japitech / VTSI：HTTPS 必须带上与叶子 issuer 一致的 `GoDaddy TLS Intermediate CA DV - R1v1`（官方 DER：`http://certificates.godaddy.com/repository/gd_tls_issuing_dv-r1v1.crt`），夹在叶子和 `GoDaddy TLS Root CA - R1` 之间。只放新根的交叉签、不放这张中间证，本机仍然校不过。不要关 SSL 校验。
 
 链恢复后的验证：
 
