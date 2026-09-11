@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-09-12 00:57 CST - AcquiLang 第一次 CI：iOS 不是卡住，是 `eas submit --wait` 等 TestFlight
+
+- 服务器：`mac-mini`（`mac-mini-acquilang-native-1`）
+- 操作人：`Grok`（只读查 [run 34617561195](https://github.com/konghai-friends-lab/AcquiLangAI/actions/runs/34617561195) / [job 103323225695](https://github.com/konghai-friends-lab/AcquiLangAI/actions/runs/34617561195/job/103323225695)）
+- 原因：用户看 iOS job 跑了约 1h13m，以为构建卡住。
+- 影响：未改 runner、workflow、未取消 job。
+- 结论：
+  - 本地构建 23:43–23:46 CST 已成功，artifact `ios-production-1`（9.6MB IPA）已上传。
+  - 之后 `eas submit --non-interactive --wait` 把 IPA 传到 EAS（3s）并 `Scheduled iOS submission`。`--wait` 轮询 App Store Connect / TestFlight，到 00:56 CST 才结束（约 70 分钟）。步骤 conclusion=`success`。
+  - GitHub 日志停在 submission URL，是因为 eas-cli 进度用 `\r` 刷新，几乎不再吐新行，看起来像卡死。进程当时 CPU 接近 0，没有编译。
+  - Android job 因 `max-parallel: 1` 一直 `queued`，iOS 整段（含 submit）结束后才在 00:57 CST 开始。
+- 未改：workflow 仍带 `--wait`。若希望 Android 早点开跑，可把 submit 改成不等待 ASC 处理（另议）。
+
 ## 2026-09-11 23:08 CST - AcquiLang 首次本机 preview `--local` 已在 mac-mini 打通
 
 - 服务器：`mac-mini`
