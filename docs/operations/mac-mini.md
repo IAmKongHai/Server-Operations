@@ -1,5 +1,29 @@
 # mac-mini 运维时间线
 
+## 2026-09-11 21:44 CST - `mac-mini-acquilang-native-1` 已改为 LaunchDaemon
+
+- 服务器：`mac-mini`
+- 操作人：用户本机 `sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh`；`Grok` 清掉残留 nohup 并核对
+- 原因：该槽下午以 nohup 在跑，重启会掉。用户确认后装 LaunchDaemon。
+- 影响：
+  - `system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1` running（runsvc pid 55194，ppid=1）。注销图形用户、重启后应仍在线。
+  - plist：`/Library/LaunchDaemons/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1.plist`
+  - 安装脚本当时只按绝对路径 pgrep，漏掉 argv 为 `./runsvc.sh` 的旧 nohup（pid 38327/38329/55193）。Daemon Listener 55199 与残留 Listener 抢 session。随后只杀掉残留树，未碰 sonar / mobile / kfl 槽。
+  - 21:44 CST 日志 `Runner reconnected` / `Listening for Jobs`。
+- 备份：plist 源文件仍在 runner 目录；安装脚本随后改为按 cwd 杀掉残留。
+- 回滚方式：
+  ```bash
+  sudo launchctl bootout system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1
+  sudo rm /Library/LaunchDaemons/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1.plist
+  ```
+  然后在 runner 目录 `nohup ./runsvc.sh`（重启仍会掉）。
+- 验证：
+  - launchd `state=running`；该槽只剩一条 Listener。
+  - GitHub `mac-mini-acquilang-native-1` `online`，labels 仍含 `acquilang-native-ci`、不含 `mac-mini`。
+  - Listener 有 `JAVA_HOME` / `ANDROID_HOME`。
+  - `mac-mini-mobile-1`、sonar 1..4、`konghai-friends-lab-1` 仍 `online`。
+- 未做：未写入 `EXPO_TOKEN`；未跑交互式 `eas build --local`。`konghai-friends-lab-1` 仍是 nohup。
+
 ## 2026-09-11 13:58 CST - 注册 AcquiLang Native 专用槽 `mac-mini-acquilang-native-1`
 
 - 服务器：`mac-mini`

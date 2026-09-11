@@ -36,16 +36,42 @@ if [[ ! -f "$SRC_PLIST" ]]; then
   exit 1
 fi
 
-# 先停掉临时 nohup，避免和 Daemon 双开 Listener
-while read -r pid; do
-  [[ -n "$pid" ]] || continue
-  kill -TERM "$pid" 2>/dev/null || true
-done < <(pgrep -f '/Users/konghai/actions-runner/mac-mini-acquilang-native-1/bin/Runner.Listener' || true)
-while read -r pid; do
-  [[ -n "$pid" ]] || continue
-  kill -TERM "$pid" 2>/dev/null || true
-done < <(pgrep -f '/Users/konghai/actions-runner/mac-mini-acquilang-native-1/runsvc.sh' || true)
-sleep 1
+# 先停掉临时 nohup。旧进程 argv 可能是 `./runsvc.sh`，不含绝对路径，
+# 只 pgrep 绝对路径会漏掉，Daemon 会和残留 Listener 抢同一个 GitHub session。
+python3 - "$ROOT" <<'PY'
+import os, signal, subprocess, sys, time
+
+root = sys.argv[1]
+
+def cwd_of(pid):
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+        return next((x[1:] for x in out.splitlines() if x.startswith("n")), "")
+    except subprocess.CalledProcessError:
+        return ""
+
+out = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True)
+victims = []
+for line in out.splitlines():
+    pid = int(line.split(None, 1)[0])
+    if pid == os.getpid() or pid == os.getppid():
+        continue
+    cmd = line.split(None, 1)[1] if " " in line.strip() else ""
+    cwd = cwd_of(pid)
+    if cwd == root or root in cmd:
+        victims.append(pid)
+        print(f"stop leftover pid={pid} cwd={cwd} cmd={cmd}", flush=True)
+
+for pid in victims:
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+time.sleep(2)
+PY
 
 mkdir -p "$LOG_DIR"
 chown "${USER_NAME}:${GROUP_NAME}" "$LOG_DIR"

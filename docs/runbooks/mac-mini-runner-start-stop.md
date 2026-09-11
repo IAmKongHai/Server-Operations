@@ -87,13 +87,15 @@ gh api orgs/konghai-friends-lab/actions/runners \
 runs-on: [self-hosted, macos, arm64, acquilang-native-ci]
 ```
 
-2026-09-11 先以 `nohup ./runsvc.sh` 拉起。本机 sudo 一次后改成 LaunchDaemon：
+2026-09-11 21:40 CST 已装 LaunchDaemon：`system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1`。不要 `./svc.sh install`。仓库副本：`scripts/install-mac-mini-acquilang-native-runner-daemon.sh`。
+
+若需重装 Daemon：
 
 ```bash
 sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
 ```
 
-仓库副本：`scripts/install-mac-mini-acquilang-native-runner-daemon.sh`。不要 `./svc.sh install`。装上 Daemon 之后：
+kickstart：
 
 ```bash
 sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1
