@@ -1,5 +1,44 @@
 # nyh-prod 运维时间线
 
+## 2026-09-11 19:20 CST - 排查 load.nanyahui.com Gcash 下单 HTTP 500（只读）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读排查，未改 Nginx / PHP / 数据库 / 未重启）
+- 原因：用户截图 `load.nanyahui.com` Gcash 充值确认页报「提交失败，请关闭后重试」，底层 `HTTP 500 — https://load.nanyahui.com/v2/cash/createOrder`。账户 `0995 7605 002` / `Rachelle shao`，金额 20,000（含手续费应付 21,200）。
+- 影响：无配置变更。其它用户同一接口仍有 200（例如 19:15:15）。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| 客户端 | `124.106.183.33`，微信 iOS，referer `/new/find/cash?type=2`（Gcash） |
+| 登录 | 18:33:55 `v2/login/callback` → `user_id=106591`（昵称 A） |
+| 19:10:42 / 19:10:46 / 19:11:22 | `POST /v2/cash/createOrder` **HTTP 500**，响应 6636 字节（ThinkPHP 异常页） |
+| 更早同 IP 18:35 / 18:40 / 18:59 | 同一接口 **HTTP 200**、160 字节（业务错误 JSON，不是下单成功；成功约 84 字节） |
+| ThinkPHP `runtime/log/202609/11.log` | `[ error ] [8]未定义数组索引: bank`（三次，时间与 Nginx 500 对齐） |
+| Nginx error log | 当天为空，PHP-FPM 也无对应记录 |
+
+### 根因
+
+V2 创建订单走 `CashController::createOrder` → `CashOrderService::create` → `CashService::beforeCreate` → `checkNumberAmout`。号码若在 `load_cash_number` 且对应类型 `*_black` 为真，会写黑名单流水并读 `$config['bank']` / `$config['bank_id']`。
+
+- 老配置 `CashConfigModel::config($type)` 会把 `gcash_bank` 剥前缀成 `bank`。
+- V2 `CashConfigService::getFullConfig()` 只读 `cash_*` 公共键 + 各类型 `switch`，**没有** `bank` / `bank_id`。
+- ThinkPHP `error_reporting(E_ALL)`，未定义下标（E_NOTICE=8）被转成异常，前端看到 HTTP 500，而不是业务文案「您充值的账号被限制充值」。
+- 崩溃发生在 `CashOrderBlackModel::create` 之前，所以 `load_cash_order_black` 无记录。
+
+### 相关数据（只读）
+
+- 号码入库：`load_cash_number.number=9957605002`，备注 `106591 A 的号码`，创建 **18:47:57**，更新 **19:18:01**；查询时 `gcash_black=0`、`gcash_limit=50000`。500 发生在 19:10–19:11，当时必走了 `if ($black)`，即当时 `gcash_black` 为真；19:18 的更新与解除黑名单时间吻合。
+- 用户 `106591`：`gcash_limit=1`（白名单）、`gcash_amount_limit=50000`。
+- 当日该号码已成功一笔：订单 `2855` / `26091261575`，金额 2000，`account_name=Rachelle shao `，status=4，约 15:37。
+- `cash_max_amount=20000`，截图金额正好卡在上限。
+
+### 修复方向（未改生产代码）
+
+`CashService::checkNumberAmout` 对 `$config['bank']` / `$config['bank_id']` 做空值保护；和/或让 V2 `getFullConfig` 按类型补上 `{type}_bank` / `{type}_bank_id`，与老 `config()` 对齐。改代码需走 `load.nanyahui.com` 仓库发版，本机未动。
+
 ## 2026-09-11 01:10 CST - 按 AcquiLangAI 137de436 发布 admin 镜像和 mobile out/
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
