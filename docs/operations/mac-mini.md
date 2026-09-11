@@ -1,5 +1,44 @@
 # mac-mini 运维时间线
 
+## 2026-09-11 13:58 CST - 注册 AcquiLang Native 专用槽 `mac-mini-acquilang-native-1`
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（用户确认专用槽方案后执行）
+- 原因：AcquiLangAI Native workflow 原先 `runs-on: [self-hosted, mac-mini]`，会命中 iCare 的 `mac-mini-mobile-1`。用户选择新建专用槽，不复用 `konghai-friends-lab-1`，也不并进 preview 槽。
+- 影响：
+  - 仓库 `konghai-friends-lab/AcquiLangAI` 新增仓库级 runner `mac-mini-acquilang-native-1`（agentId 21），runner 2.337.0。
+  - labels：`self-hosted`, `macOS`, `ARM64`, `macos-arm64`, `acquilang-native-ci`。**无** `mac-mini` / sonar / quality / `konghai-friends-lab`。
+  - 程序目录 `~/actions-runner/mac-mini-acquilang-native-1`，workFolder `~/gha/al1`。
+  - 当前以 `nohup ./runsvc.sh` 运行，GitHub `online`。重启后会掉，LaunchDaemon 还没装（SSH `sudo -n` 失败，写 `/Library/LaunchDaemons` 要本机密码）。
+  - crontab 日/周维护 `WORK_DIRS` 增加 `~/gha/al1`。`~/bin/mac-mini-runner-resume.sh` 已列入该槽（Daemon 装上之前 kickstart 会 not loaded）。
+  - **未**碰 `mac-mini-sonar-1..4`、`mac-mini-mobile-1`、`konghai-friends-lab-1`。未注销、未改它们的 label。
+- 选型：仓库级而不是 org Default，避免其它仓的 `[self-hosted]` job 抢走 Native 编译。不要 `./svc.sh install`。
+- 备份：
+  - crontab：`~/Library/Logs/crontab.bak.20260911-acquilang-native`
+  - resume：`~/bin/mac-mini-runner-resume.sh.bak.20260911`
+  - `runsvc.sh.bak.20260911`（该槽内；现会 `source .env`）
+- 回滚方式：
+  1. 停该槽 Listener / `runsvc.sh`。
+  2. `gh api -X POST repos/konghai-friends-lab/AcquiLangAI/actions/runners/remove-token` 后在该目录 `./config.sh remove`。
+  3. 删 `~/actions-runner/mac-mini-acquilang-native-1` 与 `~/gha/al1`。
+  4. crontab 拷回 bak；resume 拷回 bak。
+- 变更时序：
+  1. 校验官方 tarball SHA-256 `5a2cd929…` 后解压 2.337.0；从 `mac-mini-mobile-1` 拷 `runsvc.sh`（官方包不再带该文件）。
+  2. `config.sh --unattended` 挂到 AcquiLangAI 仓库，`--labels macos-arm64,acquilang-native-ci`，未用 `--no-default-labels`。
+  3. 写入 `.env` / `.path`（JDK 17、Android SDK、node@22）和 Daemon plist 源文件。
+  4. 临时 `nohup` 拉起；清理重复 Listener 后单一进程重连成功。
+  5. crontab `WORK_DIRS` 加上 `~/gha/al1`。
+- 验证：
+  - 日志 `Listening for Jobs`；GitHub `status=online`，labels 含 `acquilang-native-ci`、不含 `mac-mini`。
+  - Listener 环境有 `JAVA_HOME` / `ANDROID_HOME` / `PNPM_STORE_PATH`；`node -v` = v22.23.2，OpenJDK 17.0.17。
+  - `mac-mini-mobile-1` 与 `konghai-friends-lab-1` 仍 `online`；sonar 1..4 仍 `online`（当时 busy，未重启）。
+- 未做：未装 LaunchDaemon；未写入 `EXPO_TOKEN`；未在 mac-mini 上对 AcquiLang 跑交互式 `eas build --local`。
+- 下一步（本机 sudo 一次即可常驻）：
+  ```bash
+  sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
+  ```
+  workflow 应写 `runs-on: [self-hosted, macos, arm64, acquilang-native-ci]`。
+
 ## 2026-09-10 10:03 CST - 只读确认 iCare-frontend-mas develop 定时 Sonar 失败为 Quality Gate，不是 runner
 
 - 服务器：`mac-mini`（runner `mac-mini-sonar-3`；SonarQube `26.5.0.122743`）
