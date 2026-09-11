@@ -1,5 +1,29 @@
 # nyh-prod 运维时间线
 
+## 2026-09-12 00:48 CST - 发布 VTSI japitech CA bundle workaround 并重启 6 个程序
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（用户确认发版且重启不是问题）
+- 原因：japitech 已修好链，服务已在跑。仍发布 extra CA + 空 client 重试，作为缺中间证时的兼容，并修 smart 建连失败不设 `self.client`。
+- 影响：只动 `vtsi-smart` / `vtsi-dito` / `vtsi-globe` 的 `common/soap_web.py` 与 `certs/`。只重启 6 个 VTSI 程序，拉单/提交/查询中断约数秒。未 `restart all`。
+- 备份：`common/soap_web.py.bak.20260912-0048`（三份）
+- 回滚方式：各目录 `git reset --hard` 到发版前 SHA（smart `61803ac` / dito `efd6e2f` / globe `560f400`），或把 `.bak.20260912-0048` 拷回 `soap_web.py` 后重启这 6 个程序。
+
+### 变更时序
+
+1. 本机 push：`vtsi-smart` `1a0c036`、`vtsi-dito` `6f36161`、`vtsi-globe` `50bede5`。
+2. 生产 `git pull --ff-only origin main`（三仓均 ff）。
+3. `supervisorctl restart vts_smart_create vtsi_smart_check vtsi_dito_check vtsi_dito_create vtsi_globe_check vtsi_globe_create`。
+
+### 验证
+
+| 项 | 结果 |
+| --- | --- |
+| 6 个程序 | 全部 RUNNING（约 00:48:50 起） |
+| smart / dito / globe | 重启后立刻再次出现「新 session 获取成功」`resultCode=2` |
+| 生产 `SoapWeb(wsdl)` | `client_ok True` |
+| `vtsi_smart_check.err.log` | mtime 仍是 00:14（停服务时），重启后无新 SSL / SessionId 异常 |
+
 ## 2026-09-12 00:20 CST - 在 nyh-prod 冒烟 japitech SOAP CA bundle（未改生产代码、未启停进程）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
