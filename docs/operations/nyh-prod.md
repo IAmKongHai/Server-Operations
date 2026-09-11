@@ -1,5 +1,41 @@
 # nyh-prod 运维时间线
 
+## 2026-09-11 23:40 CST - 排查 vtsi-smart 订单状态不返回（只读）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读排查，未改 Supervisor / Python / 证书 / 未重启）
+- 原因：`vtsi_smart_check` 不再回写订单状态。用户指定日志 `vtsi_smart_check.err.log` / `.out.log`。
+- 影响：无配置变更。Smart 查单从 **21:05:25 CST** 起全部失败；同一 VTSI SOAP `japitech.com` 上的 dito / globe 同样拿不到 session。中心仍能拉到 5 笔执行中任务，但状态回不来。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| `vtsi_smart_check.out.log` | 空（2026-04-10 起一直 0 字节） |
+| `vtsi_smart_check.err.log` | 257 次 `Exception: Failed to get valid SessionIdData` |
+| 业务日志 | `logs/查询反馈独立进程_run_time.log`（真正有时间戳） |
+| 最后一次成功 session | **21:04:24** `resultCode=2` |
+| 第一次失败 | **21:05:25** `SSLCertVerificationError: unable to get local issuer certificate`，对端 `japitech.com:443` `/partners/soap/index.php` |
+| 进程状态 | `vtsi_smart_check` RUNNING（pid 856344）。23:32:31 有人 `supervisorctl` 重启了全部程序，与根因无关 |
+| 待回写任务 | 5 笔，`status=1`，`api_result=None`：order `1428147` / `1428149` / `1428150` / `1428151` / `1428152`（创建时间 21:23–22:46，都在 SSL 挂掉之后） |
+
+### 根因
+
+查单链路：`vtsi_smart_check.Result` → `getSessionId` → SOAP `CreateSession`（WSDL `https://japitech.com/partners/soap/index.php?wsdl`）。
+
+对端证书链不完整：
+
+- 叶子：`CN=*.japitech.com`，签发方 `GoDaddy TLS Intermediate CA DV - R1v1`（`notBefore=2026-09-04 17:15:17 GMT`）
+- 服务器回的中间证却是 `Go Daddy Secure Certificate Authority - G2`，对不上叶子的 issuer
+- OpenSSL verify error 20/21；`curl` 报 60；`curl -k` 能拿到 HTTP 200（服务本身还在）
+
+`SoapWeb.__init__` 建 zeep Client 失败时只记 `开启会话错误`、不设 `self.client`。23:32 全量重启后变成 `'SoapWeb' object has no attribute 'client'`，30 次重试后返回 `{}`，再抛 `Failed to get valid SessionIdData`。stderr 只有这层包装，看不到 SSL。
+
+### 修复方向（未改生产）
+
+正确做法是让 japitech / VTSI 把叶子对应的 **R1v1 中间证** 配进 HTTPS 链，而不是 G2。本机不要关 SSL 校验、不要重启进程（重启也建不出 Client）。链修好后，那 5 笔 `status=1` 任务会重新被轮询；若 VTSI 侧从未成功 TOPUP，需要对照后再人工关单。
+
 ## 2026-09-11 19:20 CST - 排查 load.nanyahui.com Gcash 下单 HTTP 500（只读）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
