@@ -71,7 +71,7 @@ Timescale 官方推荐的 dump/restore 流程涉及 `timescaledb_pre_restore()` 
 
 ### 恢复方式
 
-Colima 只挂载 `~/stacks`，不要 bind `~/backups`。当前常驻方式是 `~/stacks/acquilang-postgres/docker-compose.yml`，宿主端口 **5435**。
+Colima 只挂载 `~/stacks`，不要 bind `~/backups`。当前常驻方式是 `~/stacks/acquilang-postgres/docker-compose.yml`，宿主端口 **5433**。
 
 ```bash
 # 1. 把 tar 拷到 Colima 可见目录后解压到 volume
@@ -105,7 +105,7 @@ docker exec acquilang-postgres psql -U acquilang_user -d acquilang_db -c 'ALTER 
 
 从 `acquilangai-20260814.tar.gz` 恢复到 Colima。要点（详见 `docs/operations/mac-mini.md` 当日条目）：
 
-- **端口**：宿主 **5435**（5433 已被 `cmm-postgres` 占用）。栈：`~/stacks/acquilang-postgres/`。
+- **端口**：宿主 **5433**（`cmm-postgres` 已迁到 **5436**）。栈：`~/stacks/acquilang-postgres/`。
 - **Colima virtiofs 只挂 `~/stacks`**：不能把 `~/backups` bind 进容器。解压 / 备份 tar 都要先落到 `~/stacks/acquilang-postgres/`。
 - **活库 tar 含 `postmaster.pid`**：解压后必须删掉，否则 PG 可能拒绝启动。
 - **扩展**：新镜像 Timescale 2.30.0，数据目录仍是 2.21.3，要对每个装了扩展的库执行 `ALTER EXTENSION timescaledb UPDATE;`（本实例是 `acquilang_db` 与 `ddricher_db`）。

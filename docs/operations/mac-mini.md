@@ -1,5 +1,44 @@
 # mac-mini 运维时间线
 
+## 2026-09-13 00:17 CST - cmm-postgres 改 5436，5433 还给 AcquiLangAI
+
+- 服务器：`mac-mini`（Colima `default`）
+- 操作人：`Grok`（用户要求把 5433 留给 AcquiLangAI TimescaleDB）
+- 原因：恢复 AcquiLang 时 5433 已被 `cmm-postgres` 占用，临时挂在 5435。用户要求把 5433 还给 AcquiLang。
+- 影响：
+  - `cmm-postgres` 宿主端口 **5433 → 5436**（`0.0.0.0:5436`）。菜苗苗本机开发 `DATABASE_URL` 需改端口；SIT（`mas-go-dev` / `shared-sit:5432`）和生产 TencentDB **不受影响**。
+  - `acquilang-postgres` 宿主端口 **5435 → 5433**（与项目 `docker-compose.yml` 一致）。
+  - 短暂停库各数秒（`docker-compose up -d --force-recreate`）。未改数据卷、密码、其它容器。
+- 选型：5432 richer、5433 AcquiLang、5434 shared-dev，故 cmm 用下一个空闲 **5436**（不复用刚腾出的 5435，避免和短暂的 AcquiLang 端口混淆）。
+- 备份：
+  - `~/stacks/cmm-postgres/compose.yml.bak.20260913-0017` 与 `.env.bak.20260913-0017`（600）
+  - `~/stacks/acquilang-postgres/docker-compose.yml.bak.20260913-0017` 与 `.env.bak.20260913-0017`（600）
+- 回滚方式：
+  ```bash
+  ssh mac-mini
+  cd ~/stacks/cmm-postgres
+  cp compose.yml.bak.20260913-0017 compose.yml
+  cp .env.bak.20260913-0017 .env
+  docker-compose up -d --force-recreate
+  cd ~/stacks/acquilang-postgres
+  cp docker-compose.yml.bak.20260913-0017 docker-compose.yml
+  cp .env.bak.20260913-0017 .env
+  docker-compose up -d --force-recreate
+  ```
+  回滚前须先停掉占用 5433 的 AcquiLang，否则 cmm 绑不回去。
+- 做了什么：
+  1. 确认 cmm 无外部客户端、`5436` 空闲；SIT 走 `mas-go-dev`，不连这台。
+  2. 改 `~/stacks/cmm-postgres` 的 `HOST_PORT` 与 compose 注释后 recreate。
+  3. 改 `~/stacks/acquilang-postgres` 的 `HOST_PORT` 为 5433 后 recreate。
+  4. 更新本机 `caimiaomiao/backend-cmm-api` 的 `.env` / 示例 / README / Makefile / `deploy/mac-mini`。
+- 验证结果：
+  - `cmm-postgres` healthy，`127.0.0.1:5436` 通，身份 `cmm|cmm`。
+  - `acquilang-postgres` healthy，`127.0.0.1:5433` 通，public 表仍 63。
+  - `5435` 空闲。richer / shared-dev / sonar / sub2api 未动、仍 healthy。
+- 连接：
+  - AcquiLang：`postgres://acquilang_user@<mac-mini>:5433/acquilang_db`
+  - 菜苗苗开发：`postgres://cmm@100.108.64.126:5436/cmm`
+
 ## 2026-09-13 00:11 CST - 从 2026-08-14 volume tar 恢复 AcquiLangAI TimescaleDB
 
 - 服务器：`mac-mini`（Colima `default`）
