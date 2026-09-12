@@ -1,5 +1,15 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-12 16:25 CST - 对照 km-landui 同城 RTT（只读）
+
+- 服务器：`mas-go-dev` → `km-landui`（`43.228.79.237`）
+- 操作人：`Grok`（只读）
+- 原因：评估小程序 API 改由昆明 `km-landui` 反代回本机。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+`ping 43.228.79.237` 4.6–5.5ms，0% 丢包；TCP 80/443/28285 通；`https://derp.nanyahui.com/` 200 / 35ms。`km-landui` 不在 tailnet 里，本机业务口仍只绑 Tailscale + 回环，对端现在打不进来。
+
 ## 2026-09-12 16:12 CST - 评估作为菜苗苗 SIT（nyh-prod 公网反代，只读）
 
 - 服务器：`mas-go-dev`（Tailscale `100.109.223.53`）

@@ -1,5 +1,30 @@
 # km-landui 运维操作时间线
 
+## 2026-09-12 16:25 CST - 评估作为菜苗苗小程序 API 反代（只读）
+
+- 服务器：`km-landui`（`43.228.79.237`）对照 `mas-go-dev`（`100.109.223.53` / 家宽 `112.117.55.212`）
+- 操作人：`Grok`（只读；未装 Nginx/Caddy/Tailscale，未改 derper / ShellCrash / 安全组）
+- 原因：用户问小程序 API 能否落本机、反代到同城 `mas-go-dev`，以及本机有没有反代能力。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| 反代软件 | **无** Nginx / Caddy / HAProxy / Apache / Docker |
+| 80 / 443 | 仍由 **`derper`** 独占（`derp.nanyahui.com`，Let's Encrypt + HTTP-01） |
+| Tailscale 节点 | **未装**。本机不是 tailnet member，只提供 DERP |
+| 到 `100.109.223.53` | ICMP **100% 丢**（没有 100.x 路由） |
+| 到家宽 `112.117.55.212` | ICMP 丢；TCP 443 不通（家里未对公网开业务口） |
+| 反向：`mas-go-dev` → 本机 | ICMP **4.6–5.5ms**；TCP 80/443/28285 OPEN；`https://derp.nanyahui.com/` 200 / 35ms |
+| 内存 | 1.8 GiB，available 约 1.3 GiB |
+| ShellCrash | 已装；当前 `inactive` / `disabled`（开机不自启）。一旦再开 Tun，会和 Tailscale 内核 TUN 抢路由 |
+
+### 结论（未部署）
+
+同城延迟成立（~5ms，明显好于 `nyh-prod` 的 ~40ms）。**当前没有反代能力，也到不了 `mas-go-dev`。** 要做门面必须同时：SNI 分流 443（不能把 derper 挤掉）、给本机一条到 `mas-go-dev` 的隧道（Tailscale userspace 或家宽端口映射）。内核 Tailscale TUN 不建议和现有 ShellCrash Tun 叠。大陆 IDC 对 80/443 还有备案/接入问题，香港 `nyh-prod` 没有这一层。
+
 ## 2026-09-11 14:00 CST - 把 kh-tizi 写成原生 VLESS outbound
 
 - 服务器：`km-landui`
