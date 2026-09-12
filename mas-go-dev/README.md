@@ -45,7 +45,9 @@ ssh mas-go-dev 'docker compose -f /opt/shared-sit/redis/docker-compose.yml --pro
 5. 不要用管理员账号进应用，不要复用 `evp` 库/密钥/Redis DB。
 6. 核算 Postgres 总连接数（当前上限 80）。
 
-EVP 已建：库/角色 `evp`（连接上限 40）、bucket `evp`、key 名 `evp-sit`。区域 `ap-southeast-1`，path-style。
+EVP 已建：库/角色 `evp`（连接上限 40）、bucket `evp`、key 名 `evp-sit`。区域 `ap-southeast-1`，path-style。Redis DB `1`。
+
+CMM 已建：库/角色 `cmm`（连接上限 20）、Redis DB `2`、无 Garage bucket（对象存储用腾讯 COS SIT，不走本机 Garage）。应用目录 `/opt/cmm-sit`（属主 `ec2-user`，mode `750`）。不要复用 `evp` 库/密钥/Redis DB，也不要拷 `cmm-prod` 的 `api.env`。
 
 当前 EVP 后端只认默认 AWS 凭据链，**没有** `S3_ENDPOINT`；SIT 应用先把 `S3_BUCKET` 留空也能启动。要用这套 Garage 需要业务仓补自定义 endpoint / path-style。会话仍在 PostgreSQL，Redis 已就绪但应用尚未接入。
 

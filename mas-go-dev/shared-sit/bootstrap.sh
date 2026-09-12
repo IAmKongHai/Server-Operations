@@ -106,6 +106,37 @@ fi
 docker exec -u postgres shared-sit-postgres psql -v ON_ERROR_STOP=1 -d postgres -c "REVOKE CONNECT ON DATABASE postgres FROM PUBLIC; REVOKE CONNECT ON DATABASE template1 FROM PUBLIC; REVOKE CONNECT ON DATABASE evp FROM PUBLIC; GRANT CONNECT ON DATABASE evp TO evp;"
 docker exec -u postgres shared-sit-postgres psql -v ON_ERROR_STOP=1 -d evp -c "REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT ALL ON SCHEMA public TO evp; ALTER SCHEMA public OWNER TO evp;"
 
+if [[ ! -f "$PG_DIR/tenants/cmm.env" ]]; then
+  CMM_PASS=$(openssl rand -hex 16)
+  cat >"$PG_DIR/tenants/cmm.env" <<EOF
+DATABASE_URL=postgres://cmm:${CMM_PASS}@${TS_IP}:5432/cmm?sslmode=disable
+PGHOST=${TS_IP}
+PGPORT=5432
+PGUSER=cmm
+PGDATABASE=cmm
+PGPASSWORD=${CMM_PASS}
+EOF
+  chmod 600 "$PG_DIR/tenants/cmm.env"
+fi
+
+# shellcheck disable=SC1091
+source "$PG_DIR/tenants/cmm.env"
+cat >"$ROLE_SQL" <<EOF
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cmm') THEN
+    CREATE ROLE cmm LOGIN PASSWORD '${PGPASSWORD}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT CONNECTION LIMIT 20;
+  END IF;
+END
+\$\$;
+EOF
+docker exec -i -u postgres shared-sit-postgres psql -v ON_ERROR_STOP=1 -d postgres <"$ROLE_SQL"
+if [[ -z "$(docker exec -u postgres shared-sit-postgres psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='cmm'")" ]]; then
+  docker exec -u postgres shared-sit-postgres psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE cmm OWNER cmm"
+fi
+docker exec -u postgres shared-sit-postgres psql -v ON_ERROR_STOP=1 -d postgres -c "REVOKE CONNECT ON DATABASE cmm FROM PUBLIC; GRANT CONNECT ON DATABASE cmm TO cmm;"
+docker exec -u postgres shared-sit-postgres psql -v ON_ERROR_STOP=1 -d cmm -c "REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT ALL ON SCHEMA public TO cmm; ALTER SCHEMA public OWNER TO cmm;"
+
 for i in $(seq 1 30); do
   if docker exec shared-sit-s3 /garage status >/dev/null 2>&1; then
     break
