@@ -1,5 +1,46 @@
 # nyh-prod 运维时间线
 
+## 2026-09-12 16:05 CST - 评估作为菜苗苗 SIT（只读）
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
+- 操作人：`Grok`（只读；未改 Nginx / Docker / Redis / RDS / 安全组 / 未启停进程）
+- 原因：用户问能否用本机做 `caimiaomiao` SIT（香港、不备案；声称有 RDS、存储桶、本机 Redis）。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 实测 |
+| --- | --- |
+| 规格 | 4 vCPU / 7.2 GiB，**无 swap**；used 3.4 GiB，available 3.8 GiB |
+| 磁盘 | `/` 79G 用 56%（剩 34G）；`/www` 147G 用 26%（剩 104G） |
+| 负载 | up 22 天；load 0.25 |
+| 80/443 | 宿主机 Nginx（宝塔 vhost）；约 20+ 站点，含 `load.nanyahui.com`、Acquilang、DDRicher |
+| Docker | 26.1.4；9 个容器，合计约 850 MiB（`acquilang-backend` 337、`richer-web` 174、`yunshu-api` 164） |
+| GitHub / GHCR | 通（`github.com` 200，`ghcr.io/v2/` 405） |
+| PostgreSQL 本机 | 无服务。镜像仅有 `postgres:16-alpine` / `17-alpine`，无 18 |
+| 本机 Redis | 宝塔 `/www/server/redis` **`:7480`**，`bind 0.0.0.0`，`requirepass` 已开；无认证 `NOAUTH`。不是 6379 |
+| 云 Redis | Tair `r-j6cqwmakari6dopitr.tairpena.rds.aliyuncs.com:6379`（richer / sms-admin 在用） |
+
+### 数据库（只读，未改库）
+
+- 宝塔远程服务器：`rm-j6cb0v171f2al0h41.mysql.rds.aliyuncs.com:3306`（备注「阿里云新 RDS」，**MySQL**）。NYH 多站点（`nyh_agent` / `nyh_center` / `nyh_agent_test` 等）合用。
+- 另有阿里云 **PostgreSQL RDS 17.7**（香港）：`pgm-j6cf5kaej216sx0z.pg.cnhk.rds.aliyuncs.com:5432`。现有库：`acquilangai_db`、`ddricher_db_dev`、`ddricher_db_prod`、`richer_go_db`、`yunshu`。探测账号 `ddricher_prod_user`：`CREATEDB=true`、非 super。
+- 另有一台 MySQL RDS `rm-j6cy97d754enhnu02.mysql.rds.aliyuncs.com`（`admin_apple` / `ax.nanyahui.com`）。
+
+菜苗苗生产与开发库是 **PostgreSQL 18**；本机现成 RDS **对不上 18**，MySQL 完全不能用。
+
+### 存储桶
+
+业务仓上传走腾讯云 COS SDK（`github.com/tencentyun/cos-go-sdk-v5`）。本机现成是阿里云 OSS / 各项目自有桶，**不是** COS 的 drop-in。SIT 文件应继续用腾讯云测试桶，不要改后端去接 OSS。
+
+### 结论（未部署）
+
+- **公网 HTTPS / 不备案 / GHCR**：比 `km-landui` 合适（443 已是 Nginx，可加 `sit-api` / `sit-admin` 反代）。
+- **不要复用**：MySQL RDS、PG RDS 上已有的 `richer_go_db` 等库、本机 Redis `7480`、Tair。
+- **主要风险**：本机是 NYH / Acquilang / DDRicher 生产合用机，无 swap；SIT 的 OOM、Nginx 配错、宝塔点保存冲掉 vhost，都会打到 `load.nanyahui.com` 等现网。
+- 部署属另开确认。建议若坚持用本机：只放应用容器 + 新 vhost；独立 PG18（新购或限额 Docker）+ `127.0.0.1` 专用 Redis；COS 仍走腾讯云。
+
 ## 2026-09-12 00:48 CST - 发布 VTSI japitech CA bundle workaround 并重启 6 个程序
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
