@@ -1,0 +1,99 @@
+name: cmm-sit
+
+x-api-service: &api-service
+  image: ${CMM_API_IMAGE:?CMM_API_IMAGE is required}
+  env_file:
+    - ./api.env
+  environment:
+    HTTP_ADDR: 0.0.0.0:8080
+  networks: [shared-sit]
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  mem_limit: 256m
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  api:
+    <<: *api-service
+    container_name: cmm-sit-api
+    command: ["/usr/local/bin/api"]
+    restart: always
+    ports:
+      - "127.0.0.1:25880:8080"
+      - "100.109.223.53:25880:8080"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 15s
+
+  worker:
+    <<: *api-service
+    container_name: cmm-sit-worker
+    command: ["/usr/local/bin/worker"]
+    restart: always
+    mem_limit: 128m
+
+  admin:
+    image: ${CMM_ADMIN_IMAGE:?CMM_ADMIN_IMAGE is required}
+    container_name: cmm-sit-admin
+    restart: always
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=32m,uid=101,gid=101
+      - /var/run:size=4m,uid=101,gid=101
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    ports:
+      - "127.0.0.1:25881:8081"
+      - "100.109.223.53:25881:8081"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [shared-sit]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  migrate:
+    <<: *api-service
+    profiles: ["ops"]
+    command: ["/usr/local/bin/migrate"]
+
+  seed:
+    <<: *api-service
+    profiles: ["ops"]
+    command: ["/usr/local/bin/seed"]
+
+  verify:
+    <<: *api-service
+    profiles: ["ops"]
+    command: ["/usr/local/bin/verify"]
+
+networks:
+  shared-sit:
+    name: shared-sit
+    external: true
