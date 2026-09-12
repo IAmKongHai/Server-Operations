@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-09-13 00:01 CST - 只读确认 AcquiLangAI 数据库当前未在跑
+
+- 服务器：`mac-mini`（Colima `default`）
+- 操作人：`Grok`（只读）
+- 原因：用户询问 `/Users/konghai/Code/Project/AcquiLangAI` 的数据库是否在 mac-mini 上运行。
+- 影响：只读。未启停容器、未改 volume / crontab / 备份。
+- 备份：无。
+- 回滚方式：无变更。
+- 做了什么：SSH 查 `docker ps -a`、named / anonymous volumes、Homebrew / 本机 postgres 进程、项目目录 compose、crontab 备份脚本与日志；在 `shared-dev-postgres` 列库。
+- 验证结果：
+  - **没有** `acquilang-postgres` / `acquilang-postgres-test` 容器（连 Exited 都没有）。项目 `docker-compose.yml` 在 Colima 上 `ps` 为空。无 Homebrew / 本机 `postgres` 进程。
+  - TimescaleDB 数据卷 `acquilangai_postgres_data` **不存在**。每日 cron `0 4 * * * ~/scripts/acquilangai-backup.sh` 仍在跑，自 **2026-08-15 04:00** 起每天报 `Volume acquilangai_postgres_data does not exist`。最后一份成功备份是 `~/backups/acquilangai/acquilangai-20260814.tar.gz`（27M；当时容器还在跑，备份带 WARN）。
+  - 源码目录仍在：`~/Code/Project/AcquiLangAI`（最近改动 2026-09-11，对应 Native runner / 本机 EAS，不是数据库）。
+  - `shared-dev-postgres`（`127.0.0.1:5434`）只有 `moo_ticket` / `moo_ticket_test`，没有 `acquilang_db`。
+  - 当前在跑的 Postgres 都是别的项目：`richer-postgres`（宿主 `5432`）、`cmm-postgres`（宿主 `5433`，与 AcquiLang 原 compose 端口冲突）、`shared-dev-postgres`（`5434`）、`sonar-postgres` / `sub2api-postgres`（未映射宿主端口）。
+- 背景：2026-08-15 02:38 迁 Colima 时**只迁了当时在跑的** `sonarqube` / `sonar-postgres` / `richer-*`。`acquilang-postgres` 当时已停，volume 留在 Docker Desktop，没有导入 Colima。同日 04:00 备份开始失败。
+- 未做：未从 `acquilangai-20260814.tar.gz` 恢复、未重建容器。若要重新上线，需另议端口（`5433` 已被 `cmm-postgres` 占用）。
+
 ## 2026-09-12 01:12 CST - AcquiLang Android JDK 探测已改，等待只重跑 android
 
 - 服务器：`mac-mini`（文档/workflow；未改本机 JDK）
