@@ -74,6 +74,14 @@ Antigravity 上游认的是带 thinking 档位的模型实体名，不是营销�
 
 网关目录里有基础名，不代表上游能创建该实体。订阅 3.7 Flash 要以当时 daily 端点实际返回 200 的变体名为准。
 
+## 菜苗苗 SIT
+
+### sit-api-cmm / sit-admin-cmm
+菜苗苗系统集成测试的公网 HTTPS 主机名（`sit-api-cmm.nanyahui.cn` / `sit-admin-cmm.nanyahui.cn`）。TLS 在 `nyh-prod` 终结，应用和 PostgreSQL 18 在 `mas-go-dev`。不是生产域名 `api.caimiaomiao.com` / `admin.caimiaomiao.com`。
+
+### shared-sit 租户
+`mas-go-dev` 上合部署 SIT 的隔离单位：独立 PostgreSQL 库和角色、独立 Redis DB 号、可选独立 Garage bucket。应用 compose 加入 Docker 网络 `shared-sit`，目录不放进 `/opt/mas-go-dev/`。菜苗苗 SIT 用库/角色 `cmm`、Redis DB `2`（EVP 已用 `1`），文件仍走腾讯云 COS，不用 Garage。
+
 ## 宝塔面板证书
 
 ### 面板 SSL
