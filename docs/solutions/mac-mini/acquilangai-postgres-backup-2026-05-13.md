@@ -49,8 +49,9 @@ Timescale 官方推荐的 dump/restore 流程涉及 `timescaledb_pre_restore()` 
 
 ### 文件
 
-- 脚本：`~/scripts/acquilangai-backup.sh`
+- 脚本：`~/scripts/acquilangai-backup.sh`（仓库副本 `scripts/acquilangai-backup.sh`）
 - 备份目录：`~/backups/acquilangai/acquilangai-YYYYMMDD.tar.gz`
+- 恢复源归档：`~/backups/acquilangai-restore-sources/`（不被 7 日滚动删除）
 - 日志：`~/Library/Logs/acquilangai-backup.log`
 - crontab：`0 4 * * *`（每天 04:00 本地时间，错开 codex/claude 07:00 高峰）
 - 滚动保留：7 份（~189 MB 总占用）
@@ -70,22 +71,24 @@ Timescale 官方推荐的 dump/restore 流程涉及 `timescaledb_pre_restore()` 
 
 ### 恢复方式
 
+Colima 只挂载 `~/stacks`，不要 bind `~/backups`。当前常驻方式是 `~/stacks/acquilang-postgres/docker-compose.yml`，宿主端口 **5435**。
+
 ```bash
-# 1. 解压到新 volume
-docker volume create acquilangai_postgres_data  # 或用现有 volume
+# 1. 把 tar 拷到 Colima 可见目录后解压到 volume
+docker volume create acquilangai_postgres_data
+cp ~/backups/acquilangai/acquilangai-YYYYMMDD.tar.gz ~/stacks/acquilang-postgres/restore.tar.gz
 docker run --rm \
   -v acquilangai_postgres_data:/dest \
-  -v ~/backups/acquilangai:/src \
-  alpine sh -c 'rm -rf /dest/* /dest/.* 2>/dev/null; tar -xzf /src/acquilangai-YYYYMMDD.tar.gz -C /dest'
+  -v "$HOME/stacks/acquilang-postgres":/src:ro \
+  alpine sh -c 'tar --numeric-owner -xzf /src/restore.tar.gz -C /dest && rm -f /dest/postmaster.pid'
+rm ~/stacks/acquilang-postgres/restore.tar.gz
 
-# 2. 启动 PG 容器
-docker run -d --rm --name acquilang-postgres \
-  -v acquilangai_postgres_data:/var/lib/postgresql/data \
-  -p 5432:5432 \
-  timescale/timescaledb:latest-pg16
+# 2. 启动（不要 --rm）
+cd ~/stacks/acquilang-postgres && docker-compose up -d
 
-# 3. 等 ready 后即可正常使用
+# 3. 等 ready；若镜像 Timescale 版本更新，升级扩展
 docker exec acquilang-postgres pg_isready -U acquilang_user -d acquilang_db
+docker exec acquilang-postgres psql -U acquilang_user -d acquilang_db -c 'ALTER EXTENSION timescaledb UPDATE;'
 ```
 
 ### 恢复演练（2026-05-13）
@@ -98,16 +101,20 @@ docker exec acquilang-postgres pg_isready -U acquilang_user -d acquilang_db
 - 启动到 ready：1 秒
 - TimescaleDB 扩展正常加载（`timescaledb_information.hypertables` 视图可查）
 
-## Operational Notes
+## Restored 2026-09-13
+
+从 `acquilangai-20260814.tar.gz` 恢复到 Colima。要点（详见 `docs/operations/mac-mini.md` 当日条目）：
+
+- **端口**：宿主 **5435**（5433 已被 `cmm-postgres` 占用）。栈：`~/stacks/acquilang-postgres/`。
+- **Colima virtiofs 只挂 `~/stacks`**：不能把 `~/backups` bind 进容器。解压 / 备份 tar 都要先落到 `~/stacks/acquilang-postgres/`。
+- **活库 tar 含 `postmaster.pid`**：解压后必须删掉，否则 PG 可能拒绝启动。
+- **扩展**：新镜像 Timescale 2.30.0，数据目录仍是 2.21.3，要对每个装了扩展的库执行 `ALTER EXTENSION timescaledb UPDATE;`（本实例是 `acquilang_db` 与 `ddricher_db`）。
+- **滚动 7 份会删恢复源**：恢复前把 tar 拷到 `~/backups/acquilangai-restore-sources/`。
+- **备份脚本**（2026-09-13 已改）：`PATH` 含 Homebrew docker；经 stacks 中转；容器先 `docker stop` 再 tar。仓库副本 `scripts/acquilangai-backup.sh`。
 
 ### 项目重新上线时
 
-当业主重新启动 `acquilang-postgres` 容器时，备份脚本会自动检测到 volume 被占用，输出 WARN 但继续 tar。这种"运行中 tar"理论上有不一致风险（PG 在写文件的同时被 tar 复制）。**生产场景下推荐**：
-
-- 改为 `docker stop acquilang-postgres → tar → docker start` 流程，几秒钟停服换一致性
-- 或者改用 `pg_dump --format=custom` + Timescale 官方 pre/post-restore 流程
-
-当前项目暂时不跑，**这两个改造可以推迟**。
+2026-09-13 起容器再次常驻。备份脚本已改为 `docker stop → tar → docker start`，不再对运行中 volume 做活 tar。
 
 ### 监控
 

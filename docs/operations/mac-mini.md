@@ -1,5 +1,39 @@
 # mac-mini 运维时间线
 
+## 2026-09-13 00:11 CST - 从 2026-08-14 volume tar 恢复 AcquiLangAI TimescaleDB
+
+- 服务器：`mac-mini`（Colima `default`）
+- 操作人：`Grok`（用户确认「恢复」后执行）
+- 原因：迁 Colima 时未导入已停的 `acquilang-postgres`；数据卷丢失。用户要求从最后一份成功备份恢复。
+- 影响：
+  - 新建 named volume `acquilangai_postgres_data`，容器 `acquilang-postgres`（`restart: always`，healthy）。
+  - 宿主端口 **5435**（原 compose 的 5433 已被 `cmm-postgres` 占用）。`0.0.0.0:5435 → 5432`。
+  - 未改 richer / cmm / shared-dev / sonar / sub2api。未启动项目 Redis / pgAdmin。
+  - 每日备份脚本改为：Homebrew `docker` PATH、经 `~/stacks` 中转 tar、容器先 stop 再 tar。
+- 选型：
+  - 恢复源：`~/backups/acquilangai/acquilangai-20260814.tar.gz`（sha256 `d71a22c1caf5d0794f19a5100580edbe11223803c88938b4320da5897c290de8`）。已另存 `~/backups/acquilangai-restore-sources/`，避免 7 日滚动删掉。
+  - 栈目录 `~/stacks/acquilang-postgres/`（Colima 只挂 `~/stacks`，不能 bind `~/backups`）。
+  - 镜像 `timescale/timescaledb:latest-pg16`，digest `sha256:75d58b53f3337a6babd3a1cce5e503f2300bdede62dd7d743651deb1a95b6d76`（PG 16.15）。
+- 备份：
+  - 恢复源副本：`~/backups/acquilangai-restore-sources/acquilangai-20260814.tar.gz`
+  - 旧备份脚本：`~/scripts/acquilangai-backup.sh.bak.20260913`
+- 回滚方式：
+  ```bash
+  ssh mac-mini 'cd ~/stacks/acquilang-postgres && docker-compose stop'
+  ```
+  保留 volume；不要 `down -v`。删容器后数据仍在 `acquilangai_postgres_data`。
+- 变更时序：
+  1. 核对 tar（PG16、uid 70、含 `postmaster.pid`，因 08-14 备份时容器仍在跑）。
+  2. 写 compose / `.env`（600）；`docker volume create`；把 tar 拷进 `~/stacks/acquilang-postgres/` 后 `--numeric-owner` 解压，并删 `postmaster.pid`。
+  3. `docker-compose up -d`；crash recovery 后 ready。Timescale 扩展 `2.21.3 → 2.30.0`（`acquilang_db` 与同实例 `ddricher_db`）。
+  4. 更新 `~/scripts/acquilangai-backup.sh` 并当场跑通一份一致快照 `acquilangai-20260913.tar.gz`（27M）；库随后 healthy。
+- 验证结果：
+  - `pg_isready` 通过；本机 `127.0.0.1:5435` 通。
+  - `acquilang_db` public 表 **63**；`llm_request_logs` 1562、`reading_sessions` 361、`lexemes` 6652、`token_usage` 3021、`reading_behavior_events` 2563；hypertables = 0。
+  - 同 volume 还有 `ddricher_db` / `nw_analysis` / `telegram_bot`（历史共用实例）。
+  - 其它容器仍 healthy。连接：`postgres://acquilang_user@<mac-mini>:5435/acquilang_db`（密码沿用项目 `docker-compose.yml` 开发口令，不写入本文）。
+- 未做：未恢复 Redis；未把 5435 加进 Tailscale Serve；镜像标签仍是 `latest-pg16`（digest 记在上面）。
+
 ## 2026-09-13 00:01 CST - 只读确认 AcquiLangAI 数据库当前未在跑
 
 - 服务器：`mac-mini`（Colima `default`）
