@@ -1,5 +1,31 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-12 18:04 CST - 启动菜苗苗 SIT（shared-sit 租户 + compose）
+
+- 服务器：`mas-go-dev`（Tailscale `100.109.223.53`）
+- 操作人：`Grok`
+- 原因：SIT 应用、PostgreSQL 租户、Redis DB 必须离开 `nyh-prod` 和 `cmm-prod`。
+- 影响：新增 compose 项目 `cmm-sit`（api/worker/admin），端口 `25880`/`25881` 只绑回环和 Tailscale。iCare `api` 与 EVP 的 `StartedAt` 未变。
+- 备份：`/opt/shared-sit/backup-before-cmm-*`（建租户前状态）；`/opt/shared-sit/bootstrap.sh.bak.20260912`。
+- 回滚方式：`cd /opt/cmm-sit && docker compose --env-file .deploy.env stop`。不要 `down -v`，不要 `--remove-orphans`。库/角色 `cmm` 可留着。
+
+### 变更时序
+
+1. 建库/角色 `cmm`（`CONNECTION LIMIT 20`），Redis DB `2` 空着。`/opt/cmm-sit` 属主 `ec2-user` mode `750`。
+2. 同步 `deploy/sit` compose / nginx overlay。GHCR digest 直拉失败，从 `cmm-prod` `docker save`/`load` 生产镜像后按 digest 十六进制打 tag。
+3. 独立 COS 桶 `cmm-sit-uploads-1469943699`（private、未开版本控制）+ CAM `cmm-sit-api`。未用 `cmm-prod-api`。
+4. `api.env` 600。`compose --profile ops run --rm migrate` → `seed` → `verify`（production seed，不是 seed-demo）。
+5. `up -d` 后 admin 因只读根上没有 `/tmp` 不健康；compose 给 admin 加 `/tmp` tmpfs 后 recreate admin，api/worker 未重建。
+6. loopback `smoke.sh` 通过；公网名在 Tailscale 直连恢复后同样通过。
+
+### 验证
+
+- AE3：角色 `cmm` 连库 `cmm` 成功，连 `postgres` 被拒。
+- `ss`：`25880`/`25881` 在 `127.0.0.1` 与 `100.109.223.53`，不是 `0.0.0.0`。`192.168.2.22:25880` 拒绝。
+- `GET http://127.0.0.1:25881/v1/meta` 返回 `cmm-api` JSON（overlay）。
+- `/readyz` ok；worker running；`ALLOW_DEMO_SEED=false`。
+- iCare `icare-backend-api-1` StartedAt 仍 `2026-09-12T05:08:04Z`；EVP web StartedAt 仍 `2026-09-11T07:57:52Z`。
+
 ## 2026-09-12 16:25 CST - 对照 km-landui 同城 RTT（只读）
 
 - 服务器：`mas-go-dev` → `km-landui`（`43.228.79.237`）

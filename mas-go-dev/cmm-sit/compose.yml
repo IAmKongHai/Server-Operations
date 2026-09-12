@@ -52,6 +52,7 @@ services:
     tmpfs:
       - /var/cache/nginx:size=32m,uid=101,gid=101
       - /var/run:size=4m,uid=101,gid=101
+      - /tmp:size=16m,uid=101,gid=101,mode=1777
     cap_drop:
       - ALL
     security_opt:

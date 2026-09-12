@@ -1,5 +1,31 @@
 # nyh-prod 运维时间线
 
+## 2026-09-12 18:04 CST - 菜苗苗 SIT 公网 HTTPS 反代到 mas-go-dev
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`）
+- 操作人：`Grok`（用户确认 Nginx reload；未改防火墙 / 未 `restart all`）
+- 原因：测试要用 `https://sit-api-cmm.nanyahui.cn` 和 `https://sit-admin-cmm.nanyahui.cn`。应用在 `mas-go-dev`，本机只做 TLS 终结 + Tailscale 反代。
+- 影响：新增两个普通网站 vhost。现网 `load.nanyahui.com` 在两次 reload 后仍 200。未把 5432/6380/3900 接到公网。
+- 备份：`/www/backup/nginx-vhost/cmm-sit-20260912-1719/`（含 HTTP-only vhost、reload 前 `nginx -T`、crontab 原文）。
+- 回滚方式：把该目录里的 vhost 拷回 `/www/server/panel/vhost/nginx/`，删掉两个新站点 conf，`crontab` 恢复备份，`nginx -t && nginx -s reload`。不要点宝塔 Docker 反代「保存」。
+
+### 变更时序
+
+1. DNS A 记录此前已指向 `47.239.167.8`。写入 HTTP-only vhost（`proxy_pass http://100.109.223.53:25880/25881`，upstream keepalive，ACME location 在反代之前），登记宝塔 `site.db`。
+2. 用户确认后 `nginx -s reload`。`load.nanyahui.com` 200。
+3. `PYTHONPATH=/www/server/panel` 调 `acme_v2.py` HTTP-01，证书到期 `2026-12-11`。宝塔「部署到站点」没有改 conf，手工加上 443 + HTTP→HTTPS（跳过 `/.well-known/`）。
+4. 再 reload。443 上 SAN 与磁盘证书一致。
+5. 首次公网探测因 Tailscale 卡在昆明 DERP（`rx 0`）返回 504。从 `mas-go-dev` `tailscale ping` 打出直连后，本机到 `100.109.223.53:25880` 约 38ms、`/healthz` 200。
+6. 增加 crontab：每分钟跑 `/www/server/cron/custom/cmm-sit-healthz.sh`（`tailscale ping` + `/healthz`，30s 两次，flock）。
+
+### 验证
+
+- `https://sit-api-cmm.nanyahui.cn/healthz` 与 `/readyz` 200；匿名 `/v1/staff/accounts` 401。
+- `https://sit-admin-cmm.nanyahui.cn/` 含 admin root div；同源 `/v1/meta` 为 cmm-api JSON。
+- 员工登录 cookie `Secure`、host-only `sit-admin-cmm.nanyahui.cn`、`Path=/v1/staff`；同一 cookie 打 API 主机名仍 401。
+- `http://sit-api-cmm.nanyahui.cn/.well-known/acme-challenge/ping` 由本机 Nginx 出文件，不是 Go JSON。
+- `https://load.nanyahui.com` 200。EVP `:25173` / `:25174` 200。
+
 ## 2026-09-12 16:12 CST - 评估 Nginx 反代到 mas-go-dev 做菜苗苗小程序入口（只读）
 
 - 服务器：`nyh-prod`（`100.78.12.107`）→ `mas-go-dev`（`100.109.223.53`）

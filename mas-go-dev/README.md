@@ -64,6 +64,25 @@ CMM 已建：库/角色 `cmm`（连接上限 20）、Redis DB `2`、无 Garage b
 
 账号 `platform.admin` / `hospital.admin`（org `demo-hospital`），密码见 `secrets.local.md`。只走 Tailscale。
 
+## 菜苗苗 SIT
+
+位置：`/opt/cmm-sit/`（属主 `ec2-user`）。compose 源文件在 `caimiaomiao` 的 `backend-cmm-api/deploy/sit/`；本仓库 `mas-go-dev/cmm-sit/` 仅作对照。不要用 `cypressoai` runner 组 `shared-sit`。
+
+| 入口 | 地址 |
+| --- | --- |
+| 公网 API | https://sit-api-cmm.nanyahui.cn |
+| 公网管理中台 | https://sit-admin-cmm.nanyahui.cn |
+| Tailscale API | http://100.109.223.53:25880/ |
+| Tailscale 管理中台 | http://100.109.223.53:25881/ |
+
+员工 Cookie 只挂在 `sit-admin-cmm.nanyahui.cn`（`Secure`、host-only）。Tailscale HTTP 只做 health/smoke，不能证明登录态。seed 管理员 `sit-admin`，密码见 `secrets.local.md`；首次登录必须改密。COS 桶 `cmm-sit-uploads-1469943699`，不是生产 `cmm-prod-uploads`。
+
+```bash
+ssh mas-go-dev 'docker compose --env-file /opt/cmm-sit/.deploy.env -f /opt/cmm-sit/compose.yml --project-directory /opt/cmm-sit ps'
+```
+
+回滚：对该目录 `docker compose stop`，不要 `down -v`，也不要 `--remove-orphans`。公网侧把 nyh-prod 两个 vhost 从备份 `/www/backup/nginx-vhost/cmm-sit-20260912-1719/` 拷回后 `nginx -t && nginx -s reload`。
+
 ```bash
 ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-directory /opt/evp-sit ps'
 ```
