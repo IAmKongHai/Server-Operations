@@ -1,5 +1,30 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-12 16:12 CST - 评估作为菜苗苗 SIT（nyh-prod 公网反代，只读）
+
+- 服务器：`mas-go-dev`（Tailscale `100.109.223.53`）
+- 操作人：`Grok`（只读；未改 Docker / 端口 / Nginx / ACL）
+- 原因：用户提议本机跑 SIT，小程序 API 经 `nyh-prod` 反代进来。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| 到 `nyh-prod` | 直连 `47.239.167.8:41641`，约 40ms，`active` |
+| NAT | `MappingVariesByDestIP: true`；公网映射 `112.117.55.212` |
+| DERP | 最近昆明自建 `km` 5.6ms；官方 `hkg` **499.5ms** |
+| 内存 | 7.7 GiB，available 约 5.3 GiB；swap 已用 890 MiB |
+| 磁盘 | 300G 用 25%，剩 225G |
+| shared-sit Postgres | **18.6**（与菜苗苗生产 / 开发库大版本一致） |
+| 端口 | `8080`/`8081` 已被 iCare 占用；EVP 用 `25173`/`25174`/`28081`/`28082`。菜苗苗需另选高位端口 |
+| 绑定惯例 | 业务口绑 `100.109.223.53` + `127.0.0.1`，不绑 `0.0.0.0` |
+
+### 结论（未部署）
+
+适合承载应用 + 独立库/Redis DB/Garage bucket。公网只让 `nyh-prod` 反代 API 端口。不要用 `cypressoai` 的 `shared-sit` runner 部署 `caimiamiao` 仓，继续 GitHub-hosted → SSH。家宽硬 NAT + 与香港没有共同好 DERP，直连断开时小程序入口会变慢或失败。
+
 ## 2026-09-09 13:59 CST - 把 cypressoai/evp 加入 mas-go-dev runner 组
 
 - 服务器：GitHub org `cypressoai` runner group `mas-go-dev`（id 3）；对照本机 `mas-go-dev-ci-1`

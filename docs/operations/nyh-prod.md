@@ -1,5 +1,29 @@
 # nyh-prod 运维时间线
 
+## 2026-09-12 16:12 CST - 评估 Nginx 反代到 mas-go-dev 做菜苗苗小程序入口（只读）
+
+- 服务器：`nyh-prod`（`100.78.12.107`）→ `mas-go-dev`（`100.109.223.53`）
+- 操作人：`Grok`（只读；未改 Nginx / Tailscale / 防火墙 / 未加站点）
+- 原因：用户提议 SIT 落 `mas-go-dev`，小程序 API 打到本机再 Tailscale 反代。
+- 影响：无配置变更。
+- 回滚方式：无需回滚。
+
+### 现场
+
+| 项 | 结果 |
+| --- | --- |
+| 路径 | **直连 UDP**。本机 → `mas-go-dev` 经家宽 `112.117.55.212:16853`，约 38–39ms；反向经 `47.239.167.8:41641`，约 40ms |
+| 首包 | `tailscale ping` 第一次曾 timeout，随后打通（家宽 `MappingVariesByDestIP: true`） |
+| HTTP | `curl http://100.109.223.53:25173/`（现网 EVP）首包 124ms / connect 80ms，随后 5 次均 200、约 77–81ms |
+| 本机 DERP | 最近官方 `hkg` 2ms；自定义昆明 `km` **测不到**（与 2026-08-28 条目一致） |
+| TCP 5432 | Tailscale 上端口开着（shared-sit Postgres 既有暴露，本次只探测未查询） |
+
+### 结论（未部署）
+
+方案可行：本机只做 TLS 终结 + 反代，应用和 PG18 留在 `mas-go-dev`。直连时多约 80ms，微信 `wx.request` 可接受。
+
+风险：直连掉了以后双方没有共同的好 DERP（家宽近 `km` 5.6ms、官方 `hkg` 约 500ms；本机到 `km` 不通）。需要 upstream keepalive / 定期探活保直连。只反代 API（可选 admin），不要把 5432/6379/3900 接到公网 Nginx。
+
 ## 2026-09-12 16:05 CST - 评估作为菜苗苗 SIT（只读）
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`，主机名 `NYH-2025`）
