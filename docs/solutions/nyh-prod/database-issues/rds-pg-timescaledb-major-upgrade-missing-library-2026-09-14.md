@@ -20,7 +20,7 @@ tags: [rds, postgresql, timescaledb, pg-upgrade, aliyun, ddricher]
 
 ## Context
 
-实例 `pgm-j6cf5kaej216sx0z`（RDS-Pg-2025，香港，基础系列）。要从 PostgreSQL 17 升到 18。预检查只在 `ddricher_db_prod` 失败。该库有 TimescaleDB，且有 hypertable `public.market_candles`（49 chunks），不能删扩展。
+实例 `pgm-j6cf5kaej216sx0z`（RDS-Pg-2025，香港，基础系列）。要从 PostgreSQL 17 升到 18。预检查只在 `ddricher_db_prod` 失败。该库有 TimescaleDB，且有 hypertable `public.market_candles`（49 chunks）。原地 `ALTER EXTENSION UPDATE` 升到 2.24 失败后，改为：把 hypertable 拷成普通表 → 卸扩展 → 升 PG18 → 再装 TimescaleDB 2.24.0 并 `create_hypertable`。
 
 ## 原因
 
@@ -50,36 +50,21 @@ RDS 不能往 PG18 镜像里塞 2.17.0 的 `.so`。必须先在 PG17 把扩展�
    事务回滚，目录不变。这是扩展脚本里的 `GRANT` 要写 `pg_catalog.pg_init_privs`，只有真正的 superuser（`alicloud_rds_admin` / `aurora`）能写。
 4. 控制面 `UpdatePostgresExtensions` 返回 200 并把实例打成短暂 `InstanceMaintaining`（会杀掉 TimescaleDB background worker），错误日志里**没有** `alicloud_rds_admin` 执行的 `ALTER EXTENSION`。目录仍 2.17.0。
 
-## 下一步（目录还没到 2.24）
+## 实际处理（2026-09-14）
 
-必须让 `alicloud_rds_admin` 在 `ddricher_db_prod` 执行：
+控制台「升级版本」和 DMS 都走不通之后，用户确认可停服，改为卸扩展再升大版本：
 
-```sql
-ALTER EXTENSION timescaledb UPDATE;
--- 或
-ALTER EXTENSION timescaledb UPDATE TO '2.24.0';
-```
+1. 手动快照 `BackupId 4001679489`。
+2. 把 `market_candles` 拷到普通表（143969 行对齐），再 `DROP TABLE` hypertable、改回原名并补 PK/UNIQUE，然后 `DROP EXTENSION timescaledb`（**不要 CASCADE**）。
+3. 预检查 `18.0` / `inPlaceUpgrade` 变为 Success。
+4. 本地升级立即割接，实例升到 PostgreSQL **18.4**（内核 `rds_postgres_1800_20260830`），连接串与包年包月不变。
+5. `CREATE EXTENSION timescaledb` → **2.24.0**，`create_hypertable(..., chunk_time_interval => '7 days', migrate_data => true)`。仍是 49 chunks、143969 行。
 
-可选做法：
-
-1. 控制台 **插件管理 → 已安装插件 → timescaledb → 升级版本**（可能走和 OpenAPI 不同的内部任务）。
-2. 工单请阿里云用 `alicloud_rds_admin` 跑上面的 SQL。
-3. 不要 `DROP EXTENSION timescaledb CASCADE`。
-
-完成后检查：
-
-```sql
-SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';
--- 期望 2.24.0
-SELECT DISTINCT probin FROM pg_proc WHERE probin LIKE '%timescaledb%';
--- 不应再出现 timescaledb-2.17.0
-SELECT hypertable_name, num_chunks FROM timescaledb_information.hypertables;
-```
-
-然后重新跑 PG18 升级检查。`shared_preload_libraries` 里已有 `timescaledb`，升大版本后继续留着。
+`shared_preload_libraries` 升级前后都含 `timescaledb`，装扩展无需再改参数。
 
 ## 不要做
 
 - 指望 PG18 自带 `timescaledb-2.17.0.so`。
 - 用高权限账号硬跑 `ALTER EXTENSION`（会失败，已验证回滚）。
 - 未迁走 `market_candles` 就 `DROP EXTENSION … CASCADE`。
+- 用 DMS 当 superuser：DMS 账号同样不是 `alicloud_rds_admin`。
