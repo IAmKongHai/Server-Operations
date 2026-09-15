@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-09-11  
+> 最后更新：2026-09-15
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -16,7 +16,8 @@
 | 非 iCare SIT 本机部署 | `shared-sit` / runner group `shared-sit` | **仅** mas-go-dev 上的 `shared-sit` runner | EVP 等非 iCare 项目部署到 `/opt/evp-sit` 等 | 质量门禁、iCare 仓库、`mas-go-dev` label |
 | Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner、**icare-2-uat-runner-2**（CYP-2263 burst） | Deploy MAS to Azure UAT、UAT 镜像构建 / mirror | 日常 PR CI |
 | 会员端 preview 本机构建 | `mobile-preview-ci` | **仅** `mac-mini-mobile-1` | iCare-mobile-app preview `eas build --local`（Android APK / iOS IPA，串行） | 质量门、backend CI、EAS 云构建、production、AcquiLang Native |
-| AcquiLang Native 本机构建 | `acquilang-native-ci` | **仅** `mac-mini-acquilang-native-1`（仓库级，`konghai-friends-lab/AcquiLangAI`） | AcquiLangAI `eas build --local`（iOS IPA / Android AAB，串行）后 `eas submit` | iCare 质量门、iCare preview、org 内其它仓 |
+| AcquiLang 日常 CI | `acquilang-ci`（+ `macos`,`arm64`） | **仅** `mac-mini-acquilang-ci-1`（仓库级，`IAmKongHai/AcquiLangAI`） | backend / admin / native 类型检查 / web / Sonar / CI 汇总，单 slot 排队 | 原生打包、其它仓库 |
+| AcquiLang Native 本机构建 | `acquilang-native-ci` | **仅** `mac-mini-acquilang-native-1`（仓库级，`IAmKongHai/AcquiLangAI`） | AcquiLangAI `eas build --local`（iOS IPA / Android AAB，串行）后 `eas submit` | iCare 质量门、iCare preview、org 内其它仓 |
 
 历史标签 `frontend-sonar-ci` 仍保留在部分 runner 上便于回滚；**新 workflow 应使用 `frontend-quality-ci`（PR）与 `mac-mini-sonar`（full）**。
 
@@ -27,6 +28,7 @@
 | `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci`。2026-08-19 曾停 3/4；**2026-08-25 已恢复四 slot 在线** |
 | `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签） |
 | `mac-mini-acquilang-native-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, `macos-arm64`, **`acquilang-native-ci`**（**无** `mac-mini` / sonar / quality / `konghai-friends-lab`） |
+| `mac-mini-acquilang-ci-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**；新增于 2026-09-15，日常 CI 独立 slot |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
 | `mas-go-dev` | mas-go-dev | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签）；组 `mas-go-dev` |

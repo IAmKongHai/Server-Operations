@@ -1,5 +1,34 @@
 # mac-mini 运维时间线
 
+## 2026-09-15 23:49 CST - 为 AcquiLangAI 注册独立日常 CI runner
+
+- 服务器：`mac-mini`；仓库 `IAmKongHai/AcquiLangAI`（个人 Pro 私有仓库）。
+- 操作人：`Codex`（注册、配置、CI 迁移与验证）；用户在本机执行 sudo 安装 LaunchDaemon。
+- 原因：Sonar 原先占用 `mac-mini-acquilang-native-1`，会与原生打包互相排队；其余日常检查仍走 GitHub 托管 runner。保留个人账号归属和 main 规则集，按仓库注册一个日常 CI slot。
+- 影响与选型：
+  - 新增 runner `mac-mini-acquilang-ci-1`（GitHub id `22`），labels `self-hosted,macOS,ARM64,acquilang-ci`。同仓库 PR/main 的六个 CI job 单 slot 排队。
+  - 现有原生 runner id `21`、`acquilang-native-ci` 标签和服务配置均未修改。两个实例共享 mac-mini CPU、内存、磁盘，新增一个 slot 可与现有任务并发。
+  - 变更前约 1 TiB 磁盘可用；内存 32 GiB，`memory_pressure` 报告 free percentage 57%，负载约 3.1。
+- 备份：`~/gha/backups/acquilang-ci-20260915-2328/`（700），保存原生 runner 的 plist、`.runner` 注册元数据、恢复脚本、资源状态，以及新 CI `.env` 配置共享 store 前的副本。新程序目录和工作目录在安装前确认不存在；未复制原生 runner 凭据。
+- 回滚方式：通过 PR 撤回 AcquiLangAI PR #22（最终 head `4e22dadc`）的 workflow 改动，恢复基础检查/汇总使用托管 runner、Sonar 使用原生 runner。若需停用新增服务，先确认无任务并取得操作确认，再按 runbook 的 `disable` + `bootout` 执行；保留注册、文件与缓存。
+- 变更时序：
+  1. 只读检查宿主资源、现有 runner 的注册和 LaunchDaemon。SSH `sudo -n true` 返回需要密码，因此准备脚本后由用户本机执行；未修改 sudoers。
+  2. 从 `actions/runner` 官方 release 下载 `2.337.0` 的 macOS ARM64 包，SHA-256 校验通过。程序目录 `~/actions-runner/mac-mini-acquilang-ci-1`，工作目录 `~/gha/alc1`，目录权限均为 700。
+  3. 使用短期注册 token 注册到 `https://github.com/IAmKongHai/AcquiLangAI`。token 仅通过进程内存与 SSH 传递，不写入文档或提交。
+  4. 新实例使用独立 `.env`、`.path`、工作目录与凭据；`PNPM_STORE_PATH` 和 `npm_config_store_dir` 指向 `~/gha/cache/pnpm-store`，实际 `pnpm store path` 返回该目录的 `v3`。
+  5. 用户执行 `sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh`。新增服务 `system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1`，配置 `RunAtLoad` / `KeepAlive` / `SessionCreate`，以 `konghai` 用户运行。未重启其它服务；未通过重启整机验证自启。
+  6. 首轮 CI 已成功进入 Sonar 扫描，但 `setup-node` 的收尾缓存尝试上传约 1.2GB 共享 pnpm store。移除四处远端 pnpm 缓存配置，复用本机持久 store；推送新提交后由既有 concurrency 配置取消旧轮次并重新验证。
+  7. 首轮 Python 安装失败：`actions/setup-python@v5` 的 macOS 包安装脚本尝试创建 `/Users/runner`，返回 Permission denied。确认宿主已安装 Homebrew Python 3.12.11，改为显式调用 `/opt/homebrew/opt/python@3.12/bin/python3.12` 执行原语法检查；未安装新 Python、未修改系统目录权限。
+  8. 为避免 `pnpm/action-setup` 默认安装目录 `~/setup-pnpm` 被同机其它 runner 覆盖，新 CI 的四处 pnpm 安装统一设为 `${{ runner.temp }}/setup-pnpm`；只共享依赖 store。
+  9. AcquiLangAI 功能分支 `chore/acquilang-ci-runner` 将日常 CI 和 Sonar 迁到 `acquilang-ci`，补 job 超时与 checkout 凭据清理；fork PR 的检查跳过，汇总留在托管环境并明确失败。Native 构建 workflow 保持原样。
+- 验证：
+  - `bash -n`、ShellCheck、actionlint、diff 空白检查通过。验证 main push/同仓库 PR/fork PR 的调度，16 种汇总结果组合，以及 8 项 Sonar PR 报告脚本测试。
+  - 新服务 `running`，版本 `2.337.0`，日志为 `Listening for Jobs`，GitHub 返回 `online`；原生 runner 仍为 `online`。Sonar `/api/system/status` 返回 `UP`。
+  - 最终 [CI 34990318424](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/34990318424)（head `4e22dadc`）六项全部成功，runner_name 均为 `mac-mini-acquilang-ci-1`：Native 34 秒、Admin 37 秒、Sonar 65 秒、backend 19 秒、Web 30 秒、汇总 12 秒。PR #22 为 OPEN / CLEAN；验证后新旧 runner 均 online、busy=false。
+- 边界：现有 `~/bin/mac-mini-runner-resume.sh` 与 crontab 日/周清理的 `WORK_DIRS` 尚未包含新实例/`alc1`。修改计划任务需单独确认，本次未改；新工作目录暂不受既有定时清理覆盖。
+- 代码：[AcquiLangAI PR #22](https://github.com/IAmKongHai/AcquiLangAI/pull/22)，未自动合并；合并前 main 仍使用原配置。
+- 启停与安装：[mac-mini runner runbook](../runbooks/mac-mini-runner-start-stop.md)。
+
 ## 2026-09-15 22:14 CST - 为 AcquiLangAI 增加 GitHub Actions Bot 检测报告
 
 - 服务器：`mac-mini`（SonarQube `AcquiLangAI`，仓库 runner `mac-mini-acquilang-native-1`）

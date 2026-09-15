@@ -1,9 +1,10 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-09-11  
+> 最后更新：2026-09-15
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
-> 仓库级 runner（`konghai-friends-lab/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）  
+> 仓库级 runner（`IAmKongHai/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）
+> 日常 CI 仓库级 runner：`mac-mini-acquilang-ci-1`（label `acquilang-ci`，workFolder `~/gha/alc1`）
 > 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/mac-mini-acquilang-native-1`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
@@ -81,13 +82,13 @@ gh api orgs/konghai-friends-lab/actions/runners \
 
 ## AcquiLangAI `mac-mini-acquilang-native-1`
 
-仓库级 runner，只给 `konghai-friends-lab/AcquiLangAI` 用。**不要**贴 `mac-mini`（会命中 iCare `mac-mini-mobile-1`），**不要**贴 `konghai-friends-lab`（会和 org 槽抢活）。workflow 写：
+仓库级 runner，只给 `IAmKongHai/AcquiLangAI` 用。**不要**贴 `mac-mini`（会命中 iCare `mac-mini-mobile-1`），**不要**贴 `konghai-friends-lab`（会和 org 槽抢活）。workflow 写：
 
 ```yaml
 runs-on: [self-hosted, macos, arm64, acquilang-native-ci]
 ```
 
-2026-09-11 21:40 CST 已装 LaunchDaemon：`system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1`。不要 `./svc.sh install`。仓库副本：`scripts/install-mac-mini-acquilang-native-runner-daemon.sh`。
+仓库迁移后保留旧 LaunchDaemon 名称，不要据服务名判断仓库归属。2026-09-11 21:40 CST 已装 LaunchDaemon：`system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1`。不要 `./svc.sh install`。仓库副本：`scripts/install-mac-mini-acquilang-native-runner-daemon.sh`。
 
 若需重装 Daemon：
 
@@ -102,9 +103,52 @@ sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab-Acqui
 ```
 
 ```bash
-gh api repos/konghai-friends-lab/AcquiLangAI/actions/runners \
+gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
+
+## AcquiLangAI 日常 CI `mac-mini-acquilang-ci-1`
+
+仓库级 runner，只注册到 `IAmKongHai/AcquiLangAI`。个人 Pro 仓库保留原归属与 main 规则集。日常 CI 和 Sonar 使用 `[self-hosted, macos, arm64, acquilang-ci]`，原生打包继续使用 `acquilang-native-ci`；两个实例共享 mac-mini 的 CPU、内存与磁盘。
+
+- 程序：`/Users/konghai/actions-runner/mac-mini-acquilang-ci-1`
+- 工作目录：`/Users/konghai/gha/alc1`
+- 服务：`system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1`
+- 日志：`~/Library/Logs/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1/`
+- Python：`/opt/homebrew/opt/python@3.12/bin/python3.12`（接入时为 3.12.11）。CI 直接调用，不使用依赖 `/Users/runner` 的 `setup-python` macOS 安装包。
+- 日常 CI 的 pnpm 程序装到各 job 的 `runner.temp/setup-pnpm`，避免与原生 runner 的安装目录冲突；依赖缓存仍共享，CI 不重复上传远端 pnpm 缓存。
+- `.env` 配置 `PNPM_STORE_PATH` 和 pnpm 实际读取的 `npm_config_store_dir`，均为 `/Users/konghai/gha/cache/pnpm-store`。不复制 Native 的凭据或环境配置。
+- 安装脚本只接受新服务；若 plist 或已加载服务存在则退出，不覆盖、不重启。
+
+首次安装（在 mac-mini 上执行，需要 sudo）：
+
+```bash
+sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh
+```
+
+安装脚本仓库副本：[`scripts/install-mac-mini-acquilang-ci-runner-daemon.sh`](../../scripts/install-mac-mini-acquilang-ci-runner-daemon.sh)。
+
+只读检查：
+
+```bash
+ssh mac-mini 'launchctl print system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1'
+gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
+  --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
+```
+
+停止或恢复前，先确认没有运行中的 CI，并取得操作确认：
+
+```bash
+# 暂停并阻止重启后自动加载；保留注册、工作目录与 plist
+sudo launchctl disable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1
+sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1
+
+# 恢复已卸载的服务
+sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1
+sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1.plist
+```
+
+当前 `~/bin/mac-mini-runner-resume.sh` 和 crontab 日/周清理的 `WORK_DIRS` **尚未包含该实例**。上面的单独命令用于恢复；`alc1` 的定时清理需另行确认后添加，不能假定既有维护已覆盖新目录。
 
 ## 校验
 
