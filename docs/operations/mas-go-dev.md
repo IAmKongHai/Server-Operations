@@ -1,5 +1,24 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-16 00:49 CST - 盘点 PostgreSQL 实例与数据库（只读）
+
+- 操作人：`Codex`。
+- 原因：用户要求核对 mac-mini 与 mas-go-dev 分别运行哪些 PostgreSQL 数据库。
+- 影响：仅通过 SSH 查询 Docker 状态和 PostgreSQL 系统目录，未修改服务、配置、schema 或数据。
+- 备份：只读查询，无需备份；当前状态记录如下。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：检查全部 Docker 容器及 PostgreSQL 进程；对 `shared-sit-postgres` 使用现有管理身份查询版本、库名、属主和大小。查询会话设置 `default_transaction_read_only=on`、`statement_timeout=15000`，未输出凭据。
+- 验证：发现一个 PostgreSQL 容器 `shared-sit-postgres`，状态 running / healthy，版本 18.6；端口映射为 `127.0.0.1:5432` 和 `100.109.223.53:5432`。查询得到以下非模板数据库，另有 `template0` / `template1`。
+
+| 数据库 | 属主 | 查询时大小 | 说明 |
+| --- | --- | --- | --- |
+| `cmm` | `cmm` | 10174 kB | 菜苗苗 SIT |
+| `evp` | `evp` | 10 MB | EVP SIT |
+| `tk_flywheel_ci` | `postgres` | 7678 kB | 当前已存在；本次未创建，未验证测试接入状态 |
+| `postgres` | `postgres` | 7678 kB | 默认管理库 |
+
+- 与 00:35 的历史快照相比，当前已出现 `tk_flywheel_ci`；以本次实时查询为准。本次未调查其创建来源或修改权限。库清单表示实例中存在的数据库，不代表每个库都有应用正在连接。
+
 ## 2026-09-16 00:35 CST - 核对共享 PostgreSQL 供 tk-flywheel CI 复用的条件（只读）
 
 - 服务器：`mas-go-dev`，容器 `shared-sit-postgres`。

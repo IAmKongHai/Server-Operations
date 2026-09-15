@@ -1,5 +1,26 @@
 # mac-mini 运维时间线
 
+## 2026-09-16 00:49 CST - 盘点 PostgreSQL 实例与数据库（只读）
+
+- 操作人：`Codex`。
+- 原因：用户要求核对 mac-mini 与 mas-go-dev 分别运行哪些 PostgreSQL 数据库。
+- 影响：通过 SSH 查询 Docker 状态和 PostgreSQL 系统目录；未修改服务、配置、schema 或业务数据。
+- 备份：只读查询，无需备份；现状保存如下。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：查询 Colima Docker 的全部容器；对六个 PostgreSQL 容器使用现有管理身份执行 `SHOW server_version` 和 `pg_database` 查询，读取库名、属主及 `pg_database_size`。会话设置 `default_transaction_read_only=on`、`statement_timeout=15000`，未输出凭据。
+- 验证：六个容器均为 running / healthy；共 10 个业务或测试库，详情如下。宿主进程及 Homebrew services 检查未发现原生 PostgreSQL 服务。
+
+| 容器 | PostgreSQL 版本 | Docker 宿主端口映射 | 业务 / 测试数据库（查询时大小） |
+| --- | --- | --- | --- |
+| `acquilang-postgres` | 16.15（TimescaleDB 镜像） | `0.0.0.0:5433` / `[::]:5433` | `acquilang_db` 50 MB；`ddricher_db` 31 MB；`nw_analysis` 7919 kB；`telegram_bot` 7743 kB |
+| `cmm-postgres` | 18.6 | `0.0.0.0:5436` / `[::]:5436` | `cmm` 21 MB |
+| `shared-dev-postgres` | 18.6 | `127.0.0.1:5434` | `moo_ticket` 9422 kB；`moo_ticket_test` 9406 kB |
+| `sub2api-postgres` | 18.6 | 未发布宿主端口 | `sub2api` 36 MB |
+| `richer-postgres` | 16.15 | `0.0.0.0:5432` / `[::]:5432` | `richer` 5357 MB |
+| `sonar-postgres` | 17.11 | 未发布宿主端口 | `sonarqube` 1977 MB |
+
+- 每个实例另有 `postgres` 默认库及 `template0` / `template1` 模板库，均已查询确认。大小保留 `pg_size_pretty` 原始输出；端口为 Docker 映射，未验证外部网络可达性。本次库清单表示实例中存在的数据库，不代表每个库都有应用正在连接。
+
 ## 2026-09-15 23:54 CST - 合并 AcquiLangAI 日常 CI runner 切换
 
 - 操作人：`Codex`，用户明确要求合并并删除分支。
