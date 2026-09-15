@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-09-15 22:03 CST - 只读排查 AcquiLangAI PR 未显示 Sonar 详细报告
+
+- 服务器：`mac-mini`（SonarQube 项目 `AcquiLangAI`）
+- 操作人：`Codex`
+- 原因：用户询问 [AcquiLangAI PR #19](https://github.com/IAmKongHai/AcquiLangAI/pull/19) 为什么没有在 PR 内显示检测报告。
+- 影响：只读查询 GitHub Checks、PR 评论和 Sonar Web API；未改 workflow、GitHub App 或项目绑定。
+- 备份 / 回滚方式：只读排查，无服务器变更，无需回滚。
+- 做了什么及验证：
+  1. GitHub 确认 PR #19 已合并，6 项检查均成功；检查由 `github-actions` 发布，`sonar` check 的 `output.summary` / `title` 为空，PR 无评论。
+  2. workflow 中仅有扫描、质量门禁和日志输出，没有发布 PR 评论或报告摘要的步骤。
+  3. `/api/alm_settings/get_binding?project=AcquiLangAI` 返回 404，明确提示项目未绑定任何 DevOps Platform；实例现有全局集成为 `GitHub-Cypresso`。
+  4. `/api/project_pull_requests/list?project=AcquiLangAI` 可见 PR #19，Quality Gate `OK`，证明分析已完成，缺失的是 GitHub 报告回写。
+- 结论：首次接入只完成扫描与合并门禁，未配置 PR decoration。若要展示原生 Sonar 报告，需要确认 Sonar GitHub App 已获 `IAmKongHai/AcquiLangAI` 访问权限，再补齐项目绑定并验证新的 PR 分析；若希望出现在 Conversation 评论区，还需要选择对应的报告发布方式。此次仅诊断。
+
 ## 2026-09-15 21:40 CST - 为 AcquiLangAI 接入 SonarQube 和必需质量门禁
 
 - 服务器：`mac-mini`（SonarQube `26.5.0.122743` + Community Branch Plugin `26.5.0`）
