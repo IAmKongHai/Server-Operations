@@ -1,5 +1,29 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-16 00:12 CST - 评估 tk-flywheel 仓库级 CI runner 容量（只读）
+
+- 服务器：`mas-go-dev`；目标仓库 `IAmKongHai/tk-flywheel`（个人账号私有仓库）。
+- 操作人：`Codex`。
+- 原因：用户希望将 tk-flywheel CI 改为自托管，并说明可用 Linux 主机只有 mas-go-dev；当前后端 workflow 使用 PostgreSQL 17 `services:`，需要 Linux runner。
+- 影响 / 选型：只读检查宿主资源、Docker、runner 服务和端口。建议新增一个仓库级 slot 试跑，拟名 `mas-go-dev-tk-flywheel-ci-1`、专用 label `tk-flywheel-ci`，四个 CI job 在该 slot 排队。尚未注册 runner 或修改 workflow，不接入现有组织 runner 的 label 池。
+- 备份：无配置变更；关键状态记录如下，作为后续安装前的参考，实施时仍需重新检查并备份。
+- 回滚方式：只读排查，无需回滚。
+
+### 检查时序与验证
+
+1. 核对目标仓库 `.github/workflows/ci.yml`：Backend 为 Go 1.26.2 的格式 / vet / race test / build，测试依赖临时 PostgreSQL 17；JavaScript 为 frontend / extension / agent 三个 Node.js 24 job。当前均使用 `ubuntu-24.04`。GitHub 仓库 API 返回 private，仓库级 runner 数量为 0。
+2. SSH 核对：Amazon Linux 2023、x86_64、4 vCPU；内存 7.7 GiB，available 5.1 GiB；swap 已用约 897 MiB。`vmstat` 后续四个间隔无 swap in/out，CPU idle 90–99%；负载 0.25 / 0.13 / 0.21。仅为低负载窗口快照，未验证 CI 高峰容量。
+3. 根盘 300G，已用 92G、可用 209G（31%）；Docker Server 25.0.14，glibc 2.34，`gcc` / `git` / `tar` / `gzip` 可见。SSH 用户 PATH 未发现 `go` / `node`；安装时需验证新 runner 的工具环境，不能凭现有 runner 在线就认定依赖齐全。
+4. 现有 `mas-go-dev`、`mas-go-dev-ci-1/2`、`shared-sit` 四个 systemd 服务均 active，用户均为 `actions-runner`；现场 4 个 `Runner.Listener`、0 个 `Runner.Worker`。四个服务的 CPUQuota / MemoryMax 均未设限。GitHub 组织 runner API 返回 403（当前账号权限不足），未取得接口侧 busy 状态。
+5. `docker ps` / `docker stats --no-stream` 显示 iCare、EVP、CMM 和共享 SIT 服务运行中。共享 PostgreSQL 已绑定 `127.0.0.1:5432` 与 `100.109.223.53:5432`，目标 CI 的 `5432:5432` 会发生端口冲突。
+
+### 后续实施约束（尚未执行）
+
+- 新实例使用独立程序 / 工作 / 缓存目录及仓库注册凭据，先一个 slot；限制 Go 编译并行度并为 runner 进程设置资源上限，避免与现有 CI / SIT 争抢整机资源。
+- 保留独立、每个 job 临时创建的 PostgreSQL 17 测试容器，改用回环随机宿主端口并将实际端口传入 `TEST_DATABASE_URL`；不要连接或修改共享 SIT PostgreSQL 18。
+- 测试容器另外设置 CPU / 内存限制；Docker daemon 创建的容器不应被视作已受 runner systemd 资源上限约束。
+- 首轮验证涵盖后端数据库测试确实执行、race test、三个 JavaScript job、超时 / 取消后的临时资源清理，以及与已有 CI 同跑时的宿主资源。是否长期承接全部 job，以试跑结果为准。
+
 ## 2026-09-12 18:04 CST - 启动菜苗苗 SIT（shared-sit 租户 + compose）
 
 - 服务器：`mas-go-dev`（Tailscale `100.109.223.53`）
