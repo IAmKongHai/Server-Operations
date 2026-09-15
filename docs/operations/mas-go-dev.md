@@ -1,5 +1,21 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-16 00:35 CST - 核对共享 PostgreSQL 供 tk-flywheel CI 复用的条件（只读）
+
+- 服务器：`mas-go-dev`，容器 `shared-sit-postgres`。
+- 操作人：`Codex`。
+- 原因：用户希望 CI 直接连接常驻数据库，询问能否使用开发库及本机共享 PostgreSQL。
+- 影响 / 选型：只读核对容器、数据库清单、连接数和测试代码。可复用同一 PostgreSQL 实例，建议新建常驻专用库 `tk_flywheel_ci` 与非管理员 CI 账号；不复用 EVP / CMM 的数据库或凭据。此建议替代 00:12 记录中的临时 PostgreSQL 容器方案，尚未实施。
+- 备份：未改配置或数据；关键现状记录如下。
+- 回滚方式：只读排查，无需回滚。
+- 做了什么 / 验证结果：
+  1. `docker ps` 显示容器 healthy；`postgres --version` 为 18.6，镜像为 `postgres:18-alpine`（实际配置含 digest）。监听 `127.0.0.1:5432` 与 `100.109.223.53:5432`，限额 1 GiB / 1 CPU。
+  2. 使用容器内现有管理身份执行只读 SQL：非模板数据库仅 `cmm`、`evp`、`postgres`，没有 tk-flywheel 库；`max_connections=80`，采样 `pg_stat_activity` 行数为 12（包含本次查询等进程，非连接峰值保证）。
+  3. `tk-flywheel/backend/main_test.go` 的 `TestPostgresFlows` 读取 `TEST_DATABASE_URL`，创建随机 `test_*` schema，通过连接参数 `search_path` 指向该 schema，执行迁移并写入测试数据；正常退出时 `defer DROP SCHEMA ... CASCADE`。它不会直接使用开发环境的已有业务数据。强制终止进程时不能保证 defer 清理发生。
+  4. `backend/main.go` 的迁移使用固定事务 advisory lock 和未限定 schema 的迁移表。共用业务 database 仍需正确的权限隔离，也可能与同库开发迁移争用锁；专用常驻 CI database 更容易限定权限与清理范围。
+  5. `tk-flywheel` 已在本地提交 `bae4246` 将 CI / Compose 改为 PostgreSQL 18；本次未修改 workflow、注册 runner、创建库/角色或执行数据库测试。
+- 后续条件：建库 / 角色前按约定备份并确认；限制 CI 账号权限与连接数，正常任务清理各自的 schema，异常遗留另行核对处理。移除 workflow 的 PostgreSQL `services:` 并改为连接常驻库后，不再因 service container 要求 Linux；mac-mini runner 也可通过 Tailscale 访问共享实例，需验证网络和凭据配置。
+
 ## 2026-09-16 00:12 CST - 评估 tk-flywheel 仓库级 CI runner 容量（只读）
 
 - 服务器：`mas-go-dev`；目标仓库 `IAmKongHai/tk-flywheel`（个人账号私有仓库）。
