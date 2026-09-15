@@ -1,5 +1,29 @@
 # mac-mini 运维时间线
 
+## 2026-09-15 22:14 CST - 为 AcquiLangAI 增加 GitHub Actions Bot 检测报告
+
+- 服务器：`mac-mini`（SonarQube `AcquiLangAI`，仓库 runner `mac-mini-acquilang-native-1`）
+- 操作人：`Codex`
+- 原因：用户希望 PR 评论区出现类似 `sonar-cypresso-ai[bot]` 的质量报告，并明确选择使用 `github-actions[bot]`。
+- 影响与选型：
+  - 复用既有扫描 token 读取本项目指标，由 GitHub Actions 自动提供的 token 发评论；只给 `sonar` job 增加 `pull-requests: write`。
+  - 现有 `sonar-cypresso-ai` App 具备 PR 评论权限，但 Sonar 当前账号设置项目绑定返回 403，浏览器也只登录 `k-cypresso`。用户选择自带 Bot 后，不再依赖个人账号安装或 Sonar 管理员绑定。
+  - 未修改 Sonar 全局配置、项目绑定、门禁、服务或 runner；扫描仍限制同仓库 PR。
+- 备份：原 workflow 位于 AcquiLangAI 提交 `53a45f0b`；绑定前状态为未绑定，写入请求被拒绝后通过 GET 确认仍未绑定。
+- 回滚方式：通过 PR 撤销报告步骤、报告脚本与新增写权限，保留原扫描和质量门禁；不需重启服务。已发布评论可保留为历史记录。
+- 做了什么：
+  1. 只读核对 App 权限、现有 evp 项目摘要评论配置和目标项目绑定；未成功写入绑定。
+  2. 生成仅用于探测的本项目 Analysis Token，以无浏览器 cookie 的 Bearer 请求验证 measures / qualitygates API 均返回 200；探测 token 随即撤销。
+  3. 新增 `.github/scripts/sonar-pr-report.cjs`：从当前扫描 task 的 analysisId 获取门禁；读取 PR 指标，缺失显示“无数据”；失败时明确提示。报告使用文字与表格，不依赖内网图片。
+  4. 评论带专用标记，只更新 `github-actions[bot]` 自己的评论；发布前检查当前 PR head，避免旧运行覆盖新结果。
+  5. 增加 8 项 Node 回归测试并纳入 CI；补充 Git 协作文档。代码提交 `ee18a1ac`，PR #20。
+- 验证：
+  - 8 项回归测试、`actionlint`、`git diff --check` 通过；顺序审查无待修复项，无独立模型覆盖。
+  - [CI 34980224460](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/34980224460) 第 1 / 2 次运行均成功，包含扫描、质量门禁与评论发布。
+  - [Bot 评论](https://github.com/IAmKongHai/AcquiLangAI/pull/20#issuecomment-5681724705) 作者确认为 `github-actions[bot]`，标题 Quality Gate passed；GitHub 返回的 HTML 中表格正常渲染，无内网图片。
+  - 重跑后评论仍只有一条，ID `5681724705` 不变，更新时间从 `2026-09-15T14:15:45Z` 变为 `2026-09-15T14:21:09Z`，证明更新原评论成功。
+- 代码：[AcquiLangAI PR #20](https://github.com/IAmKongHai/AcquiLangAI/pull/20)，未自动合并。
+
 ## 2026-09-15 22:03 CST - 只读排查 AcquiLangAI PR 未显示 Sonar 详细报告
 
 - 服务器：`mac-mini`（SonarQube 项目 `AcquiLangAI`）
