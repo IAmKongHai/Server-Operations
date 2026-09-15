@@ -1,5 +1,15 @@
 # mac-mini 运维时间线
 
+## 2026-09-15 23:54 CST - 合并 AcquiLangAI 日常 CI runner 切换
+
+- 操作人：`Codex`，用户明确要求合并并删除分支。
+- 原因：PR #22 已完成新 runner 验证，将日常 CI 与 Sonar 的分配正式应用到 main。
+- 影响：main 后续 CI 使用 `mac-mini-acquilang-ci-1`；原生打包继续使用 `mac-mini-acquilang-native-1`。未改 runner 服务或计划任务。
+- 备份：合并前 main 为 `d31e587f`；功能分支最终提交 `4e22dadc`，与 squash 合并提交 `50dc593b` 的文件树一致。
+- 回滚方式：通过新 PR revert `50dc593b`；如需恢复功能分支，可从 `4e22dadc` 重新创建。
+- 做了什么：核对 PR 最新 head 的六项检查全部 SUCCESS、合并状态 CLEAN，按指定 head 执行 squash merge；删除远端与本地 `chore/acquilang-ci-runner`，本地 main 快进同步到 `50dc593b`。
+- 验证：[PR #22](https://github.com/IAmKongHai/AcquiLangAI/pull/22) 为 MERGED；远端分支不存在，本地功能分支已删除，AcquiLangAI 工作区干净。合并后的 [main CI 34991517227](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/34991517227) 已触发，记录时 queued，尚未验证其最终结果。
+
 ## 2026-09-15 23:49 CST - 为 AcquiLangAI 注册独立日常 CI runner
 
 - 服务器：`mac-mini`；仓库 `IAmKongHai/AcquiLangAI`（个人 Pro 私有仓库）。
