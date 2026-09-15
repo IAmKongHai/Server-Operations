@@ -1,5 +1,32 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-16 00:55 CST - 为 tk-flywheel 创建固定 CI 库和仓库级 runner
+
+- 服务器：`mas-go-dev`；仓库 `IAmKongHai/tk-flywheel`。
+- 操作人：`Codex`。
+- 原因 / 授权：用户明确同意创建固定 `tk_flywheel_ci` 库，并把 runner 放在 mas-go-dev。
+- 影响 / 选型：在现有共享 PostgreSQL 18 中新增专用数据库 / 角色；新增一个仓库级 runner slot，四个 CI job 排队。独立系统用户无 Docker / sudo 权限；最多 2 核 / 3 GiB，Go 编译并发 2。原 iCare / EVP / CMM 服务与组织 runner 配置保持原状。
+- 备份：`/opt/shared-sit/backups/tk-flywheel-ci-20260916-0041`（root 700，文件 600），含 globals、postgres / evp / cmm schema、PostgreSQL Compose、原 runner service、容器启动时间和内存 / 磁盘快照。globals 含密码摘要，仅保留服务器。未制作业务数据全量备份。
+- 回滚方式：还原 tk-flywheel workflow；确认空闲后仅停止 / 禁用新 runner 服务，保留数据库、角色与备份。删除数据 / 角色需另行确认，不停止共享 PostgreSQL 或其他 runner。
+
+### 变更时序
+
+1. 新增系统用户 `tk-flywheel-ci` 和 `/opt/tk-flywheel-ci/{runner,work,cache}`（用户目录 700）。官方下载 runner 2.337.0，SHA-256 校验通过，内置 Node.js 24 可执行。
+2. 新建 LOGIN 角色和固定库 `tk_flywheel_ci`，库 owner 为 `postgres`；角色无超级用户 / 建库 / 建角色 / 复制 / 绕过 RLS 权限。库和角色各限 12 连接，角色只获目标库 `CONNECT, CREATE, TEMPORARY`，目标库与 `public` schema 撤销 PUBLIC 权限。角色默认语句 30 秒、锁 5 秒、空闲事务 30 秒超时。
+3. 随机凭据写入 `/opt/shared-sit/tk-flywheel-ci/credentials.env`（root 600，目录 700），连接 `127.0.0.1:5432`；通过标准输入设置仓库 Secret `CI_DATABASE_URL`。未把密码输出到终端、写入 runner `.env` 或提交仓库。
+4. 注册 `mas-go-dev-tk-flywheel-ci-1`（仓库 runner id `2`），labels 为 `self-hosted,Linux,X64,tk-flywheel-ci`，使用 `/opt/tk-flywheel-ci/work`。启用并启动 `actions.runner.IAmKongHai-tk-flywheel.mas-go-dev-tk-flywheel-ci-1.service`，GitHub 显示 online。
+5. systemd override 设置 CPUQuota 200%、MemoryHigh 2560M、MemoryMax 3G、TasksMax 512、低 CPU / IO 权重和 UMask 0077；通过 `.env` 设置独立 Go / npm 缓存及 Go 并发 2。配置副本见 [runner 档案](../../mas-go-dev/tk-flywheel-ci/README.md)。
+6. tk-flywheel workflow 去掉临时 PostgreSQL service，两个 job 定义都使用专用 runner label；只有 Backend 获得 Secret，缺失时直接失败。Compose 使用 PostgreSQL 18 和 `/var/lib/postgresql` volume；已有 17 数据需另行迁移，本次未迁移。
+7. 提交 `78d7d0c`（连同此前 `bae4246`）并创建 [PR #3](https://github.com/IAmKongHai/tk-flywheel/pull/3)，触发 [CI 34997551965](https://github.com/IAmKongHai/tk-flywheel/actions/runs/34997551965)。PR 尚未合并，main 的配置待合并后生效。
+
+### 验证结果
+
+- actionlint 与缺失 Secret 检查通过。专用角色真实 TCP 认证后，事务内创建 schema / 表、插入、读取、ROLLBACK 成功；分别连接 `cmm` / `evp` / `postgres` 均返回权限拒绝。
+- 完整 CI 四个 job 全部 success，均由 `mas-go-dev-tk-flywheel-ci-1` 执行，00:50:51 至 00:54:38 CST。Backend 使用 Go 1.26.2 linux/amd64；`TestPostgresFlows` 及 subscription_accounts / subscription_session_isolation / operating_skills 三个子测试全部 PASS，没有跳过数据库测试。三个 JavaScript job 的测试及适用的类型检查 / 构建通过。
+- 测试后目标库遗留 test / ci_probe schema 为 0，CI 账号活动连接为 0。五个 runner 服务均 active，新 runner GitHub online / idle。与操作前快照相比，所有原容器 StartedAt 均未变化。
+- 新 runner cgroup 峰值内存 1,647,980,544 字节（约 1.53 GiB），memory.events 的 high / max / oom / oom_kill 均为 0；这轮验证不能代表所有组织 runner 同时满载的容量保证。
+- 正常测试退出删除各自随机 schema；强制取消 / 超时可能遗留，需核对活动连接后针对性清理，不设自动清空业务库任务。
+
 ## 2026-09-16 00:49 CST - 盘点 PostgreSQL 实例与数据库（只读）
 
 - 操作人：`Codex`。

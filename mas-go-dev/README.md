@@ -49,6 +49,8 @@ EVP 已建：库/角色 `evp`（连接上限 40）、bucket `evp`、key 名 `evp
 
 CMM 已建：库/角色 `cmm`（连接上限 20）、Redis DB `2`、无 Garage bucket（对象存储用腾讯 COS SIT，不走本机 Garage）。应用目录 `/opt/cmm-sit`（属主 `ec2-user`，mode `750`）。不要复用 `evp` 库/密钥/Redis DB，也不要拷 `cmm-prod` 的 `api.env`。
 
+tk-flywheel CI 已建：常驻库 / 角色 `tk_flywheel_ci`（各限 12 连接），供本机专用 runner 经 `127.0.0.1:5432` 访问。库 owner 为 `postgres`，CI 角色仅获目标库 `CONNECT` / `CREATE` / `TEMPORARY`，不能连接 `cmm` / `evp` / `postgres`。凭据在服务器 `/opt/shared-sit/tk-flywheel-ci/credentials.env`（root，600），GitHub Secret 为 `CI_DATABASE_URL`。详见 [tk-flywheel CI 档案](tk-flywheel-ci/README.md)。
+
 当前 EVP 后端只认默认 AWS 凭据链，**没有** `S3_ENDPOINT`；SIT 应用先把 `S3_BUCKET` 留空也能启动。要用这套 Garage 需要业务仓补自定义 endpoint / path-style。会话仍在 PostgreSQL，Redis 已就绪但应用尚未接入。
 
 ## EVP SIT
@@ -91,13 +93,16 @@ ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-dire
 
 ## GitHub Actions runner
 
-同机四套 systemd runner，**不要**混组和混 label。
+同机五套 systemd runner，**不要**混组和混 label。
 
 | 名字 | 组 | 目录 | 用途 |
 | --- | --- | --- | --- |
 | `mas-go-dev` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev` | iCare 本机部署 |
 | `mas-go-dev-ci-1/2` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-{1,2}` | iCare 质量门禁 |
 | `shared-sit` | `shared-sit`（id 6，selected：目前仅 `cypressoai/evp`） | `/opt/actions-runner/shared-sit` | 非 iCare SIT 部署 |
+| `mas-go-dev-tk-flywheel-ci-1` | 仓库级：`IAmKongHai/tk-flywheel` | `/opt/tk-flywheel-ci/runner` | tk-flywheel 四个 CI job，专用 label `tk-flywheel-ci` |
+
+tk-flywheel runner 使用独立用户 `tk-flywheel-ci`，不在 Docker / sudo 组；最多 2 核 / 3 GiB，工作区与缓存位于 `/opt/tk-flywheel-ci/`。服务和维护方式见 [tk-flywheel CI 档案](tk-flywheel-ci/README.md)。
 
 `shared-sit` labels：`self-hosted`, `Linux`, `X64`, `docker`, `al2023`, `shared-sit`。不要贴 `mas-go-dev` / `backend-ci` / `frontend-quality-ci`。EVP Checks 仍走 GitHub-hosted `ubuntu-latest`。
 
