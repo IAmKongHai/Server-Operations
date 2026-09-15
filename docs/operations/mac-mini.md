@@ -1,5 +1,31 @@
 # mac-mini 运维时间线
 
+## 2026-09-15 21:40 CST - 为 AcquiLangAI 接入 SonarQube 和必需质量门禁
+
+- 服务器：`mac-mini`（SonarQube `26.5.0.122743` + Community Branch Plugin `26.5.0`）
+- 操作人：`Codex`
+- 原因：用户要求为 `/Users/konghai/Code/Project/AcquiLangAI` 增加 SonarQube 检测；原 CI 已有扫描 job，但未配置地址和 token，扫描跳过后汇总仍可通过。
+- 影响与选型：
+  - 新建私有项目 `AcquiLangAI`，主分支 `main`，New Code = previous version，沿用默认 `Cypresso Way 50%` 门禁。
+  - `IAmKongHai/AcquiLangAI` 为个人私有仓，无法使用 cypressoai 组织 runner 池；复用本仓 `mac-mini-acquilang-native-1`（label `acquilang-native-ci`）。扫描和手动 Native 构建共用一个 slot，会互相排队；未改 runner 注册、labels 或 LaunchDaemon。
+  - 没有重启或修改 Sonar 容器、数据库、其它项目及全局质量门禁。新增负载来自源码扫描与前端依赖安装。
+- 备份：变更前只读确认项目 `AcquiLangAI` 不存在，GitHub 未配置 `SONAR_TOKEN` / `SONAR_HOST_URL`；workflow 原状态保存在 `origin/main` 提交 `5d77145f`。未覆盖已有凭据或服务器配置文件。
+- 回滚方式：通过 PR 撤销本次 CI 配置；必要时在 GitHub 移除新增 variable / secret，在 Sonar 撤销 `acquilang-github-actions-20260915` 项目扫描 token。新项目可在确认不需保留分析历史后删除；不需重启任何服务。
+- 做了什么：
+  1. 通过 API 和 SSH 只读检查实例 `UP`、插件版本、runner 在线及 GPG 可用；使用已有 GitHub 登录态访问 Sonar。
+  2. 通过 Web API 创建私有项目与仅能扫描本项目的 `PROJECT_ANALYSIS_TOKEN`，写入 GitHub `SONAR_TOKEN`；设置 Actions variable `SONAR_HOST_URL=http://mac-mini:9000`。本地临时 token 文件已移除，真实值未输出或入库。
+  3. 在最新 `origin/main` 的临时 checkout 上完成首次扫描，建立主分支基线。
+  4. AcquiLangAI 的 `sonar` job 改为内网 runner，缺配置明确失败，固定扫描 Action v8.2.1 SHA，限制 job / 门禁超时。fork PR 不进入内网 runner且汇总失败；`CI` 仅允许包括 Sonar 在内的所有检查成功。
+  5. 首轮扫描提示 Vue / Expo 基础 tsconfig 缺失，补充三个前端的 `pnpm install --frozen-lockfile --ignore-scripts` 与 pnpm 缓存，完整解析 TypeScript 配置。
+  6. 移除指向未生成 coverage.xml 的配置，并明确当前未采集覆盖率；未用 coverage exclusions 或降低门禁来放行。后续代码 PR 仍可能因覆盖率不足失败。
+- 验证：
+  - `main` 基线 Quality Gate `OK`；PR #19 单独出现在 pull request 列表，扫描后主分支分析时间仍为基线时间，证明没有覆盖主分支报告。
+  - `actionlint` 通过（仅忽略已用 GitHub API 核对的自定义 runner label）；1,024 种汇总状态组合 + 4 种配置组合通过，失败、取消和跳过均不能让 `CI` 通过。
+  - 首轮 [CI 34975769819](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/34975769819) 六项检查全部成功，Sonar 在 `mac-mini-acquilang-native-1` 上运行 1 分 15 秒。
+  - 最终 [CI 34976078649](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/34976078649) 对应提交 `8242982c`，六项检查全部成功，Quality Gate PASSED；Vue / Expo 的基础 tsconfig 缺失警告已消失。
+  - 仍有既存 `acquilang-admin/src/composables/useTable.ts:15` 的 UTF-8 编码警告；本次未修改业务源码。
+- 代码：[AcquiLangAI PR #19](https://github.com/IAmKongHai/AcquiLangAI/pull/19)，功能分支 `chore/sonarqube-ci`；未自动合并。
+
 ## 2026-09-13 00:17 CST - cmm-postgres 改 5436，5433 还给 AcquiLangAI
 
 - 服务器：`mac-mini`（Colima `default`）
