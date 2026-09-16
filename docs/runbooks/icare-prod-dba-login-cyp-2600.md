@@ -6,6 +6,8 @@
 
 2026-09-16 补充：[五个公网 profile 的对象与动作取证](icare-prod-public-db-permissions-cyp-2600.md)。代码核对已发现 SUP 主库写入及邮件凭据读取冲突；先审阅该报告，再收口最终授权，不能直接照旧共享账号清单执行。
 
+公网账号隔离的实施顺序、配置拆分、验收及回滚以[实施计划](../plans/2026-09-16-1440-fix-cyp-2600-public-db-isolation-plan.md)为准。本清单中 MAS 与 Operations 的交付另计，不能因公网计划完成一并记为通过。
+
 ## 1. 目标与影响
 
 为 iCare PROD 建立独立于 UAT 的 SQL login，并使用 PROD Key Vault 中对应的密码。登录成功后只验证连接和权限，不运行 seed/migrate，不写业务数据。

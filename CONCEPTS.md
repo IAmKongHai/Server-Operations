@@ -47,6 +47,14 @@ The day of month when a VPS provider resets a server's traffic allowance.
 
 For proxy traffic monitoring, this reset day defines the accounting cycle; calendar-month `vnstat -m` totals are not treated as authoritative when the provider's billing cycle starts on a different day.
 
+## iCare 公网服务
+
+### 公网 profile
+
+iCare 按服务入口划分的运行配置与路由集合。CYP-2600 本次账号隔离范围是 `ecom`、`sup`、`app`、`hr`、`map`：前两者在 backend，后三者在 public-backend。它们各用独立的服务数据库账号，不是每位会员各建 SQL login；同表内不同会员或公司的数据归属仍由应用校验。
+
+以上五个是本次范围，不代表 iCare 的全部公网服务。
+
 ## iCare UAT cut
 
 ### Protect release
