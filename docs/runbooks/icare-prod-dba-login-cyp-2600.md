@@ -181,3 +181,11 @@ DBA 回执使用以下格式，不附密码或完整连接串：
 - `docs/deployment/mas-production-go-live-checklist.md`：共享库恢复点、连接预算、PII 和完整上线验收。
 
 本清单在本地静态核对，SQL 未在服务器执行；实际对象、权限和恢复点由 DBA 确认后补齐。
+
+## 2026-09-16 实施准备进度（未执行生产操作）
+
+后端 SUP 内网通知已提交 `c2c5d6b6`、`0268903a`（隔离 worktree，尚未发布）。Terraform 每 profile 的 SQL 绑定与专属 UAMI 准备提交为 `169de0e`，96 项测试通过。iCare 根仓验收回执：`docs/deployment/prod-public-db-acceptance-cyp-2600.md`；Terraform DBA 包在本地 `terraform/.worktrees/terraform-cyp2600-public-db-isolation/docs/deployment/sql/cyp-2600-public-logins/README.md`，尚未合并到原工作区。
+
+DBA 可先运行包内 `inventory.sql` 做元数据盘点；它不读业务行、密码 hash 或模块正文。最终 `create-and-grant.sql` / `rollback.sql` 等 O1/O2 完成后再生成，当前没有可批准的一键建号授权脚本。所有账号与线上权限仍为待核验，未改 SQL/KV/RBAC、未 apply 或切流。
+
+完整审查与未完成要求见 [本地实施审查](../reviews/2026-09-16-cyp-2600-public-db-isolation/report.md)。SUP 的接收侧 mTLS 和先 MAS 后 SUP 的发版顺序仍须实测，不能直接把新镜像放入尚未配置通道的 UAT/PROD。

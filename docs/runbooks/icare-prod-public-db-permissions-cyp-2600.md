@@ -171,3 +171,9 @@ Wellness 使用 `sys.sp_getapplock` 做事务内并发互斥。默认 `public` p
 4. **修改配置并验收**：以后获准实施时，Terraform 须拆分业务 username/secret 引用，保留两个独立 OAuth reader；每个 login 的多 catalog 连接密码一致，再从 PROD 路径验证。只在 SQL 建账号不会改变服务当前仍引用 `mas_prod_owner` 的事实。
 
 本次到此停止。数据库状态与部署状态没有变化；本报告不是建号或部署批准。
+
+## 实施分支差异（2026-09-16，尚未部署）
+
+后端首批提交 `c2c5d6b6` 将 SUP SMTP 模板、配置读取和通知名单读取移入 MAS 内网 notifications 模块。此前报告描述的是基线版本，不应据此给新 SUP 继续授 `sys_app_settings` 或 `tblpushemailnotification`。
+
+新 SUP 不再因邮件链需要 `tblusers.emailadd`；`tblusers` 仍有 journal、corporate、retail 的 `userno/username` 查询，不能整表撤权。最终列清单待 DBA 对照实际部署镜像签收。邮箱解析现在是 MAS 内网权限，由专属 `sup` caller 的窄接口触发；未证明生产 mTLS 接收端已强制验证，SUP 发布仍须通过通道门禁。
