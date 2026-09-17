@@ -52,8 +52,17 @@ Domains=~taila93443.ts.net
 
 ### 待跟进
 
-- 本次 drop-in 是在已启动的系统上生效的，**未经重启验证**。下次重启 `mas-go-dev` 后应复跑 `/tmp/verify-dns.sh`（或手工核对上表），确认 drop-in 在开机时同样生效。按 systemd 语义应当生效，但鉴于本次"未重启验证不可靠"的教训，不把推断当结论。
+- ~~本次 drop-in 未经重启验证~~ → **已于 03:04 CST 二次重启验证通过**，见下方补充。
 - tailnet 域名 `taila93443.ts.net` 硬编码在 drop-in 中，若将来更换 tailnet 需同步修改。
+- 验证脚本放在 `/tmp/verify-dns.sh`，重启后会被清空，下次需重新上传（源文件不在仓库内，内容见本条目"修复后验证"表格的检查项）。
+
+### 补充：2026-09-17 03:04 CST 二次重启，验证 drop-in 开机自动生效
+
+- 原因：前述 drop-in 是在运行中的系统上 `systemctl restart systemd-resolved` 后生效的，开机行为未经证实。鉴于本条目已有一次"在未重启系统上验证开机行为"的误判，用户要求实测。
+- 时机：四个组织 runner 均 `busy=false`、无 CI 临时容器时执行，未打断任何 job。SIT 再次中断约 3 分钟。
+- 结果：**开机自动生效，无需人工干预**。全新启动（uptime 5 分钟）且未手动重启 systemd-resolved 的情况下，`/etc/resolv.conf` 中 `100.100.100.100` 与 `192.168.2.1` 均自动就位。
+- 九项检查全部通过：resolv.conf 仍为符号链接未被覆写；`github.com` → `172.182.252.133`；`mac-mini` → `100.108.64.126`；`curl http://mac-mini:9000` HTTP 200；容器内（`--network host`）访问 SonarQube 返回 `{"status":"UP"}`；`CorpDNS: false`；四个 runner 服务 active 且 GitHub 侧 online；容器 27 个与基线一致。
+- 结论：DNS 方案在重启后稳定，公网解析与 MagicDNS 短名并存，CI 依赖的 SonarQube 可达。本次 DNS 相关工作收尾。
 
 
 ## 2026-09-17 02:18 CST - 修复 Tailscale 覆盖 resolv.conf 导致的 DNS 故障与 runner 全体掉线
