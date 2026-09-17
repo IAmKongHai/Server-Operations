@@ -1,6 +1,6 @@
 # CYP-2600：PROD SQL login DBA 执行清单
 
-整理日期：2026-09-16。状态：**待 DBA 盘点、映射确认及写入批准，尚未执行建号**。
+整理日期：2026-09-16；更新：2026-09-17。状态：**原始元数据盘点已完成；待 DBA 依赖/有效权限审核、映射确认及写入批准，尚未执行建号**。完整结果和执行身份见[盘点回执](../operations/ihc-db-uat.md)。
 
 用户已选择由 DBA 执行清单。此选择确定执行分工，不代表批准下文待定账号、权限、KV 调整或上线。本文没有密码，也不包含可直接批量执行的写入脚本。
 
@@ -23,7 +23,7 @@
 
 五个业务库同时被旧 preprod、UAT 和未来 PROD 使用。新增身份不应改变现有会话或业务数据；修改已有账号密码、SID、权限会影响已有使用者，不能顺带执行。发生同名冲突时停止并确认归属。
 
-本次仅整理本地资料，未重新连接 SQL、runner 或 KV。先前交接记录中 `.env.preprod` 账号能连接，但 `sysadmin`、`ALTER ANY LOGIN`、`CONTROL SERVER`、`VIEW ANY DEFINITION` 均为 0；该账号查询未见目标 login，**不能证明 login 不存在**。
+2026-09-16 整理时仅核对本地资料，未重新连接 SQL、runner 或 KV。先前交接记录中 `.env.preprod` 账号能连接，但 `sysadmin`、`ALTER ANY LOGIN`、`CONTROL SERVER`、`VIEW ANY DEFINITION` 均为 0；该账号查询未见目标 login，**不能证明 login 不存在**。2026-09-17 的 sysadmin 盘点结论另见本清单末尾。
 
 ## 2. 当前映射与必须先解决的缺口
 
@@ -160,7 +160,7 @@ DBA 回执使用以下格式，不附密码或完整连接串：
 | --- | --- | --- | --- | --- | --- | --- |
 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 | 待填写 |
 
-实际变更回填 iCare 根仓 `docs/deployment/prod-ops-log.md`（`develop`，提交含 CYP-2600）；通过 Server 仓开展的服务器操作另按约定记 `docs/operations/`。本文仅是待执行清单，不记作已完成运维。
+实际变更回填 iCare 根仓 `docs/deployment/prod-ops-log.md`（`develop`，提交含 CYP-2600）；通过 Server 仓开展的服务器操作另按约定记 `docs/operations/`。本文的建号与授权部分仍是待执行清单；已完成的只读盘点见末尾回执链接。
 
 ## 7. 回滚
 
@@ -180,7 +180,7 @@ DBA 回执使用以下格式，不附密码或完整连接串：
 - `docs/deployment/prod-ops-log.md`：2026-09-10 secret 写入记录；不等于本次已验证 secret 值。
 - `docs/deployment/mas-production-go-live-checklist.md`：共享库恢复点、连接预算、PII 和完整上线验收。
 
-本清单在本地静态核对，SQL 未在服务器执行；实际对象、权限和恢复点由 DBA 确认后补齐。
+本清单最初仅在本地静态核对。2026-09-17 已执行交接包的只读 `inventory.sql`；实际权限设计、依赖与恢复点仍须 DBA 审核，见后附盘点进度。
 
 ## 2026-09-16 实施准备进度（未执行生产操作）
 
@@ -190,4 +190,10 @@ DBA 可先运行包内 `inventory.sql` 做元数据盘点；它不读业务行�
 
 完整审查与未完成要求见 [本地实施审查](../reviews/2026-09-16-cyp-2600-public-db-isolation/report.md)。SUP 的接收侧 mTLS 和先 MAS 后 SUP 的发版顺序仍须实测，不能直接把新镜像放入尚未配置通道的 UAT/PROD。
 
-2026-09-17 已只读核验：PROD 尚无 Container Apps，五个专属 runtime UAMI 尚未在该 RG 创建；KV 禁用公网且私有端点已批准，但当前终端列 secret 元数据被网络边界拒绝。历史导入镜像来自 8 月构建，不是本次整改的最终版本。见 [现场核验与版本追溯](../operations/icare-prod.md)。DBA 元数据回执仍待交付，未生成最终写脚本。
+2026-09-17 14:48 CST 已只读核验：PROD 尚无 Container Apps，五个专属 runtime UAMI 尚未在该 RG 创建；KV 禁用公网且私有端点已批准，但当前终端列 secret 元数据被网络边界拒绝。历史导入镜像来自 8 月构建，不是本次整改的最终版本。见 [现场核验与版本追溯](../operations/icare-prod.md)。当时 DBA 元数据回执待交付，未生成最终写脚本；原始盘点已在下述 15:17 条目更新。
+
+## 2026-09-17 15:17 CST 元数据盘点进度
+
+用户授权通过 Azure CLI 执行后，已在 `ihc-db-uat` 的 `master` 及五个批准 catalog 完成原始 `inventory.sql`，各保留 17 个完整结果集。通过 VM Run Command 使用既有 `WORKGROUP\ihc-db-uat$` 身份，本机 Shared Memory 连接，实测 sysadmin 和 `VIEW ANY DEFINITION` 均为 1；未授予权限。七个计划新建的业务/OAuth login 及 `mas_prod_owner` 在本次 server principal 快照中缺失。
+
+完整归档在源 VM 的受限目录，本机已有结果索引与校验回执；私网 SSH 当前超时，完整归档尚未下载本机。详见[执行时间、归档位置、SHA-256 与核验边界](../operations/ihc-db-uat.md)。此进度更新的是原始元数据交付，不是 DBA 对模块/密钥依赖、有效权限和已有 user 归属的签收，也不是 TCP/ACA 连接验收；最终写脚本仍未生成，生产数据库权限与业务数据未改。

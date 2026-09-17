@@ -1,0 +1,61 @@
+# ihc-db-uat 运维时间线
+
+## 2026-09-17 15:17 CST — CYP-2600 完成六库只读元数据盘点
+
+- **操作人：** Codex；用户明确要求通过 Azure CLI 执行交接包的只读盘点。Azure 操作身份为本机现有登录 `byang@icare.com.ph`，SQL 实际身份为既有 `WORKGROUP\ihc-db-uat$`。
+- **原因：** 为公网 profile 独立账号的权限设计提供实例、对象、身份及权限快照。
+- **影响：** 在 `master` 和批准的五个业务库顺序执行原始 `inventory.sql`，仅查询元数据，不读取业务行、密码 hash、密钥材料或模块正文。未建号、授权、修改 schema/data、重启服务或改网络；新增受限结果文件及 Azure Run Command 正常执行日志。
+- **备份：** 无业务或配置变更，不需变更前备份；保存了原始 SQL、六库完整 JSON 结果、文件 SHA-256 和归档。
+- **回滚方式：** SQL 查询无需回滚。结果文件保留，未执行删除；本地文档可通过 Git 还原。
+- **变更时序：** 读取交接包 → Azure 网卡定位实例 → 集成身份预检 → 六库顺序查询 → 核验结果集数量、行数与文件 SHA-256 → 压缩归档并核验目录 ACL。
+
+### 实例与身份核验
+
+| 项目 | 实查结果 |
+| --- | --- |
+| Azure 订阅 | `e026db6e-ee32-47f1-b49c-da9e5f0441b8`，不是 iCare 2.0 UAT/PROD 所在的 `408f1434-...` |
+| Resource group / VM | `ihc-uat-RG` / `ihc-db-uat` |
+| 目标地址 | Azure 网卡与 Windows 本机 IPv4 均确认 `10.100.0.4` |
+| SQL 实例 / 版本 | `ihc-db-uat` / `14.0.3550.4` |
+| 执行入口 | `az vm run-command invoke --command-id RunPowerShellScript` |
+| OS / SQL 身份 | `NT AUTHORITY\SYSTEM` / `WORKGROUP\ihc-db-uat$` |
+| 元数据权限 | `IS_SRVROLEMEMBER('sysadmin')=1`，`VIEW ANY DEFINITION=1` |
+| 实际 SQL 传输 | `lpc:localhost`，Shared Memory；各库均校验 `@@SERVERNAME` 和 sysadmin 身份 |
+| TCP 尝试 | 最初连接 `tcp:10.100.0.4,1433` 的集成登录报 `ANONYMOUS LOGON`，随后使用同 VM 上既有的本机集成身份，未授予权限 |
+| 原始 SQL SHA-256 | `77f33080ae26c9bf877791f59b9ee00ea4fbb0ddf18f1457aed14a101e8207ec` |
+
+实际走本机 Shared Memory，结果中的 `local_net_address` / `local_tcp_port` 为 NULL。本次证明的是目标实例的元数据可见性，**不证明 TCP、应用密码登录或 ACA 路径通过**。Azure Run Command 退出码为 0 也可能包含脚本错误，本轮额外检查了脚本状态和落盘文件。
+
+### 结果完整性
+
+每库均有 **17 个结果集**；每个结果集保留列名、类型、行数及完整行值，空结果集也保留。远端重新读取全部 JSON，核对结果集数量、实际行数和文件 SHA-256，全部通过。
+
+下表时间来自每库首个结果集，时区均为 CST（UTC+8）；对象等计数仅指原脚本筛选范围。
+
+| catalog | 采集时间 | 对象 | 列 | 模块 | 表达式依赖 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `master` | 15:16:59 | 0 | 0 | 0 | 0 |
+| `medicalassistance_preprod` | 15:16:59 | 8582 | 6797 | 1648 | 6197 |
+| `maswebkit_preprod` | 15:17:04 | 1820 | 963 | 894 | 3365 |
+| `insularsalesportal_preprod` | 15:17:06 | 542 | 374 | 149 | 443 |
+| `masprepaid_preprod` | 15:17:07 | 62 | 36 | 24 | 43 |
+| `authprovidermasuat` | 15:17:07 | 42 | 58 | 1 | 1 |
+
+本次具有 sysadmin 元数据可见性，指定的九个候选/对照 login 中仅查到 `mas_ref_owner`。以下八个 **server login 在此次快照中缺失**：`ecom_runtime_prod`、`sup_runtime_prod`、`public_app_runtime_prod`、`public_hr_runtime_prod`、`public_map_runtime_prod`、`ecom_oauth_reader_prod`、`sup_oauth_reader_prod`、`mas_prod_owner`。这不自动证明库内没有同名 user，也不代表已完成已有主体归属签收。
+
+脚本范围内的模块 `definition_sha256` 均非 NULL；这仍不能证明没有动态 SQL、签名或密钥依赖。建号前继续由 DBA 核对模块/触发器正文、密钥关系、有效权限与主体归属，并结合最终镜像源码审核授权。
+
+### 受控文件位置
+
+- **完整归档（服务器）：** `ihc-db-uat` 上 `C:\ProgramData\iCare\CYP2600\20260917T071312Z\inventory-complete.zip`。
+- **大小 / SHA-256：** `538622` bytes / `26dd61799a87390e67ea096fc1ee462089741efc96415ce25208f80162d39b3a`。
+- **目录 ACL：** 禁用继承，仅 SYSTEM 与本机 Administrators FullControl；SDDL 为 `O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)`。
+- **归档内容：** 原始 `inventory.sql`、六份 `<catalog>.json`、`manifest-final.json`。首次压缩缺少显式加载 `System.IO.Compression`，六库查询已成功；补加载后只读取结果文件重新打包，未重跑 SQL。manifest 保留该归档错误及恢复说明。
+- **本地回执：** `/Users/konghai/Code/Project/Server/_backups/cyp2600-inventory/20260917T071312Z/README.md` 与 `receipt.json`，目录 `0700`、文件 `0600`，由现有 `.gitignore` 排除。
+- **下载状态：** 本地保存的是回执、原始 SQL 和执行记录，尚非完整六库结果。原私网跳板 `icare-uat-runner-1`（`10.30.6.4:22`）SSH 超时；现有 Bastion 为 Basic，未启用 native tunneling。完整结果仍保留在上述服务器目录；未为了下载开公网、修改防火墙或升级 Bastion，也未创建 Blob container/SAS。
+
+### 后续边界
+
+原始盘点已完成，不能继续把“DBA 尚未运行 inventory.sql”作为阻塞原因。**DBA 依赖/有效权限审核、同名 user 归属、最终源码与镜像签收、精确建号/授权/回滚脚本、隔离 SQL Server 验证及写入批准仍待完成**；本次不生成或执行授权脚本。
+
+关联：[DBA 执行清单](../runbooks/icare-prod-dba-login-cyp-2600.md)、[PROD 时间线](icare-prod.md)。
