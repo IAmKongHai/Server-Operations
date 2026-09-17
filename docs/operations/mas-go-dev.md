@@ -27,7 +27,11 @@
 ### 待跟进
 
 - 这是重启时 Tailscale 与 systemd-resolved 的竞态，VM 下次重启仍可能复发。`--accept-dns=false` 通常持久化在 Tailscale 状态中，但 `/etc/resolv.conf` 符号链接是否会被再次覆写未经重启验证。下次重启 `mas-go-dev` 后需确认 `ls -la /etc/resolv.conf` 仍是符号链接、且 runner 正常上线。
-- 代价：关闭 accept-dns 后本机不能再用 MagicDNS 短名（如 `xxx.taila93443.ts.net`）解析 tailnet 节点，需用 Tailscale IP。当前部署脚本与 SSH 配置使用 IP / 别名，暂未发现受影响项，但未逐一审计。
+- MagicDNS 短名仍可用（2026-09-17 02:3x 复验，更正本条目初版「不能再用 MagicDNS 短名」的错误结论）。`--accept-dns=false` 只是让 Tailscale 不再独占覆写 `/etc/resolv.conf`，并未摘掉 MagicDNS 服务器：恢复符号链接后 systemd-resolved 合并了两边，`100.100.100.100` 仍在 nameserver 首位且保留 `search taila93443.ts.net`，短名经 search domain 补全后照常由 MagicDNS 解析。
+  - 宿主机 `getent hosts mac-mini` → `100.108.64.126 mac-mini.taila93443.ts.net`。
+  - 宿主机 `curl http://mac-mini:9000/api/system/status` → HTTP 200、0.034s，CI 使用的 SonarQube 服务端可达。
+  - 容器内（`docker run --network host alpine` + `getent hosts mac-mini`）解析结果一致。
+  - 结论：本机 CI 依赖的 tailnet 短域名（`mac-mini` 等）不受本次变更影响。
 
 
 ## 2026-09-16 00:55 CST - 为 tk-flywheel 创建固定 CI 库和仓库级 runner
