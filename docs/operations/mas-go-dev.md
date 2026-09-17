@@ -1,5 +1,61 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-17 02:52 CST - 重启验证 DNS 未复发，并修复 accept-dns=false 导致的 MagicDNS 短名失效
+
+- 服务器：`mas-go-dev`。
+- 操作人：`Claude`。
+- 原因：用户要求重启 VM，验证上一条目的 DNS 修复在重启后是否复发；同时用户提出 CI 里 SonarQube 服务端是 MagicDNS 短域名 `http://mac-mini:9000/`，需确认是否受 `--accept-dns=false` 影响。
+- 影响：重启导致 iCare / EVP / CMM 三个项目的 SIT 环境（27 个容器）中断约 3 分钟。重启在四个组织 runner 全部 `busy=false` 时执行，未打断任何 CI job。
+- 备份：本次新增 `/etc/systemd/resolved.conf.d/tailscale-magicdns.conf`，该目录原本不存在，回滚即删除文件；未修改既有配置，无需备份。
+- 回滚方式：`sudo rm /etc/systemd/resolved.conf.d/tailscale-magicdns.conf && sudo systemctl restart systemd-resolved` 即回到重启后的状态（公网可用、短名不可用）。
+
+### 重启验证结果：DNS 故障未复发
+
+- 重启前基线：`tailscale debug prefs` 显示 `CorpDNS: false` 已持久化。
+- 重启后 `/etc/resolv.conf` **仍是指向 `/run/systemd/resolve/resolv.conf` 的符号链接**（mtime 保持 `Sep 17 02:18`），未被 Tailscale 再次覆写。
+- 公网解析正常：`github.com` → `172.182.252.133`，`pipelinesghubeus22.actions.githubusercontent.com` → `20.10.226.54`。
+- 四个组织 runner 重启后自动 online，27 个容器全部拉起，数量与重启前一致。
+- 结论：上一条目的修复在重启后稳定，原故障不再复发。
+
+### 重启暴露的新问题：MagicDNS 短名失效
+
+- 重启后 nameserver 只剩 `192.168.2.1`，`100.100.100.100` 消失，`getent hosts mac-mini` 失败，`curl http://mac-mini:9000` 返回 HTTP 000。
+- 根因：`CorpDNS: false` 使 tailscaled 启动后不再向 systemd-resolved 注册 MagicDNS 服务器。上一条目"MagicDNS 短名仍可用"的复验结论**不成立**——当时测到的 `100.100.100.100` 是故障期间 Tailscale 写入 resolv.conf 的残留，重启后自然消失。教训：在未重启的机器上验证开机行为不可靠。
+- MagicDNS 服务本身正常：`dig mac-mini.taila93443.ts.net @100.100.100.100` 能返回 `100.108.64.126`，只是没进解析链。
+- 影响面：CI 中 SonarQube 扫描通过 `http://mac-mini:9000/` 提交分析报告，短名失效会导致相关 job 失败。
+
+### 修复：用 resolved drop-in 单独路由 tailnet 域
+
+不改回 `accept-dns=true`（那会重新引入覆写 resolv.conf 丢上游的根因），改为只把 tailnet 域交给 MagicDNS：
+
+```ini
+# /etc/systemd/resolved.conf.d/tailscale-magicdns.conf
+[Resolve]
+DNS=100.100.100.100
+Domains=~taila93443.ts.net
+```
+
+`sudo systemctl restart systemd-resolved` 生效。`~` 前缀表示仅作为该域的路由域，不参与其它域名解析，因此公网 DNS 仍走 eth0 的 `192.168.2.1`。
+
+### 修复后验证
+
+| 检查项 | 结果 |
+| --- | --- |
+| `/etc/resolv.conf` | 仍为符号链接，nameserver 为 `100.100.100.100` + `192.168.2.1` |
+| `github.com` | `172.182.252.133` |
+| `pipelinesghubeus22.actions.githubusercontent.com` | `20.10.226.54` |
+| `getent hosts mac-mini` | `100.108.64.126 mac-mini.taila93443.ts.net` |
+| `curl http://mac-mini:9000/api/system/status` | HTTP 200 via `100.108.64.126` |
+| 容器内（`--network host`）解析 + 请求 | 解析一致，SonarQube 返回 `{"status":"UP"}`，版本 26.5.0.122743 |
+| 四个组织 runner | 全部 online |
+| 容器数量 | 27，与重启前一致 |
+
+### 待跟进
+
+- 本次 drop-in 是在已启动的系统上生效的，**未经重启验证**。下次重启 `mas-go-dev` 后应复跑 `/tmp/verify-dns.sh`（或手工核对上表），确认 drop-in 在开机时同样生效。按 systemd 语义应当生效，但鉴于本次"未重启验证不可靠"的教训，不把推断当结论。
+- tailnet 域名 `taila93443.ts.net` 硬编码在 drop-in 中，若将来更换 tailnet 需同步修改。
+
+
 ## 2026-09-17 02:18 CST - 修复 Tailscale 覆盖 resolv.conf 导致的 DNS 故障与 runner 全体掉线
 
 - 服务器：`mas-go-dev`。
@@ -27,11 +83,7 @@
 ### 待跟进
 
 - 这是重启时 Tailscale 与 systemd-resolved 的竞态，VM 下次重启仍可能复发。`--accept-dns=false` 通常持久化在 Tailscale 状态中，但 `/etc/resolv.conf` 符号链接是否会被再次覆写未经重启验证。下次重启 `mas-go-dev` 后需确认 `ls -la /etc/resolv.conf` 仍是符号链接、且 runner 正常上线。
-- MagicDNS 短名仍可用（2026-09-17 02:3x 复验，更正本条目初版「不能再用 MagicDNS 短名」的错误结论）。`--accept-dns=false` 只是让 Tailscale 不再独占覆写 `/etc/resolv.conf`，并未摘掉 MagicDNS 服务器：恢复符号链接后 systemd-resolved 合并了两边，`100.100.100.100` 仍在 nameserver 首位且保留 `search taila93443.ts.net`，短名经 search domain 补全后照常由 MagicDNS 解析。
-  - 宿主机 `getent hosts mac-mini` → `100.108.64.126 mac-mini.taila93443.ts.net`。
-  - 宿主机 `curl http://mac-mini:9000/api/system/status` → HTTP 200、0.034s，CI 使用的 SonarQube 服务端可达。
-  - 容器内（`docker run --network host alpine` + `getent hosts mac-mini`）解析结果一致。
-  - 结论：本机 CI 依赖的 tailnet 短域名（`mac-mini` 等）不受本次变更影响。
+- MagicDNS 短名：**重启前的"仍可用"结论不成立**，那次测到的 `100.100.100.100` 是故障期间 Tailscale 写入的残留。重启后 `CorpDNS: false` 使 Tailscale 不再向 systemd-resolved 注册 MagicDNS，nameserver 只剩 `192.168.2.1`，`mac-mini` 解析失败、`http://mac-mini:9000` 的 SonarQube 不可达（CI 依赖）。已通过 resolved drop-in 单独补回，见下方 02:56 条目。
 
 
 ## 2026-09-16 00:55 CST - 为 tk-flywheel 创建固定 CI 库和仓库级 runner
