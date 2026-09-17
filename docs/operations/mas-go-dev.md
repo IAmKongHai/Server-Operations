@@ -1,5 +1,35 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-17 02:18 CST - 修复 Tailscale 覆盖 resolv.conf 导致的 DNS 故障与 runner 全体掉线
+
+- 服务器：`mas-go-dev`。
+- 操作人：`Claude`。
+- 原因：`cypressoai/evp` 的 [Deploy SIT run 35169447886](https://github.com/cypressoai/evp/actions/runs/35169447886) 排队约 1 小时无人认领。排查发现组织 runner `shared-sit`、`mas-go-dev-ci-1`、`mas-go-dev-ci-2`、`mas-go-dev` 在 GitHub 侧全部 offline，但 VM 存活、五个 runner systemd 服务均 `active running`。真因是 DNS 解析失败，不是 runner 程序问题。
+- 故障链条：VM 于 2026-09-16 10:44 重启（boot `8ebd32657a51408bae5b4d7f8e9ffb2f`）→ Tailscale 把 `/etc/resolv.conf` 从指向 `/run/systemd/resolve/resolv.conf` 的符号链接覆写成静态文件，只保留 `100.100.100.100` 与 `fd7a:115c:a1e0::53`，丢掉 eth0 的上游 `192.168.2.1` → 但 tailnet 未配置全局 resolver（`tailscale dns status` 显示 `no resolvers configured, system default will be used`），MagicDNS 需回落系统 DNS 而系统 DNS 已被自己冲掉 → 公网域名全部解析不了，runner 日志重复报 `Runner connect error: Name or service not known (pipelinesghubeus22.actions.githubusercontent.com:443). Retrying until reconnected.`，重试退避拉长后停在 10:59。
+- 影响：EVP SIT 部署与 iCare 相关 CI 在 2026-09-16 10:44 至 2026-09-17 02:19 期间无法调度，job 只排队不执行。宿主机本身、容器与已部署 SIT 服务未受影响。
+- 备份：`/etc/resolv.conf.bak.20260917`（`cp -a` 保留原属性，内容为 Tailscale 生成的静态版本）。
+- 回滚方式：`sudo tailscale set --accept-dns=true`，再 `sudo cp -a /etc/resolv.conf.bak.20260917 /etc/resolv.conf` 覆盖回静态文件即可恢复原状。
+
+### 变更时序
+
+1. 备份当前 `/etc/resolv.conf` 到 `/etc/resolv.conf.bak.20260917`。
+2. `sudo tailscale set --accept-dns=false`，交回 DNS 管理权（退出码 0）。Tailscale 不会自动还原被覆写的文件。
+3. `sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf`，恢复由 systemd-resolved 管理，上游 `192.168.2.1` 回到解析链。
+4. 未重启任何 runner 服务：runner 自带重连退避，DNS 恢复后自行重连。
+
+### 验证结果
+
+- 修复前：`getent hosts github.com` 与 `getent hosts pipelinesghubeus22.actions.githubusercontent.com` 均失败；但 `dig @192.168.2.1 github.com` 与 `dig @8.8.8.8 github.com` 都能返回 `140.82.116.3`，确认上游 DNS 正常，问题仅在本机 resolv.conf。
+- 修复后：`github.com` → `140.82.116.4`，`pipelinesghubeus22.actions.githubusercontent.com` → `20.10.226.54`，解析恢复。
+- `shared-sit` runner 于 02:19:02 `Connected to GitHub`、02:19:04 `Runner reconnected.`、02:19:09 接单 `Running job: Deploy to shared-sit`。四个 runner 在 GitHub 侧全部回到 online。
+- 因 `shared-sit` 与 `mas-go-dev-ci-1` 重连后立即 busy=true 正在执行任务，原计划的「重启三个 runner 服务」取消执行，避免打断运行中的 job。
+
+### 待跟进
+
+- 这是重启时 Tailscale 与 systemd-resolved 的竞态，VM 下次重启仍可能复发。`--accept-dns=false` 通常持久化在 Tailscale 状态中，但 `/etc/resolv.conf` 符号链接是否会被再次覆写未经重启验证。下次重启 `mas-go-dev` 后需确认 `ls -la /etc/resolv.conf` 仍是符号链接、且 runner 正常上线。
+- 代价：关闭 accept-dns 后本机不能再用 MagicDNS 短名（如 `xxx.taila93443.ts.net`）解析 tailnet 节点，需用 Tailscale IP。当前部署脚本与 SSH 配置使用 IP / 别名，暂未发现受影响项，但未逐一审计。
+
+
 ## 2026-09-16 00:55 CST - 为 tk-flywheel 创建固定 CI 库和仓库级 runner
 
 - 服务器：`mas-go-dev`；仓库 `IAmKongHai/tk-flywheel`。
