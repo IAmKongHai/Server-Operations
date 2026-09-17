@@ -1,5 +1,19 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-17 15:30 CST — CYP-2600 完整盘点归档下载本机并校验
+
+- **操作人：** Codex；用户接通 VPN，并明确允许使用 UAT runner VM 作跳板。
+- **原因：** 将 15:17 完成的六库元数据盘点结果交付到本地，供后续 DBA 权限审核使用。
+- **影响：** 仅传输既有 `538622` bytes 归档，未重新连接或查询 SQL。新增一个私有 Blob container/归档副本和本地文件；未修改数据库、runner、Docker、网络或服务配置。
+- **备份：** 源 VM 的原始 JSON、manifest 和归档全部保留。
+- **回滚方式：** 下载不改源文件，无业务回滚需求；源归档及私有中转副本保留，本轮未删除文件或容器。本地文档可通过 Git 还原。
+- **变更时序：** VPN 恢复后 SSH 连通 `icare-uat-runner-1` → 确认其解析 Blob 到 `10.30.5.9` → 源 VM 将既有归档上传私有 Blob → runner 经 HTTPS 读取并通过 SSH 流式回传 → 本机校验后保存并解压。runner 未落盘归档。
+- **中转位置：** `icare2uaticare2st/cyp2600-inventory-20260917t071312z/inventory-complete.zip`；storage account 保持 `publicNetworkAccess=Disabled`，新 container 无匿名访问。HTTPS SAS 仅针对这个 blob：上传 create/write 至 15:48 CST、下载 read 至 15:50 CST，不含 list/delete；token 不写入 Git 或回执，本地上传脚本中的 token 已遮盖。
+- **本地归档：** `/Users/konghai/Code/Project/Server/_backups/cyp2600-inventory/20260917T071312Z/inventory-complete.zip`。
+- **本地结果目录：** 同目录 `results/`，包含 `inventory.sql`、`manifest-final.json` 和六份 `<catalog>.json`；同目录 `README.md` 为交接入口，`download-verification.json` 为本地验证回执。
+- **验证：** 归档 SHA-256 为 `26dd61799a87390e67ea096fc1ee462089741efc96415ce25208f80162d39b3a`，与源 VM 一致；ZIP CRC、原始 SQL、六个结果 JSON 的 SHA-256、102 个结果集及所有行数全部通过。目录权限 `0700`、文件 `0600`，原始结果由 `_backups/` gitignore 规则排除。
+- **交付状态：** 完整盘点结果已在本地，可直接交接下一 session；DBA 对依赖、有效权限及主体归属的审核仍待完成。
+
 ## 2026-09-17 15:17 CST — CYP-2600 完成六库只读元数据盘点
 
 - **操作人：** Codex；用户明确要求通过 Azure CLI 执行交接包的只读盘点。Azure 操作身份为本机现有登录 `byang@icare.com.ph`，SQL 实际身份为既有 `WORKGROUP\ihc-db-uat$`。
@@ -52,7 +66,7 @@
 - **目录 ACL：** 禁用继承，仅 SYSTEM 与本机 Administrators FullControl；SDDL 为 `O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)`。
 - **归档内容：** 原始 `inventory.sql`、六份 `<catalog>.json`、`manifest-final.json`。首次压缩缺少显式加载 `System.IO.Compression`，六库查询已成功；补加载后只读取结果文件重新打包，未重跑 SQL。manifest 保留该归档错误及恢复说明。
 - **本地回执：** `/Users/konghai/Code/Project/Server/_backups/cyp2600-inventory/20260917T071312Z/README.md` 与 `receipt.json`，目录 `0700`、文件 `0600`，由现有 `.gitignore` 排除。
-- **下载状态：** 本地保存的是回执、原始 SQL 和执行记录，尚非完整六库结果。原私网跳板 `icare-uat-runner-1`（`10.30.6.4:22`）SSH 超时；现有 Bastion 为 Basic，未启用 native tunneling。完整结果仍保留在上述服务器目录；未为了下载开公网、修改防火墙或升级 Bastion，也未创建 Blob container/SAS。
+- **15:17 时的下载状态：** 当时本地仅保存回执、原始 SQL 和执行记录，尚非完整六库结果。原私网跳板 `icare-uat-runner-1`（`10.30.6.4:22`）SSH 超时；现有 Bastion 为 Basic，未启用 native tunneling。当时未创建 Blob container/SAS，亦未开公网、修改防火墙或升级 Bastion。**15:30 已完成本地下载，见顶部记录。**
 
 ### 后续边界
 

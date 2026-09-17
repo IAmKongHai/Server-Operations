@@ -4,6 +4,16 @@
 
 SSH：`ssh icare-uat-runner-1`（兼容 `ssh icare-uat-runner`）→ `icareadmin@10.30.6.4`。主机名 `icare-2-uat-ci-runner`。
 
+## 2026-09-17 15:30 CST — 作为 CYP-2600 盘点归档下载跳板
+
+- **操作人：** Codex，用户明确允许使用 UAT runner VM 作跳板。
+- **原因：** 用户接通 VPN 后，将 `ihc-db-uat` 上既有的六库元数据归档下载本机。
+- **影响：** 使用现有 SSH 与 Python，经私有 Blob 端点 `10.30.5.9:443` 读取 `538622` bytes 归档并流式回传；未落盘归档，未改 runner / Docker / `/var/cache/buildx` 或服务配置。
+- **备份：** 未改配置，无需备份；源 VM 原件保留。
+- **回滚方式：** 转发进程已结束，无服务变更需要回滚。
+- **变更时序：** 确认 SSH、DNS 与 HTTPS 连通 → 通过 stdin 传入只读短期 SAS → 内存读取归档 → SSH 回传至本机。SAS 不放命令参数或 Git。
+- **验证：** 本机归档 SHA-256 与源 VM 一致，完整解压及六库元数据校验通过。结果位置与中转记录见 [ihc-db-uat 时间线](ihc-db-uat.md)。
+
 ## 2026-08-24 20:32 CST - 只读确认到 ihc-db-uat 的跳板能力
 
 - 服务器：`icare-uat-runner-1`（`10.30.6.4`）

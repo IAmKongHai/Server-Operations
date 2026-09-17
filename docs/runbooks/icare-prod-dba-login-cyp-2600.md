@@ -196,4 +196,6 @@ DBA 可先运行包内 `inventory.sql` 做元数据盘点；它不读业务行�
 
 用户授权通过 Azure CLI 执行后，已在 `ihc-db-uat` 的 `master` 及五个批准 catalog 完成原始 `inventory.sql`，各保留 17 个完整结果集。通过 VM Run Command 使用既有 `WORKGROUP\ihc-db-uat$` 身份，本机 Shared Memory 连接，实测 sysadmin 和 `VIEW ANY DEFINITION` 均为 1；未授予权限。七个计划新建的业务/OAuth login 及 `mas_prod_owner` 在本次 server principal 快照中缺失。
 
-完整归档在源 VM 的受限目录，本机已有结果索引与校验回执；私网 SSH 当前超时，完整归档尚未下载本机。详见[执行时间、归档位置、SHA-256 与核验边界](../operations/ihc-db-uat.md)。此进度更新的是原始元数据交付，不是 DBA 对模块/密钥依赖、有效权限和已有 user 归属的签收，也不是 TCP/ACA 连接验收；最终写脚本仍未生成，生产数据库权限与业务数据未改。
+完整归档在源 VM 的受限目录，初次盘点时因私网 SSH 超时仅有本地索引。**15:30 CST 用户接通 VPN 后，已通过 UAT runner 跳板下载并解压到本机**：`_backups/cyp2600-inventory/20260917T071312Z/results/`；同级 `README.md` 为交接入口，`inventory-complete.zip` 为原归档。归档及六个 JSON 的 SHA-256、ZIP CRC、102 个结果集和所有行数全部通过。原始结果被 Git 忽略，目录 `0700`、文件 `0600`。
+
+详见[执行时间、归档位置、SHA-256 与核验边界](../operations/ihc-db-uat.md)。此进度更新的是原始元数据交付，不是 DBA 对模块/密钥依赖、有效权限和已有 user 归属的签收，也不是 TCP/ACA 连接验收；最终写脚本仍未生成，生产数据库权限与业务数据未改。
