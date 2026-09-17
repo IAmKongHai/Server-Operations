@@ -189,3 +189,5 @@ DBA 回执使用以下格式，不附密码或完整连接串：
 DBA 可先运行包内 `inventory.sql` 做元数据盘点；它不读业务行、密码 hash 或模块正文。最终 `create-and-grant.sql` / `rollback.sql` 等 O1/O2 完成后再生成，当前没有可批准的一键建号授权脚本。所有账号与线上权限仍为待核验，未改 SQL/KV/RBAC、未 apply 或切流。
 
 完整审查与未完成要求见 [本地实施审查](../reviews/2026-09-16-cyp-2600-public-db-isolation/report.md)。SUP 的接收侧 mTLS 和先 MAS 后 SUP 的发版顺序仍须实测，不能直接把新镜像放入尚未配置通道的 UAT/PROD。
+
+2026-09-17 已只读核验：PROD 尚无 Container Apps，五个专属 runtime UAMI 尚未在该 RG 创建；KV 禁用公网且私有端点已批准，但当前终端列 secret 元数据被网络边界拒绝。历史导入镜像来自 8 月构建，不是本次整改的最终版本。见 [现场核验与版本追溯](../operations/icare-prod.md)。DBA 元数据回执仍待交付，未生成最终写脚本。
