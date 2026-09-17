@@ -2,6 +2,10 @@
 
 日期：2026-09-16。状态：**代码静态核对完成，停在说明与审阅阶段；未建号、未授权、未改代码或部署配置。**
 
+**2026-09-17 续审：** 上述状态及正文描述的是 9 月 16 日取证基线。后续 backend 已完成本地 SUP 整改（见文末），实际六库元数据现已交付；最新候选源码为 backend `0268903a`、public-backend `03abb25d`，最终镜像未选定。按用户要求已生成禁止执行的 DBA 审核草案，入口见 [DBA 清单](icare-prod-dba-login-cyp-2600.md)。98 行对象动作需求中 96 行匹配 dbo 对象，另两行 SUP 表仍待无过滤补证；不存在“所有对象和权限均已验证”的结论。
+
+当前窄列建议为 OAuth SELECT(id,secret)、SUP tblusers SELECT(userno,username)、tblcorporatelibrary UPDATE(franchised)、App tblsendimagedetails SELECT(detno)（OUTPUT 返回列）。tblmemberpassword 模型不返回主键，tblfranchisingagents 是 map Create，暂不猜加 SELECT。其余表级候选、模块/动态 SQL/密钥链、public 继承及真实受限身份验收仍须 DBA 签收。
+
 配套：[DBA 执行清单](icare-prod-dba-login-cyp-2600.md)。本文件列明现有代码需要哪些访问，不等于批准其中全部访问，也不等于已经通过真实 SQL Server 权限测试。
 
 ## 核验口径

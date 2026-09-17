@@ -12,6 +12,15 @@ execution: code
 文档归属：Server 运维仓。实施目标：iCare 根仓及其 `backend`、`public-backend`、`terraform` 子仓。
 下文 `Server:` 和 `iCare:` 指定路径所属仓库，路径均相对该仓根目录。新增文件会明确标注；SQL 名称和 secret 名称是待盘点确认的方案，不代表已经创建。
 
+## 2026-09-17 实施进度补充
+
+- U1：六库高权限只读盘点已交付，本机复核归档、原 SQL、六 JSON 的 SHA-256/字节数、ZIP CRC、102 个结果集及行数通过。执行入口是 Shared Memory，TCP/ACA 未验收。
+- 用户明确最终 digest 尚未选定，先按候选 backend `0268903a` / public-backend `03abb25d` 整理审核草案；O1 保持未签收。
+- U3：Terraform 实施工作区 `docs/deployment/sql/cyp-2600-public-logins/` 已准备 metadata-review、permission-matrix、module-evidence、补充只读查询及建号/授权/回滚草案。98 行需求匹配 96 行对象，两行 SUP 表因原 inventory 过滤尚待补证，暂不生成 GRANT。
+- O2：不再等待原始盘点。待 DBA 私下审核模块/动态 SQL/密钥链、两张表、public diagram 继承、列收口和 owner/SID。七候选 login 与六库同名 user 在快照均缺失，不替代执行窗口复查。
+- U3 草案不等于最终执行版；两份变更 SQL 除无条件 THROW 外全为注释。U3/U6 的隔离 SQL Server 正反向、重复执行及回滚验证未完成，U7/U8、生产写入批准、O3/O4 继续待办。
+- 本轮只处理本地文件，没有连接或改动 SQL/Azure，没有改业务源码。最新审核说明见 [DBA 执行清单](../runbooks/icare-prod-dba-login-cyp-2600.md)。
+
 ## Goal Capsule
 
 - **Objective：** 运维人员可以单独停用或轮换某个公网服务的数据库身份，其余服务仍能正常工作；该服务不能借自己的身份访问超出业务需要的数据。
