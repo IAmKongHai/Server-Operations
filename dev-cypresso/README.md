@@ -32,6 +32,17 @@ ssh dev-cypresso
 KEEP_BACKUP=1 ./scripts/deploy-icare-preview-apk.sh
 ```
 
+## 公网站点
+
+宿主 Nginx 1.28 反代，证书由 certbot 签发自动续期。vhost 在 `/etc/nginx/conf.d/`。
+
+| 域名                | 用途                 | 反代目标           | 仓库内对照                |
+| ------------------- | -------------------- | ------------------ | ------------------------- |
+| `zzz.konghai.me`    | new-api（AI 网关）   | `127.0.0.1:3000`   | [`new-api/`](./new-api/)  |
+
+> 本表暂只列 new-api。同机还有 `t.moospark.com`（moo-ticket）、`evp.moospark.com` /
+> `evp-admin.moospark.com`（EVP）等既有站点，待后续补齐。
+
 ## 共享基础设施栈
 
 位置：`/home/ec2-user/stacks/infra/`，由一份 `docker-compose.yml` 编排。
@@ -47,6 +58,17 @@ KEEP_BACKUP=1 ./scripts/deploy-icare-preview-apk.sh
 | SonarQube       | `sonarqube`         | `sonarqube:26.3.0.120487-community`            | `9000`                |
 
 所有端口都绑 `127.0.0.1`，外部只能通过 SSH 隧道访问。
+
+租户库（各项目在 `shared-postgres` 上独立建库建角色，不共用管理员账号）：
+
+| 库           | 角色           | 使用方                        |
+| ------------ | -------------- | ----------------------------- |
+| `new_api`    | `new_api`      | new-api（`zzz.konghai.me`）   |
+| `moo_ticket` | `moo_ticket`   | moo-ticket（`t.moospark.com`）|
+| `evp`        | `evp`          | EVP                           |
+
+> 注意：目前只有 `new_api` 与 `evp` 两个库 `REVOKE CONNECT FROM PUBLIC`，
+> 其余库任何已认证角色都能连上。新建库时记得一并收紧。
 
 ## SQL Server 容器细节
 
