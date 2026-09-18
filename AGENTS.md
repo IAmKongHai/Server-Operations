@@ -118,7 +118,7 @@
   - `/Users/konghai/actions-runner/mac-mini-mobile-1/` — iCare preview / OTA JS 槽，workFolder `/Users/konghai/gha/m1`；LaunchDaemon `system/actions.runner.cypressoai.mac-mini-mobile-1`
   - Homebrew `azure-cli` **必须**是 `/opt/homebrew/bin/az`（现网 `2.90.0`，跟 brew 最新稳定即可，不必钉版本）。`mac-mini-mobile-1` 的 launchd PATH 已含 `/opt/homebrew/bin`，装完不必改 plist、**不必重启 runner**
   - 幂等安装：`brew list azure-cli || brew install azure-cli`。不要装到 `/usr/local/bin`，不要只进交互 shell PATH（runner 看不到）
-  - **不要**给 runner 写 Azure storage connection string / account key。GHA 上传走 OIDC（`azure/login` + `--auth-mode login`）。交互 `az login` 只给人手工验证，不能替代 job 上的 `environment:`
+  - **不要**给 runner 写 Azure storage connection string / account key。GHA 上传走 OIDC（`azure/login` + `--auth-mode login`）。交互 `az login` 只给人手工验证，不能替代 job 上的 `environment:`。SSH 进这台机器时用 `az login --use-device-code`（无 konghai 图形会话时默认 `az login` 会 osascript `-10810`）
   - 装 `az` **不会**让现有 `ota-publish-js.yml` 自动直传 Blob（workflow 仍走 GitHub artifact + `ubuntu-latest`）。启停见 `docs/runbooks/mac-mini-runner-start-stop.md`
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`

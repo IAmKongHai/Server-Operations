@@ -38,6 +38,14 @@ PATH='/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/kong
 
 不要为了 `az` 改 plist 或重启 `mac-mini-mobile-1`。不要给 runner 写 storage key / connection string。交互 `az login` 只给人手工验证，不能替代 GitHub Actions 的 OIDC。装 CLI **不会**让现有 `ota-publish-js.yml` 自动直传 Blob。
 
+SSH 进 mac-mini 时 **不要** 跑默认 `az login`：当时 `/dev/console` 往往是 `root`，没有 `konghai` 图形会话，`osascript` 开浏览器会 `-10810`（没装 Firefox 还会再报 `-1728`）。用设备代码，在你面前的浏览器完成登录：
+
+```bash
+az login --use-device-code
+```
+
+取证：[az-login-ssh-cannot-open-browser-2026-09-18](../solutions/mac-mini/runtime-errors/az-login-ssh-cannot-open-browser-2026-09-18.md)。
+
 ## 红线：不要用 `at` 做定时恢复
 
 macOS **默认禁用** `com.apple.atrun`（plist 里 `Disabled=true`）。  

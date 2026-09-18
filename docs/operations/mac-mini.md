@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-09-18 16:24 CST - SSH 上 az login 打不开浏览器，改用 device-code
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（只读取证 + 文档）；用户在 SSH 会话里跑的 `az login`
+- 原因：用户按约定在 mac-mini 上 `az login` 手工验证 CLI，默认流程要本机弹浏览器。
+- 影响：未改 Azure CLI、未写凭据、未重启 runner。登录仍须用户用 `--use-device-code` 在能打开浏览器的机器上完成。
+- 备份：无。
+- 回滚方式：无服务器变更。文档回滚本提交。
+- 做了什么：
+  1. LAN SSH 只读核验：`/opt/homebrew/bin/az` 2.90.0 可用；`az account show` 仍未登录；`/dev/console` 属主 `root`；`who` 无 `konghai console`；无 Firefox.app。
+  2. 对照 Python `webbrowser.MacOSXOSAScript.open`：默认 `osascript 'open location'`，再试 chrome / firefox / safari，与用户看到的三条 `-10810` + 一条 firefox `-1728` 对齐。
+  3. 把 SSH 下必须用 `az login --use-device-code` 写入 runbook、`AGENTS.md` 和 solutions。
+- 验证：CLI 本身正常；未代用户完成 Microsoft 登录（需在浏览器输入设备码）。
+- 边界：这次交互登录不能替代 GHA OIDC。
+
 ## 2026-09-18 14:14 CST - 声明 mac-mini-mobile-1 依赖 Homebrew azure-cli
 
 - 服务器：`mac-mini`（runner `mac-mini-mobile-1`）
