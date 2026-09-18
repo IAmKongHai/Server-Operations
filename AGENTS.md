@@ -113,6 +113,13 @@
 - `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认
 - `mas-go-dev` 是 MAS Go 内网 SIT，并作为其它项目的合部署 SIT VM（共享 PostgreSQL / Garage 在 `/opt/shared-sit/`）；过往文档常以 `192.168.2.22` 指代，现以 Tailscale `100.109.223.53` 为对外入口。同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI 与已部署的 SIT
 - `icare-uat-runner-1` / `icare-uat-runner-2` 是 Azure UAT 发版机（组 `icare-2-uat`）。档案见 `icare-uat-runner-1/README.md`、`icare-uat-runner-2/README.md`。Buildx local cache 路径是 `/var/cache/buildx`，属主必须是 runner 用户 `icareadmin`；`/var/cache` 属 root，新 burst 机不预建就会在 `Prepare backend build cache` 上 Permission denied。`icare-uat-runner-2` 已于 2026-08-23 补齐。wait slot 只在 runner-1，不要装到 runner-2。
+- `mac-mini` 目录约定：
+  - `/Users/konghai/actions-runner/mac-mini-sonar-{1..4}/` — 质量门 runner；workFolder `/Users/konghai/gha/s{1..4}`
+  - `/Users/konghai/actions-runner/mac-mini-mobile-1/` — iCare preview / OTA JS 槽，workFolder `/Users/konghai/gha/m1`；LaunchDaemon `system/actions.runner.cypressoai.mac-mini-mobile-1`
+  - Homebrew `azure-cli` **必须**是 `/opt/homebrew/bin/az`（现网 `2.90.0`，跟 brew 最新稳定即可，不必钉版本）。`mac-mini-mobile-1` 的 launchd PATH 已含 `/opt/homebrew/bin`，装完不必改 plist、**不必重启 runner**
+  - 幂等安装：`brew list azure-cli || brew install azure-cli`。不要装到 `/usr/local/bin`，不要只进交互 shell PATH（runner 看不到）
+  - **不要**给 runner 写 Azure storage connection string / account key。GHA 上传走 OIDC（`azure/login` + `--auth-mode login`）。交互 `az login` 只给人手工验证，不能替代 job 上的 `environment:`
+  - 装 `az` **不会**让现有 `ota-publish-js.yml` 自动直传 Blob（workflow 仍走 GitHub artifact + `ubuntu-latest`）。启停见 `docs/runbooks/mac-mini-runner-start-stop.md`
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
   - `/Users/for-konghai/gha/li{1,2}` — 对应 slot 的短路径 workFolder（2026-08-08 由不对称的 `li`/`li2` 统一而来）

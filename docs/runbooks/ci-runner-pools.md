@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-09-15
+> 最后更新：2026-09-18
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -26,7 +26,7 @@
 | Runner name | 主机 | 关键 labels（含默认） |
 |-------------|------|---------------------|
 | `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci`。2026-08-19 曾停 3/4；**2026-08-25 已恢复四 slot 在线** |
-| `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签） |
+| `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签）。宿主须有 Homebrew `azure-cli`（`/opt/homebrew/bin/az`），供日后 OTA JS 直传 Azure Blob；现网 workflow 仍走 GitHub artifact + `ubuntu-latest` upload，见 [mac-mini-runner-start-stop.md](./mac-mini-runner-start-stop.md) |
 | `mac-mini-acquilang-native-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, `macos-arm64`, **`acquilang-native-ci`**（**无** `mac-mini` / sonar / quality / `konghai-friends-lab`） |
 | `mac-mini-acquilang-ci-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**；新增于 2026-09-15，日常 CI 独立 slot |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |

@@ -1,6 +1,6 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-09-15
+> 最后更新：2026-09-18
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
 > 仓库级 runner（`IAmKongHai/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）
@@ -16,6 +16,27 @@
 > 2026-08-19 曾 `launchctl disable` 停掉 `mac-mini-sonar-3/4` 给 Multica 留并发；**2026-08-25 已 enable + bootstrap 恢复**，四 slot 重新 online。当时条目见 [operations/mac-mini.md](../operations/mac-mini.md)。
 
 **不要再运行 `./svc.sh install` / `./svc.sh start`。** 那会把 LaunchAgent 装回 `~/Library/LaunchAgents`，登录后和 Daemon 双开。
+
+## 宿主工具：azure-cli
+
+`mac-mini-mobile-1` 的 launchd PATH 已含 `/opt/homebrew/bin`。OTA JS 以后若在本机 `az storage blob upload-batch`，二进制必须是 `/opt/homebrew/bin/az`。现网已装 Homebrew `azure-cli` 2.90.0；声明版本跟 brew 最新稳定即可，不必钉死这个号。
+
+幂等安装（已装则跳过）：
+
+```bash
+brew list azure-cli || brew install azure-cli
+```
+
+验收（在 **mac-mini** 上，不要用开发者 MacBook Air）：
+
+```bash
+command -v az          # 必须打印 /opt/homebrew/bin/az
+az version             # azure-cli 有版本即可
+# 以 runner 的 PATH 再确认一次，避免只在交互 shell 里看得到：
+PATH='/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/konghai/Library/Android/sdk/platform-tools:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' command -v az
+```
+
+不要为了 `az` 改 plist 或重启 `mac-mini-mobile-1`。不要给 runner 写 storage key / connection string。交互 `az login` 只给人手工验证，不能替代 GitHub Actions 的 OIDC。装 CLI **不会**让现有 `ota-publish-js.yml` 自动直传 Blob。
 
 ## 红线：不要用 `at` 做定时恢复
 

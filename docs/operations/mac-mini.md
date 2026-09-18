@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-09-18 14:14 CST - 声明 mac-mini-mobile-1 依赖 Homebrew azure-cli
+
+- 服务器：`mac-mini`（runner `mac-mini-mobile-1`）
+- 操作人：`Grok`
+- 原因：`iCare-mobile-app` OTA Publish JS 计划从 mac-mini 直传 Azure Blob。`azure/login` 与 `az storage blob` 都要求 runner PATH 上有 `/opt/homebrew/bin/az`。此前因没有 `az` 才把 upload 放到 GitHub 托管 `ubuntu-latest`；现网 artifact 配额打满（[run 35295893808](https://github.com/cypressoai/iCare-mobile-app/actions/runs/35295893808)），直传的本机前提是装好 CLI。
+- 选型：Homebrew formula `azure-cli`，二进制必须是 `/opt/homebrew/bin/az`。不钉版本号，跟 brew 最新稳定即可。`mac-mini-mobile-1` launchd PATH 已含 `/opt/homebrew/bin`，不必改 plist、不必重启 runner。
+- 影响：本仓把该包写成可复现约定。机器上已有一次会话内安装（Cellar 链接时间 2026-09-18 14:02）。本次未再 `brew install`、未重启 runner、未改 workflow、未写入 Azure 凭据。
+- 备份：无。formula 已在 Cellar。
+- 回滚方式：文档回滚本提交。若卸载 CLI：`brew uninstall azure-cli`（将来直传 Blob 的 job 会再次找不到 `az`）。
+- 做了什么：
+  1. 经 LAN `konghai@192.168.2.170` 只读核验 `az` 与 `mac-mini-mobile-1` plist PATH。
+  2. 把约定写入 `AGENTS.md`、`docs/runbooks/mac-mini-runner-start-stop.md`、`docs/runbooks/ci-runner-pools.md`。
+- 验证：
+  - `command -v az` = `/opt/homebrew/bin/az` → Cellar `azure-cli/2.90.0`
+  - 用 runner PATH 再查一次，仍是 `/opt/homebrew/bin/az`
+  - `az version` 报 `2.90.0`
+  - plist PATH：`/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/konghai/Library/Android/sdk/platform-tools:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`
+- 边界：交互 `az login` 由用户自行完成，只给人手工验证。GHA 上传仍须 OIDC（job `environment: uat` / `production` + `azure/login`）。当前 `ota-publish-js.yml` 尚未改成直传，装 `az` 不会让现有 job 自动上传 Blob。
+
 ## 2026-09-16 00:49 CST - 盘点 PostgreSQL 实例与数据库（只读）
 
 - 操作人：`Codex`。
