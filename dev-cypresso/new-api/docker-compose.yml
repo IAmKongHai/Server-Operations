@@ -1,0 +1,72 @@
+name: new-api
+services:
+  new-api:
+    image: calciumion/new-api:v1.0.0-rc.37
+    container_name: new-api
+    restart: always
+    # env_file 保持必需：漏放 .env 时容器直接启动失败，
+    # 而不是静默回退到容器内 SQLite（KTD10 不挂 /data，回退等于数据无处可寻）
+    env_file: .env
+    ports:
+      # 只绑回环，公网入口一律经宿主 Nginx（R3、KTD4）
+      - "127.0.0.1:3000:3000"
+    mem_limit: 1g
+    depends_on:
+      new-api-redis:
+        condition: service_healthy
+    networks:
+      # default 连 Redis；shared-services 连 infra 栈的 shared-postgres（KTD3）
+      - default
+      - shared-services
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  new-api-redis:
+    image: redis:8.4-alpine
+    # 容器名不能叫 redis / shared-redis，避免与 iCare、共享栈冲突（R6）
+    container_name: new-api-redis
+    restart: always
+    env_file: .env
+    command:
+      [
+        "redis-server",
+        "--appendonly", "yes",
+        "--requirepass", "${REDIS_PASSWORD}",
+        "--maxmemory", "128mb",
+        "--maxmemory-policy", "allkeys-lru",
+      ]
+    mem_limit: 256m
+    cpus: 0.5
+    volumes:
+      - redis_data:/data
+    networks:
+      # 只在 default：不进 shared-services，避免在共享网络注册别名（KTD2）
+      - default
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:
+    name: new-api_redis_data
+
+networks:
+  shared-services:
+    name: shared-services
+    external: true

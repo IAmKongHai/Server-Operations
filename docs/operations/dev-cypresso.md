@@ -1,5 +1,53 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-18 12:25 CST - 部署 new-api（zzz.konghai.me）U1–U4：建库、落栈、初始化（U5 起待确认）
+
+- 服务器：`dev-cypresso`（公网 `32.192.186.193`）
+- 操作人：`Claude Opus 5`（按 `docs/plans/2026-09-18-0959-ops-dev-cypresso-new-api-deploy-plan.md` 执行 `/goal`）
+- 原因：在 dev-cypresso 单机部署 new-api（AI API 网关），对外域名 `zzz.konghai.me`。
+- 进度：**U1–U4 已完成，U5（nginx vhost + certbot）起暂停等用户确认**。服务当前只在 `127.0.0.1:3000`，公网尚不可达。
+- 影响：
+  - `shared-postgres` 上新增独立库 `new_api` 与同名角色（非超级用户、`CONNECTION LIMIT 30`），**未重启该容器**
+  - 新增 compose 栈 `/home/ec2-user/stacks/new-api/`，容器 `new-api`（`calciumion/new-api:v1.0.0-rc.37`）+ `new-api-redis`（`redis:8.4-alpine`，带密码 + AOF，不发布宿主端口）
+  - 新增 Docker 网络 `new-api_default`（`172.18.0.0/16`）与卷 `new-api_redis_data`
+  - **未**改 nginx、防火墙、crontab、SSH；**未**动 `stacks/infra/`；四个邻居容器（`shared-postgres`、`shared-redis`、`moo-ticket`、`evp-provider-api`）`StartedAt` 全部未变
+- 选型：
+  - 复用 `shared-postgres` 建独立库，而非单起 PG 容器（与同机 moo-ticket / EVP 惯例一致，省 2GB 内存）
+  - Redis 单起带密码实例，不复用无密码的 `shared-redis`（后者 `allkeys-lru` 且 iCare 在用 db0）
+  - Redis 镜像钉 `8.4-alpine`（计划只说"钉版本"，评审 FYI 建议钉具体版本）
+  - `TRUSTED_PROXIES=172.16.0.0/12`：实测两个网络网关为 `172.18.0.1` / `172.19.0.1`，均落在该网段内，无需按实际值改写
+  - 备份脚本单独成 `.sh` 而非写进 `ExecStart`：systemd 不经 shell，重定向与管道会静默失效
+- 备份：本阶段未改动任何既有文件，无需备份。新建文件均为新增。
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'cd /home/ec2-user/stacks/new-api && docker-compose down'   # 不带 -v，卷里是 Redis AOF
+  # 库与角色如需一并清理（破坏性，需另行确认）：
+  # docker exec -i shared-postgres psql -U postgres -c "DROP DATABASE new_api;"
+  # docker exec -i shared-postgres psql -U postgres -c "DROP ROLE new_api;"
+  ```
+- 变更时序：
+  1. **U1** 仓库落模板 `dev-cypresso/new-api/`（compose、`.env.example`、vhost、systemd 单元与备份脚本、README），密钥写入本地 gitignore 的 `secrets.local.md`。
+  2. **U2** 用户在 Cloudflare 加 `zzz` A 记录（灰云）；`dig @1.1.1.1` / `@8.8.8.8` 均返回 `32.192.186.193`，CNAME 与 AAAA 均空。留部署前快照。
+  3. **U3** 用户确认后在 `shared-postgres` 逐条执行 DDL：建角色、建库、`REVOKE CONNECT FROM PUBLIC`、`REVOKE ALL ON SCHEMA public`、`ALTER SCHEMA public OWNER`。
+  4. **U4** `scp` compose 与备份脚本，写 600 的 `.env` 与 `backup.env`（密钥经 stdin 传输，不落命令行）；`docker-compose pull` + `up -d`；SSH 侧回环内完成 `/api/setup` 初始化；关闭自助注册；设 `ServerAddress`。
+- 验证：
+  - **PG 18 上 AutoMigrate 成功**（计划中标为未实测的最大风险）：首启 `database migration started` 后无错误，`ready in 356 ms`
+  - `docker-compose restart new-api` 后第二次启动同样无迁移错误、无 ERROR（`ready in 1390 ms`）
+  - 两容器均 `healthy`；`curl http://127.0.0.1:3000/api/status` 返回 `"success":true`
+  - `ss -ltn` 只有 `127.0.0.1:3000`，无 `0.0.0.0:3000`，Redis 未发布任何宿主端口
+  - `docker exec new-api-redis redis-cli ping` 无密码返回 `NOAUTH`，带密码返回 `PONG`
+  - `\du new_api` 显示仅 `30 connections`（无 superuser / createdb / createrole）；库属主 `new_api`，`datacl` 为 `=T/new_api`（PUBLIC 无 CONNECT）
+  - `new_api` 角色可登录自己的库；连 `evp` 库被拒（`permission denied ... does not have CONNECT privilege`）
+  - `/api/setup` 已关闭：`status:true`，重复 POST 返回"系统已经初始化完成"
+  - 注册已关闭：`POST /api/user/register` 返回 `New user registration has been disabled by administrator`；`register_enabled` / `password_register_enabled` 均为 `false`
+  - `shared-postgres` `StartedAt` 仍为 `2026-05-28T07:24:56.886Z`，连接数回落到 10（`max_connections=100`）
+- 发现（不处理，仅记录）：共享库上租户隔离并不一致。`new_api` 角色能连 `moo_ticket`、`telegram_bot`、`cypresso`、`sonarqube` 四个库——前两者 `datacl` 为 `=Tc/`（PUBLIC 保留 CONNECT），后两者 `datacl` 为空（PG 默认，任何角色可连）。这是既有状态，非本次 DDL 造成；本次新建的 `new_api` 与既有的 `evp` 是仅有的两个已 `REVOKE CONNECT` 的库。收紧其它库的 CONNECT 会影响 moo-ticket / EVP 等既有服务，超出本次范围，按计划"记入时间线不处理"。
+- 待办（下次继续）：
+  - **U5** 写 `/etc/nginx/conf.d/zzz.konghai.me.conf` → `nginx -t` → `reload` → `certbot --nginx`（**需用户确认**）
+  - **U6** 验收：公网端口不可达、流式 90s 不截断、真实来源 IP、邻居站点 200
+  - **U7** 启用每日备份 timer（**需用户确认**）
+  - **U8** 补 `dev-cypresso/README.md` 站点表、回填 certbot 改写后的 vhost、提交
+
 ## 2026-09-10 09:59 CST - 三个公网站点切到 moospark.com
 
 - 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）

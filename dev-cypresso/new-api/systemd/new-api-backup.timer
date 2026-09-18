@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily new-api database backup 04:10 UTC
+
+[Timer]
+# 服务器时区即 UTC。04:10 与 03:50 的 gha-runner-maintenance.timer 错开，
+# 避免清理任务与 pg_dump 抢 I/O。
+OnCalendar=*-*-* 04:10:00
+Persistent=true
+Unit=new-api-backup.service
+
+[Install]
+WantedBy=timers.target
