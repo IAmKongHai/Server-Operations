@@ -1,5 +1,30 @@
 # home-router 运维操作时间线
 
+## 2026-09-18 12:17 CST - 清 Passwall/dnsmasq DNS 缓存（zzz.konghai.me）
+
+- 服务器：`home-router`（Kwrt，LAN `192.168.2.1`）
+- 操作人：`Grok`（用户要求清路由器 DNS 缓存）
+- 原因：Cloudflare 上 `zzz.konghai.me` A 记录已指向 `32.192.186.193`，但家里 DNS 仍返回加记录前的 NODATA，本机 `ping` 报 `Unknown host`。
+- 影响：
+  - 对系统 dnsmasq（PID `9808`，`:53`）和 Passwall `dnsmasq_default`（PID `10075`，`:11400`）发送 `SIGHUP` 清缓存。进程未换 PID，**未**重启 Passwall / xray / 网络 / 防火墙。
+  - 未改 UCI、nft、DHCP。
+  - 本机 Wi-Fi DNS 从手工 `192.168.6.1`（办公室路由残留，家里不可达）改回 DHCP 空值，实际使用 `192.168.2.1`。
+- 选型：`SIGHUP` 只清缓存、不重载配置文件，比 `/etc/init.d/dnsmasq restart` 或 `passwall restart` 更轻。
+- 备份：无（只发信号，无配置改动）。路由器登录凭据未写入本仓库。
+- 回滚方式：
+  - 路由器侧无需回滚，缓存会按 TTL 重新填充。
+  - 本机若回办公室且仍要走 `192.168.6.1`：`networksetup -setdnsservers Wi-Fi 192.168.6.1`
+- 变更时序：
+  1. 只读确认：Passwall `dns_redirect` 把 LAN UDP/53 转到 `:11400` → chinadns-ng `:15353`；系统 dnsmasq 上游是电信 `222.172.200.68` / `61.166.150.123`。
+  2. `kill -HUP` 两个 dnsmasq。
+  3. 本机 `networksetup -setdnsservers Wi-Fi Empty`。
+- 验证：
+  - 路由器 DoH 与 `nslookup zzz.konghai.me 1.1.1.1` 均为 `32.192.186.193`
+  - 本机 `dig @192.168.2.1` 与 `@192.168.2.1 -p 11400` 均为 `32.192.186.193`
+  - `ping zzz.konghai.me` 已能解析到该 IP；ICMP 无回包（dev-cypresso 未放行 ping，属预期）
+  - `curl -sI http://zzz.konghai.me/` 已能连上，返回 nginx **404**（vhost / 证书尚未部署）
+- 备注：`konghai.me` 有 HSTS preload，浏览器会强制 HTTPS；当前 443 证书是 `api-icare.cypress.sg`，站点仍打不开，与本次 DNS 无关。
+
 ## 2026-06-30 12:45 CST - 移除路由器 Tailscale
 
 - 服务器：`home-router`
