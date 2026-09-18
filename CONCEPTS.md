@@ -137,3 +137,15 @@ Tailscale 节点角色：被选中后，客户端（如手机）的默认上网�
 
 ### REALITY Flow
 VLESS + REALITY 场景下客户端流控取值。需要 vision 时必须显式配置（常见为 `xtls-rprx-vision`）；面板默认「无」会导致有链接却无法正常代理。
+
+## new-api / zzz.konghai.me AI 网关
+
+### new-api
+部署在 `dev-cypresso` 上的自建 AI API 网关（QuantumNous/new-api，Go），公网入口 `https://zzz.konghai.me`，栈目录 `/home/ec2-user/stacks/new-api/`。
+
+它是 `shared-postgres` 的一个租户（库与角色均为 `new_api`），Redis 为专用容器 `new-api-redis`，不复用 `shared-redis`。与 mac-mini 上的 Sub2API 同类但互不相关。
+
+### shared-postgres 租户
+`dev-cypresso` 共享 PostgreSQL 容器 `shared-postgres` 上的一个独立库 + 同名非超级用户角色（如 `moo_ticket`、`evp`、`new_api`）。
+
+新增租户只允许在运行中的容器上执行 psql DDL；不改 `stacks/infra/` 的 compose 或 `.env`，否则会 recreate 整栈并拉起已停容器。
