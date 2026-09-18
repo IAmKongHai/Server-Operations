@@ -44,6 +44,10 @@ SSH 进 mac-mini 时 **不要** 跑默认 `az login`：当时 `/dev/console` 往
 az login --use-device-code
 ```
 
+终端给的 `https://login.microsoft.com/device` 只是跳转入口；填码页是 `https://login.microsoftonline.com/common/oauth2/deviceauth`（标题「登录到您的帐户」，输入框占位符是「代码」不是邮箱）。登录后两条订阅都叫 `Microsoft Azure`：选 `408f1434-56ae-45b6-9762-7c9e1e615000`（iCare 2.0 UAT/PROD，选择器默认 `[1]`）。另一条 `e026db6e-...` 是老 IHC，不要选。
+
+2026-09-18 已用 `--use-device-code` 核验通过，交互身份 `byang@icare.com.ph`。这不能替代 GHA OIDC。
+
 取证：[az-login-ssh-cannot-open-browser-2026-09-18](../solutions/mac-mini/runtime-errors/az-login-ssh-cannot-open-browser-2026-09-18.md)。
 
 ## 红线：不要用 `at` 做定时恢复

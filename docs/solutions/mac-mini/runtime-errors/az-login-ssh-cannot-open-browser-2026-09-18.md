@@ -47,7 +47,9 @@ tags:
 az login --use-device-code
 ```
 
-终端会给出 `https://microsoft.com/devicelogin`（或 `https://www.microsoft.com/link`）和一组短码。在能打开浏览器的机器上打开该页、输入短码、选账号。成功后回到 SSH 会话，`az account show` 应能看到订阅。
+Azure CLI 2.90 打印的是 `https://login.microsoft.com/device`。那只是跳转入口；若页面没有输入框，直接打开 `https://login.microsoftonline.com/common/oauth2/deviceauth`。标题会写成「登录到您的帐户」，真正要找的是「输入代码以允许访问」和占位符「代码」（不是邮箱）。
+
+登录后订阅选择器里两条都叫 `Microsoft Azure`：选 `408f1434-56ae-45b6-9762-7c9e1e615000`（默认 `[1]`，iCare 2.0 UAT/PROD）。`e026db6e-...` 是老 IHC，不要选。2026-09-18 用户已用 `--use-device-code` 完成，身份 `byang@icare.com.ph`。
 
 不要给 runner 写 storage key / connection string。这次交互登录只给人手工验证 CLI；GitHub Actions 上传仍走 OIDC（`azure/login` + `--auth-mode login`）。
 

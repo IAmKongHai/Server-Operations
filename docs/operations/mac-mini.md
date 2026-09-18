@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-09-18 16:39 CST - 用户完成 az login --use-device-code，默认订阅为 iCare 2.0
+
+- 服务器：`mac-mini`
+- 操作人：用户（SSH 会话里登录）；`Grok` 只记录结果
+- 原因：手工验证 Homebrew `azure-cli` 能拿到 iCare 2.0 订阅。
+- 影响：本机 `~/.azure` 写入交互登录缓存。未改 runner、plist、workflow，未写 storage key。
+- 备份：无。
+- 回滚方式：`az logout`。
+- 做了什么：用户用 `az login --use-device-code`，在浏览器填设备码后于订阅选择器选默认项。
+- 验证（用户提供的 `az account show`）：
+  - 订阅 `408f1434-56ae-45b6-9762-7c9e1e615000`（iCare 2.0 UAT/PROD；同名的 `e026db6e-...` 是老 IHC，不要选）
+  - 用户 `byang@icare.com.ph`
+- 边界：这次登录只给人手工跑 `az`。GHA 上传仍走 OIDC。`ota-publish-js.yml` 尚未改成直传。
+
 ## 2026-09-18 16:24 CST - SSH 上 az login 打不开浏览器，改用 device-code
 
 - 服务器：`mac-mini`
