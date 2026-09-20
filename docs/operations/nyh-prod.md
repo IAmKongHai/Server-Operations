@@ -1,5 +1,27 @@
 # nyh-prod 运维时间线
 
+## 2026-09-21 02:53 CST - 只读：从本机对比 malaysiadigital.mdec.my 延迟
+
+- 服务器：`nyh-prod`（公网 `47.239.167.8`，阿里云香港 AS45102；主机名 `NYH-2025`）
+- 操作人：`Grok`（只读；未改 DNS / 防火墙 / Nginx / 未写业务文件）
+- 原因：家里 Mac 打开 MDEC DE Rantau 页很慢，用户要看从 `nyh-prod` 访问会不会快。
+- 影响：无配置变更。对 `malaysiadigital.mdec.my` 做了 dig / curl / ping。
+- 回滚方式：无需回滚。
+
+### 现场
+
+站点仍是 Akamai + OutSystems（源站 AWS 新加坡）。`nyh-prod` 打到香港 Akamai，家用 Mac 仍打到洛杉矶。
+
+| 项 | nyh-prod（香港） | 家用 Mac（当时） |
+| --- | --- | --- |
+| 解析到的边缘 | `23.49.104.175` 将军澳 / 香港，ping **1.2 ms** | `23.56.109.165` 洛杉矶，RTT ~180–250 ms |
+| 本机 DNS | AliDNS `223.5.5.5`，首查 740 ms，之后 ~1 ms | 已改走家里 `192.168.2.1` |
+| 首页 TLS / TTFB | TLS ~10 ms；热路径 TTFB **69 ms**，回源约 0.29–0.64 s | TLS ~810 ms；TTFB **1.73 s**（origin 525 ms） |
+| `/moduleservices/moduleinfo` | TTFB **358 ms** / 总 375 ms（148 KB，origin 159 ms） | TTFB **1.65 s** / 总 2.1 s |
+| Akamai `origin` | 首页 46 ms，Dependant 119 ms | 首页 525 ms |
+
+结论：从 `nyh-prod` 打开会快一个数量级（边缘在香港，回源新加坡只有几十到一百多毫秒）。家里慢主要是 Akamai 选到美西，不是 MDEC 源站本身只服务马来西亚。
+
 ## 2026-09-12 18:04 CST - 菜苗苗 SIT 公网 HTTPS 反代到 mas-go-dev
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`）
