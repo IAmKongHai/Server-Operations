@@ -1,5 +1,33 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-09-21 02:47 CST - Tailscale 常开，公网 DNS 改回走当前路由器
+
+- 服务器/设备：本机 MacBook Air（`macbook-air` / `Mac.lan`，Tailscale `100.92.181.15`），当时在家：Wi-Fi `192.168.2.109/24`，网关 `192.168.2.1`
+- 操作人：`Grok`（改本机 DNS）、`konghai`（确认要常年开 Tailscale、优先用本地路由器 DNS）
+- 原因：系统默认解析被 Tailscale MagicDNS 抢成 `100.100.100.100`。`dig malaysiadigital.mdec.my` 经 Tailscale 曾到约 550 ms；同一名字问家里路由器只要数毫秒到两百毫秒级。Wi-Fi 本身已是 DHCP、没有手工 DNS，慢的是 Tailscale 把 `100.100.100.100` 插成全局 resolver（`scutil` order 102200，高于 `192.168.2.1` 的 200000）。
+- 选型 / 影响：
+  - **Tailscale 隧道、子网路由保持开启**（`WantRunning=true`，`RouteAll=true`）。只关「用 Tailscale 当系统 DNS」。
+  - 公网域名跟当前局域网走：家里 `192.168.2.1`，办公室会随 DHCP 变成 `192.168.6.1`。**没有**把 Wi-Fi DNS 写成死 `192.168.2.1`，否则出门会坏。
+  - `ssh mac-mini` 等本仓库别名不受影响：`~/.ssh/config` 里 `HostName` 已是 `100.x`，不靠 MagicDNS。
+  - iCare 那组 `/etc/resolver/*.azure*` / `internal.icare.com.ph`（`10.60.0.36`）未改。
+- 备份：变更前 `tailscale debug prefs` 中 `CorpDNS=true`；Wi-Fi DNS = Empty（DHCP）；无 Exit Node。
+- 回滚方式：
+  1. `tailscale set --accept-dns=true`（菜单栏也可再勾上 **Use Tailscale DNS settings**）
+  2. `networksetup -setsearchdomains Wi-Fi Empty`
+  3. 若要拿掉分流：`sudo rm /etc/resolver/taila93443.ts.net /etc/resolver/ts.net`
+- 变更时序：
+  1. `tailscale set --accept-dns=false` → `CorpDNS=false`。`/etc/resolv.conf` 回到 `nameserver 192.168.2.1` / `search lan`。
+  2. 写入分流，避免丢 MagicDNS：
+     - `/etc/resolver/taila93443.ts.net` → `nameserver 100.100.100.100`
+     - `/etc/resolver/ts.net` → `nameserver 100.100.100.100`
+  3. `networksetup -setsearchdomains Wi-Fi lan taila93443.ts.net`，让 `mac-mini` 这种短名能补成 `mac-mini.taila93443.ts.net`。
+- 验证结果：
+  - `tailscale dns status`：Tailscale DNS disabled；进程仍在线。
+  - `dig malaysiadigital.mdec.my` 的 SERVER 是 `192.168.2.1`，不再是 `100.100.100.100`。
+  - `dscacheutil -q host -a name mac-mini` → `100.108.64.126`；`lemon-imac` → `100.81.246.93`。
+  - `ping 100.108.64.126` 通。
+- 备注：国际域名首次解析仍可能要一两百毫秒以上，那是家里 Kwrt/Passwall/ChinaDNS 的冷查询，不是 MagicDNS 抢解析。菜单栏若再勾上 Use Tailscale DNS，会把 `100.100.100.100` 重新插回全局。
+
 ## 2026-08-14 23:41 CST - 彻底清除 ToDesk 残留，快切小小空后鼠标恢复
 
 - 服务器/设备：本机 MacBook Air M5（`konghai-macbook-air`，macOS 26.5.2）
