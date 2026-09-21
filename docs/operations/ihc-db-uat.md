@@ -1,5 +1,15 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 01:17 CST — CYP-2600 补充只读盘点（db_owner TCP）
+
+- **操作人：** Grok；用户接通 VPN，要求按计划继续补证。未向助手提供新密码，使用本机已有 `.env.preprod` 的 `mas_ref_owner`。
+- **原因：** 跑 `inventory-followup.sql` 的 SELECT 批次，核对两张暂扣表、密钥保护、未过滤触发器与 owner SID。
+- **影响：** 只查询五个业务 catalog 元数据。未建号、授权、改 schema/data、改 Azure 或网络。官方脚本要求 sysadmin，本次 `IS_SRVROLEMEMBER('sysadmin')=0`，THROW 未执行。
+- **身份：** `ihc-db-uat` / `14.0.3550.4` / TCP `10.100.0.4:1433` / `mas_ref_owner` / 五库 `db_owner=1`。Azure 管理面 MFA 过期，未能走上次 sysadmin Run Command。
+- **结论：** `tblprovidertemplate`、`tblretailquotationbenefitclass` 在五个 catalog 均不存在；前者旧约束挂在 `tblprovidergroups`。不建表、不 GRANT。密钥为 AES_256 口令保护。主库仅有复制 DDL 触发器。
+- **本地归档：** `/Users/konghai/Code/Project/Server/_backups/cyp2600-inventory/20260921T171320Z/`（gitignore）。审核摘要在 Terraform 实施工作区 `docs/deployment/sql/cyp-2600-public-logins/followup-findings.md`。
+- **未做：** 生产写入、建号、sysadmin 原样脚本、模块正文审阅、列收口签收。
+
 ## 2026-09-17 15:30 CST — CYP-2600 完整盘点归档下载本机并校验
 
 - **操作人：** Codex；用户接通 VPN，并明确允许使用 UAT runner VM 作跳板。

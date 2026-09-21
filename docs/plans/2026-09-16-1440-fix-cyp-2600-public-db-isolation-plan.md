@@ -12,6 +12,13 @@ execution: code
 文档归属：Server 运维仓。实施目标：iCare 根仓及其 `backend`、`public-backend`、`terraform` 子仓。
 下文 `Server:` 和 `iCare:` 指定路径所属仓库，路径均相对该仓根目录。新增文件会明确标注；SQL 名称和 secret 名称是待盘点确认的方案，不代表已经创建。
 
+## 2026-09-22 实施进度补充
+
+- 用户接通 VPN 后，以本机 `.env.preprod` 的 `mas_ref_owner` 经 TCP 连接 `ihc-db-uat`。五库 `db_owner=1`，`sysadmin=0`。Azure MFA 过期，未走上次 sysadmin Run Command。
+- 跑完 `inventory-followup.sql` 的 SELECT 批次（官方 sysadmin THROW 跳过）。`tblprovidertemplate`、`tblretailquotationbenefitclass` 确认不存在，不建表、不 GRANT。
+- 密钥为 AES_256 `ENCRYPTION BY PASSWORD V2`。主库仅复制 DDL 触发器。审核包已更新 matrix/README/followup-findings。
+- 仍未执行建号、授权、最终 digest 签收、隔离正反向测试。
+
 ## 2026-09-17 实施进度补充
 
 - U1：六库高权限只读盘点已交付，本机复核归档、原 SQL、六 JSON 的 SHA-256/字节数、ZIP CRC、102 个结果集及行数通过。执行入口是 Shared Memory，TCP/ACA 未验收。

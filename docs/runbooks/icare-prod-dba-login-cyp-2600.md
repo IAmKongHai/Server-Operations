@@ -4,7 +4,9 @@
 
 用户已选择由 DBA 执行清单。此选择确定执行分工，不代表批准下文待定账号、权限、KV 调整或上线。本文没有密码，也不包含可直接批量执行的写入脚本。
 
-**2026-09-17 盘点后审核包：** 用户确认最终镜像尚未选定，先制作审核草案。入口在 `/Users/konghai/Code/Project/iCare/terraform/.worktrees/terraform-cyp2600-public-db-isolation/docs/deployment/sql/cyp-2600-public-logins/README.md`（隔离工作区，尚未合并）。请先读 `metadata-review.md`，再审 `permission-matrix.json`、`create-and-grant.sql`、`rollback.sql`；变更语句全为注释且文件开头无条件 THROW，禁止直接执行。`inventory-followup.sql` 是补充只读查询，本轮未运行。
+**2026-09-17 盘点后审核包：** 用户确认最终镜像尚未选定，先制作审核草案。入口在 `/Users/konghai/Code/Project/iCare/terraform/.worktrees/terraform-cyp2600-public-db-isolation/docs/deployment/sql/cyp-2600-public-logins/README.md`（隔离工作区，尚未合并）。请先读 `metadata-review.md` 与 `followup-findings.md`，再审 `permission-matrix.json`、`create-and-grant.sql`、`rollback.sql`；变更语句全为注释且文件开头无条件 THROW，禁止直接执行。
+
+**2026-09-22 补证：** VPN TCP 以 `mas_ref_owner`（db_owner，非 sysadmin）跑完 followup SELECT 批次。两张暂扣表确认不存在，matrix 改为 `object_absent_do_not_grant`。官方脚本 sysadmin THROW 仍未满足，执行窗口须用获准 DBA 身份复查 owner login 映射。
 
 本机复核 102 个结果集通过；七候选 login 在 server 级均缺失，同名 user 在六库也均缺失。98 行权限需求中 96 行匹配对象；主库 `tblprovidertemplate`、`tblretailquotationbenefitclass` 因原查询带 `is_ms_shipped` 过滤尚待补证，不能直接判定表不存在或创建新表。主库和 WebKit 的 public 可执行七个以 dbo（execute_as_principal_id=1）运行的 diagram 例程；草案提出仅对新 user 的 DENY，待 DBA 审核，不能全局撤销 public 权限。模块 hash、密钥名称与 CALLER 元数据已收录，动态 SQL、密钥链和最终有效权限仍未签收。
 
