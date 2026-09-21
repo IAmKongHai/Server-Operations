@@ -18,6 +18,7 @@ execution: code
 - 跑完 `inventory-followup.sql` 的 SELECT 批次（官方 sysadmin THROW 跳过）。`tblprovidertemplate`、`tblretailquotationbenefitclass` 确认不存在，不建表、不 GRANT。
 - 密钥为 AES_256 `ENCRYPTION BY PASSWORD V2`。主库仅复制 DDL 触发器。审核包已更新 matrix/README/followup-findings。
 - 仍未执行建号、授权、最终 digest 签收、隔离正反向测试。
+- 2026-09-22 列收口：ecom/map/hr/app 业务表 SELECT/UPDATE 已写入列清单；SUP 写入表仍表级。审核包 `column-tightening.md`。未执行 SQL。
 
 ## 2026-09-17 实施进度补充
 
