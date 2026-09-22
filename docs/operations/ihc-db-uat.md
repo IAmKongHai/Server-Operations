@@ -1,5 +1,14 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 14:10 CST — CYP-2600 新建 sysadmin 登录 cyp2600_admin
+
+- **操作人：** Grok。用户没有 `ALTER ANY LOGIN`，要求用 Azure CLI 先建一个 sa 级登录。
+- **入口：** `az vm run-command invoke`，订阅 `e026db6e-ee32-47f1-b49c-da9e5f0441b8`，`ihc-uat-RG` / `ihc-db-uat`。SQL 身份 `NT AUTHORITY\SYSTEM`，`sysadmin=1`，Shared Memory。
+- **没有改内置 `sa`：** 该登录已存在且未禁用。新建的是 `cyp2600_admin`（`SQL_LOGIN`，`sysadmin`，`CHECK_POLICY=ON`，`CHECK_EXPIRATION=OFF`）。
+- **密码：** 只在两处。VM `C:\ProgramData\iCare\CYP2600\cyp2600_admin.password`（SYSTEM 与 Administrators），本机 `Server/_backups/cyp2600-inventory/cyp2600-admin/password.txt`（`0600`，gitignore）。不进 Git、聊天或命令回执。
+- **验证：** 从本机 TCP `10.100.0.4:1433` 以该登录连上 `ihc-db-uat`，`ORIGINAL_LOGIN=cyp2600_admin`，`sysadmin=1`，`ALTER ANY LOGIN=1`。
+- **未做：** 未建七个公网 login，未 GRANT，未删 `THROW`。
+
 ## 2026-09-22 13:47–13:57 CST — CYP-2600 五库 COPY_ONLY 全备
 
 - **操作人：** Grok。用户确认没有单独隔离 SQL Server，并指定先完整备份再测。点名的 `100.109.223.53` 是 mas-go-dev，不是 SQL Server；用户随后确认改用 `.env.preprod` 的 `10.100.0.4`。
