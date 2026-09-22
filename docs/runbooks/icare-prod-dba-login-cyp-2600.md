@@ -14,7 +14,7 @@
 
 **2026-09-22 UAT 运行 digest：** 流量 100% 在 latest revision。ecom `sha256:03225207d77cad519f4c72e9577fd7838a8d1ad2ce806b05d3e5749223a46f35`、sup `sha256:2e5674097b5893e1963857b83a1b68bf37adf9075363f929e251ea165839719f`，均为 backend `613b5e79639f7f4b8d3f4c6532f01d8de2ea651c`。app/hr/map `sha256:abb92e895c916b44892d4aabef7d11e9785e6bb621e8ec2d829a97d50612d0b0`，public-backend `8bd5fed2b23178b5aa2afbc02cd4204cff7c0bcc`。backend `0268903a` 不在该镜像，所以 UAT 仍需要 `tblusers.emailadd` 和 `tblpushemailnotification` 五列 SELECT。列级 SELECT/UPDATE 已收口，INSERT/DELETE 仍表级。
 
-本机复核 102 个结果集通过；七候选 login 在 server 级均缺失，同名 user 在六库也均缺失。98 行权限需求中 96 行匹配对象。主库 `tblprovidertemplate`、`tblretailquotationbenefitclass` 已用未带 `is_ms_shipped` 过滤的补证确认不存在，不建表、不 GRANT。主库和 WebKit 的 public 可执行七个以 dbo（execute_as_principal_id=1）运行的 diagram 例程；草案仅对新 user 提 DENY，不撤销 public。10 行模块 EXECUTE 已按 hash 与 AES_256 / CALLER / 空 crypt_properties 写下依赖结论，动态 SQL 与 caller 有效权限仍未签收。
+本机复核 102 个结果集通过；七候选 login 在 server 级均缺失，同名 user 在六库也均缺失。99 行权限需求中 97 行匹配对象。主库 `tblprovidertemplate`、`tblretailquotationbenefitclass` 已用未带 `is_ms_shipped` 过滤的补证确认不存在，不建表、不 GRANT。主库和 WebKit 的 public 可执行七个以 dbo（execute_as_principal_id=1）运行的 diagram 例程；草案仅对新 user 提 DENY，不撤销 public。10 行模块 EXECUTE 已按 hash 与 AES_256 / CALLER / 空 crypt_properties 写下依赖结论，动态 SQL 与 caller 有效权限仍未签收。
 
 审核包本地提交：Terraform `f1c6513`。本轮静态检查与边界见 [草案审查记录](../reviews/2026-09-17-cyp-2600-dba-draft/report.md)；未执行补证 SQL、建号或授权。
 
