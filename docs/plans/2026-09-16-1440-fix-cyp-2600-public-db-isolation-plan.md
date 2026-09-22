@@ -19,7 +19,7 @@ execution: code
 - 密钥为 AES_256 `ENCRYPTION BY PASSWORD V2`。主库仅复制 DDL 触发器。审核包已更新 matrix/README/followup-findings。
 - 仍未执行建号、授权、最终 digest 签收、隔离正反向测试。
 - 2026-09-22 列收口：全部业务表 SELECT/UPDATE 已写入列清单（含 SUP 39 张）。INSERT/DELETE 仍表级。审核包 `column-tightening.md`。未执行 SQL。
-- 2026-09-22 UAT 运行 digest 已读：ecom/sup = backend `613b5e79`，app/hr/map = public-backend `8bd5fed2`。权限表候选 `0268903a` 不在该 UAT 镜像里。O1 仍未签收。
+- 2026-09-22 UAT 运行 digest 已读：ecom/sup = backend `613b5e79`，app/hr/map = public-backend `8bd5fed2`。按该 SHA 重核后，只补 SUP 的 `tblusers.emailadd` 与 `tblpushemailnotification`。ecom 与 public 列集无变化。O1 仍未签收。
 - 2026-09-22 sysadmin owner 映射（Azure Run Command）：SalesPortal=`dcandaya`，Prepaid=`eapelegrino`，auth=`ihc-db-uat\ihcadmin`；主库/WebKit=`sa`。七候选 login 仍缺失。未建号。
 
 ## 2026-09-17 实施进度补充
