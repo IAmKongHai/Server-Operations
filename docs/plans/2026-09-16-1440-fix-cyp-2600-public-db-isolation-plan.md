@@ -19,6 +19,7 @@ execution: code
 - 密钥为 AES_256 `ENCRYPTION BY PASSWORD V2`。主库仅复制 DDL 触发器。审核包已更新 matrix/README/followup-findings。
 - 仍未执行建号、授权、最终 digest 签收、隔离正反向测试。
 - 2026-09-22 列收口：ecom/map/hr/app 业务表 SELECT/UPDATE 已写入列清单；SUP 写入表仍表级。审核包 `column-tightening.md`。未执行 SQL。
+- 2026-09-22 sysadmin owner 映射（Azure Run Command）：SalesPortal=`dcandaya`，Prepaid=`eapelegrino`，auth=`ihc-db-uat\ihcadmin`；主库/WebKit=`sa`。七候选 login 仍缺失。未建号。
 
 ## 2026-09-17 实施进度补充
 

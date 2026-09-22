@@ -1,5 +1,13 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 08:23 CST — CYP-2600 sysadmin 补 owner login 映射
+
+- **操作人：** Grok；用户已 `az login`，要求按计划用 Azure 补 owner 映射。
+- **原因：** 01:17 db_owner 补证拿到三库 owner SID 但看不到 server principal 名。
+- **影响：** Azure Run Command + Shared Memory + `WORKGROUP\ihc-db-uat$` 只读查询 `sys.databases`/`sys.server_principals`。未建号、授权、改 schema/data。
+- **结果：** 主库/WebKit owner=`sa`；`insularsalesportal_preprod`=`dcandaya`；`masprepaid_preprod`=`eapelegrino`；`authprovidermasuat`=`ihc-db-uat\ihcadmin`。TRUSTWORTHY/chaining 仍为 false。七个候选 login 仍缺失。
+- **本地归档：** `/Users/konghai/Code/Project/Server/_backups/cyp2600-inventory/20260922T002329Z/`（gitignore）。
+
 ## 2026-09-22 01:17 CST — CYP-2600 补充只读盘点（db_owner TCP）
 
 - **操作人：** Grok；用户接通 VPN，要求按计划继续补证。未向助手提供新密码，使用本机已有 `.env.preprod` 的 `mas_ref_owner`。

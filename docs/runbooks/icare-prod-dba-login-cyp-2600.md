@@ -10,6 +10,8 @@
 
 **2026-09-22 列收口：** ecom / map / hr / app 业务表的 SELECT/UPDATE 已按候选源码写入列清单；INSERT/DELETE 仍表级。SUP 写入表与部分主库只读保持表级待审。草案仍禁止执行。
 
+**2026-09-22 sysadmin owner 映射：** Azure Run Command 确认非 sa 库 owner 为 `dcandaya` / `eapelegrino` / `ihc-db-uat\ihcadmin`。不得接管这些主体。七个候选 login 仍缺失。
+
 本机复核 102 个结果集通过；七候选 login 在 server 级均缺失，同名 user 在六库也均缺失。98 行权限需求中 96 行匹配对象；主库 `tblprovidertemplate`、`tblretailquotationbenefitclass` 因原查询带 `is_ms_shipped` 过滤尚待补证，不能直接判定表不存在或创建新表。主库和 WebKit 的 public 可执行七个以 dbo（execute_as_principal_id=1）运行的 diagram 例程；草案提出仅对新 user 的 DENY，待 DBA 审核，不能全局撤销 public 权限。模块 hash、密钥名称与 CALLER 元数据已收录，动态 SQL、密钥链和最终有效权限仍未签收。
 
 审核包本地提交：Terraform `f1c6513`。本轮静态检查与边界见 [草案审查记录](../reviews/2026-09-17-cyp-2600-dba-draft/report.md)；未执行补证 SQL、建号或授权。
