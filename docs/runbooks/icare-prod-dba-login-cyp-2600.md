@@ -8,7 +8,7 @@
 
 **2026-09-22 补证：** VPN TCP 以 `mas_ref_owner`（db_owner，非 sysadmin）跑完 followup SELECT 批次。两张暂扣表确认不存在，matrix 改为 `object_absent_do_not_grant`。官方脚本 sysadmin THROW 仍未满足，执行窗口须用获准 DBA 身份复查 owner login 映射。
 
-**2026-09-22 列收口：** ecom / map / hr / app 业务表的 SELECT/UPDATE 已按候选源码写入列清单；INSERT/DELETE 仍表级。SUP 写入表与部分主库只读保持表级待审。草案仍禁止执行。
+**2026-09-22 列收口：** 全部业务表 SELECT/UPDATE 已按候选源码写入列清单（含 SUP 39 张）；INSERT/DELETE 仍表级。两张缺表不 GRANT。草案仍禁止执行。
 
 **2026-09-22 sysadmin owner 映射：** Azure Run Command 确认非 sa 库 owner 为 `dcandaya` / `eapelegrino` / `ihc-db-uat\ihcadmin`。不得接管这些主体。七个候选 login 仍缺失。
 
