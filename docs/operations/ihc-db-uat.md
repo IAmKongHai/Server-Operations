@@ -1,5 +1,16 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 15:15 CST — CYP-2600 五份备份 VERIFYONLY 和十行模块实测
+
+- **操作人：** Grok。用户确认接续两项一起做：校验已有五份备份，并用受限 login 测十行模块；业务注册、删号、补偿和轮换只准备审批清单，不执行。
+- **身份与路径：** TCP `10.100.0.4:1433`，实例 `ihc-db-uat`，版本 `14.0.3550.4`。备份校验用 `cyp2600_admin`（sysadmin=1）。模块调用各自新建连接，不用管理员会话冒充调用方。
+- **备份：** 五份 `F:\icare2bak\*_20260922_cyp2600.bak` 都是 position 1、COPY_ONLY、带 checksum、未损坏。`RESTORE VERIFYONLY ... WITH CHECKSUM` 顺序通过 5/5，合计约 123 秒。没有 `RESTORE DATABASE`，没有改 bak，没有建库。这不是恢复演练。
+- **模块：** 十个对象 hash 与审核包一致，执行上下文都是 CALLER。R009、R064、R065 的合成往返通过。R060 与 R094 打开密钥失败，错误 15151，会话中没有打开的密钥；随后关闭得到 15315。R062、R063、R096 因此不能完成加解密往返。没有 GRANT。矩阵十行状态未改。
+- **影响：** 无业务 INSERT/UPDATE/DELETE。打开密钥的语句没有成功打开，连接已断开。
+- **回滚：** 校验和失败的打开调用都没有持久变更。不需要还原库。
+- **证据：** `docs/reviews/2026-09-22-cyp-2600-backup-and-modules.md`。原始 JSON 在 `_backups/cyp2600-inventory/20260922T070502Z/`。
+- **未做：** 未注册、删号、补偿、轮换或停用。未写 Key Vault，未改 Azure，未推送本仓。
+
 ## 2026-09-22 14:40 CST — CYP-2600 删掉 VM 上的 admin 密码并建七个登录
 
 - **操作人：** Grok。用户要求先彻底删除 `C:\ProgramData\iCare\CYP2600\cyp2600_admin.password`，因为很多人能登录这台虚拟机，然后再建七个登录并做正反向测试。
