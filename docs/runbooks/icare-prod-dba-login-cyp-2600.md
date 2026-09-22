@@ -4,15 +4,17 @@
 
 用户已选择由 DBA 执行清单。此选择确定执行分工，不代表批准下文待定账号、权限、KV 调整或上线。本文没有密码，也不包含可直接批量执行的写入脚本。
 
-**2026-09-17 盘点后审核包：** 用户确认最终镜像尚未选定，先制作审核草案。入口在 `/Users/konghai/Code/Project/iCare/terraform/.worktrees/terraform-cyp2600-public-db-isolation/docs/deployment/sql/cyp-2600-public-logins/README.md`（隔离工作区，尚未合并）。请先读 `metadata-review.md` 与 `followup-findings.md`，再审 `permission-matrix.json`、`create-and-grant.sql`、`rollback.sql`；变更语句全为注释且文件开头无条件 THROW，禁止直接执行。
+**2026-09-22 审核包：** 最终镜像按 UAT 当前运行 digest，该 digest 已读取，尚未签收为可执行 SQL。入口在 `/Users/konghai/Code/Project/iCare/terraform/.worktrees/terraform-cyp2600-public-db-isolation/docs/deployment/sql/cyp-2600-public-logins/README.md`（隔离工作区，尚未合并）。请先读 `metadata-review.md`、`followup-findings.md`、`uat-running-digest.md` 与 `module-execute-closeout.md`，再审 `permission-matrix.json`、`create-and-grant.sql`、`rollback.sql`；变更语句全为注释且文件开头无条件 THROW，禁止直接执行。
 
 **2026-09-22 补证：** VPN TCP 以 `mas_ref_owner`（db_owner，非 sysadmin）跑完 followup SELECT 批次。两张暂扣表确认不存在，matrix 改为 `object_absent_do_not_grant`。官方脚本 sysadmin THROW 仍未满足，执行窗口须用获准 DBA 身份复查 owner login 映射。
 
 **2026-09-22 列收口：** 全部业务表 SELECT/UPDATE 已按候选源码写入列清单（含 SUP 39 张）；INSERT/DELETE 仍表级。两张缺表不 GRANT。草案仍禁止执行。
 
-**2026-09-22 sysadmin owner 映射：** Azure Run Command 确认非 sa 库 owner 为 `dcandaya` / `eapelegrino` / `ihc-db-uat\ihcadmin`。不得接管这些主体。七个候选 login 仍缺失。
+**2026-09-22 sysadmin owner 映射：** Azure Run Command 确认主库/WebKit=`sa`，SalesPortal=`dcandaya`，Prepaid=`eapelegrino`，auth=`ihc-db-uat\ihcadmin`。不得接管这些主体。七个候选 login 仍缺失。
 
-本机复核 102 个结果集通过；七候选 login 在 server 级均缺失，同名 user 在六库也均缺失。98 行权限需求中 96 行匹配对象；主库 `tblprovidertemplate`、`tblretailquotationbenefitclass` 因原查询带 `is_ms_shipped` 过滤尚待补证，不能直接判定表不存在或创建新表。主库和 WebKit 的 public 可执行七个以 dbo（execute_as_principal_id=1）运行的 diagram 例程；草案提出仅对新 user 的 DENY，待 DBA 审核，不能全局撤销 public 权限。模块 hash、密钥名称与 CALLER 元数据已收录，动态 SQL、密钥链和最终有效权限仍未签收。
+**2026-09-22 UAT 运行 digest：** 流量 100% 在 latest revision。ecom `sha256:03225207d77cad519f4c72e9577fd7838a8d1ad2ce806b05d3e5749223a46f35`、sup `sha256:2e5674097b5893e1963857b83a1b68bf37adf9075363f929e251ea165839719f`，均为 backend `613b5e79639f7f4b8d3f4c6532f01d8de2ea651c`。app/hr/map `sha256:abb92e895c916b44892d4aabef7d11e9785e6bb621e8ec2d829a97d50612d0b0`，public-backend `8bd5fed2b23178b5aa2afbc02cd4204cff7c0bcc`。backend `0268903a` 不在该镜像，所以 UAT 仍需要 `tblusers.emailadd` 和 `tblpushemailnotification` 五列 SELECT。列级 SELECT/UPDATE 已收口，INSERT/DELETE 仍表级。
+
+本机复核 102 个结果集通过；七候选 login 在 server 级均缺失，同名 user 在六库也均缺失。98 行权限需求中 96 行匹配对象。主库 `tblprovidertemplate`、`tblretailquotationbenefitclass` 已用未带 `is_ms_shipped` 过滤的补证确认不存在，不建表、不 GRANT。主库和 WebKit 的 public 可执行七个以 dbo（execute_as_principal_id=1）运行的 diagram 例程；草案仅对新 user 提 DENY，不撤销 public。10 行模块 EXECUTE 已按 hash 与 AES_256 / CALLER / 空 crypt_properties 写下依赖结论，动态 SQL 与 caller 有效权限仍未签收。
 
 审核包本地提交：Terraform `f1c6513`。本轮静态检查与边界见 [草案审查记录](../reviews/2026-09-17-cyp-2600-dba-draft/report.md)；未执行补证 SQL、建号或授权。
 
@@ -202,7 +204,9 @@ DBA 可先运行包内 `inventory.sql` 做元数据盘点；它不读业务行�
 
 完整审查与未完成要求见 [本地实施审查](../reviews/2026-09-16-cyp-2600-public-db-isolation/report.md)。SUP 的接收侧 mTLS 和先 MAS 后 SUP 的发版顺序仍须实测，不能直接把新镜像放入尚未配置通道的 UAT/PROD。
 
-2026-09-17 14:48 CST 已只读核验：PROD 尚无 Container Apps，五个专属 runtime UAMI 尚未在该 RG 创建；KV 禁用公网且私有端点已批准，但当前终端列 secret 元数据被网络边界拒绝。历史导入镜像来自 8 月构建，不是本次整改的最终版本。见 [现场核验与版本追溯](../operations/icare-prod.md)。当时 DBA 元数据回执待交付，未生成最终写脚本；原始盘点已在下述 15:17 条目更新。
+2026-09-17 14:48 CST 已只读核验：当时 PROD 尚无 Container Apps，五个专属 runtime UAMI 尚未在该 RG 创建；KV 禁用公网且私有端点已批准，但当时终端列 secret 元数据被网络边界拒绝。历史导入镜像来自 8 月构建，不是本次整改的最终版本。见 [现场核验与版本追溯](../operations/icare-prod.md)。当时 DBA 元数据回执待交付，未生成最终写脚本；原始盘点已在下述 15:17 条目更新。
+
+2026-09-22 当场复测同一订阅 `408f1434-56ae-45b6-9762-7c9e1e615000`、资源组 `iCare-2.0-PROD`：`az containerapp list --query '[].name'` 仍是 `[]`，用户分配身份名单仍只有 `icare-2-prod-gh-mobile-app`。这是当天结果，不是把 9 月 17 日笔记当成今日结论。未改 RBAC，未 apply。
 
 ## 2026-09-17 15:17 CST 元数据盘点进度
 
