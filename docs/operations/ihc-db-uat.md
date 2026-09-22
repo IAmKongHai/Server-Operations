@@ -1,5 +1,13 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 14:40 CST — CYP-2600 删掉 VM 上的 admin 密码并建七个登录
+
+- **操作人：** Grok。用户要求先彻底删除 `C:\ProgramData\iCare\CYP2600\cyp2600_admin.password`，因为很多人能登录这台虚拟机，然后再建七个登录并做正反向测试。
+- **删除：** 密码文件先随机覆盖三次再删除。复查 `password_file_exists=False`。同目录剩下的是既有盘点目录 `20260917T071312Z`，不是密码文件。Run Command 插件里含该路径的脚本和近 12 小时的 Status/Downloads 也已覆盖删除。Azure 控制面若仍留着更早一次 `Get-Content` 的执行结果，本机删不掉。
+- **七个登录：** `ecom_runtime_prod`、`sup_runtime_prod`、`public_app_runtime_prod`、`public_hr_runtime_prod`、`public_map_runtime_prod`、`ecom_oauth_reader_prod`、`sup_oauth_reader_prod`。按审核草案执行 356 条用户、授权和 DENY。密码只在本机 `Server/_backups/cyp2600-inventory/cyp2600-logins/passwords.txt`（gitignore，`0600`），没有写回虚拟机。
+- **探针：** 34 项通过。七个登录都不是 sysadmin / db_owner。获准列可读且不返回行；`SELECT *`、跨库、diagram EXECUTE、map 的 DELETE、OAuth 的 INSERT、密钥 CONTROL 被拒绝。`public` 对 `sp_helpdiagrams` 的 GRANT 仍在。没有实际 INSERT/UPDATE/DELETE 业务行。注册、删号、补偿和轮换仍未测。
+- **未做：** 未删 Git 草案里的 `THROW`，未对生产 apply，未改内置 `sa`。
+
 ## 2026-09-22 14:10 CST — CYP-2600 新建 sysadmin 登录 cyp2600_admin
 
 - **操作人：** Grok。用户没有 `ALTER ANY LOGIN`，要求用 Azure CLI 先建一个 sa 级登录。
