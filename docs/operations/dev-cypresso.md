@@ -1,5 +1,44 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-22 18:04 CST - 为 EVP 生产演示配置 S3 桶
+
+- 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）
+- 操作人：Grok（用户确认按专用 IAM 用户做演示交接待办一）
+- 原因：生产版本 `2026-09-19.01` 的三个 API 容器 `S3_BUCKET` 为空，LOE 预览/下载和工单附件上传没有对象存储。待办二（iCare UAT 接入服务）本次未做。
+- 影响：
+  - AWS 账号 `898182087395` 新增私有桶 `cypresso-evp-prod`（`ap-southeast-1`）和 IAM 用户 `evp-prod`
+  - 重建 `evp-provider-api`、`evp-admin-api`、`evp-hmo-api`（18:04 CST 启动）。三个 web 容器未重建，`StartedAt` 仍为 `2026-09-22T08:30:37Z`
+  - 未改防火墙、crontab、SSH、实例 IAM 角色
+- 选型：
+  - 这台 EC2 同时跑 iCare、moo-ticket、new-api、EVP 和 runner。沿用 moo-ticket 的专用 IAM 用户，密钥只进 EVP 的 `.env`，避免实例角色变成整机凭据
+  - 建议桶名 `evp-prod` 的 HeadBucket 返回 403（名字已被其他账号占用）。改用与现有桶一致的 `cypresso-evp-prod`
+  - 内联策略 `evp-prod-s3` 只允许 `arn:aws:s3:::cypresso-evp-prod/*` 的 `s3:PutObject`、`s3:GetObject`
+  - Block Public Access 四项全开，默认加密 SSE-S3 AES256（Bucket Key，拒绝 SSE-C），对象所有权 `BucketOwnerEnforced`
+  - 沿用已有 `AWS_REGION=ap-southeast-1`。不设置 `AWS_ENDPOINT_URL_S3`、`S3_FORCE_PATH_STYLE`
+  - 访问密钥写入服务器 `/home/ec2-user/stacks/evp/.env`（600）和本机 gitignore 的 `dev-cypresso/secrets.local.md`。不进 Git，不进 GitHub Secrets
+- 备份：`/home/ec2-user/stacks/evp/.env.bak.20260922-s3`（改前 420 字节，权限 600）
+- 回滚方式：
+  ```bash
+  ssh dev-cypresso 'cp -p /home/ec2-user/stacks/evp/.env.bak.20260922-s3 /home/ec2-user/stacks/evp/.env
+  cd /home/ec2-user/stacks/evp
+  unset S3_BUCKET
+  docker-compose up -d --no-build provider-api admin-api hmo-api'
+  ```
+  桶和 IAM 用户可以留着。要停用访问时，把用户 `evp-prod` 的访问密钥设为 Inactive。删桶前需要另行确认。
+- 变更时序：
+  1. 建桶、公共访问封锁、默认加密、所有权、标签 `app=evp` / `env=prod`
+  2. 建 IAM 用户 `evp-prod` 和内联策略 `evp-prod-s3`，创建一把访问密钥
+  3. 用这把密钥 PutObject / GetObject 成功；DeleteObject、ListBucket 返回 AccessDenied。探测对象 `_ops/credential-probe-20260922.txt` 随后用管理员身份删除，桶清空
+  4. 备份并更新 `.env`：`S3_BUCKET=cypresso-evp-prod`，写入 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`
+  5. 在部署目录执行 `docker-compose up -d --no-build provider-api admin-api hmo-api`（无 `--remove-orphans`、无 `--build`）
+- 验证：
+  - 三个 API 均为 healthy。`/health/ready` 与 `/health/live` 返回 `{"status":"ok"}`。ready 只查数据库，不能单独证明 S3
+  - 启动日志各有一行 `S3 client configured; connectivity is checked when used`（`2026/09/22 10:04:25` UTC）
+  - 容器内 `S3_BUCKET=cypresso-evp-prod`，`AWS_REGION=ap-southeast-1`，访问密钥长度 20/40，`AWS_ENDPOINT_URL_S3` 与 `S3_FORCE_PATH_STYLE` 为空
+  - 三个 API 镜像 digest 与重建前相同
+  - 三个 web 容器 `StartedAt` 未变
+  - 医院端预览/下载 LOE、保司端打开同一笔、工单上传附件尚未做。演示账号密码不在仓库里
+
 ## 2026-09-18 12:50 CST - 部署 new-api 到 dev-cypresso（https://zzz.konghai.me）
 
 - 服务器：`dev-cypresso`（公网 `32.192.186.193`）
