@@ -1,5 +1,13 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 13:47–13:57 CST — CYP-2600 五库 COPY_ONLY 全备
+
+- **操作人：** Grok。用户确认没有单独隔离 SQL Server，并指定先完整备份再测。点名的 `100.109.223.53` 是 mas-go-dev，不是 SQL Server；用户随后确认改用 `.env.preprod` 的 `10.100.0.4`。
+- **身份：** `ihc-db-uat` / `14.0.3550.4` / TCP / `mas_ref_owner`。`sysadmin=0`，`ALTER ANY LOGIN=0`。五库 `BACKUP DATABASE=1`，`master` 不能备份。
+- **语句：** `BACKUP DATABASE … TO DISK = N'F:\icare2bak\<库>_20260922_cyp2600.bak' WITH COPY_ONLY, COMPRESSION, INIT, CHECKSUM`。未 `BACKUP LOG`，未覆盖 `*_20260821.bak` / `*_20260824.bak`，未建号、未 GRANT、未改数据。
+- **结果（压缩后 / 未压缩）：** `insularsalesportal_preprod` 1.3 / 8.4 MB；`masprepaid_preprod` 162.6 / 337.1 MB；`maswebkit_preprod` 2742.0 / 5999.2 MB；`authprovidermasuat` 43.9 / 249.2 MB；`medicalassistance_preprod` 14810.4 / 103487.2 MB。五份 `has_backup_checksums=1`、`is_damaged=0`、`is_copy_only=1`。
+- **未完成：** `RESTORE VERIFYONLY` 返回 3013。该账号没有 `CREATE DATABASE`，不能把校验读完。建测试 login 仍要有 `ALTER ANY LOGIN` 的身份。
+
 ## 2026-09-22 08:23 CST — CYP-2600 sysadmin 补 owner login 映射
 
 - **操作人：** Grok；用户已 `az login`，要求按计划用 Azure 补 owner 映射。
