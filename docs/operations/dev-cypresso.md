@@ -1,5 +1,28 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-23 21:27 CST - 补 .env.accredited 占位文件，恢复 Backend Deploy 部署 ecom / sup
+
+- 服务器：`dev-cypresso`
+- 操作人：Claude（用户确认创建文件并重跑 CI）
+- 原因：iCare-backend CYP-2890（PR #1993，2026-09-14 合入 develop）在 `backend.compose.yaml` 的 `external-api` profile 下新增 `accredited-api`，`env_file: ${ACCREDITED_ENV_FILE:-.env.accredited}`。`scripts/deploy_external_api.sh` 以 `--profile external-api` 调 compose，本机没有该文件，于是 `Deploy to Server` 每次都在部署 ecom-api 这一步 exit 14。
+- 影响：api / worker 不受影响；ecom-api / sup-api 自 9-14 起停在 `e77093c1`，没有随 develop 更新。本次重部署 ecom-api / sup-api，各中断几秒。
+- 做了什么：以 `ec2-user` 在 `/home/ec2-user/stacks/icare/` 新建 `.env.accredited`（`set -C`，`umask 077`，经 stdin 写入）。文件只有注释、没有任何变量，内容与 mas-go-dev 上的相同。属主 / 权限 `ec2-user:ec2-user 600`，与 `.env.ecom` 一致。未改 compose、脚本、workflow。
+- **警告：完成 Deferred 各步前，不得跑 `profile=accredited` 的 Partner API Deploy。** 本机就是 `deploy-sup.yml` 的 `SERVER_HOST_DEV` 目标（run 的 `Deploy to Server` 写入的就是本机容器，已验证）。占位文件存在后，该 workflow 唯一的前置检查 `test -f ".env.$profile"` 会通过，跑了会建出一个缺配置、`restart: unless-stopped` 反复崩溃的 accredited-api。
+- 备份：新增文件，无既有文件被改动。回滚点为补文件前运行的镜像：ecom-api `sha256:a7e24c7f45c0`（`ghcr.io/cypressoai/icare-backend-ecom:e77093c1…`）、sup-api `sha256:9e8e873fdc5a`（`ghcr.io/cypressoai/icare-backend-sup:e77093c1…`）。
+- 回滚方式：
+  1. 删掉 `.env.accredited`，部署会重新在 exit 14 处失败。
+  2. 如需把 ecom / sup 退回旧版本：在部署目录用 `/usr/local/bin/docker-compose` 执行 `up -d --no-deps --force-recreate ecom-api sup-api`，并通过对应的 `*_IMAGE` 变量显式传入上面记录的镜像。
+- 变更时序（UTC）：
+  - 13:2x 补文件前 `/usr/local/bin/docker-compose --profile external-api -f backend.compose.yaml config -q` 复现 `env file /home/ec2-user/stacks/icare/.env.accredited not found`，exit 14。本机没有 `docker compose` 插件，要用独立的 v2.24.5
+  - 13:2x 创建占位文件，同一条 `config -q` 返回 exit 0
+  - 13:27 `gh run rerun 35862572320 --failed`
+- 验证：
+  - [run 35862572320](https://github.com/cypressoai/icare-backend/actions/runs/35862572320) attempt 2 `success`；日志 13:28:52 `ECOM API readiness, Swagger, and profile isolation checks passed.`，13:29:09 `SUP API readiness … passed.`
+  - `icare-backend-ecom-api-1`：`ghcr.io/cypressoai/icare-backend-ecom:a79dd4a5…`，StartedAt `13:28:43Z`，healthy
+  - `icare-backend-sup-api-1`：`ghcr.io/cypressoai/icare-backend-sup:a79dd4a5…`，StartedAt `13:28:54Z`，healthy
+  - 补文件前、补文件后、CI 跑完后，`docker ps -a` 三次都没有 accredited-api 容器
+- 已知遗留：accredited-api 仍未在本机部署。真正上线所需步骤（库账号、JWT secret、Redis、完整配置、部署方式）见 [计划](../plans/2026-09-23-2055-ops-backend-deploy-env-accredited-plan.md) 的 Scope Boundaries → Deferred 一节。应用仓的长期根治方案（env_file `required: false` 或拆出独立 profile）也在该节，本机 compose 版本为 v2.24.5，满足 `required: false` 所需的 ≥ 2.24。
+
 ## 2026-09-23 14:22 CST - moo-ticket 发件人改为 support@moospark.com，积压邮件补发成功
 
 - 服务器：`dev-cypresso`

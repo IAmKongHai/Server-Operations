@@ -1,5 +1,28 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-09-23 21:27 CST - 补 .env.accredited 占位文件，恢复 Backend Deploy 部署 ecom / sup
+
+- 服务器：`mas-go-dev`
+- 操作人：Claude（用户确认创建文件并重跑 CI）
+- 原因：iCare-backend CYP-2890（PR #1993，2026-09-14 合入 develop）在 `backend.compose.yaml` 的 `external-api` profile 下新增 `accredited-api`，声明 `env_file: ${ACCREDITED_ENV_FILE:-.env.accredited}`。`scripts/deploy_external_api.sh` 以 `--profile external-api` 调 compose，compose 加载 project 时检查该 profile 下所有服务的 env_file，本机没有这个文件，于是 `Deploy to mas-go-dev` 每次都在部署 ecom-api 这一步 exit 14。
+- 影响：api / worker 在失败前已重建，不受影响；ecom-api / sup-api 自 9-14 起没有随 develop 更新（补文件前运行的是 `e77093c1`）。本次重部署 ecom-api / sup-api，各中断几秒。
+- 做了什么：以 `actions-runner` 在 `/opt/mas-go-dev/backend/` 新建 `.env.accredited`（`set -C` 防覆盖，`umask 077`，经 stdin 写入，不经 `/tmp`）。文件**只有注释、没有任何变量**，说明它仅为占位、accredited-api 未部署、完成前置工作前不得跑 `profile=accredited` 的 Partner API Deploy。属主 / 权限 `actions-runner:actions-runner 600`，与 `.env.ecom` 一致。未改 compose、脚本、workflow。
+- 备份：新增文件，无既有文件被改动。回滚点为补文件前运行的镜像：ecom-api `sha256:5450f22422d3`（`icare/backend-ecom:mas-go-dev-e77093c1…`）、sup-api `sha256:2420881c2950`（`icare/backend-sup:mas-go-dev-e77093c1…`）。CI 会清理旧的本地 tag，所以要以镜像 ID 为准。
+- 回滚方式：
+  1. 删掉 `.env.accredited`，部署会重新在 exit 14 处失败。
+  2. 如需把 ecom / sup 退回旧版本：以 `actions-runner` 在部署目录执行 `up -d --no-deps --force-recreate ecom-api sup-api`，并通过对应的 `*_IMAGE` 变量显式传入上面记录的镜像 ID。
+- 变更时序（UTC）：
+  - 13:2x 补文件前 `sudo -u actions-runner … docker compose --profile external-api -f backend.compose.yaml config -q` 复现 `env file /opt/mas-go-dev/backend/.env.accredited not found`，exit 14
+  - 13:2x 创建占位文件，同一条 `config -q` 返回 exit 0
+  - 13:27 `gh run rerun 35862572320 --failed`（Backend Deploy，head `a79dd4a5`，develop 上当时最新的失败 run）
+- 验证：
+  - [run 35862572320](https://github.com/cypressoai/icare-backend/actions/runs/35862572320) attempt 2 `success`；日志 13:30:47 `ECOM API readiness, Swagger, and profile isolation checks passed.`，13:30:55 `SUP API readiness … passed.`
+  - `icare-backend-ecom-api-1`：`icare/backend-ecom:mas-go-dev-a79dd4a5…`，StartedAt `13:30:45Z`，healthy
+  - `icare-backend-sup-api-1`：`icare/backend-sup:mas-go-dev-a79dd4a5…`，StartedAt `13:30:53Z`，healthy
+  - 补文件前、补文件后、CI 跑完后，`docker ps -a` 三次都没有 accredited-api 容器
+  - 计划中的假设"compose 只检查 env_file 是否存在，不校验内容"已被 `config -q` 实测证实
+- 已知遗留：accredited-api 仍未在本机部署。真正上线所需步骤（库账号、JWT secret、Redis、完整配置、部署方式）见 [计划](../plans/2026-09-23-2055-ops-backend-deploy-env-accredited-plan.md) 的 Scope Boundaries → Deferred 一节。应用仓的长期根治方案（env_file `required: false` 或拆出独立 profile）也在该节，本机 compose 版本为 v2.24.5，满足 `required: false` 所需的 ≥ 2.24。
+
 ## 2026-09-17 02:52 CST - 重启验证 DNS 未复发，并修复 accept-dns=false 导致的 MagicDNS 短名失效
 
 - 服务器：`mas-go-dev`。
