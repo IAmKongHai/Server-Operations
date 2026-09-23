@@ -1,5 +1,19 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-23 14:22 CST - moo-ticket 发件人改为 support@moospark.com，积压邮件补发成功
+
+- 服务器：`dev-cypresso`
+- 操作人：Claude（用户改 `.env`，要求重建容器）
+- 原因：14:07 那次重建后 `SMTP_FROM` 变成了 `support@t.moospark.com`。Resend 拒收并返回 `550 The t.moospark.com domain is not verified`，因为子域名 `t.moospark.com` 没有在 Resend 添加，DNS 里也没有 DKIM/SPF 记录。outbox 72–75 共 4 封邮件（含 75 号邀请邮件）各失败 3 次。
+- 影响：用户把 `SMTP_FROM` 改为 `Moo Ticket <support@moospark.com>`（主域名已在 Resend 验证，`resend._domainkey.moospark.com` 有 DKIM 记录），然后重建 `moo-ticket` 容器，服务中断几秒
+- 回滚方式：改回 `.env` 里的 `SMTP_FROM` 后执行同一条 `up -d --force-recreate --no-deps --no-build app`
+- 变更时序：06:21 UTC 用户改完 `.env`；06:22:00 UTC 重建容器
+- 验证：
+  - `https://t.moospark.com/` 返回 **200**
+  - outbox 的 payload 里不保存发件人，发送时读当前配置，所以积压邮件重试时会用新的发件人
+  - 日志 06:25–06:26 UTC 显示 `mail job completed outbox_id=72..75 attempt=4`；数据库里这 4 行 `sent_at` 都已有值，`last_error` 已清空
+- 经验：Resend 按精确域名验证，主域名 `moospark.com` 验证过不代表子域名 `t.moospark.com` 也能发信
+
 ## 2026-09-23 14:07 CST - 重建 moo-ticket 容器加载新 .env
 
 - 服务器：`dev-cypresso`
