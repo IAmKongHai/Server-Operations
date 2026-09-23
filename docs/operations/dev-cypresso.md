@@ -1,5 +1,25 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-23 14:07 CST - 重建 moo-ticket 容器加载新 .env
+
+- 服务器：`dev-cypresso`
+- 操作人：Claude（用户要求重启）
+- 原因：用户修改了 `/home/ec2-user/stacks/moo-ticket/.env`（mtime `2026-09-23 06:05 UTC`）。`docker restart` 不会重读 env_file，因此用重建容器的方式加载。
+- 影响：`moo-ticket` 容器重建，服务中断几秒；镜像 `moo-ticket:local` 没有重新构建，其它容器没有动
+- 备份：本次没有另做备份，新的 `.env` 由用户自行修改。已有的备份文件是 `.env.bak.20260903-smtp-tls` 和 `.env.bak.20260910-domain-cutover`
+- 回滚方式：把 `.env` 改回去后执行同一条命令
+- 变更时序：
+
+  ```bash
+  cd /home/ec2-user/stacks/moo-ticket
+  docker-compose -f docker-compose.prod.yml --project-directory . up -d --force-recreate --no-deps --no-build app
+  ```
+
+- 验证：
+  - 容器在 `06:07:34 UTC` 重建完成，状态 Up，端口 `127.0.0.1:8180->8080/tcp`
+  - 日志显示 `database bootstrap completed`、`listening addr=:8080`
+  - `http://127.0.0.1:8180/` 返回 **200**，`https://t.moospark.com/` 返回 **200**
+
 ## 2026-09-22 18:04 CST - 为 EVP 生产演示配置 S3 桶
 
 - 服务器：`dev-cypresso`（`i-0608f008a58c42db0`，公网 `32.192.186.193`）
