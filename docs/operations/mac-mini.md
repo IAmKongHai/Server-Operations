@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-09-24 20:45 CST - EAS Production Local preflight 缺生产 Firebase 文件（只读排查）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`（只读取证）
+- 原因：[run 35999529136 / job 107632475488](https://github.com/cypressoai/iCare-mobile-app/actions/runs/35999529136/job/107632475488) 在 `Preflight — Check mac-mini host files` 失败（`PLATFORM=all`，`SUBMIT=false`）。
+- 影响：没有改动服务器，没有复制文件。
+- 备份：无。
+- 回滚方式：无服务器变更。
+- 做了什么：
+  1. 日志显示缺 `~/.config/icare/production/google-services.production.json` 和 `~/.config/icare/production/GoogleService-Info.production.plist`。
+  2. 在 mac-mini 上看到 `~/.config/icare/production/` 目录不存在。`~/.config/icare/` 下只有旧的 `google-services.json`、`GoogleService-Info.plist`、`AuthKey_3VBD4W3ZKW.p8`、`testflight.json`。
+  3. 用户本地的 `~/Downloads/icare-app/icare-app-production-config-20260921/` 里有这两个文件。Firebase 项目都是 `insular-health-care-apps`。Android 包名 `ph.com.toplogic.insularhealth`，iOS bundle `ph.com.insularhealthcare`。
+- 发现：包里 README 写的目标目录是 `~/.config/icare/`，workflow 实际读取的是 `~/.config/icare/production/`，两者不一致。`appstore.json` 的 `ascKeyPath` 也指向 `~/.config/icare/AuthKey_29ZTW8L59H.p8`；如果按 workflow 把它放进 `production/`，提交商店时要同时改这个路径。
+- 验证：未修复，等用户确认是否复制文件。
+
 ## 2026-09-18 16:39 CST - 用户完成 az login --use-device-code，默认订阅为 iCare 2.0
 
 - 服务器：`mac-mini`
