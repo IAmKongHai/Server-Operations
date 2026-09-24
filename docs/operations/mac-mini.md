@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-09-24 20:58 CST - 放置 iCare 生产商店提交凭据
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`（用户已确认）
+- 原因：`EAS Production Local` 在 `SUBMIT=true` 时，preflight 还要检查 `~/.config/icare/production/` 下的 Play 凭据、ASC 配置和 ASC 私钥。
+- 影响：在 `~/.config/icare/production/` 新增 `google-play-service-account.json`、`appstore.json`、`AuthKey_29ZTW8L59H.p8`，三个文件都是 600、属主 `konghai`。旧目录 `~/.config/icare/` 没有改，也没有重启 runner。
+- 备份：无，这三个文件在目标目录原本不存在。
+- 回滚方式：删掉 `~/.config/icare/production/` 下这三个文件。
+- 做了什么：
+  1. Play 凭据和 `.p8` 从 `~/Downloads/icare-app/icare-app-production-config-20260921/` 原样复制过去（`project_id=icare-publisher`，`client_email=icare-play-publisher@icare-publisher.iam.gserviceaccount.com`）。
+  2. `appstore.json`：包里原来的 `ascKeyPath` 指向 `~/.config/icare/AuthKey_29ZTW8L59H.p8`，改成了 `/Users/konghai/.config/icare/production/AuthKey_29ZTW8L59H.p8`，其它字段不变（`ascKeyId=29ZTW8L59H`，`bundleIdentifier=ph.com.insularhealthcare`）。改的是临时副本，用完就删了；Downloads 里的原件没动。
+- 验证：
+  - 三个文件在两台机器上的 SHA-256 一致。
+  - 在 mac-mini 上按 workflow 的 preflight 逻辑、用 `PLATFORM=all SUBMIT=true` 跑了一遍，5 项都显示 ok，`exit=0`。
+  - 没有真的提交到商店，凭据能不能通过 Play / ASC API 认证，要等第一次 `SUBMIT=true` 的 run 才知道。
+- 同时：run 35999529136 attempt 2 的 `Resolve build source` 已 success，AAB/IPA 构建正在进行。
+
 ## 2026-09-24 20:52 CST - 放置 iCare 生产 Firebase 配置，重跑 EAS Production Local
 
 - 服务器：`mac-mini`
