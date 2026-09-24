@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-09-24 20:52 CST - 放置 iCare 生产 Firebase 配置，重跑 EAS Production Local
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`（用户已确认）
+- 原因：接上条。[run 35999529136](https://github.com/cypressoai/iCare-mobile-app/actions/runs/35999529136) 的 preflight 缺 `~/.config/icare/production/` 下的两个 Firebase 文件。
+- 影响：新建 `~/.config/icare/production/`（700），放入两个文件（600，属主 `konghai`）。没有碰 `~/.config/icare/` 下的旧文件，也没有重启 runner。
+- 备份：无，目标目录原本不存在。
+- 回滚方式：`rm -r ~/.config/icare/production`。
+- 做了什么：
+  1. `mkdir -p ~/.config/icare/production && chmod 700`。
+  2. 从本地 `~/Downloads/icare-app/icare-app-production-config-20260921/` 用 `scp` 复制 `google-services.production.json`、`GoogleService-Info.production.plist`，再 `chmod 600`。
+  3. `gh run rerun 35999529136 --failed`（attempt 2）。
+- 验证：两台机器上的 SHA-256 一致。attempt 2 的 `Preflight — credentials and destinations` 已 success，后续 `Resolve build source` 已开始运行。
+- 待办：商店提交（`SUBMIT=true`）还需要在 `production/` 下放 `google-play-service-account.json`、`appstore.json` 和 `AuthKey_29ZTW8L59H.p8`，并把 `appstore.json` 的 `ascKeyPath` 改成相应路径。本次没有放。
+
 ## 2026-09-24 20:45 CST - EAS Production Local preflight 缺生产 Firebase 文件（只读排查）
 
 - 服务器：`mac-mini`
