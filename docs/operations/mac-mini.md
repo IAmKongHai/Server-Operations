@@ -1,5 +1,27 @@
 # mac-mini 运维时间线
 
+## 2026-09-28 14:02 CST - Sub2API 镜像升级到 0.2.9
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`（用户确认可以升级）
+- 原因：官方已发布 `v0.2.9`。现网还停在 2026-08-16 自打的 `sub2api:pr5640-3.7-ssti`（`0.1.177-pr5640-ssti`），当时是为了 Gemini 3.7 和 Grok `web_search` 补丁。Gemini 3.7 Flash 已在官方 `0.2.5` 进入，本机仓库 `/Users/konghai/code/Project/sub2api` 的 `main` 已在 `0.2.9`（`9a62841fd`）。
+- 影响：只重建 `sub2api`。宿主端口仍是 `.env` 里的 `18080`，容器内仍听 `8080`。`GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL`、内存上限、Postgres 小规格参数都留在原 compose。`sub2api-postgres` / `sub2api-redis` 未重建（已运行 5 周）。SonarQube、richer 未动。升级窗口内网关短暂中断。
+- 备份：
+  - `~/backups/sub2api-20260928.dump`（600，`pg_dump -Fc`，约 940KB，TOC 1151）
+  - `~/stacks/sub2api/docker-compose.yml.bak.20260928`
+  - `~/stacks/sub2api/.env.bak.20260928`（600）
+- 回滚方式：停 `sub2api`，用 dump 恢复库，再把 compose 的 `image:` 改回 `sub2api:pr5640-3.7-ssti` 后 `docker-compose up -d --no-deps sub2api`。只换镜像不够，`0.2.9` 已写入新迁移。不要 `docker compose down -v`。
+- 做了什么：
+  1. 升级前 `GET /health` 200，版本 `0.1.177-pr5640-ssti`。
+  2. `pg_dump` 之后只改 compose 一行：`image: weishaw/sub2api:0.2.9`。没有重跑 `docker-deploy.sh`，没有覆盖 `.env`。
+  3. `docker-compose pull sub2api`（`linux/arm64`），`docker-compose up -d --no-deps --force-recreate sub2api`。这台机器的 `docker compose` 子命令不可用，用的是 `/opt/homebrew/bin/docker-compose` 5.4.0。
+- 验证：
+  - 容器 healthy；`/app/sub2api -version` = `Sub2API 0.2.9 (commit: 4c00df2e0183e2c70b7fa8ba45914205e36aad0c)`；`GET /health` 200。
+  - `schema_migrations` 在 14:01:35 新写入 28 条，最新为 `240_affiliate_ledger_operation_id.sql`，表内共 289 条。
+  - 内存：`sub2api` 48.8MiB / 768MiB，Postgres、Redis 仍在原上限内。
+  - 启动日志有一条 `[GeminiOAuth] Drive API scope not available (403)`，服务已继续起来。
+  - 未复测 Grok 同时带 `web_search` 和其它 function 的 `/antigravity/v1/messages`。
+
 ## 2026-09-24 20:58 CST - 放置 iCare 生产商店提交凭据
 
 - 服务器：`mac-mini`
