@@ -1,0 +1,75 @@
+name: sub2api
+services:
+  sub2api:
+    image: weishaw/sub2api:0.2.9
+    container_name: sub2api
+    restart: always
+    # env_file 保持必需：漏放 .env 时不要靠镜像内默认空密钥把栈拉起来
+    env_file: .env
+    ports:
+      # 只绑回环。公网入口经宿主 Nginx，18180 避开本机已占用的 8080/3000
+      - "127.0.0.1:18180:8080"
+    mem_limit: 1g
+    volumes:
+      # 向导写出的 config.yaml 与运行数据。库在 shared-postgres，不在这个卷里
+      - sub2api_data:/app/data
+    depends_on:
+      sub2api-redis:
+        condition: service_healthy
+    networks:
+      # default 连 Redis；shared-services 连 infra 栈的 shared-postgres
+      - default
+      - shared-services
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  sub2api-redis:
+    image: redis:8.4-alpine
+    # 容器名不能叫 redis / shared-redis，避免与 iCare、共享栈冲突
+    container_name: sub2api-redis
+    restart: always
+    env_file: .env
+    command:
+      [
+        "redis-server",
+        "--appendonly", "yes",
+        "--requirepass", "${REDIS_PASSWORD}",
+        "--maxmemory", "128mb",
+        "--maxmemory-policy", "allkeys-lru",
+      ]
+    mem_limit: 256m
+    volumes:
+      - redis_data:/data
+    networks:
+      # 只在 default：不进 shared-services，避免在共享网络注册别名
+      - default
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  sub2api_data:
+    name: sub2api_data
+  redis_data:
+    name: sub2api_redis_data
+
+networks:
+  shared-services:
+    name: shared-services
+    external: true

@@ -39,6 +39,7 @@ KEEP_BACKUP=1 ./scripts/deploy-icare-preview-apk.sh
 | 域名                | 用途                 | 反代目标           | 仓库内对照                |
 | ------------------- | -------------------- | ------------------ | ------------------------- |
 | `zzz.konghai.me`    | new-api（AI 网关）   | `127.0.0.1:3000`   | [`new-api/`](./new-api/)  |
+| `sub2api.cypresso.ai` | Sub2API（AI 网关） | `127.0.0.1:18180`  | [`sub2api/`](./sub2api/)  |
 
 > 本表暂只列 new-api。同机还有 `t.moospark.com`（moo-ticket）、`evp.moospark.com` /
 > `evp-admin.moospark.com`（EVP）等既有站点，待后续补齐。
@@ -64,10 +65,11 @@ KEEP_BACKUP=1 ./scripts/deploy-icare-preview-apk.sh
 | 库           | 角色           | 使用方                        |
 | ------------ | -------------- | ----------------------------- |
 | `new_api`    | `new_api`      | new-api（`zzz.konghai.me`）   |
+| `sub2api`    | `sub2api`      | Sub2API（`sub2api.cypresso.ai`） |
 | `moo_ticket` | `moo_ticket`   | moo-ticket（`t.moospark.com`）|
 | `evp`        | `evp`          | EVP                           |
 
-> 注意：目前只有 `new_api` 与 `evp` 两个库 `REVOKE CONNECT FROM PUBLIC`，
+> 注意：目前 `new_api`、`sub2api` 与 `evp` 三个库 `REVOKE CONNECT FROM PUBLIC`，
 > 其余库任何已认证角色都能连上。新建库时记得一并收紧。
 
 ## SQL Server 容器细节

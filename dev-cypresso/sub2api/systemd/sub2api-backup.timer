@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily sub2api database backup 04:20 UTC
+
+[Timer]
+# 服务器时区即 UTC。04:20 与 03:50 的 gha-runner-maintenance、04:10 的 new-api 备份错开。
+OnCalendar=*-*-* 04:20:00
+Persistent=true
+Unit=sub2api-backup.service
+
+[Install]
+WantedBy=timers.target

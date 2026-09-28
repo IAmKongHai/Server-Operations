@@ -1,0 +1,14 @@
+[Unit]
+Description=sub2api daily pg_dump of sub2api database
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=ec2-user
+Group=ec2-user
+# systemd 不继承登录 shell 的 PATH，docker 在 /usr/bin
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# 只含 PGPASSWORD=... 一行，chmod 600，属主 ec2-user；不入库
+EnvironmentFile=/home/ec2-user/stacks/sub2api/backup.env
+ExecStart=/home/ec2-user/stacks/sub2api/sub2api-backup.sh

@@ -1,5 +1,41 @@
 # dev-cypresso 运维时间线
 
+## 2026-09-28 16:22 CST - 部署 Sub2API 到 https://sub2api.cypresso.ai
+
+- 服务器：`dev-cypresso`
+- 操作人：`Grok`（用户指定这台机器、全新空库、域名 `sub2api.cypresso.ai`）
+- 原因：把 Sub2API `0.2.9` 部署成公网入口。不从 mac-mini 迁库，账号和 API Key 从零开始。
+- 影响：
+  - 新增公网站点 `https://sub2api.cypresso.ai`。宿主 Nginx **reload**（不是 restart）
+  - 新增 compose 栈 `/home/ec2-user/stacks/sub2api/`：`sub2api`（`weishaw/sub2api:0.2.9`，`linux/amd64`，只绑 `127.0.0.1:18180`）+ `sub2api-redis`（`redis:8.4-alpine`，带密码 + AOF，不发布宿主端口）
+  - `shared-postgres` 上新建库和角色 `sub2api`（`NOSUPERUSER`，`CONNECTION LIMIT 20`，`REVOKE CONNECT FROM PUBLIC`）。没有改 `stacks/infra/`，没有在那边 `up -d`
+  - 新增 systemd `sub2api-backup.timer`（每日 04:20 UTC）和备份目录 `/home/ec2-user/backups/sub2api/`（700）
+  - 未动 new-api、iCare、EVP、moo-ticket。它们的 `StartedAt` 与部署前一致
+- 备份：
+  - `/etc/nginx/conf.d.bak.20260928-sub2api-pre/`（改 vhost 前的整目录）
+  - 首份库备份 `/home/ec2-user/backups/sub2api/sub2api-20260928.dump`（600，`pg_dump -Fc`，512K，TOC 1202）
+- 回滚方式：
+  ```bash
+  cd /home/ec2-user/stacks/sub2api && docker-compose down   # 不要 -v，不要 --remove-orphans
+  sudo rm -f /etc/nginx/conf.d/sub2api.cypresso.ai.conf
+  sudo nginx -t && sudo systemctl reload nginx
+  sudo systemctl disable --now sub2api-backup.timer
+  ```
+  库和角色的 `DROP`、`certbot delete --cert-name sub2api.cypresso.ai`、删 DNS 记录需要另外确认。
+- 做了什么：
+  1. 部署前 `sub2api.cypresso.ai` A 记录已是 `32.192.186.193`，无 AAAA。`dig` 直接返回源站 IP，不是 Cloudflare 代理地址。
+  2. 生成密钥写入服务器 `.env` / `backup.env`（都是 600）和本地 gitignore 的 `dev-cypresso/secrets.local.md`。仓库只留 `.env.example`。
+  3. 在 `shared-postgres` 建角色和库，然后 `docker-compose up -d`。这台机器没有 `docker compose` 插件，用的是 `docker-compose` 2.24.5。
+  4. 管理员已由 `AUTO_SETUP` 创建后再装 vhost。备份 `conf.d`，写入 HTTP vhost，`nginx -t`，reload，`certbot --nginx --redirect`。流式参数（`proxy_buffering off`、读写超时 3600s、`client_max_body_size 256m`、WebSocket `Upgrade`、`underscores_in_headers`）在 certbot 改写后还在。
+  5. 启用 `sub2api-backup.timer`，并手动跑了一次备份。
+- 验证：
+  - 容器 healthy。`/app/sub2api -version` = `Sub2API 0.2.9 (commit: 4c00df2e)`。`schema_migrations` 289 条。`users` 1 行，邮箱 `konghai007@gmail.com`，角色 `admin`。
+  - `https://sub2api.cypresso.ai/health` **200** `{"status":"ok"}`。`http://sub2api.cypresso.ai/health` **301** 到 HTTPS。首页 **200** `text/html`。
+  - 证书 Let's Encrypt，SAN `sub2api.cypresso.ai`，到期 **2026-12-27**。
+  - `127.0.0.1:18180` 在听；从外网连 `32.192.186.193:18180` 超时。
+  - 邻居 `StartedAt` 未变：`new-api` `2026-09-18T04:21:59Z`，`shared-postgres` / `shared-redis` `2026-05-28T07:24:56Z`，`moo-ticket` `2026-09-28T07:58:58Z`，`evp-admin-api` `2026-09-25T08:32:04Z`，`icare-backend-api-1` `2026-09-28T05:37:19Z`。
+- 对照：`dev-cypresso/sub2api/`。管理员密码在 `dev-cypresso/secrets.local.md`，不入库。
+
 ## 2026-09-23 21:27 CST - 补 .env.accredited 占位文件，恢复 Backend Deploy 部署 ecom / sup
 
 - 服务器：`dev-cypresso`
