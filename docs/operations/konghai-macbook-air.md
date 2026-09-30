@@ -1,5 +1,23 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-10-01 02:38 CST - Tailscale 卡在 Connecting，重启 nesessionmanager 后恢复
+
+- 服务器/设备：本机 MacBook Air（`macbook-air`，Tailscale `100.92.181.15`），在家，`en0 192.168.2.109/24`，网关 `192.168.2.1`
+- 操作人：`Grok`（排查与恢复）、`konghai`（管理员密码框授权）
+- 原因：菜单栏 Tailscale 1.102.4 一直连不上。系统 VPN 会话从 2026-09-30 15:23 起停在 Connecting；`tailscale` CLI 报 `Tailscale.CLIError error 1`。控制面 `https://controlplane.tailscale.com/key?v=126` 返回 200，局域网网关正常。`nesessionmanager` 里这条会话卡在 `NESMVPNSessionStateIdleIPC`，日志反复 `cannot establish IPC ... already in the process of being established`。`scutil --nc stop Tailscale` 能收到 stop，但停在 IdleIPC 不往下走。
+- 影响：本机 Tailscale 中断约 11 小时后恢复。期间 Azure VPN / OneXray 本来就是 Disconnected。重启 `nesessionmanager` 会把所有 Network Extension VPN 会话清掉再由 launchd 拉起，没有改 Tailscale 登录态和 DNS 策略。
+- 备份：无文件备份。恢复前 prefs 已是 `WantRunning=false`、`CorpDNS=false`、`RouteAll=false`、`LoggedOut=false`。
+- 回滚方式：不需要回滚。若要主动断开：`tailscale down`。SIP 开启时不要用 `launchctl kickstart -k system/com.apple.nesessionmanager`（会报 Operation not permitted）。
+- 变更时序：
+  1. 停掉 Tailscale.app，`killall` 掉卡死的 `io.tailscale.ipn.macsys.network-extension`。会话状态不变，CLI 仍起不来。
+  2. `kill -9` 旧 `nesessionmanager`（pid 151，自 2026-09-29 09:43 起未退出）。launchd 拉起新进程 pid 73999，`scutil` 变为 Disconnected，CLI 能回答 `Tailscale is stopped.`
+  3. `tailscale up --accept-dns=false`（只显式带上当时唯一的非默认项，避免把 MagicDNS 设回全局 DNS）。
+- 验证结果：
+  - `WantRunning=true`，`CorpDNS=false`，`LoggedOut=false`，`RouteAll` 仍是 false（卡死前就是 false，与 2026-09-21 记录的 true 不一致，这次没有改）。
+  - 接口上有 `100.92.181.15`。`tailscale ping mac-mini`：先 DERP(km) 24ms，随后直连 `192.168.2.170:51548` 22ms。
+  - 系统 DNS 仍是 `192.168.2.1`，search domain `lan` + `taila93443.ts.net`。`/etc/resolver/ts.net` 与 `taila93443.ts.net` 未改。
+- 备注：复盘见 `docs/solutions/konghai-macbook-air/runtime-errors/tailscale-stuck-connecting-idleipc-2026-10-01.md`。
+
 ## 2026-09-21 02:47 CST - Tailscale 常开，公网 DNS 改回走当前路由器
 
 - 服务器/设备：本机 MacBook Air（`macbook-air` / `Mac.lan`，Tailscale `100.92.181.15`），当时在家：Wi-Fi `192.168.2.109/24`，网关 `192.168.2.1`
