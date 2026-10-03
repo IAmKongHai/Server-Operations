@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-10-03 10:41 CST - iCare iOS preview 凭据挪进 `~/.config/icare/preview/`（ICARE-21）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`（用户要求处理 ICARE-21）
+- 原因：mobile-app #451（9-24 合并）把 preview 凭据路径从 `~/.config/icare/` 改成 `~/.config/icare/preview/`。preview 的 iOS 凭据还在老位置，所以从 9-25 起，`EAS Preview Local (mac-mini)` 的 iOS 构建一直卡在 `Check ASC API Key`。
+- 影响：只动 `~/.config/icare/` 下的 preview 文件；`production/`（含 `AuthKey_29ZTW8L59H.p8`）没动，runner 也没重启。
+- 备份：`~/.config/icare-backup-20261003.tgz`（600，整个 `~/.config/icare` 目录）。
+- 回滚方式：删掉 `~/.config/icare`，在 `~/.config` 下解压上面的备份包。
+- 做了什么：
+  1. 把 `testflight.json`、`AuthKey_3VBD4W3ZKW.p8`、`GoogleService-Info.plist` 挪进 `preview/`。`preview/` 改成 700，里面的文件改成 600。
+  2. 老位置的 `google-services.json` 和 `preview/` 里已有的那份 `cmp` 一致，挪进去覆盖。
+  3. `preview/testflight.json` 的 `ascKeyPath` 改成 `/Users/konghai/.config/icare/preview/AuthKey_3VBD4W3ZKW.p8`。
+- 验证：
+  - 在 `cypressoai/iCare-mobile-app` 上手动触发 `EAS Preview Local (mac-mini)`（`platform=ios`，`source_branch=develop`），run `37090682516`。
+  - `Check ASC API Key`、`Inject ASC key into eas.json`、`Local iOS preview IPA`、`Validate IPA version` 都是 success。
+  - 写这条记录时 run 还在跑，TestFlight 上传结果要等 run 结束后再确认。
+
 ## 2026-09-28 14:02 CST - Sub2API 镜像升级到 0.2.9
 
 - 服务器：`mac-mini`
