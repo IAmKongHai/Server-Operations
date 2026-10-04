@@ -1,5 +1,32 @@
 # mac-mini 运维时间线
 
+## 2026-10-05 01:05 CST - 新建 nyh PostgreSQL 测试实例 `nyh-postgres`（空库）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户确认“新建实例，绑 0.0.0.0:5437”
+- 原因：nyh 项目要一套 PostgreSQL 测试环境，只建空库，不导数据。用户在办公室也要通过 Tailscale 连接，所以不用只听 `127.0.0.1` 的公共实例 `shared-dev-postgres`，单独新建一个实例。
+- 选型：
+  - 镜像沿用 `shared-dev-postgres` 的 `postgres:18-alpine@sha256:a1d02e4b…`（18.6）。阿里云 RDS `pgm-j6cf5kaej216sx0z` 是 18.4，大版本一致。
+  - 端口发布 `0.0.0.0:5437`，与 `cmm-postgres` 的做法相同。Colima 是 `hostAddresses: false`，绑不了指定 IP。实际可达范围是家里内网和 Tailscale；路由器没有做端口转发，公网连不上。这一点偏离了原协助任务的“不绑 0.0.0.0”，为满足 Tailscale 访问需求，由用户拍板。
+  - MySQL `8.0.36@sha256:a5327240…`（多架构 index digest）作为演练源，放在同一个 compose 里：`profiles: ["mysql-drill"]`，`restart: "no"`，只绑 `127.0.0.1:3306`，独立卷 `nyh_mysql_drill_data`。本次没有启动，也没有创建卷。
+- 影响：mac-mini 新增一个常驻容器 `nyh-postgres`（`mem_limit 1g`，`cpus 2`）和卷 `nyh_pg_data`。其它容器和 Colima 配置都没动。没有导入任何数据，没有配置 supervisor，也没有跑 PHP worker。
+- 备份：全新目录和卷，无需备份。
+- 回滚方式：`cd ~/stacks/nyh-postgres && docker-compose down`。如果要连数据一起删，再执行 `docker volume rm nyh_pg_data`（删除前需要确认）。
+- 做了什么：
+  1. 新建 `~/stacks/nyh-postgres/`（700），里面有：
+     - `compose.yaml`
+     - `.env`（600）：`openssl rand` 生成 postgres、`nyh_app`、MySQL root 三个密码
+     - `init-nyh.sh`：幂等，负责建 `nyh_app` 和 4 个库，或给已有账号重设密码
+  2. 本机 Docker 没有 `docker compose` 插件，改用 `/opt/homebrew/bin/docker-compose`。执行 `docker-compose up -d postgres`，等健康检查变成 healthy。
+  3. 第一次建库时，SQL 引号转义写错，报错信息里回显了 `nyh_app` 的密码。当时 `ON_ERROR_STOP` 生效，什么都没建成。随后作废这个密码并重新生成，改用 `init-nyh.sh` 执行。
+  4. 建了应用账号 `nyh_app`（`LOGIN`，非超级用户）。4 个库 `nyh_agent_dev` / `nyh_center_dev` / `nyh_agent_test` / `nyh_center_test` 的属主都是 `nyh_app`，`UTF8`、`TEMPLATE template0`，库级设置 `timezone = 'Asia/Shanghai'`。
+  5. `nyh_app` 的密码存到本地 gitignore 文件 `mac-mini/secrets.local.md`，没有贴进对话。
+- 验证：
+  - `nyh-postgres` 状态 healthy，`RestartCount=0`，`server_version` 为 18.6。宿主 `*:5437` 由 Colima 端口转发监听。
+  - 从开发机 `192.168.2.109` 以 `nyh_app` 连 `192.168.2.170:5437` 和 Tailscale `100.108.64.126:5437`，4 个库全部连通，`TimeZone=Asia/Shanghai`，`server_encoding=UTF8`，有 `CREATE` 权限，`rolsuper=f`。
+  - 外网：mac-mini 出国流量走 `tizi`，所以 `ifconfig.me` 返回的是 tizi 的地址。改用国内站点查到家里真实公网 IP（昆明电信 `112.117.80.x`）。从 `tizi` 探测这个 IP 的 `5437`、`5432`、`5436`、`3306`，全部 closed。
+  - `nyh-mysql-drill` 容器和 `nyh_mysql_drill_data` 卷都不存在，符合“只定义、不启动”。FileVault 已开启（见上一条记录）。
+
 ## 2026-10-05 CST - 复核 nyh PostgreSQL 落点方案（只读）
 
 - 服务器：`mac-mini`
