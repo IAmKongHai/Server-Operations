@@ -1,5 +1,30 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-10-05 02:02 CST - moo-ticket CI 改到自托管 runner
+
+- 服务器：GitHub org `cypressoai` runner group `mas-go-dev`（id 3）；对照本机 `mas-go-dev-ci-1` / `mas-go-dev-ci-2`
+- 操作人：`Grok`
+- 原因：`cypressoai/moo-ticket` 的 CI 还在 GitHub-hosted `ubuntu-latest`。backend 要临时 Postgres，image 要 `docker build`，唯一同时有 `Linux`、`docker`、`backend-ci` 的是 `mas-go-dev-ci-1`。它在 selected 组里，名单原先不含这个仓库，job 会一直排队。
+- 影响：该仓库的 CI 可以调度到这个组的三台 runner。部署 runner `mas-go-dev` 没有 `backend-ci`，CI 不会落到它头上。未改本机 systemd、Docker、label，未动 iCare / EVP 容器。部署 workflow 仍走 `dev-cypresso-ci`。
+- 备份：加仓前名单为 `evp`、`iCare-backend`、`iCare-frontend-mas`、`iCare-Operations-backend`、`iCare-Operations-frontend`、`iCare-public-backend`、`iCare-public-frontend`、`vps-traffic-monitor`。
+- 回滚方式：
+  1. `DELETE orgs/cypressoai/actions/runner-groups/3/repositories/1353401174`（`cypressoai/moo-ticket`）。
+  2. 把 `.github/workflows/ci.yml` 的 job 改回 `ubuntu-latest`，并恢复 `services.postgres`。
+- 选型：
+  - backend / image：`[self-hosted, Linux, docker, backend-ci]`。`docker run -p 127.0.0.1::5432` 拿随机端口，结束 `docker rm -f`。不用 GHA `services:` 映射宿主机 5432。
+  - frontend：`[self-hosted, frontend-quality-ci]`。
+  - 分支保护仍要求名为 `CI` 的汇总 check，`runs-on: [self-hosted, backend-ci]`。
+  - `setup-go` / `setup-node` 不走 GitHub Cache API。
+- 做了什么：
+  1. 只读确认 `actions-runner` 可用 docker、gcc、python3；`127.0.0.1:5432` 与 `100.109.223.53:5432` 已被占用；可用内存约 5.6GiB。
+  2. `PUT orgs/cypressoai/actions/runner-groups/3/repositories/1353401174`。
+  3. workflow 放在分支 `ci/self-hosted-runners`。[PR #46](https://github.com/cypressoai/moo-ticket/pull/46)。`main` 要求走 PR，直接推送被拒。
+- 验证结果：
+  - 组内仓库现为 9 个，含 `cypressoai/moo-ticket`。
+  - [CI run 37222299995](https://github.com/cypressoai/moo-ticket/actions/runs/37222299995) `success`。`frontend`（47 秒）、`image`、`backend` 都在 `mas-go-dev-ci-1`，汇总 `CI` 在 `mas-go-dev-ci-2`。没有 GitHub-hosted job。
+  - 跑完后本机没有 `moo-ci=postgres` 容器，也没有名为 `moo-ci-pg-*` 或 `moo-ticket-check` 的残留容器。
+- 观察：`mas-go-dev-ci-1` 同时带 `frontend-quality-ci`，这轮 frontend 也落在它上面，backend 和 image 因此串行。三步合计约 7 分钟，没有把机器打满。
+
 ## 2026-09-23 21:27 CST - 补 .env.accredited 占位文件，恢复 Backend Deploy 部署 ecom / sup
 
 - 服务器：`mas-go-dev`

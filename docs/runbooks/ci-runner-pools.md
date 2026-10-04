@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-09-18
+> 最后更新：2026-10-05
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -44,7 +44,7 @@
 
 `runs-on: [self-hosted, mac-mini]` 会命中 iCare 的 `mac-mini-mobile-1`（它带 `mac-mini` 标签）。AcquiLang Native 必须写 `[self-hosted, macos, arm64, acquilang-native-ci]`。
 
-**组 visibility 同样硬匹配**：label 对上但仓库不在该 runner group 的 selected 名单里，job 会一直 `queued`、runner 空闲。`mas-go-dev` 组（id 3）里是 `mas-go-dev` 部署 runner + `mas-go-dev-ci-1/2`。2026-09-09 已把 `cypressoai/evp` 加进该组，否则 EVP 的 `Linux + docker + backend-ci` job 永远没人接（唯一匹配者是 `mas-go-dev-ci-1`）。SIT 部署仍走 `shared-sit` 组。EVP workflow **不要**写裸 `docker` / 不要贴 `mas-go-dev` label，避免抢部署 runner。
+**组 visibility 同样硬匹配**：label 对上但仓库不在该 runner group 的 selected 名单里，job 会一直 `queued`、runner 空闲。`mas-go-dev` 组（id 3）里是 `mas-go-dev` 部署 runner + `mas-go-dev-ci-1/2`。2026-09-09 已把 `cypressoai/evp` 加进该组，否则 EVP 的 `Linux + docker + backend-ci` job 永远没人接（唯一匹配者是 `mas-go-dev-ci-1`）。2026-10-05 已把 `cypressoai/moo-ticket` 加进该组，原因相同。SIT 部署仍走 `shared-sit` 组。EVP / moo-ticket workflow **不要**写裸 `docker` / 不要贴 `mas-go-dev` label，避免抢部署 runner。
 
 ## 仓库 workflow 对照
 
@@ -84,6 +84,18 @@
 | SonarQube Scan（frontend） | `[self-hosted, frontend-quality-ci]`（PR 快扫，不含覆盖率） |
 | Deploy SIT | runner group `shared-sit` + labels `self-hosted, Linux, X64, shared-sit`（`mas-go-dev` 上的 `shared-sit`） |
 | Deploy production | **仅** `workflow_dispatch`；`[self-hosted, Linux, X64, dev-cypresso-ci]`（dev-cypresso 本机）。不要用 `shared-sit` / `mas-go-dev` |
+
+### `moo-ticket`
+
+| Job | Label / group |
+|-----|----------------|
+| CI backend（临时 Postgres、`go test -race`、CLI） | `[self-hosted, Linux, docker, backend-ci]`（当前只有 `mas-go-dev-ci-1`；`docker run -p 127.0.0.1::5432`，不要占宿主机 5432） |
+| CI frontend（npm lint / test / tsc / build） | `[self-hosted, frontend-quality-ci]` |
+| CI image（`docker build`） | 与 backend 相同的 Linux + docker 标签 |
+| CI 汇总（分支保护要求的 `CI` check） | `[self-hosted, backend-ci]` |
+| Deploy to dev-cypresso | `[self-hosted, Linux, X64, dev-cypresso-ci]` |
+
+仓库需在 runner group `mas-go-dev`（id 3）的 selected 名单里，backend / image 才会有人接。Deploy 走 Default 组的 `dev-cypresso-ci`，不进 `mas-go-dev` 部署 runner。
 
 ## 容量注意
 
