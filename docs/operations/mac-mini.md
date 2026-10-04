@@ -1,5 +1,18 @@
 # mac-mini 运维时间线
 
+## 2026-10-05 CST - 复核 nyh PostgreSQL 落点方案（只读）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`
+- 原因：在上一条只读评估的基础上，确认 nyh 测试库的落点方案，以及“只绑 `192.168.2.170`”的几种做法。
+- 影响：只读。没有建目录、容器、库，也没有改 Colima。
+- 备份 / 回滚：无持久变更，无需备份或回滚。
+- 做了什么：读 `shared-dev-postgres` compose、Colima 版本与 `hostAddresses`、容器端口映射、应用防火墙状态、`en0` 地址来源、`5437` / `3306` 监听，以及 `socat` 是否已安装。
+- 验证：
+  - Colima `0.10.3`，`hostAddresses: false`。现有 LAN 可达的库（`richer` 5432、`acquilang` 5433、`cmm` 5436）都是 `0.0.0.0` 发布。
+  - `en0` 是手动配置的静态地址 `192.168.2.170`，不是 DHCP。Tailscale IP 是 `100.108.64.126`。
+  - `5437`、`3306` 仍然空闲。`socat` 未安装。macOS 应用防火墙已开启。
+
 ## 2026-10-05 00:37 CST - 只读评估 nyh PostgreSQL 测试库落点
 
 - 服务器：`mac-mini`
