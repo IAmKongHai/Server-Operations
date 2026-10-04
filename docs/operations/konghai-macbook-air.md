@@ -1,5 +1,20 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-10-04 18:54 CST - 删除 ClashX 残留和旧配置
+
+- 服务器/设备：本机 MacBook Air（`macbook-air`，`en0 192.168.2.109/24`）
+- 操作人：`Grok`（删除）、`konghai`（管理员密码框授权，用于系统助手）
+- 原因：用户要求把上一则留下的 ClashX 助手和 `~/.config/clash` 旧配置也删掉。
+- 影响：删掉本机 ClashX 配置和 2022 年的特权助手。没有改系统代理、Tailscale、OneXray 或 Telegram。助手没有在跑，也没有对应 LaunchDaemon。
+- 备份：无。用户要求删除，yaml 未另存。
+- 回滚方式：不能从这次删除恢复。ClashX 应用本来就已经不在。
+- 变更时序：
+  1. 删除 `~/.config/clash/`（7.4M：`config.yaml`、三份 2023–2024 订阅 yaml、`cache.db`、`Country.mmdb`）。
+  2. 删除 `~/Library/HTTPStorages/com.west2online.ClashX`（60K）。
+  3. 删掉 iCloud 容器 `~/Library/Mobile Documents/iCloud~com~west2online~ClashX/Documents/` 里的 `config.yaml` 和 `2022年09月07日购买.yaml`。容器根目录属 iCloud，`rmdir` 返回 Permission denied，系统随即把空的 `Documents` 目录建回来。
+  4. 删除 `/Library/PrivilegedHelperTools/com.west2online.ClashX.ProxyConfigHelper`（189360 字节，2022-02-23）。对应 plist 本来就不存在。
+- 验证结果：`~/.config/clash`、HTTPStorages、特权助手都不在。iCloud 容器里没有文件。没有 ClashX 进程。`~/Library` 下没有其它 `Clash*` / `west2online` 偏好、缓存或 Application Support。
+
 ## 2026-10-04 16:03 CST - 卸载 Clash Verge 2.4.0
 
 - 服务器/设备：本机 MacBook Air（`macbook-air`，`en0 192.168.2.109/24`）
@@ -13,7 +28,7 @@
   2. `launchctl bootout system/io.github.clash-verge-rev.clash-verge-rev.service`（原 pid 353）。
   3. 删除 `/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist`、`/Library/PrivilegedHelperTools/io.github.clash-verge-rev.clash-verge-rev.service.bundle`、`/Applications/Clash Verge.app`（2.4.0，109M）。
 - 验证结果：上述路径都不在；`launchctl print` 该服务为 unloaded；没有 `clash-verge` / `verge-mihomo` 进程。登录项里本来就没有 Clash Verge。
-- 备注：未动两样旧残留。`/Library/PrivilegedHelperTools/com.west2online.ClashX.ProxyConfigHelper`（2022-02-23，ClashX，不是 Verge）。`~/.config/clash/` 里是 2023-10 到 2024-05 的 yaml / `Country.mmdb`，也不是 Verge 2.4.0 的数据目录。
+- 备注：当时留下的 ClashX 助手和 `~/.config/clash/` 已在 18:54 那条删掉。
 
 ## 2026-10-04 16:02 CST - 本机 Telegram 收发失败：MTProto 直连无回包，本地代理未启用
 
