@@ -1,5 +1,27 @@
 # mac-mini 运维时间线
 
+## 2026-10-05 00:37 CST - 只读评估 nyh PostgreSQL 测试库落点
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：协助请求要为 nyh 新建空 PostgreSQL 测试环境（4 个库、应用账号、同 compose 里定义但不启动的 MySQL 8.0.36）。先核对已有公共库、端口，以及 Colima 能否把端口绑到 `192.168.2.170`。
+- 影响：只读，外加一次失败的端口绑定探测。探测容器 `nyh-bind-probe` 没能跑起来，随后已删除。没有新建 `~/stacks/nyh-postgres`，没有建库，没有改 Colima，没有导入数据。
+- 备份：无（无持久变更）。
+- 回滚方式：无需回滚。`5437` 探测后再次确认空闲。
+- 做了什么：
+  1. 列出 `~/stacks`、FileVault、`5432`–`5440` 与 `3306` 监听，以及现有 Postgres 容器。
+  2. 读了 `~/stacks/shared-dev-postgres/docker-compose.yml`。没有读 `.env`。
+  3. `docker run` 尝试发布 `192.168.2.170:5437`。Colima 返回 `cannot assign requested address`。`docker rm -f nyh-bind-probe` 后该端口空闲。
+  4. `docker manifest inspect mysql:8.0.36`，确认官方镜像含 `linux/arm64`。
+- 验证：
+  - FileVault：`FileVault is On.`
+  - `en0` 仍是 `192.168.2.170`。本机开发机是 `192.168.2.109`。
+  - `shared-dev-postgres` 为 PostgreSQL **18.6**，只监听 `127.0.0.1:5434`，业务库是 `moo_ticket` / `moo_ticket_test`。`~/stacks/nyh-postgres` 不存在。
+  - 监听：`5432` richer、`5433` acquilang、`5436` cmm 均为 `*:port`；`5434` 为 `127.0.0.1`；`5435` 与 `5437` 空闲；`3306` 空闲。
+  - `~/.colima/default/colima.yaml` 里 `hostAddresses: false`。在这个设置下，compose 写 `192.168.2.170:5437:5432` 绑不上。
+  - MySQL `8.0.36` 的 `linux/arm64` digest 为 `sha256:677727326431d3a51a71bb2af925c2de40782d806a4f8439930d861cd3515f61`。
+  - 阿里云 RDS `pgm-j6cf5kaej216sx0z` 的大版本以 2026-09-14 升级记录为准：PostgreSQL **18.4**。与本机 18.6 同属大版本 18。
+
 ## 2026-10-03 10:41 CST - iCare iOS preview 凭据挪进 `~/.config/icare/preview/`（ICARE-21）
 
 - 服务器：`mac-mini`
