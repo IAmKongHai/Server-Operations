@@ -1,5 +1,20 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-10-04 16:02 CST - 本机 Telegram 收发失败：MTProto 直连无回包，本地代理未启用
+
+- 服务器/设备：本机 MacBook Air（`macbook-air`，Tailscale `100.92.181.15`），在家，`en0 192.168.2.109/24`，网关 `192.168.2.1`，系统 DNS `192.168.2.1`
+- 操作人：`Grok`（只读排查，未改网络、未重启进程、未开代理）
+- 原因：Telegram.app 12.10（`ru.keepcoder.Telegram`，pid 5844）在跑，但直连数据中心的 MTProto 会话传不出数据。客户端反复对 `91.108.56.156:443/80/5222` 和 `149.154.171.5:443/80/5222` 建 TCP，连接能到 ESTABLISHED，几秒内收包不增长，随后大量 TIME_WAIT。日志里持续 `preparing messages.sendMessage` / `updates.getDifference`，未发送队列一直在。同一时间 `https://api.telegram.org`、`https://web.telegram.org`、`https://www.google.com` 都是 HTTP 200，DNS 与 Cloudflare DoH 一致，所以不是断网，也不是域名污染。
+- 影响：只确认了本机 Telegram 桌面端收发走不通。没有改路由、代理或客户端。
+- 备份：无。
+- 回滚方式：无改动，不需要回滚。
+- 变更时序：
+  1. 系统 HTTP/SOCKS 代理关闭。Tailscale Connected，无 Exit Node。Azure VPN 与 OneXraySE 都是 Disconnected。
+  2. Clash Verge 只剩特权 helper `clash-verge-service`；`verge-mihomo` 没在跑。`verge.yaml` 里 `enable_tun_mode=false`、`enable_system_proxy=false`，mixed port `7897`。`1080` / `7897` / `7898` / `7899` 都没有监听。
+  3. Telegram 里存了代理，但 `enabled=0`。记录是 `127.0.0.1:1080`，当前 active server 是 `127.0.0.1:7897`（对得上 Clash Verge mixed port），`useForCalls=0`。客户端实际走的是直连，不是这个代理。
+  4. 向 DC 端口发 64 字节探测：`91.108.56.*` 与 `149.154.171.5` / `149.154.167.51` / `149.154.175.50` 的 443/80/5222 都是 TCP 通、4 秒无应用层回包。`149.154.166.110:443`（`api.telegram.org`）正常回 HTTP。`8.8.8.8:443` 是 `dns.google` 的 TLS，有流量。
+- 验证结果：只读。收发要恢复，需要先让 `127.0.0.1:7897` 有进程监听（打开 Clash Verge 并连上节点），再在 Telegram 里打开已保存的 `127.0.0.1:7897` 代理。本次没有替用户做这两步。
+
 ## 2026-10-01 02:38 CST - Tailscale 卡在 Connecting，重启 nesessionmanager 后恢复
 
 - 服务器/设备：本机 MacBook Air（`macbook-air`，Tailscale `100.92.181.15`），在家，`en0 192.168.2.109/24`，网关 `192.168.2.1`
