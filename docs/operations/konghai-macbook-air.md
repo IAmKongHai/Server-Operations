@@ -1,5 +1,20 @@
 # macbook（本机 MacBook Air）运维时间线
 
+## 2026-10-04 16:03 CST - 卸载 Clash Verge 2.4.0
+
+- 服务器/设备：本机 MacBook Air（`macbook-air`，`en0 192.168.2.109/24`）
+- 操作人：`Grok`（卸载）、`konghai`（管理员密码框授权）
+- 原因：用户确认早就不用 Clash Verge，要求彻底卸载。上一则排查里 `127.0.0.1:7897` 只是 Telegram 里一条 `enabled=0` 的旧代理记录，客户端并没有把流量送进 Clash。
+- 影响：去掉 Clash Verge 应用、开机自启的特权服务和本用户的配置/缓存。没有改系统代理、Tailscale、OneXray 或 Telegram。服务当时只有 helper 在跑，核心没启动，TUN 和系统代理本来就是关的。
+- 备份：无。用户要求彻底删除，配置未另存。
+- 回滚方式：重新安装 Clash Verge。旧的订阅和节点配置已删，不能从这次卸载恢复。
+- 变更时序：
+  1. 删除用户数据：`~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev`（34M）、Caches、WebKit、Group Containers。
+  2. `launchctl bootout system/io.github.clash-verge-rev.clash-verge-rev.service`（原 pid 353）。
+  3. 删除 `/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist`、`/Library/PrivilegedHelperTools/io.github.clash-verge-rev.clash-verge-rev.service.bundle`、`/Applications/Clash Verge.app`（2.4.0，109M）。
+- 验证结果：上述路径都不在；`launchctl print` 该服务为 unloaded；没有 `clash-verge` / `verge-mihomo` 进程。登录项里本来就没有 Clash Verge。
+- 备注：未动两样旧残留。`/Library/PrivilegedHelperTools/com.west2online.ClashX.ProxyConfigHelper`（2022-02-23，ClashX，不是 Verge）。`~/.config/clash/` 里是 2023-10 到 2024-05 的 yaml / `Country.mmdb`，也不是 Verge 2.4.0 的数据目录。
+
 ## 2026-10-04 16:02 CST - 本机 Telegram 收发失败：MTProto 直连无回包，本地代理未启用
 
 - 服务器/设备：本机 MacBook Air（`macbook-air`，Tailscale `100.92.181.15`），在家，`en0 192.168.2.109/24`，网关 `192.168.2.1`，系统 DNS `192.168.2.1`
@@ -13,7 +28,7 @@
   2. Clash Verge 只剩特权 helper `clash-verge-service`；`verge-mihomo` 没在跑。`verge.yaml` 里 `enable_tun_mode=false`、`enable_system_proxy=false`，mixed port `7897`。`1080` / `7897` / `7898` / `7899` 都没有监听。
   3. Telegram 里存了代理，但 `enabled=0`。记录是 `127.0.0.1:1080`，当前 active server 是 `127.0.0.1:7897`（对得上 Clash Verge mixed port），`useForCalls=0`。客户端实际走的是直连，不是这个代理。
   4. 向 DC 端口发 64 字节探测：`91.108.56.*` 与 `149.154.171.5` / `149.154.167.51` / `149.154.175.50` 的 443/80/5222 都是 TCP 通、4 秒无应用层回包。`149.154.166.110:443`（`api.telegram.org`）正常回 HTTP。`8.8.8.8:443` 是 `dns.google` 的 TLS，有流量。
-- 验证结果：只读。收发要恢复，需要先让 `127.0.0.1:7897` 有进程监听（打开 Clash Verge 并连上节点），再在 Telegram 里打开已保存的 `127.0.0.1:7897` 代理。本次没有替用户做这两步。
+- 验证结果：只读。当时把已关闭的 `127.0.0.1:7897` 记录误当成可用修复路径。用户确认早就不用 Clash Verge，随后已卸载，见上一条。Telegram 实际流量没有经过 Clash。
 
 ## 2026-10-01 02:38 CST - Tailscale 卡在 Connecting，重启 nesessionmanager 后恢复
 
