@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 01:03 CST - 把 AcquiLang CI slot 2–5 改成系统服务
+
+- 服务器：`mac-mini`；仓库 `IAmKongHai/AcquiLangAI`。
+- 操作人：用户在 mac-mini 上执行 sudo；`Grok` 复核并记录。
+- 原因：`mac-mini-acquilang-ci-2` … `5` 当时由用户域 LaunchAgent 拉起，重启后不会自动回来。
+- 影响：这四个 slot 改为系统 LaunchDaemon，`RunAtLoad` / `KeepAlive`，以 `konghai` 运行。`ci-1` 和 native runner 没有重启。安装时四个 slot 都空闲。
+- 备份：沿用 `~/gha/backups/acquilang-ci-20261010-0050/pre-state.txt`。系统 plist 是新文件，用户域 plist 已被脚本删除。
+- 回滚方式：确认没有 job 后，对对应 slot 执行 `sudo launchctl disable` 和 `bootout`。保留注册、程序目录和工作目录。不要改回用户域 LaunchAgent。
+- 做了什么：用户执行 `sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh 2 3 4 5`。脚本先卸下四个用户域 Agent，再写入 `/Library/LaunchDaemons/` 并 bootstrap。`~/Library/LaunchAgents/` 里已没有这些 plist。
+- 验证：01:03 CST，五个 `acquilang-ci` runner 在 GitHub 上都是 `online`、`busy=false`。`ci-2` … `5` 的系统服务为 `running`，日志为 `Listening for Jobs`，版本 `2.337.0`。五个 `Runner.Listener` 都在。native runner 仍为 `online`。
+- 启停：[mac-mini runner runbook](../runbooks/mac-mini-runner-start-stop.md)。
+
 ## 2026-10-10 00:57 CST - 为 AcquiLangAI 日常 CI 增加到 5 个 slot
 
 - 服务器：`mac-mini`；仓库 `IAmKongHai/AcquiLangAI`。

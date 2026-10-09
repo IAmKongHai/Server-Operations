@@ -144,59 +144,46 @@ gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
 
 仓库级 runner，只注册到 `IAmKongHai/AcquiLangAI`。五个 slot 使用同一个 label `acquilang-ci`，GitHub 把 backend、admin、native、web、sonar 分到空闲 slot。原生打包继续使用 `acquilang-native-ci`。这些实例共享 mac-mini 的 CPU、内存与磁盘，也不带 cypressoai 池标签。
 
-| slot | 程序 | 工作目录 | 2026-10-10 的拉起方式 |
+| slot | 程序 | 工作目录 | 服务 |
 | --- | --- | --- | --- |
-| 1 | `~/actions-runner/mac-mini-acquilang-ci-1` | `~/gha/alc1` | 系统 LaunchDaemon，重启后仍在 |
-| 2–5 | `~/actions-runner/mac-mini-acquilang-ci-{2..5}` | `~/gha/alc{2..5}` | 用户域 LaunchAgent。当前会话在线；重启或用户域卸载后不会自动回来 |
+| 1–5 | `~/actions-runner/mac-mini-acquilang-ci-N` | `~/gha/alcN` | `system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N` |
 
-- 服务名：`actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N`
-- `ci-1` 的 plist 在 `/Library/LaunchDaemons/`。`ci-2` … `5` 的 plist 目前在 `~/Library/LaunchAgents/`，`LimitLoadToSessionType` 为 `Background`。
+五个 slot 都是系统 LaunchDaemon，`RunAtLoad` / `KeepAlive`，以 `konghai` 运行。`ci-2` … `5` 在 2026-10-10 00:53–01:03 曾短暂用用户域 LaunchAgent 拉起，01:03 已卸下并改成系统服务。`~/Library/LaunchAgents/` 里不再有这些 plist。
+
+- plist：`/Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist`
 - 日志：`~/Library/Logs/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N/`
 - Python：`/opt/homebrew/opt/python@3.12/bin/python3.12`（接入时为 3.12.11）。CI 直接调用，不使用依赖 `/Users/runner` 的 `setup-python` macOS 安装包。
 - 各 slot 的 `.env` 把 `PNPM_STORE_PATH` 和 `npm_config_store_dir` 指到同一个 `/Users/konghai/gha/cache/pnpm-store`。不复制 Native 的凭据。
 - `config.sh` 不生成根目录的 `runsvc.sh`。从 `bin/runsvc.sh` 复制。不要跑 `./svc.sh install`，那会再写一份用户域 LaunchAgent，并和系统服务抢同一个 runner。
 - 安装脚本只安装尚未存在的系统服务；已有 plist 或已加载的系统服务会跳过，不覆盖、不重启。
 
-把 `ci-2` … `5` 改成重启后仍在的系统服务（在 mac-mini 上执行，需要 sudo）。脚本会先卸下对应的用户域 LaunchAgent；slot 上有 job 时会退出，不打断：
+安装脚本仓库副本：[`scripts/install-mac-mini-acquilang-ci-runner-daemon.sh`](../../scripts/install-mac-mini-acquilang-ci-runner-daemon.sh)。不带参数时只处理 slot 1。新 slot 示例：
 
 ```bash
 sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh 2 3 4 5
 ```
 
-安装脚本仓库副本：[`scripts/install-mac-mini-acquilang-ci-runner-daemon.sh`](../../scripts/install-mac-mini-acquilang-ci-runner-daemon.sh)。不带参数时只处理 slot 1。
-
 只读检查：
 
 ```bash
-uid=$(id -u)
 for n in 1 2 3 4 5; do
   echo "=== ci-$n"
-  launchctl print "system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-$n" 2>/dev/null \
-    || launchctl print "user/${uid}/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-$n"
+  launchctl print "system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-$n"
 done
 gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
-停止或恢复前，先确认没有运行中的 CI，并取得操作确认。系统服务：
+停止或恢复前，先确认没有运行中的 CI，并取得操作确认。把 `N` 换成 slot 号：
 
 ```bash
 # 暂停并阻止重启后自动加载；保留注册、工作目录与 plist
-sudo launchctl disable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1
-sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1
+sudo launchctl disable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
+sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
 
 # 恢复已卸载的服务
-sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1
-sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1.plist
-```
-
-用户域 slot（`ci-2` … `5`，把 `N` 换成 slot 号）：
-
-```bash
-uid=$(id -u)
-label="actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N"
-launchctl bootout "user/${uid}/${label}"
-launchctl bootstrap "user/${uid}" "$HOME/Library/LaunchAgents/${label}.plist"
+sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
+sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist
 ```
 
 `~/bin/mac-mini-runner-resume.sh` 和 crontab 日/周清理的 `WORK_DIRS` 仍不包含 `alc1` … `alc5`。定时清理需另行确认后添加。
