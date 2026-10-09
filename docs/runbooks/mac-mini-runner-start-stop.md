@@ -150,6 +150,8 @@ gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
 
 五个 slot 都是系统 LaunchDaemon，`RunAtLoad` / `KeepAlive`，以 `konghai` 运行。`ci-2` … `5` 在 2026-10-10 00:53–01:03 曾短暂用用户域 LaunchAgent 拉起，01:03 已卸下并改成系统服务。`~/Library/LaunchAgents/` 里不再有这些 plist。
 
+2026-10-10 01:23 起，`ci-4` 和 `ci-5` 被 `launchctl disable`，用来把同时落在 mac-mini 上的 AcquiLang job 限制在 3 个。注册还在，GitHub 上显示 offline。恢复命令见 [mac-mini 运维记录](../operations/mac-mini.md) 同日条目。`lemon-imac` 当时 SSH 不可达，还没有接走这部分 job。
+
 - plist：`/Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist`
 - 日志：`~/Library/Logs/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N/`
 - Python：`/opt/homebrew/opt/python@3.12/bin/python3.12`（接入时为 3.12.11）。CI 直接调用，不使用依赖 `/Users/runner` 的 `setup-python` macOS 安装包。

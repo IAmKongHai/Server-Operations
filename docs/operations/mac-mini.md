@@ -1,5 +1,31 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 01:23 CST - 停用 AcquiLang CI slot 4 和 5，减轻 mac-mini 负载
+
+- 服务器：`mac-mini`。原计划再把一个 slot 放到 `lemon-imac`。
+- 操作人：`Grok`
+- 原因：10 核机器负载到 14–20，AcquiLang 的 Jest 被拖过 5 秒超时。五个 `acquilang-ci` slot 会同时接 job。采样时虚拟化进程大约占 3 个核，另外多个 Node 测试进程各占半个核以上。
+- 影响：`mac-mini-acquilang-ci-4` 和 `ci-5` 不再接 job。`ci-1` … `3` 继续在线。同一次 CI 最多 3 个 job 同时跑在这台机器上，另外两个排队。注册没有删除。
+- 其它机器：
+  - `umacbook-pro`（`100.113.23.49`）Tailscale 离线，上次在线是 16 天前。
+  - `lemon-imac` 一开始能登录，负载约 2.2，8GB 内存。准备装 Python 3.12 和 runner 包时 SSH 断开。之后 Tailscale 变成经 `km` 中继，ping 超时，没能注册新 runner。
+- 备份：无文件改动。停用前两个 slot 都没有 `Runner.Worker`。
+- 回滚方式：确认需要恢复并发后执行：
+
+```bash
+for n in 4 5; do
+  label="actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-$n"
+  sudo launchctl enable "system/${label}"
+  sudo launchctl bootstrap system "/Library/LaunchDaemons/${label}.plist"
+done
+```
+
+- 做了什么：
+  1. 给五个 mac-mini slot 加上 label `acquilang-build`，原有 `acquilang-ci` 还在。当前 workflow 仍只要求 `acquilang-ci`，所以这个 label 还不会改变调度。
+  2. `sudo -n launchctl disable` 然后 `bootout` slot 4 和 5。`print-disabled` 显示这两个是 disabled，1–3 仍是 enabled。没有 listener 进程。
+- 验证：01:23 CST，GitHub 上 `ci-4`、`ci-5` 为 offline、busy=false；`ci-1` … `3` 为 online。负载仍在 15 左右，因为 1–3 上还有正在跑的 job，而且虚拟化进程还在。没有动 Colima / Lima。
+- 边界：Sonar 使用的后端 `.env` 里 `DATABASE_URL` 指向 mac-mini 的 localhost，不能原样搬到别的机器。`lemon-imac` 恢复 SSH 之后，再注册只带 `acquilang-build` 的 runner，并让 backend / admin / native / web 改用这个 label。Sonar 继续用 `acquilang-ci`。
+
 ## 2026-10-10 01:03 CST - 把 AcquiLang CI slot 2–5 改成系统服务
 
 - 服务器：`mac-mini`；仓库 `IAmKongHai/AcquiLangAI`。
