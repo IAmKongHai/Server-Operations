@@ -1,5 +1,27 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-10-10 01:35 CST - 为 AcquiLangAI 增加仓库级 CI runner
+
+- 服务器：`mas-go-dev`；仓库 `IAmKongHai/AcquiLangAI`。
+- 操作人：`Grok`。用户要求把一部分 CI 分到这台机器。
+- 原因：mac-mini 10 核负载到 14–20，AcquiLang 的 Jest 被拖过超时。`lemon-imac` 和 `umacbook-pro` 当时连不上。这台机器 4 核，负载约 0.12，可用内存约 5.2 GiB。
+- 影响：新增一个仓库级 slot，最多 2 核、2 GiB。backend、admin、web 和 CI 汇总在 workflow 合入后可以调度到这里，也可以继续落在 mac-mini 的 `ci-1` … `3`。native 仍要求 macOS。Sonar 不来这台机器。没有给 iCare、shared-sit、tk-flywheel runner 加 label，没有改它们的服务，没有动数据库。
+- 备份：`/var/backups/acquilang-ci-20261010-0132/pre-state.txt`（root 700）。记录安装前的 runner 服务、内存、磁盘和容器状态。没有数据库变更。
+- 回滚方式：确认没有 job 后，只停止并禁用 `actions.runner.IAmKongHai-AcquiLangAI.mas-go-dev-acquilang-ci-1.service`。保留用户、目录和注册。不要停止共享 PostgreSQL、SIT 容器或其他 runner。workflow 侧把 `acquilang-build` 的 job 改回带 `macos` 和 `arm64` 的 `acquilang-ci`。
+- 做了什么：
+  1. 新建系统用户 `acquilang-ci`（uid 991），无 sudo、不在 `docker` / `wheel` 组。目录 `/opt/acquilang-ci/{runner,work,cache}` 为 700。
+  2. `dnf install python3.12`（3.12.12）。pnpm 11 的二进制还缺 `libatomic.so.1`，补装 `libatomic`。没有升级 Amazon Linux 发行版。
+  3. 下载 runner `2.337.0` 的 linux x64 包，SHA-256 `70920811…16613` 校验通过。注册为 `mas-go-dev-acquilang-ci-1`（GitHub id `27`），labels `self-hosted,Linux,X64,acquilang-build`，工作目录 `/opt/acquilang-ci/work`。
+  4. `svc.sh install acquilang-ci` 后加上 override：CPUQuota 200%、MemoryMax 2G、MemoryHigh 1536M、TasksMax 512。`.env` 只写 pnpm / npm 缓存路径，没有数据库密码。
+- 验证：
+  - 服务 active，日志 `Connected to GitHub`，GitHub 状态 online。
+  - [PR #64 首轮 CI 37967388870](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/37967388870) 全部 success。backend 在这台 runner，汇总当时还没分开；admin、native、web、Sonar 在 mac-mini。
+  - rebase 后的 [CI 37968188235](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/37968188235) 里，admin 和 native 先因缺少 `libatomic.so.1` 失败。补包后 admin 在这台 runner 上 success。native 的邮箱验证门禁用例报 `render function has not been called`，已改回只在 macOS 上跑。
+  - 改完后的 [CI 37969469480](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/37969469480) 全部 success。backend 和 web 在 `mas-go-dev-acquilang-ci-1`，native、admin、Sonar 在 mac-mini。
+  - 跟上 main 后再跑的 [CI 37970059168](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/37970059168) 也全部 success。admin 和 backend 在这台 runner，web、native、Sonar 在 mac-mini。PR #64 已 squash 合并为 `cb613601`。
+  - 跑完 backend 后 cgroup 内存约 533 MiB，没有顶到 2G。`shared-sit-postgres` 仍是 Up 3 weeks。iCare / shared-sit / tk-flywheel 的 runner 服务仍是 active。
+- 档案：[acquilang-ci/README.md](../../mas-go-dev/acquilang-ci/README.md)。
+
 ## 2026-10-05 02:02 CST - moo-ticket CI 改到自托管 runner
 
 - 服务器：GitHub org `cypressoai` runner group `mas-go-dev`（id 3）；对照本机 `mas-go-dev-ci-1` / `mas-go-dev-ci-2`
