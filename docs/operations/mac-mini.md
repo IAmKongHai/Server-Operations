@@ -1,5 +1,31 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 00:57 CST - 为 AcquiLangAI 日常 CI 增加到 5 个 slot
+
+- 服务器：`mac-mini`；仓库 `IAmKongHai/AcquiLangAI`。
+- 操作人：`Grok`
+- 原因：`backend`、`admin`、`native`、`web`、`sonar` 都使用 label `acquilang-ci`，原来只有 `mac-mini-acquilang-ci-1`，五个 job 串行排队。
+- 影响与选型：
+  - 新增 `mac-mini-acquilang-ci-2` … `5`（GitHub id `23` … `26`），labels 与 `ci-1` 相同：`self-hosted,macOS,ARM64,acquilang-ci`。同一 label 下 GitHub 把 job 分到空闲 slot，所以五个 job 可以同时跑。汇总 job 仍等这五个结束。
+  - 程序目录 `~/actions-runner/mac-mini-acquilang-ci-N`，工作目录 `~/gha/alcN`，权限 700。runner 版本与 `ci-1` 相同，为 `2.337.0`（包 SHA-256 `5a2cd92908a93d7276a194e1de6008099f3e7946f3f8e14aa7a1a7b4a31fdec2`）。
+  - `.env` 继续共享 `~/gha/cache/pnpm-store`。没有复制 Native runner 的凭据，也没有给新 slot 加 `acquilang-native-ci`、`mac-mini` 或 cypressoai 池标签。
+  - `ci-1`、`mac-mini-acquilang-native-1` 以及其它 runner 的注册和服务都没改。
+  - SSH 上 `sudo` 写 `/Library/LaunchDaemons` 仍要密码，`/bin/launchctl` 可以免密，但从家目录 bootstrap 系统域会返回 `Bootstrap failed: 5`。因此 `ci-2` … `5` 先用用户域 LaunchAgent 拉起（`LimitLoadToSessionType=Background`）。它们现在在线；mac-mini 重启或用户域被卸掉后不会自动回来。
+- 备份：`~/gha/backups/acquilang-ci-20261010-0050/pre-state.txt`（700）。只记录安装前的目录和磁盘。注册 token 用完即删，没有写入备份或仓库。
+- 回滚方式：确认对应 slot 没有 job 后，`launchctl bootout user/501/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N`，再从 GitHub 删除该 runner。程序目录和工作目录先留着。不要动 `ci-1` 和 native runner。
+- 做了什么：
+  1. 只读确认当时只有 `ci-1`（id `22`）在线，磁盘剩余约 934 GiB，`memory_pressure` 报告 free percentage 69%。
+  2. 下载并校验 `actions-runner-osx-arm64-2.337.0.tar.gz`，解压到四个新目录，用短期 token 注册到 `https://github.com/IAmKongHai/AcquiLangAI`。
+  3. `config.sh` 不生成根目录的 `runsvc.sh`。从 `bin/runsvc.sh` 复制。没有执行 `./svc.sh install`。
+  4. 为 slot 2–5 写入 `~/Library/LaunchAgents/` 并 `launchctl bootstrap user/501`。第一次因 plist 指向还不存在的 `runsvc.sh` 退出码 78；补上文件后重新 bootstrap，四个 listener 都连上 GitHub。
+  5. 安装脚本改为接受 slot 参数，并在改成系统服务前卸下同名用户域 Agent。已同步到 `~/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh`。这次没有执行 sudo，所以还没有系统 plist。
+- 验证：
+  - 00:57 CST，五个 `acquilang-ci` runner 在 GitHub 上都是 `online`。
+  - 当时正在跑的 [main CI 37962740835](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/37962740835) 已经分开占用：admin 在 `ci-1`，native 在 `ci-2`，backend 在 `ci-3`，sonar 在 `ci-4`，web 在 `ci-5`。admin、backend、web 成功。native 的安装、Node 和 TypeScript 都过了，测试步骤里 `emailVerificationGate.test.tsx` 超过 Jest 的 5 秒上限；当时五个 job 和另一条 PR 同时在这台 10 核机器上跑。另一条 PR [CI 37962842097](https://github.com/IAmKongHai/AcquiLangAI/actions/runs/37962842097) 在 slot 被占满时继续排队，web 在 `ci-3` 空出来后接上。
+  - native runner 仍为 `online`。没有重启 `ci-1`。
+- 边界：`~/bin/mac-mini-runner-resume.sh` 和日/周清理的 `WORK_DIRS` 仍不包含 `alc1` … `alc5`。改计划任务需要另外确认，这次没改。main 上的 Sonar 虚拟环境仍是各 slot 共享的 `~/.cache/acquilang-ci-backend/py312`；同一次 CI 里只有 sonar job 会写它。两条 CI 的 sonar 若叠在一起，会同时写这个目录。
+- 启停：[mac-mini runner runbook](../runbooks/mac-mini-runner-start-stop.md)。要让 `ci-2` … `5` 在重启后仍在线，在 mac-mini 上执行 `sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh 2 3 4 5`。
+
 ## 2026-10-05 01:05 CST - 新建 nyh PostgreSQL 测试实例 `nyh-postgres`（空库）
 
 - 服务器：`mac-mini`

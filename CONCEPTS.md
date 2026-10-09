@@ -29,11 +29,11 @@ The dedicated repo-level GitHub Actions runner on `mac-mini` for `IAmKongHai/Acq
 
 It is not a `cypressoai` pool member and must not carry `mac-mini`, `konghai-friends-lab`, or iCare quality labels. Workflows should use `runs-on: [self-hosted, macos, arm64, acquilang-native-ci]`. Do not schedule AcquiLang production native builds onto `mac-mini-mobile-1`.
 
-### mac-mini-acquilang-ci-1 runner
+### mac-mini-acquilang-ci runner 池
 
-`mac-mini` 上为 `IAmKongHai/AcquiLangAI` 单独注册的日常 CI runner，工作目录 `~/gha/alc1`，label `acquilang-ci`。
+`mac-mini` 上为 `IAmKongHai/AcquiLangAI` 注册的日常 CI runner：`mac-mini-acquilang-ci-1` 到 `mac-mini-acquilang-ci-5`。工作目录分别是 `~/gha/alc1` 到 `~/gha/alc5`，label 都是 `acquilang-ci`。
 
-语法、lint、类型检查、Sonar 和 CI 汇总共用一个 slot。该实例不带 `acquilang-native-ci` 或 cypressoai 池标签；原生打包保留在 `mac-mini-acquilang-native-1`，两个实例仍共享宿主资源。
+backend、admin、native、web、sonar 五个 job 可以各占一个 slot 同时跑。汇总 job 等这五个结束后再占用其中一个空闲 slot。这些实例不带 `acquilang-native-ci` 或 cypressoai 池标签；原生打包仍只在 `mac-mini-acquilang-native-1`。五个 slot 和原生 runner 共享 mac-mini 的 CPU、内存与磁盘。
 
 ## 代理服务器流量监控
 
