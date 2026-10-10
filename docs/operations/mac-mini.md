@@ -1,5 +1,40 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 19:50 CST - 每 6 小时把 AcquiLang 生产库同步到开发库
+
+- 服务器：`mac-mini`。生产库在 `nyh-prod` 能连到的 RDS 上，本次对生产只做 `pg_dump`。
+- 操作人：`Grok`。用户确认覆盖 `acquilang_db`，同步前把当时的开发库留下，保留 7 天。
+- 原因：开发库要定期换成生产内容。mac-mini 连不上 RDS，所以由本机 `ssh nyh-prod` 去读。
+- 影响：
+  - `acquilang_db` 已换成生产内容：`alembic_version` `b8e4c1a90f27`，`public` 66 张表，`users` 201。切换时会断开这个库上的连接，大约几秒。
+  - 切换前的开发库改名为 `acquilang_db_prev`（`e5c7a91b2d40`，`users` 116）。下一轮成功同步时会删掉这个库名；对应 dump 仍留着。
+  - 没有改 `nyh-prod` 的 crontab，也没有改已经失败的每日 `backup-rds.sh`。导出用的是那台机器上已有的 `postgres:18.6-alpine`。
+- 备份：
+  - 开发库 dump：`~/backups/acquilang-dev-before-sync/acquilang_db_20261010_194803.dump` 和 `acquilang_db_20261010_194843.dump`（各 3.3 MB，600）。保留 7 天。
+  - crontab 原文：`~/stacks/acquilang-postgres/crontab.bak.20261010-1948`（600）。
+- 回滚方式：先去掉 crontab 里的 `sync-from-prod.sh`，避免回滚后又被盖掉。几小时内可以把库名改回去：
+
+```bash
+docker exec acquilang-postgres psql -U acquilang_user -d postgres -c "ALTER DATABASE acquilang_db RENAME TO acquilang_db_failed;"
+docker exec acquilang-postgres psql -U acquilang_user -d postgres -c "ALTER DATABASE acquilang_db_prev RENAME TO acquilang_db;"
+```
+
+  `acquilang_db_prev` 被下一轮删掉之后，用同步前的 dump 恢复。密码不在这些 dump 的文件名里，恢复命令：
+
+```bash
+docker cp ~/backups/acquilang-dev-before-sync/acquilang_db_20261010_194843.dump acquilang-postgres:/tmp/dev.dump
+docker exec acquilang-postgres pg_restore -U acquilang_user -d acquilang_db --clean --if-exists --no-owner --no-privileges /tmp/dev.dump
+docker exec acquilang-postgres rm -f /tmp/dev.dump
+```
+
+- 做了什么：
+  1. 脚本放在 `~/stacks/acquilang-postgres/sync-from-prod.sh`（700）。仓库副本是 `mac-mini/acquilang-postgres/sync-from-prod.sh`。生产密码只在 `nyh-prod` 的现有备份脚本里读取，不写到本机。
+  2. 19:48 跑了第一轮。导出、恢复、改名都成功。脚本最后一行日志踩了 macOS 自带 Bash 3.2 的变量解析问题，进程以失败退出，但库已经切完，没有改回去。
+  3. 修好日志里的变量写法后重新放上脚本，没有再跑一整轮。
+  4. 在原有 crontab 后面加了 `0 0,6,12,18 * * *`。日志：`~/Library/Logs/acquilang-prod-sync.log`。
+- 验证：`acquilang_db` 为 `b8e4c1a90f27` / 201 用户 / 66 张表；`acquilang_db_prev` 为 `e5c7a91b2d40` / 116 用户。两份开发库 dump 都在。crontab 比安装前多出注释和这一条，原有任务还在。
+- 边界：每天 04:00 的 `~/scripts/acquilangai-backup.sh` 仍在打包旧 TimescaleDB 卷 `acquilangai_postgres_data`，不覆盖现在这个 `acquilangai_postgres18_data`。同一行上，生产数据和同步之后在开发库里做的修改不能并存；下一轮会先把当时的 `acquilang_db` 打进 dump，再换成新的生产内容。
+
 ## 2026-10-10 19:36 CST - 只读评估拉取 AcquiLang 生产库的通路
 
 - 服务器：`mac-mini`
