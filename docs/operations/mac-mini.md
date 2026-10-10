@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 19:36 CST - 只读评估拉取 AcquiLang 生产库的通路
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：确认这台机器能不能自己连生产 RDS，以及有没有一个单独的 AcquiLang 测试库可以接收每 6 小时一次的同步。
+- 影响：只读。没有建库、没有导入数据、没有改 crontab。
+- 备份：无。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：从本机探测 RDS `5432` 和 `nyh-prod` 的 SSH，并核对 `acquilang-postgres` 里的库。
+- 验证：
+  - 连 RDS `pgm-j6cf5kaej216sx0z.pg.cnhk.rds.aliyuncs.com:5432` 超时。生产库只能从 `nyh-prod` 读。
+  - 已有 `ssh nyh-prod` 配置，`BatchMode` 登录成功。本机 `pg_dump` 是 18.6，和 RDS 18.4 匹配。
+  - 没有单独的测试库。现有开发库仍是 `acquilang_db`（属主 `acquilang_user`，宿主 `5433`）。生产库的 `alembic_version` 是 `b8e4c1a90f27`，这台开发库还是 `e5c7a91b2d40`。
+- 边界：同步尚未安装。覆盖 `acquilang_db` 会清掉当前开发数据，并可能撞上正在使用这台库的 Sonar 测试。
+
 ## 2026-10-10 19:16 CST - 只读确认 AcquiLangAI 开发库仍在
 
 - 服务器：`mac-mini`

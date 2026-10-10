@@ -1,5 +1,21 @@
 # nyh-prod 运维时间线
 
+## 2026-10-10 19:36 CST - 只读评估 AcquiLang 生产库能否同步到 mac-mini
+
+- 服务器：`nyh-prod`
+- 操作人：`Grok`
+- 原因：用户希望每 6 小时把 AcquiLang 生产库同步到测试库。先核对库大小、版本、现有备份和到 `mac-mini` 的通路。
+- 影响：只读。没有改 crontab、备份脚本、容器或数据，没有把 dump 传出这台机器。
+- 备份：无。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：用容器里已有的 `psql` 连 RDS，查询版本、库大小、`alembic_version`、public 表数量和扩展。查看 root crontab 与 `/www/wwwroot/python/backup-rds.sh` 的日志和备份目录。没有把数据库密码写入本文。
+- 验证：
+  - 生产库是 RDS `pgm-j6cf5kaej216sx0z.pg.cnhk.rds.aliyuncs.com:5432/acquilangai_db`，PostgreSQL 18.4，87 MB。`alembic_version` 为 `b8e4c1a90f27`，`public` 66 张表，扩展只有 `plpgsql`。
+  - `acquilang-backend` 里的客户端是 `psql` / `pg_dump` 17.11。root crontab `0 2 * * * /www/wwwroot/python/backup-rds.sh` 仍在每天执行，日志是 server 18.4 与 pg_dump 17.11 的 version mismatch，备份失败。最后一份成功文件是 `acquilangai_db_2026-09-14_02-00-01_rds.sql.gz`（5.8 MB）。
+  - 本机已有镜像 `postgres:18.6-alpine`，可以用它做版本匹配的只读 `pg_dump`。
+  - `mac-mini` 用已有的 `ssh nyh-prod`（`root@47.239.167.8`）可以登录。这台机器能 Tailscale ping 通 `mac-mini`，但不能用密钥登录 `konghai@100.108.64.126`。
+- 边界：同步还没装。若要做，应由 `mac-mini` 定时过来拉 dump，不要在这台生产机上改测试库。
+
 ## 2026-09-21 02:53 CST - 只读：从本机对比 malaysiadigital.mdec.my 延迟
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，阿里云香港 AS45102；主机名 `NYH-2025`）
