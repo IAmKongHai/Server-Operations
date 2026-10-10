@@ -70,22 +70,23 @@ sudo rm /Library/LaunchDaemons/actions.runner.cypressoai.lemon-imac-{1,2}.plist
 
 `lemon-imac-acquilang-ci-1` 不属于 cypressoai org 池。label 只有 `self-hosted`、`macOS`、`ARM64`、`acquilang-build`。目录是 `~/actions-runner/lemon-imac-acquilang-ci-1`，工作目录 `~/gha/alci1`。
 
-2026-10-10 先用用户域 LaunchAgent 拉起。检查：
+2026-10-10 11:37 起为 LaunchDaemon `system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`。检查：
 
 ```bash
-launchctl print user/502/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1 | grep -E 'state =|pid ='
+sudo launchctl print system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1 | grep -E 'state =|pid ='
 ```
 
-停止这个 Agent，不碰 org runner：
+停止这个服务，不碰 org runner：
 
 ```bash
-launchctl bootout user/502/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
+sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
 ```
 
-改成重启后仍在线：
+`bootout` 之后 plist 还在，再跑安装脚本会跳过，不会把它装回去。要重新拉起：
 
 ```bash
-sudo /Users/for-konghai/gha/scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh
+sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
+sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1.plist
 ```
 
 仓库副本：`scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh`。不要对这个目录运行 `./svc.sh install`。

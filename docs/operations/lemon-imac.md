@@ -1,5 +1,16 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-10 11:37 CST - AcquiLang runner 改为 LaunchDaemon
+
+- 服务器：`lemon-imac`；runner `lemon-imac-acquilang-ci-1`（GitHub id `28`）。
+- 操作人：`konghai`（`sudo` 执行安装脚本）、`Grok`（核对服务和 GitHub）。
+- 原因：11:27 注册后先用用户域 LaunchAgent 拉起。控制台是 `zhangli`，这个 Agent 在重启或用户域卸掉后不会自动回来。
+- 影响：只切换这一个 AcquiLang runner 的拉起方式。卸下用户域 Agent 后马上由系统 LaunchDaemon 拉起，中间离线约一次重连。`lemon-imac-1/2` 没动。labels 不变。
+- 备份：沿用 `~/gha/backups/acquilang-ci-20261010-1123/pre-state.txt`。系统 plist 是新文件，用户域 plist 已被脚本删除。
+- 回滚方式：确认没有 `Runner.Worker` 后，`sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`。注册和目录先留着。不要动 `lemon-imac-1/2`。
+- 做了什么：用户在 lemon-imac 上执行 `sudo /Users/for-konghai/gha/scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh`。脚本卸下用户域 Agent，写入 `/Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1.plist`（root、644）并 bootstrap。没有执行 `./svc.sh install`。
+- 验证：11:37 CST，系统服务 `state=running`，pid `8772`，`runs=1`。Listener pid `8778`，日志 `2026-10-10 03:37:10Z: Listening for Jobs`。用户域服务和 `~/Library/LaunchAgents/` 里的同名 plist 已不在。GitHub id `28` 为 `online`、`busy=false`，labels 仍是 `self-hosted,macOS,ARM64,acquilang-build`。`lemon-imac-1`（id `32`）和 `lemon-imac-2`（id `31`）仍为 `online`。
+
 ## 2026-10-10 11:27 CST - 注册 AcquiLangAI 仓库级 runner
 
 - 服务器：`lemon-imac`（`for-konghai`）；仓库 `IAmKongHai/AcquiLangAI`。

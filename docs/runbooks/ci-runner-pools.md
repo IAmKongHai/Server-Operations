@@ -31,7 +31,7 @@
 | `mac-mini-acquilang-native-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, `macos-arm64`, **`acquilang-native-ci`**（**无** `mac-mini` / sonar / quality / `konghai-friends-lab`） |
 | `mac-mini-acquilang-ci-1` … `5` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**, **`acquilang-build`**。`ci-1` 自 2026-09-15；`ci-2` … `5` 自 2026-10-10。2026-10-10 01:23 起 `ci-4`、`ci-5` disabled，不接 job |
 | `mas-go-dev-acquilang-ci-1` | mas-go-dev | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
-| `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**（**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 先由用户域 LaunchAgent 拉起 |
+| `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**（**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 11:37 起为 LaunchDaemon |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
 | `mas-go-dev` | mas-go-dev | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签）；组 `mas-go-dev` |
@@ -243,4 +243,4 @@ gh api -X DELETE orgs/cypressoai/actions/runners/<id>/labels/frontend-quality-ci
 - 2026-08-19 lemon-imac runner + 维护任务改为 LaunchDaemon（注销图形用户后仍在线）；不要再 `./svc.sh install`。见 `docs/runbooks/lemon-imac-runner-start-stop.md`、`docs/operations/lemon-imac.md`
 - 2026-08-19 umacbook-pro 同样改为 LaunchDaemon；原 crontab 已删避免双跑。见 `docs/runbooks/umacbook-pro-runner-start-stop.md`
 - 2026-09-01 umacbook-pro 带到学校：pause 脚本 `disable`+`bootout` 两 slot 与维护任务，清 GOCACHE / work / modcache；Tailscale 仍在。见 `docs/operations/umacbook-pro.md`
-- 2026-10-10 lemon-imac 增加仓库级 `lemon-imac-acquilang-ci-1`（`acquilang-build`，无 `acquilang-ci`）。见 `docs/operations/lemon-imac.md`、`lemon-imac/acquilang-ci/README.md`
+- 2026-10-10 lemon-imac 增加仓库级 `lemon-imac-acquilang-ci-1`（`acquilang-build`，无 `acquilang-ci`）。11:37 起改为 LaunchDaemon。见 `docs/operations/lemon-imac.md`、`lemon-imac/acquilang-ci/README.md`
