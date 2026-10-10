@@ -1,0 +1,43 @@
+# mac-mini 公共 Redis。只听 127.0.0.1:6379，Tailscale Serve 把 tailnet 的 6379 转到这里。
+# 密码在同目录 .env（600），不入库。管理命令：/opt/homebrew/bin/docker-compose
+name: shared-dev-redis
+
+services:
+  redis:
+    image: redis:8-alpine
+    pull_policy: missing
+    container_name: shared-dev-redis
+    restart: always
+    env_file: .env
+    ports:
+      - "127.0.0.1:6379:6379"
+    mem_limit: 256m
+    cpus: 1.0
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 192mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --requirepass
+      - ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:
+    name: shared_dev_redis_data

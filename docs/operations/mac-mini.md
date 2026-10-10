@@ -1,5 +1,30 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 20:27 CST - 新建公共 Redis `shared-dev-redis`
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`。用户要求如果没有 Redis，就起一个公共实例。
+- 原因：宿主 `6379` 没有在听。唯一的 Redis 是 `sub2api-redis`（`redis:8-alpine`，healthy），没有映射宿主端口，只给 Sub2API 用。
+- 影响：新增容器 `shared-dev-redis`（`mem_limit` 256 MB，`cpus` 1，`restart: always`）和卷 `shared_dev_redis_data`。宿主只绑 `127.0.0.1:6379`。Tailscale Serve 增加 tailnet TCP `6379` → `127.0.0.1:6379`，没有 Funnel。`sub2api-redis` 未重建。原有 Serve 的 `3900`、`5434` 还在。
+- 选型：沿用本机已有镜像 `redis:8-alpine`（Redis 8.10.0，image id `978f0e01593e`），`pull_policy: missing`，没有再拉镜像。`requirepass`，AOF，`maxmemory 192mb`，`allkeys-lru`。密码只在 `~/stacks/shared-dev-redis/.env`（600）和本仓库 gitignore 的 `mac-mini/secrets.local.md`。
+- 备份：Serve 变更前的 JSON 在 `~/stacks/shared-dev-redis/tailscale-serve.before.json`（600），当时只有 `3900` 和 `5434`。新卷没有旧数据。
+- 回滚方式：
+
+```bash
+ssh mac-mini 'tailscale serve --tcp=6379 off'
+ssh mac-mini 'cd ~/stacks/shared-dev-redis && /opt/homebrew/bin/docker-compose down'
+```
+
+  卷 `shared_dev_redis_data` 先留着。确认不要数据后再 `docker volume rm shared_dev_redis_data`。不要动 `sub2api-redis`。
+- 做了什么：
+  1. 新建 `~/stacks/shared-dev-redis/`（700），写入 compose 和 `.env`。
+  2. `docker-compose up -d`，等健康检查变成 healthy。
+  3. `tailscale serve --bg --tcp=6379 tcp://127.0.0.1:6379`。
+- 验证：
+  - 容器 healthy。`127.0.0.1:6379` 和 Tailscale `100.108.64.126:6379` 未认证时返回 `NOAUTH`，认证后 `PING` 为 `PONG`。
+  - 从开发机连家里局域网 `192.168.2.170:6379` 被拒绝。`sub2api-redis` 仍是 Up 7 weeks，端口未发布。
+- 边界：DB 0–15 没有预分配。各项目共用这一个密码，用不同 DB 号分开。连接串不要写进仓库。
+
 ## 2026-10-10 19:50 CST - 每 6 小时把 AcquiLang 生产库同步到开发库
 
 - 服务器：`mac-mini`。生产库在 `nyh-prod` 能连到的 RDS 上，本次对生产只做 `pg_dump`。
