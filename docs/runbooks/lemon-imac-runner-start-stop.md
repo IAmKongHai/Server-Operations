@@ -1,6 +1,6 @@
 # lemon-imac GitHub Actions runner：启停
 
-> 最后更新：2026-08-19  
+> 最后更新：2026-10-10
 > org runner：`lemon-imac-1` / `lemon-imac-2`  
 > 目录：`~/actions-runner/lemon-imac-{1,2}`（workFolder `~/gha/li{1,2}`）  
 > 2026-08-19 起改为 **LaunchDaemon**（`system/actions.runner.cypressoai.lemon-imac-N`），注销图形用户后仍应在线。  
@@ -65,6 +65,30 @@ sudo rm /Library/LaunchDaemons/actions.runner.cypressoai.lemon-imac-{1,2}.plist
 # 把 disabled 目录里的 Agent plist 移回 ~/Library/LaunchAgents
 # 然后不要在无 Aqua 会话时指望它们还活着
 ```
+
+## AcquiLang 仓库级 runner
+
+`lemon-imac-acquilang-ci-1` 不属于 cypressoai org 池。label 只有 `self-hosted`、`macOS`、`ARM64`、`acquilang-build`。目录是 `~/actions-runner/lemon-imac-acquilang-ci-1`，工作目录 `~/gha/alci1`。
+
+2026-10-10 先用用户域 LaunchAgent 拉起。检查：
+
+```bash
+launchctl print user/502/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1 | grep -E 'state =|pid ='
+```
+
+停止这个 Agent，不碰 org runner：
+
+```bash
+launchctl bootout user/502/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
+```
+
+改成重启后仍在线：
+
+```bash
+sudo /Users/for-konghai/gha/scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh
+```
+
+仓库副本：`scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh`。不要对这个目录运行 `./svc.sh install`。
 
 ## 相关
 

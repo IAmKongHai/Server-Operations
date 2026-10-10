@@ -1,5 +1,23 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-10 11:27 CST - 注册 AcquiLangAI 仓库级 runner
+
+- 服务器：`lemon-imac`（`for-konghai`）；仓库 `IAmKongHai/AcquiLangAI`。
+- 操作人：`Grok`
+- 原因：mac-mini 上同时跑的 AcquiLang job 已经限制到 3 个，mas-go-dev 只有一个 Linux slot。这台 8 核 / 8GB 机器恢复后，加一个 macOS slot，让 backend / admin / web / native 可以再分出去。
+- 影响：新增仓库级 runner `lemon-imac-acquilang-ci-1`（GitHub id `28`），labels `self-hosted,macOS,ARM64,acquilang-build`。没有 `acquilang-ci`，Sonar 仍只落 mac-mini 上带 localhost 测试库的 slot。没有 `acquilang-native-ci`、`lemon-imac`、`frontend-*`、`backend-ci`，不接 org 池和原生打包。现有 `lemon-imac-1/2` 没改。
+- 选型：只注册一个 slot。当时负载约 1.7，内存 8GB，compressor 已经在用，空闲页很少。再加 slot 会和 org runner 抢内存。macOS 没有 cgroup，一台 runner 就是上限。
+- 备份：`~/gha/backups/acquilang-ci-20261010-1123/pre-state.txt`（600）。只记录安装前的目录和磁盘。注册 token 用完即删，没有写入备份或仓库。
+- 回滚方式：确认没有 `Runner.Worker` 后，`launchctl bootout user/502/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`，再删用户域 plist。注册、程序目录 `~/actions-runner/lemon-imac-acquilang-ci-1` 和工作目录 `~/gha/alci1` 先留着。不要动 `lemon-imac-1/2`。
+- 做了什么：
+  1. 只读确认机器在线：8 核，内存 8GB，Data 卷剩约 65Gi。控制台用户是 `zhangli`。`sudo` 需要密码。org runner `lemon-imac-1/2` 为 `online`。
+  2. 下载并校验 `actions-runner-osx-arm64-2.337.0.tar.gz`（SHA-256 `5a2cd92908a93d7276a194e1de6008099f3e7946f3f8e14aa7a1a7b4a31fdec2`），解压到 `~/actions-runner/lemon-imac-acquilang-ci-1`，目录 700。工作目录 `~/gha/alci1`。
+  3. `config.sh --unattended` 注册到仓库，额外 label 只有 `acquilang-build`，并显式带上 `macOS,ARM64`。没有使用 `--no-default-labels`。没有执行 `./svc.sh install`。根目录 `runsvc.sh` 从 `bin/runsvc.sh` 复制。
+  4. `.env` 只写语言和本机缓存路径：`~/gha/cache/acquilang-pnpm-store`、`~/gha/cache/acquilang-npm`。不共用 org runner 的 pnpm store，也不复制 mac-mini 的后端 `.env`。`.credentials` 收成 600。
+  5. 因为写 `/Library/LaunchDaemons` 需要密码，先用用户域 LaunchAgent（`LimitLoadToSessionType=Background`）拉起。安装脚本已放到 `~/gha/scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh`。
+- 验证：11:27 CST，GitHub 上 id `28` 为 `online`、`busy=false`，labels 是 `self-hosted,macOS,ARM64,acquilang-build`。用户域服务 `state=running`，pid `8704`，日志 `Listening for Jobs`。`lemon-imac-1/2` 的 Listener 仍在。
+- 边界：重启或 `for-konghai` 用户域被卸掉后，这个 Agent 不会自动回来。要改成注销后仍在线，在这台机器上执行 `sudo /Users/for-konghai/gha/scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh`。当前 workflow 的 backend 用 `uv` 安装 Python，Node 由 `actions/setup-node` 装 24，所以没有再装 Homebrew `python@3.12`。
+
 ## 2026-09-03 10:25 CST - 只读检查 lemon-imac-1/2 runner 状态
 
 - 服务器：`lemon-imac`（runner `lemon-imac-1` / `lemon-imac-2`）

@@ -33,7 +33,7 @@ It is not a `cypressoai` pool member and must not carry `mac-mini`, `konghai-fri
 
 `mac-mini` 上为 `IAmKongHai/AcquiLangAI` 注册的日常 CI runner：`mac-mini-acquilang-ci-1` 到 `mac-mini-acquilang-ci-5`。工作目录分别是 `~/gha/alc1` 到 `~/gha/alc5`，label 都是 `acquilang-ci`。
 
-五个 slot 共用 label `acquilang-ci`，另外带 `acquilang-build`。2026-10-10 起 `ci-4` 和 `ci-5` 停用，同时在这台机器上跑的 AcquiLang job 不超过 3 个。`acquilang-build` 也可以由 mas-go-dev 的 `mas-go-dev-acquilang-ci-1` 接；Sonar 仍只走这台机器上的 `acquilang-ci`。这些实例不带 `acquilang-native-ci` 或 cypressoai 池标签；原生打包仍只在 `mac-mini-acquilang-native-1`。在线 slot 和原生 runner 共享 mac-mini 的 CPU、内存与磁盘。
+五个 slot 共用 label `acquilang-ci`，另外带 `acquilang-build`。2026-10-10 起 `ci-4` 和 `ci-5` 停用，同时在这台机器上跑的 AcquiLang job 不超过 3 个。`acquilang-build` 也可以由 mas-go-dev 的 `mas-go-dev-acquilang-ci-1` 和 lemon-imac 的 `lemon-imac-acquilang-ci-1` 接。lemon-imac 这一台带 `macos` 和 `arm64`，native 的 Jest 可以落到它或 mac-mini 的在线 slot；它不带 `acquilang-ci`，Sonar 仍只走 mac-mini。这些实例不带 `acquilang-native-ci` 或 cypressoai 池标签；原生打包仍只在 `mac-mini-acquilang-native-1`。在线 slot 和原生 runner 共享 mac-mini 的 CPU、内存与磁盘。lemon-imac 只有一个 slot，避免和已有的 org runner 把 8GB 内存占满。
 
 ## 代理服务器流量监控
 
