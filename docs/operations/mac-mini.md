@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-10-10 19:16 CST - 只读确认 AcquiLangAI 开发库仍在
+
+- 服务器：`mac-mini`
+- 操作人：`Grok`
+- 原因：核对 `/Users/konghai/Code/Project/AcquiLangAI` 的 PostgreSQL 开发库是否还在这台机器上。
+- 影响：只读。没有改容器、卷、端口或数据。
+- 备份：无。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：查看容器 `acquilang-postgres`、数据卷、宿主 `5433` 监听，并在库内查询版本、库清单、扩展、`alembic_version` 和表规模。没有读 `.env`，没有输出密码。
+- 验证：
+  - 容器 `acquilang-postgres` 为 `postgres:18.6-alpine`，`healthy`，`restart: always`。2026-10-09 23:16 CST 启动。Compose 项目 `acquilang-postgres`，目录 `~/stacks/acquilang-postgres`。
+  - 宿主 `*:5433` 由 Colima 转到容器 `5432`。卷 `acquilangai_postgres18_data` 挂在 `/var/lib/postgresql`。
+  - 业务库只有 `acquilang_db`（属主 `acquilang_user`，36 MB）。`public` 67 张表，扩展只有 `plpgsql`。`alembic_version` 为 `e5c7a91b2d40`。`users` 116 行；`lexemes` 约 6652 行。
+  - 连接：`postgres://acquilang_user@<mac-mini>:5433/acquilang_db`（密码沿用项目 `docker-compose.yml` 开发口令，不写入本文）。
+  - 旧 TimescaleDB 卷 `acquilangai_postgres_data` 还在，当前没有容器挂载。运行中的实例里已经没有 2026-09-16 盘点时同实例上的 `ddricher_db`、`nw_analysis`、`telegram_bot`。
+- 边界：AcquiLangAI 仓库当前 head 是 `b8e4c1a90f27`（`add_agent_sessions`，其 `down_revision` 为 `e5c7a91b2d40`）。这台开发库还停在 `e5c7a91b2d40`，比代码落后一个迁移。本次没有执行 `alembic upgrade`。
+
 ## 2026-10-10 01:23 CST - 停用 AcquiLang CI slot 4 和 5，减轻 mac-mini 负载
 
 - 服务器：`mac-mini`。原计划再把一个 slot 放到 `lemon-imac`。
