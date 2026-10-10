@@ -1,5 +1,19 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-10-10 19:28 CST - 只读确认没有 AcquiLang 数据库
+
+- 服务器：`mas-go-dev`
+- 操作人：`Grok`
+- 原因：核对这台机器上有没有 AcquiLangAI 的 PostgreSQL 库。
+- 影响：只读。没有改容器、库、角色或 runner。
+- 备份：无。
+- 回滚方式：无服务器变更，无需回滚。
+- 做了什么：列出容器和数据卷，在 `shared-sit-postgres` 里查询非模板库和名字里带 acqui / lang 的角色。没有读凭据文件。
+- 验证：
+  - 唯一的 PostgreSQL 容器仍是 `shared-sit-postgres`（`postgres:18-alpine`，healthy，已运行约 3 周）。宿主端口是 `127.0.0.1:5432` 和 `100.109.223.53:5432`。没有名为 acquilang 的容器或数据卷。
+  - 非模板库只有 `cmm`、`evp`、`tk_flywheel_ci`、`postgres`。没有 acquilang 角色。活动连接里看到的是 `cmm` 和 `evp`。
+  - `/opt/acquilang-ci` 仍在，那是 2026-10-10 01:35 装的 CI runner 目录，本次没有打开。AcquiLang 开发库在 `mac-mini` 的 `acquilang-postgres`（`5433` / `acquilang_db`）。
+
 ## 2026-10-10 01:35 CST - 为 AcquiLangAI 增加仓库级 CI runner
 
 - 服务器：`mas-go-dev`；仓库 `IAmKongHai/AcquiLangAI`。
