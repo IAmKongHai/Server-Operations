@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-10-11 16:10 CST - 只读核对 AcquiLangAI 的 PG 端口、凭据和 Redis DB 号
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`
+- 原因：用户想确认 `/Users/konghai/Code/Project/AcquiLangAI` 该连哪个 PG 端口、`.env` 里的凭据对不对，以及在 `shared-dev-redis` 上该用哪个 DB 号。
+- 影响：只读。只比对了密码的 SHA 前缀，没有输出明文。没有改 `.env`、容器或 Redis。
+- 备份：无。
+- 回滚方式：无变更，无需回滚。
+- 验证：
+  - PG：`acquilang-postgres` 发布在 `0.0.0.0:5433`。根目录 `.env`、`.env.development`、`acquilang-backend/.env`、`acquilang-backend/.env.example` 里的密码，和 `~/stacks/acquilang-postgres/.env` 的 `POSTGRES_PASSWORD` 一致。用这个密码以 `acquilang_user` 连 `5433/acquilang_db` 成功，`users` 201。
+  - 根目录 `.env` 写的是 `DB_PORT=5432` 和 `localhost:5432`，这个端口是 `richer-postgres`，用同样的凭据会报 `password authentication failed`。`.env.development` 和 `acquilang-backend/.env` 写的是 `5433`，是对的。`acquilang-backend/.env.docker` 的密码不一样，它给 compose 内部的 `postgres` 服务用，不连宿主实例。
+  - Redis：`shared-dev-redis` 的 `INFO keyspace` 为空，只有本次查询的连接，没有项目在用任何 DB。项目 `.env` 里仍是 `localhost:6379/0`，`REDIS_PASSWORD` 为空。这个实例要密码，所以现在连会被返回 `NOAUTH`。
+- 边界：DB 号还没有分配。没有改项目 `.env`。
+
 ## 2026-10-11 15:30 CST - 排查 sonar runner 全部离线：境外域名 DNS 解析失败
 
 - 服务器：`mac-mini`（出口经 `home-router` `192.168.2.1`）
