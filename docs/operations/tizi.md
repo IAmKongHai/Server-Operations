@@ -1,5 +1,18 @@
 # tizi 运维时间线
 
+## 2026-10-11 15:40 CST - 排查家里断网：client「konghai家里路由器」超流量被自动禁用
+
+- 服务器：`tizi`（s-ui，`vless-reality` 入站 `:443`，域名 `tz.skysms.xyz`）
+- 操作人：`Claude`。用户反馈 mac-mini 上的 GitHub Actions runner 全部离线，并且重启 `home-router` 后仍然不通。
+- 原因：s-ui client id `8`「konghai家里路由器」的流量额度是 200 GiB，已用 200.22 GiB，`enable` 被自动置为 `0`，而且没开 `auto_reset`。从 `2026-10-11 14:02 CST` 起，s-ui 日志开始对家里公网 IP `112.117.x.x` 报 `unknown UUID: 03021f5d-…`。
+- 排查链路：
+  - `home-router` Passwall 正常运行（xray + chinadns-ng），唯一节点是 `tz.skysms.xyz:443`，也就是 `tizi`。
+  - 从家里能 ping 通 `74.211.103.83`，TCP 443 也能连上，但走 socks `1080` 访问 GitHub 失败。
+  - 所有境外 DNS（Passwall 远程 DNS `8.8.8.8`）和境外 HTTPS 都依赖这个节点，所以一起失败。国内直连正常。
+- 影响：只做了只读排查，没有改 s-ui，没有改路由器。
+- 回滚方式：无变更，无需回滚。
+- 修复建议：在 s-ui 面板里给该 client 重置流量（或调大额度）并重新启用，必要时打开 `auto_reset`。
+
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
 
 - 服务器/设备：`tizi`
