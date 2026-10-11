@@ -11,6 +11,7 @@
 - 影响：只做了只读排查，没有改 3x-ui，没有改路由器。
 - 回滚方式：无变更，无需回滚。
 - 修复建议：在 3x-ui 面板里启用 `konghai-家里路由器`。启用会触发 xray 重载，同一节点上的其他用户会短暂断线。
+- 后续（15:40 CST）：用户自己在 3x-ui 里启用了 `konghai-家里路由器`。之后 mac-mini 通过 `192.168.2.1` 能解析 `github.com`，`api.github.com` 返回 200。`mac-mini-sonar-{1..4}` 和 `mac-mini-mobile-1` 都已重新上线，没有重启。排队中的 job `114411372693` 已由 `mac-mini-sonar-3` 接走开始运行。`home-router` 目前用的节点是 `cyp-tizi`。`tizi` 上超流量的 client 还没处理。
 
 ## 2026-08-09 02:02 CST - 重装后完成 Debian 13 + 3x-ui REALITY 基线与跳板
 
