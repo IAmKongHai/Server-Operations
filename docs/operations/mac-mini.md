@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-10-11 15:30 CST - 排查 sonar runner 全部离线：境外域名 DNS 解析失败
+
+- 服务器：`mac-mini`（出口经 `home-router` `192.168.2.1`）
+- 操作人：`Claude`。用户反馈 `iCare-frontend-mas` run `38119587901` 的 `SonarQube Scan` job 排队 30 分钟不执行。
+- 原因：job labels 为 `mac-mini-sonar, macos, arm64`，只能落到 `mac-mini-sonar-{1..4}`，GitHub 上 4 个全部 `offline`。
+- 现象：
+  - 本机 LaunchDaemon 与 `Runner.Listener` 进程都在（12:48 CST 起），runner 本身没挂。
+  - `_diag` 日志自 `2026-10-11 04:49Z`（12:49 CST）起持续 `Socket Error: HostNotFound` / 60s 超时，连不上 `*.actions.githubusercontent.com`。
+  - `dig @192.168.2.1`：`www.baidu.com` 正常；`github.com`、`www.google.com` 超时。`dig @223.5.5.5 api.github.com` 也无结果。
+  - 网关与公网 ping 正常；`--resolve` 直连 GitHub IP 时 TLS 握手被断（`SSL_ERROR_SYSCALL`）。
+  - 结论：家里出口的境外访问（翻墙/分流链路）中断，不是 runner 或本机问题。同机其它 runner（mobile、AcquiLang）同样受影响。
+- 影响：本次只读排查，未改任何配置、未重启服务。
+- 回滚方式：无变更，无需回滚。
+- 后续：修复 `home-router` 侧代理/上游后，runner 会自动重连，无需重启；排队中的 job 会被领走。
+
 ## 2026-10-10 20:27 CST - 新建公共 Redis `shared-dev-redis`
 
 - 服务器：`mac-mini`
