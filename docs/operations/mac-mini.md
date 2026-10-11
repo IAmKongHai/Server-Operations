@@ -1,5 +1,15 @@
 # mac-mini 运维时间线
 
+## 2026-10-11 16:25 CST - shared-dev-redis 分配 DB 1 给 AcquiLangAI
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`。用户同意上一条核对里的建议。
+- 原因：`shared-dev-redis` 的 DB 号没有预分配，AcquiLangAI 要接入。
+- 影响：只是登记，Redis 和项目 `.env` 都没改。DB 0 留空，不分给项目，防止漏写 DB 号的客户端混进来。分配表写在仓库 `mac-mini/shared-dev-redis/docker-compose.yml` 头部注释里，新项目先在那里登记。
+- 备份：无。
+- 回滚方式：删掉分配表里那一行。
+- 待办：项目侧的 `REDIS_URL` 还是 `redis://localhost:6379/0`，没有密码，要改成带密码的 `/1` 才连得上。
+
 ## 2026-10-11 16:10 CST - 只读核对 AcquiLangAI 的 PG 端口、凭据和 Redis DB 号
 
 - 服务器：`mac-mini`
