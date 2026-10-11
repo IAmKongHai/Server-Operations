@@ -1,5 +1,17 @@
 # tizi-cyp 运维时间线
 
+## 2026-10-11 15:45 CST - 排查：家里路由器切到 cyp-tizi 节点后仍不通
+
+- 服务器：`tizi-cyp`（3x-ui，inbound id `1` `cyp-tizi`，vless reality `:443`）
+- 操作人：`Claude`。`tizi` 上的 client 因超流量被停用（见 `docs/operations/tizi.md` 同日记录）。用户把 `home-router` Passwall 节点换成 `cyp-tz.skysms.xyz`（`k0ZjUpX9`）后，仍然不通。
+- 现象：
+  - 家里到 `89.208.242.203:443` 的 TCP 能连上，路由器节点的 reality 参数（SNI、shortId、publicKey）与服务端一致。
+  - 路由器使用的 UUID `3dbf3756…` 对应 client `konghai-家里路由器`。这个 client 在 inbound settings 和 `client_traffics` 里都是 `enable=false`，没有设流量上限，也没有设到期时间，因此是之前手动停用的，原因没有记录。累计用量约 860 GB。
+  - 同一 inbound 里，`hon-家里路由器`、`昭姝-家里路由器`、`Rao-办公室路由器` 也都是停用状态。
+- 影响：只做了只读排查，没有改 3x-ui，没有改路由器。
+- 回滚方式：无变更，无需回滚。
+- 修复建议：在 3x-ui 面板里启用 `konghai-家里路由器`。启用会触发 xray 重载，同一节点上的其他用户会短暂断线。
+
 ## 2026-08-09 02:02 CST - 重装后完成 Debian 13 + 3x-ui REALITY 基线与跳板
 
 - 服务器/设备：`tizi-cyp`（公网 `89.208.242.203`，Tailscale **现** `100.116.91.14`；重装前 TS 为 `100.88.178.78`）
