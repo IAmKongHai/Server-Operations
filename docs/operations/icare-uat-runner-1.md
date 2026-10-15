@@ -4,6 +4,30 @@
 
 SSH：`ssh icare-uat-runner-1`（兼容 `ssh icare-uat-runner`）→ `icareadmin@10.30.6.4`。主机名 `icare-2-uat-ci-runner`。
 
+## 2026-10-15 21:16 CST — runner 组 `icare-2-uat` 放行 moo-ocr / moo-decision
+
+- **操作人：** Claude（`k-cypresso`，org admin），用户确认后执行。
+- **原因：** 同事反馈 `moo-ocr` deploy workflow 使用 `icare-2-uat` runner 组，但仓库不在组允许列表里，任务一直排队拿不到 runner（运行 38731877851 最终被手动取消）；同事无权限（403），需组织管理员放行。`moo-decision` 同理。
+- **影响：** 组织级 runner 组配置变更（组 id 4，`selected` 模式），同时作用于 `icare-2-uat-runner` 与 `icare-2-uat-runner-2`。未改 VM、runner、Docker、`/var/cache/buildx`。
+  - **信任扩展：** 两个 moo 仓库的 workflow 现在可在 UAT VNet 内网机器上执行代码；有推分支 / 触发 workflow 权限的人即具备该能力。
+  - **资源争用：** 组内仅两台 runner，moo 构建会与 iCare UAT 发版排队竞争。
+- **备份：** 变更前允许列表为 9 个 iCare 仓库：`iCare`、`iCare-backend`、`iCare-frontend-mas`、`iCare-mobile-app`、`iCare-Operations-backend`、`iCare-Operations-frontend`、`iCare-public-backend`、`iCare-public-frontend`、`iCare-terraform`。
+- **回滚方式：**
+
+  ```bash
+  gh api -X DELETE orgs/cypressoai/actions/runner-groups/4/repositories/1409816463   # moo-ocr
+  gh api -X DELETE orgs/cypressoai/actions/runner-groups/4/repositories/1402610529   # moo-decision
+  ```
+
+- **变更时序：**
+
+  ```bash
+  gh api -X PUT orgs/cypressoai/actions/runner-groups/4/repositories/1409816463   # moo-ocr
+  gh api -X PUT orgs/cypressoai/actions/runner-groups/4/repositories/1402610529   # moo-decision
+  ```
+
+- **验证：** `gh api orgs/cypressoai/actions/runner-groups/4/repositories` 返回 11 个仓库，原 9 个保留，新增 `cypressoai/moo-ocr`、`cypressoai/moo-decision`；两台 runner 均 `online`。moo-ocr deploy 需同事重新触发确认能被调度。
+
 ## 2026-09-17 15:30 CST — 作为 CYP-2600 盘点归档下载跳板
 
 - **操作人：** Codex，用户明确允许使用 UAT runner VM 作跳板。
