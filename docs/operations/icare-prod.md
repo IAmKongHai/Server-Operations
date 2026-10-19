@@ -1,5 +1,21 @@
 # iCare Azure PROD 运维时间线
 
+## 2026-10-19 08:15 CST — 跳板机 icare-2-prod-ci-runner 加入同事 m@cypresso.ai 的隧道公钥
+
+- **操作人：** 同事公钥写入于 08:15 CST；08:37 CST 由 Claude 只读核对确认。
+- **原因：** 同事需经跳板机 `icareadmin@10.40.9.4`（`icare-2-prod-ci-runner`）建 SSH 隧道访问 `10.0.0.5:1433`。
+- **影响：** `~icareadmin/.ssh/authorized_keys` 新增 1 行（共 3 行）。该 key 带 `restrict,port-forwarding,permitopen="10.0.0.5:1433",command="/bin/false"`：只能转发到 `10.0.0.5:1433`，不能开 shell、不能转发到其它地址。未改 sshd 配置，未重启服务。
+- **备份：** `~/.ssh/authorized_keys.bak-20261019`（加 key 前的 2 行版本）。
+- **回滚方式：** `cp ~/.ssh/authorized_keys.bak-20261019 ~/.ssh/authorized_keys`，或删掉 `m@cypresso.ai` 那一行。
+- **验证：** `grep -c` 确认该 key 只出现 1 次；与备份 `diff` 只多这一行；文件权限 `600`，`.ssh` 目录 `700`。
+
+同事使用方式（本地端口可自定）：
+
+```bash
+ssh -N -L 11433:10.0.0.5:1433 icareadmin@10.40.9.4
+# 之后连 127.0.0.1:11433
+```
+
 ## 2026-09-17 15:17 CST — CYP-2600 完成源 SQL 实例只读盘点
 
 - **操作人：** Codex，用户明确要求通过 Azure CLI 执行。
