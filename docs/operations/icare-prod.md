@@ -1,5 +1,20 @@
 # iCare Azure PROD 运维时间线
 
+## 2026-10-19 08:40 CST — 放开 m@cypresso.ai 在跳板机上的 shell 登录
+
+- **操作人：** Claude，用户明确要求。
+- **原因：** 用户要求解除这把 key 的“不能登录 shell”限制。
+- **影响：** 该 key 的选项从 `restrict,port-forwarding,permitopen="10.0.0.5:1433",command="/bin/false"` 改为 `restrict,pty,port-forwarding,permitopen="10.0.0.5:1433"`：可以以 `icareadmin` 登录交互 shell（`icareadmin` 有免密 sudo，等于拿到这台 PROD runner 的 root）。端口转发仍只允许到 `10.0.0.5:1433`；agent/X11 转发仍关闭。未改 sshd 配置，未重启服务。
+- **备份：** `~/.ssh/authorized_keys.bak-20261019-shell`（改前的 3 行版本）。
+- **回滚方式：** `cp -p ~/.ssh/authorized_keys.bak-20261019-shell ~/.ssh/authorized_keys`。
+- **验证：** `diff` 只有第 3 行变化；`ssh-keygen -lf` 三把 key 都能解析；新开 SSH 会话登录正常；`sshd -T` 显示 `permittty yes`、`allowtcpforwarding yes`、`forcecommand none`。
+
+### 08:15 那次是谁加的
+
+- 不是 SSH 登录写入的（`last` 和 sshd 日志在这个时段都没有记录），而是 Azure Run Command（`RunCommandLinux` seq 85，脚本在 `/var/lib/waagent/run-command/download/85/script.sh`）。
+- Azure Activity Log：`Microsoft.Compute/virtualMachines/runCommand/action`，caller `byang@icare.com.ph`，appid `04b07795-8ddb-461a-bbee-02f9e1bf7b46`（Azure CLI），来源 IP `89.208.242.203`（`tizi-cyp` 出口）。00:14:51 UTC 先跑了一次只读检查（seq 84），00:15:34 UTC 加 key。
+- 本机 `az account show` 的登录账号就是 `byang@icare.com.ph`，所以是从这台 Mac 用本机 az 登录态执行的，很可能是之前某个 agent 会话做的，当时没有写运维记录。
+
 ## 2026-10-19 08:15 CST — 跳板机 icare-2-prod-ci-runner 加入同事 m@cypresso.ai 的隧道公钥
 
 - **操作人：** 同事公钥写入于 08:15 CST；08:37 CST 由 Claude 只读核对确认。
