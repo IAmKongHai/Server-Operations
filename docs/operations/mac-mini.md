@@ -15,6 +15,7 @@
   - VM 内 balloon 设备特性位 bit 5（`VIRTIO_BALLOON_F_REPORTING`）已协商，内核 `CONFIG_PAGE_REPORTING=y`，`buddyinfo` 有大量高阶空闲块。
   - 在 VM 内用 Python 占 2.5G 随机数据再释放：krunkit 进程 RSS 在峰值 2696M，释放后 100 秒仍 2701M；再手动 `drop_caches` + `compact_memory` 等 90 秒，RSS 反而到 2776M，footprint 一直约 4.4G。第一轮测试留下的约 4.2G 也只是被宿主压缩（进程 CMPRS 列），不是释放。
 - 结论：在本机（macOS 26.6.2、lima 2.2.0、krunkit 1.3.2、libkrun 1.19.6）上 krunkit 没有把内存还给宿主，和社区实测不一致。不迁移现有 VM。
+- 复核（13:40，用户质疑测法）：libkrun 收到空闲页上报后在 macOS 上调 `madvise(MADV_FREE)`（`src/devices/src/virtio/balloon/device.rs`），macOS 对这种页是延迟回收，所以 RSS 不降本身不能下结论。改用压力测试：VM 内占 2.5G 再释放后，宿主临时占 5G 跑 40 秒制造压力，结果 krunkit RSS 降 522M、进程 CMPRS 涨 530M，说明这些页是被压缩而不是被丢弃，`MADV_FREE` 在这里没有生效。可能是 guest 内存经 Hypervisor.framework 映射后不是独占对象，XNU 不对它做丢弃，这一点未证实。结论维持不变。
 - 顺带核对（13:16）：各 VM 实际用量远小于宿主为它占着的内存。
   - `konghai` 的 `colima`：上限 12G，宿主占 12G，VM 内 used 5.2G，其余是 page cache。
   - `colima-multica`：上限 6G，宿主占 4.7G，VM 内 used 0.7G。
