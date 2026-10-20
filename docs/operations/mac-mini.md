@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 15:11 CST - 重启后验证 CIWork 自动挂载
+
+- 服务器：`mac-mini`
+- 操作人：用户重启并在 FileVault 界面解锁；`Claude` 只读验证，并拉起 `konghai-friends-lab-1`。
+- 原因：验证 14:26 迁移写入的 `/etc/fstab` 能让 `CIWork` 开机自动挂到 `/Users/konghai/gha`。
+- 影响：重启期间所有 CI 与服务中断。开着 FileVault，重启后停在解锁界面，Tailscale 和 SSH 密钥登录都不可用（SSH 提示 `This system is locked`），直到用户本机解锁。
+- 备份：无变更。
+- 回滚方式：无需回滚。
+- 验证（15:10，开机 4 分钟）：
+  - `diskutil info CIWork` 的 Mount Point 为 `/Users/konghai/gha`，`stat` 显示 `gha` 和 `gha/s1` 在 `disk3s7`；Spotlight 仍为 disabled。
+  - 9 个 LaunchDaemon runner 自动起来。`konghai-friends-lab-1` 仍是 nohup，重启不会恢复，已按原方式 `nohup ./runsvc.sh >> _diag/nohup-runsvc.log` 拉起，15:11 `Listening for Jobs`，共 10 个 `Runner.Listener`。
+  - fseventsd 看门狗随开机运行（`runs = 1`、`last exit code = 0`），新 fseventsd PID 398；重启后 swap 归零。
+  - 开机时 load 一度 58，一分钟后回落到 39，CPU 已无明显热点。
+  - `hon` 的 `colima-moo` 重启后是 Stopped（没有开机自启），`colima-multica` 由 supervisor 拉起；`konghai` 的 `colima` 正常。
+- 补充：用户重启前尝试在聚焦隐私里排除 `CIWork`，两次失败。原因是该卷已 `mdutil -i off` 且有 `.metadata_never_index`，不需要再排除。
+- 待办：`konghai-friends-lab-1` 改成 LaunchDaemon（`sudo /Users/konghai/gha/scripts/install-konghai-friends-lab-runner-daemon.sh`）；`colima-moo` 由 `hon` 决定是否启动；删除迁移备份、收回临时 sudo 权限需用户确认。
+
 ## 2026-10-20 14:26 CST - CI 目录迁到独立 APFS 卷 CIWork（no_log，关 Spotlight）
 
 - 服务器：`mac-mini`
