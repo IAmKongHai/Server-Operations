@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 12:15 CST - 验证 no_log 独立卷能否让 fseventsd 不处理 CI / VM 文件事件
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`。用户想给 CI 和 VM 建一个"免 fseventsd"的独立 APFS 卷，先验证可行性；用户加了 `/etc/sudoers.d/konghai-fsetest`（仅限测试卷 `FSETest` 的建卷、挂载、删卷等命令）。
+- 影响：在 `disk3` 临时建了测试卷 `FSETest`（`disk3s7`，quota 20G），测试完已删除。没有碰 runner 和 VM。
+- 备份：无需。
+- 回滚方式：测试卷已删除；收回权限用 `sudo rm /etc/sudoers.d/konghai-fsetest`。
+- 方法：在卷的 `.fseventsd/` 下放 `no_log` 并重新挂载；用 Python 在目标目录创建再删除 10 万个小文件，同时跑一个 Swift 写的 FSEventStream 监听器（`kFSEventStreamCreateFlagFileEvents`）统计实时事件，`fs_usage` 只看 fseventsd 的文件操作，前后记录 fseventsd 累计 CPU 时间和 RSS。
+- 结果：
+
+  | 目标 | 耗时 | fseventsd CPU 增量 | 监听器收到事件 | fseventsd 写事件日志 | RSS |
+  | --- | --- | --- | --- | --- | --- |
+  | `FSETest`（`no_log`） | 9s | 3.96s | 199,677 | 无 | 17.9M → 18.3M |
+  | 系统 Data 卷 | 10s | 5.48s | 198,189 | 写 `/System/Volumes/Data/.fseventsd/*` | 18.3M → 18.5M |
+
+- 结论：
+  - `no_log` 只关掉事件日志落盘。内核仍把该卷的事件交给 fseventsd，fseventsd 照样处理并实时分发给订阅者，CPU 只少约 28%。
+  - 两次 10 万文件的写删都没有让 fseventsd 内存上涨，单纯的文件量不能复现 32G 泄漏。泄漏更可能和慢消费订阅者或换页时的事件堆积有关。
+  - 因此"独立 no_log 卷"不能把 CI / VM 和 fseventsd 隔离开，迁移收益有限，不建议为此停 runner 和 VM。
+
 ## 2026-10-20 11:50 CST - 以 hon 身份排查 colima-moo 高 CPU，抓取宿主文件活动
 
 - 服务器：`mac-mini`
