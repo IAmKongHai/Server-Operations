@@ -10,6 +10,9 @@
 #   sudo migrate-mac-mini-ci-to-nofsevents-volume.sh --prepare   # 建卷、no_log、关 Spotlight；不影响 CI
 #   sudo migrate-mac-mini-ci-to-nofsevents-volume.sh --migrate   # 逐个等 runner 空闲后停掉，复制、挂载、改 GOCACHE、拉起
 #   sudo migrate-mac-mini-ci-to-nofsevents-volume.sh --status
+#   sudo migrate-mac-mini-ci-to-nofsevents-volume.sh --start-runners  # 出错中断后手动拉起所有 runner
+#
+# 注意：macOS /bin/bash 是 3.2，变量后紧跟中文全角字符会被当成变量名，一律写成 ${VAR}。
 #
 # 回滚：见 docs/operations/mac-mini.md 对应条目（停 runner → 卸载 CIWork → 删 fstab 行 →
 #       还原 gha.pre-ciwork-* 和各 .env.bak-ciwork → 拉起 runner）。
@@ -101,11 +104,11 @@ drain_and_stop() {
         runsvc_pid=$(ps -o ppid= -p "$service_pid" | tr -d ' ')
         kill "$runsvc_pid" "$service_pid" "$listener_pid" 2>/dev/null || true
         nohup_pending=0
-        log "已停 $NOHUP_RUNNER（nohup）"
+        log "已停 ${NOHUP_RUNNER}（nohup）"
       fi
     fi
     if ((${#pending[@]} > 0 || nohup_pending)); then
-      (($(date +%s) < deadline)) || die "等待 runner 空闲超时，仍在跑：${pending[*]:-} nohup=$nohup_pending（已停的 runner 需手动拉起）"
+      (($(date +%s) < deadline)) || die "等待 runner 空闲超时，仍在跑：${pending[*]:-} nohup=${nohup_pending}（已停的 runner 用 --start-runners 拉起）"
       log "等待空闲：${pending[*]:-} $( ((nohup_pending)) && echo $NOHUP_RUNNER)"
       sleep 30
     fi
@@ -125,13 +128,13 @@ start_runners() {
 
 migrate() {
   volume_exists || die "先跑 --prepare"
-  [[ $(volume_mountpoint) == "$TEMP_MOUNT" ]] || die "$VOLUME_NAME 应挂在 $TEMP_MOUNT（当前 $(volume_mountpoint)）"
+  [[ $(volume_mountpoint) == "$TEMP_MOUNT" ]] || die "${VOLUME_NAME} 应挂在 ${TEMP_MOUNT}（当前 $(volume_mountpoint)）"
   [[ -e $BACKUP_DIR ]] && die "$BACKUP_DIR 已存在，可能迁移过一次"
   [[ -f $TEMP_MOUNT/.fseventsd/no_log ]] || die "缺少 no_log"
 
   drain_and_stop
 
-  log "复制 $TARGET_DIR → $TEMP_MOUNT（ditto）"
+  log "复制 ${TARGET_DIR} → ${TEMP_MOUNT}（ditto）"
   ditto "$TARGET_DIR" "$TEMP_MOUNT"
   for n in "${SONAR_SLOTS[@]}"; do
     local src=$RUNNER_ROOT/mac-mini-sonar-$n/cache/go-build
@@ -191,5 +194,6 @@ case "${1:-}" in
   --prepare) prepare ;;
   --migrate) migrate ;;
   --status) status ;;
-  *) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  --start-runners) start_runners ;;
+  *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
