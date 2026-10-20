@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 11:35 CST - 只读排查 fseventsd 高 CPU / 高内存与 VM 高 CPU
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`。用户反馈 `fseventsd` CPU 96%、内存 27%、已连续运行 21 天；另有一台虚拟机 CPU 93%。
+- 影响：只读。没有杀进程、没有停 VM、没有改配置。
+- 备份：无。
+- 回滚方式：无变更，无需回滚。
+- 现场（11:31）：
+  - uptime 61 天，load average `73.57 / 62.01 / 42.41`（10 核）。
+  - 内存 32G，swap `25.8G / 26.6G` 几乎用满，累计 pageouts 670 万。
+  - `fseventsd`（PID 32736，root）：Sep 28 17:13 启动（比系统晚 40 天，期间重启过一次），CPU 120%+，RSS 8.7G，`top` MEM 32G（含压缩/换出），明显泄漏。Spotlight 已关闭（`mdutil` disabled），Time Machine 未配置，排除这两个常见来源。
+  - CPU 93% 的 VM 是 `hon` 账号下的 `colima-moo`（PID 54139，vz，4C/10G，Oct 8 启动），CPU 55%–110%。`konghai` 无权进入该 VM（lima key 600 属主 `hon`，`hon@mac-mini` 无本机公钥），看不到 VM 内具体进程。
+  - 三台 colima VM 合计分配 28G：`konghai` 的 `colima`（6C/12G，挂载 `~/stacks` 等）、`hon` 的 `colima-moo`（4C/10G）和 `colima-multica`（4C/6G）。后两台 `mounts: []`，即默认把整个 `/Users/hon` 以 virtiofs 可写挂进 VM。
+  - 同时 sonar runner 有 3 个 job 在跑 Go `go test -coverpkg`（大量并发 `link`）和 `npm ci`，产生大量文件事件。
+- 判断：内存已经被 VM 分配 + fseventsd 泄漏挤爆，系统在重度换页，`kernel_task` 也跑到 124%。`fseventsd` 不该常驻 32G，需要重启它（`sudo killall fseventsd`，launchd 会自动拉起，监听方会收到一次 rescan）。`konghai` 没有免密 sudo，要用户本人执行。
+- 待办：
+  - 用户执行 `sudo killall fseventsd` 并观察内存是否回落、是否很快重新涨上去。
+  - 请 `hon` 进 `colima-moo` 看 `docker stats` / `top`，确认谁在吃 CPU；考虑把 `colima-moo` / `colima-multica` 的 `mounts` 从默认整个 `$HOME` 改成只挂需要的目录，减少 virtiofs 带来的文件事件。
+  - 32G 机器上 VM 分配 28G 偏多，考虑缩小 VM 内存或减少 runner 并发。
+
 ## 2026-10-11 16:25 CST - shared-dev-redis 分配 DB 1 给 AcquiLangAI
 
 - 服务器：`mac-mini`
