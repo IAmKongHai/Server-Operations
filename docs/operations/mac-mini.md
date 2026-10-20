@@ -15,8 +15,9 @@
   - 三台 colima VM 合计分配 28G：`konghai` 的 `colima`（6C/12G，挂载 `~/stacks` 等）、`hon` 的 `colima-moo`（4C/10G）和 `colima-multica`（4C/6G）。后两台 `mounts: []`，即默认把整个 `/Users/hon` 以 virtiofs 可写挂进 VM。
   - 同时 sonar runner 有 3 个 job 在跑 Go `go test -coverpkg`（大量并发 `link`）和 `npm ci`，产生大量文件事件。
 - 判断：内存已经被 VM 分配 + fseventsd 泄漏挤爆，系统在重度换页，`kernel_task` 也跑到 124%。`fseventsd` 不该常驻 32G，需要重启它（`sudo killall fseventsd`，launchd 会自动拉起，监听方会收到一次 rescan）。`konghai` 没有免密 sudo，要用户本人执行。
+- 后续（11:37）：用户已执行 `sudo killall fseventsd`。新进程 PID 70734，CPU 0.2%，RSS 10M；load 从 73 降到 13.7，swap 从 25.8G 降到 11.6G。
 - 待办：
-  - 用户执行 `sudo killall fseventsd` 并观察内存是否回落、是否很快重新涨上去。
+  - 观察 fseventsd 内存是否再次持续上涨。
   - 请 `hon` 进 `colima-moo` 看 `docker stats` / `top`，确认谁在吃 CPU；考虑把 `colima-moo` / `colima-multica` 的 `mounts` 从默认整个 `$HOME` 改成只挂需要的目录，减少 virtiofs 带来的文件事件。
   - 32G 机器上 VM 分配 28G 偏多，考虑缩小 VM 内存或减少 runner 并发。
 
