@@ -1,5 +1,32 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 16:44 CST - 统一调整三台 colima VM 的内存上限
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户要求"统一调整到合适大小"。
+- 原因：VM 会把宿主内存占到上限且不归还（见本日 13:15 条目），上限是唯一的杠杆。重启前 swap 曾用满。
+- 选型（按 VM 内 `free -m` 的 used 和容器内存加余量）：
+
+  | VM | 原上限 | 新上限 | 依据 |
+  | --- | --- | --- | --- |
+  | `konghai` `colima` | 12G | 8G | 重启前 used 峰值 5.2G、重启后 3.4G；sonarqube 2.4G，其余是小容器 |
+  | `hon` `colima-moo` | 6G | 6G（不动） | used 2.9G，但 kafka / kafka-connect / ocr-kafka 三个 JVM 的 Xmx 合计约 3.5G，加 debezium 和 postgres 缓存 |
+  | `hon` `colima-multica` | 6G | 3G | used 0.5G，3 个小容器 |
+
+  合计 24G → 17G。
+- 备份：`~/.colima/default/colima.yaml.bak-20261020`、`/Users/hon/.colima/multica/colima.yaml.bak-20261020`。
+- 回滚方式：用备份覆盖 `colima.yaml`，`colima stop [--profile X]`，若前台进程不退出就 kill 它，由守护进程按旧配置拉起。
+- 变更时序：
+  - 15:32 改 `multica` 的 `memory: 3`，`colima stop --profile multica`。VM 停了，但 `hon` 的守护脚本下面那个 `colima start --profile multica --foreground`（PID 1212）**没有退出**，守护脚本卡住两分钟没重启。kill 1212 后，守护脚本 10 秒后按新配置拉起，15:35 Running，3 个容器 Up。
+  - `konghai` 的 `colima` 里有 sonarqube。先等 mac-mini 上 runner 全空，60 分钟内一直有 3~4 个 job，没等到。改为等"没有名字含 sonar 的 job 且 SonarQube CE 队列为空"，16:42:39 满足。
+  - 16:42 改 `memory: 8`，`colima stop`，旧前台进程 623 同样没退出，kill 后由 LaunchDaemon `com.konghai.colima`（KeepAlive）拉起新进程 61839，VM 8GiB Running。
+- 验证：
+  - `colima list`：default 8GiB、moo 6GiB、multica 3GiB，全部 Running。
+  - `konghai` 的 colima：VM 内 used 2.4G；`shared-dev-redis`、`acquilang-postgres`、`nyh-postgres`、`sub2api` 系列、`sonarqube`、`sonar-postgres`、`shared-dev-s3`、`shared-dev-postgres`、`richer-*` 全部 Up（healthy）。`cmm-postgres` 是 29 小时前就已 Exited (0)，与本次无关。SonarQube `api/system/status` 为 UP。
+  - multica：VM 内 used 0.5G，3 个容器 Up。
+  - 宿主：swap 0，`memory_pressure` 空闲 83%，load 2.55。
+- 经验：本机 colima 由守护进程以 `--foreground` 拉起时，`colima stop` 不会让前台进程退出，守护进程会一直卡着。改配置后要 stop 再 kill 前台进程。
+
 ## 2026-10-20 15:30 CST - 保留排查用的免密 sudo 规则
 
 - 服务器：`mac-mini`
