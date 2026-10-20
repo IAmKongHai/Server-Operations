@@ -1,5 +1,24 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 15:25 CST - friends-lab 去重、colima-moo 加开机守护、删除 CIWork 迁移备份
+
+- 服务器：`mac-mini`
+- 操作人：用户安装 `konghai-friends-lab-1` 的 LaunchDaemon，并要求给 `colima-moo` 加守护、删除迁移备份；其余由 `Claude` 执行。
+- 原因：重启后 `konghai-friends-lab-1`（nohup）与 `colima-moo` 都没有自动恢复；CIWork 迁移和重启均已验证通过，用户确认 iCare runner 正常。
+- 影响与变更时序：
+  - friends-lab：用户装好 `system/actions.runner.konghai-friends-lab.konghai-friends-lab-1` 后，与 15:11 手动 nohup 起的那份同时运行（两个 `Runner.Listener`）。确认 nohup 那份没有 `Runner.Worker` 后，kill 其进程链（`runsvc.sh` 2202 → `RunnerService.js` 2205 → `Runner.Listener` 2802）。只剩 Daemon 实例，07:18Z `Listening for Jobs`。
+  - colima-moo 守护：新增 `/Users/hon/.local/bin/moo-colima-supervisor`（照抄 `multica-colima-supervisor`，只换 profile、pid `~/.colima/run/moo-colima-supervisor.pid`、日志 `~/Library/Logs/colima-moo/supervisor.log`），在 `hon` 的 crontab 末尾加 `@reboot /Users/hon/.local/bin/moo-colima-supervisor`。15:19 手动拉起，`colima-moo` Running。
+  - colima-moo 容器：VM 起来后 `moo-dev-postgres` / `redis` / `s3` / `kafka` / `kafka-connect` 是 `Exited (255)`，它们的重启策略是 `restart=no`（compose 在 `/Users/hon/moo-dev-infra`），VM 重启后不会自己恢复；`debezium-server` 因此反复重启。已 `docker start` 这 5 个，45 秒后 8 个容器全部 Up / healthy。
+  - 删除备份：`/Users/konghai/gha.pre-ciwork-20261020` 和 `mac-mini-sonar-{1..4}/cache/go-build`。go-mod 缓存目录是只读权限，首次 `rm -rf` 报 `Permission denied`，`chmod -R u+w` 后删净。未动 `mac-mini-sonar-1/cache/go-mod`（不在迁移范围）。
+- 备份：`hon` 的 crontab 备份在 `/Users/hon/.crontab.bak-20261020-moo`。迁移备份按用户要求已删除，不可恢复。
+- 回滚方式：
+  - colima-moo 守护：`crontab /Users/hon/.crontab.bak-20261020-moo`，kill `moo-colima-supervisor`，删 `/Users/hon/.local/bin/moo-colima-supervisor`。
+  - 迁移备份已删，CIWork 不能再一键回滚到原目录；要回退只能停 runner 后把卷内容 ditto 回数据卷。
+- 验证：只剩一个 friends-lab `Runner.Listener`；`colima list` 显示 moo / multica 都 Running；8 个容器 healthy；`/System/Volumes/Data` 可用空间 908G → 955G；`/Users/konghai/gha` 仍有 15 个条目，`gha/cache/go-mod` 2.9G 完好。
+- 注意：
+  - `/Users/hon/.multica/autostart.crontab` 与当前 crontab 内容一致，可能是 Multica 安装 crontab 的来源。若 Multica 以后用它覆盖 crontab，moo 那行 `@reboot` 会丢，需要重新加。
+  - moo-dev-infra 里这 5 个容器 `restart=no`，下次重启仍要手动 `docker start`，建议 `hon` 在 compose 里改成 `restart: unless-stopped`。
+
 ## 2026-10-20 15:11 CST - 重启后验证 CIWork 自动挂载
 
 - 服务器：`mac-mini`

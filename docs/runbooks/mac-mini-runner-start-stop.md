@@ -1,6 +1,6 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-10-10
+> 最后更新：2026-10-20
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
 > 仓库级 runner（`IAmKongHai/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）
@@ -96,13 +96,13 @@ sudo launchctl bootout system/actions.runner.konghai-friends-lab-AcquiLangAI.mac
 runs-on: [self-hosted, konghai-friends-lab]
 ```
 
-当前（2026-08-24）以 `nohup ./runsvc.sh` 运行，重启后会掉。本机 sudo 一次后改成 LaunchDaemon：
+2026-10-20 起已是 LaunchDaemon：`system/actions.runner.konghai-friends-lab.konghai-friends-lab-1`，重启后自动在线。**不要**再手动 `nohup ./runsvc.sh`，会和 Daemon 双开（2026-10-20 发生过一次）。重装 Daemon：
 
 ```bash
 sudo /Users/konghai/gha/scripts/install-konghai-friends-lab-runner-daemon.sh
 ```
 
-不要 `./svc.sh install`。装上 Daemon 之后：
+不要 `./svc.sh install`。重启 Daemon：
 
 ```bash
 sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab.konghai-friends-lab-1
