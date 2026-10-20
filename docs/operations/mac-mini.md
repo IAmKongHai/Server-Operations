@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 15:30 CST - 保留排查用的免密 sudo 规则
+
+- 服务器：`mac-mini`
+- 操作人：用户决定。
+- 原因：后续还要排查性能问题，用户选择不收回本日为排查和迁移临时加的 sudo 规则。
+- 影响：长期保留以下三条（均只放行列出的命令）：
+  - `/etc/sudoers.d/konghai-diag`：`fs_usage`、`lsof`、`killall fseventsd`、`log`。注意 `fs_usage` / `log` 能看到全机所有用户的文件活动和系统日志。
+  - `/etc/sudoers.d/konghai-fsetest`：只针对测试卷 `FSETest` 的 `diskutil` 建卷 / 挂载 / 删卷等命令。
+  - `/etc/sudoers.d/konghai-ciwork`：只放行 root 所有的 `/usr/local/sbin/ciwork-migrate.sh`（`--prepare` / `--migrate` / `--status` / `--start-runners`）。`--migrate` 要求 CIWork 挂在 `/Volumes/CIWork`，现在挂在 `/Users/konghai/gha`，误跑会在停 runner 之前直接退出。
+- 备份：无变更。
+- 回滚方式：`sudo rm /etc/sudoers.d/konghai-diag /etc/sudoers.d/konghai-fsetest /etc/sudoers.d/konghai-ciwork /usr/local/sbin/ciwork-migrate.sh`。
+
 ## 2026-10-20 15:25 CST - friends-lab 去重、colima-moo 加开机守护、删除 CIWork 迁移备份
 
 - 服务器：`mac-mini`
