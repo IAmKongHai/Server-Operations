@@ -1,5 +1,26 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 11:50 CST - 以 hon 身份排查 colima-moo 高 CPU，抓取宿主文件活动
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`。用户已给 `hon` 加本机公钥（`ssh mac-mini-hon`），并给 `konghai` 加了 `/etc/sudoers.d/konghai-diag`（免密 `fs_usage` / `lsof` / `killall fseventsd` / `log`）。
+- 影响：只读。没有停容器、没有改库、没有改 VM 配置。
+- 备份：无。
+- 回滚方式：收回权限即 `sudo rm /etc/sudoers.d/konghai-diag`，并从 `/Users/hon/.ssh/authorized_keys` 删掉对应公钥。
+- `colima-moo`（4C/10G）里的容器：`moo-dev-postgres`、`moo-dev-kafka`、`moo-ocr-kafka`、`moo-dev-kafka-connect`、`moo-dev-debezium-server`、`moo-dev-cdc-scanner`、`moo-dev-s3`（seaweedfs）、`moo-dev-redis`。
+- 发现：
+  - VM 进程 12 天累计 CPU 约 363 小时，平均一直占 1.2 个核以上；11:48 采样时 VM 内 85% 空闲，宿主 VM 进程约 38%。高峰来自突发：`moo-dev-kafka` 一次采到 88%，`moo-dev-postgres` 持续 15%–30%。
+  - `moo-dev-postgres` 累计写盘 213GB、网络 117GB 入 / 79GB 出。主力库 `moo_fraud_detection`：12 天 1.34 亿次提交（现在约 130 tx/s），`tup_fetched` 3.1 万亿。
+  - 3.07 万亿行读取全部来自表 `decisions_to_create` 的索引扫描（`idx_scan` 382 万次）。该表累计插入 126 万行，现在 0 行，说明处理积压时每次轮询都把几十万行读一遍，这是过去 VM 长时间高 CPU 的主要原因。积压清空后已明显下降。
+  - 当前常态负载：宿主 `/Users/hon/moo-app/bin/worker` 等进程经 lima 端口转发（宿主 `ssh` → VM `sshd` → `docker-proxy :15432`）高频轮询 `decision_workflow_jobs`、`decision_offloading_jobs`、`deliveries`、`documents` 等任务表。VM 内每秒 7–13k 中断、11–13k 上下文切换，`sshd` 和 `docker-proxy` 自己就占约 9% CPU。
+  - `pg_replication_slots` 为空，`kafka-connect` 没有在跑的 connector（日志只有每 5 秒一次健康检查），`debezium-server` 10 分钟内无日志。CDC 链路目前没在工作，却一直占着约 1.8G 内存（kafka-connect 840M + debezium 370M + 两个 kafka）。
+- `fs_usage` 15 秒采样（CI 空闲时）：会改动文件系统的写操作主要是 `/Users/hon/.colima/_lima/_disks/colima-moo/datadisk`（VM 数据盘）；其次是 `colima-multica` 磁盘和 `konghai` 的 colima。`limactl` / `ssh` 大量 read/write 是 socket 转发，不产生文件事件。
+- fseventsd：重启后 13 分钟 RSS 11.5M、CPU 0%，load 降到 5，swap 10.7G。CI 空闲时没复现泄漏，需在 runner 跑 Go / npm 任务时再观察。
+- 建议（未执行，归 `hon` 决定）：
+  - 任务表轮询加退避或改 `LISTEN/NOTIFY`；`decisions_to_create` 的消费查询要按批次和索引分页，不要每次全量读。
+  - CDC 不用时停掉 `kafka-connect` / `debezium-server`，或把 `colima-moo` 内存从 10G 降下来。
+  - 宿主进程直连 VM 数据库的流量走 lima 的 SSH 端口转发，开销大；高频访问可考虑改 colima `network.address` 直连 VM IP。
+
 ## 2026-10-20 11:35 CST - 只读排查 fseventsd 高 CPU / 高内存与 VM 高 CPU
 
 - 服务器：`mac-mini`
