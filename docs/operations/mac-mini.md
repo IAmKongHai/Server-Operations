@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 13:15 CST - 安装 krunkit 并验证能否把 VM 内存还给宿主（结论：不能）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`。用户同意装最新 krunkit，打算把 `hon` 的 `colima-moo` / `colima-multica` 和 `konghai` 的 `colima` 换成 krunkit 以释放内存；先用测试 VM 验证。
+- 原因：`vz` 模式的 VM 会把宿主内存占到上限且不归还（lima issue #4220）。社区实测（colima 0.10.3 + krunkit 1.3.2 + libkrun 1.19.4，macOS 26.5）称 krunkit 通过 free page reporting 能还内存。
+- 影响：
+  - Homebrew 新增并信任 tap `slp/krun`，安装 `krunkit 1.3.2`、`libkrun 1.19.6`、`gvproxy 0.8.9` 等依赖；顺带升级了 `xz`、`readline`、`ca-certificates`。
+  - 临时建了 colima profile `krtest`（krunkit，2C/4G/20G），测完已删除。没有动现有三台 VM。
+- 备份：无需（只新增软件和临时 VM）。
+- 回滚方式：`brew uninstall krunkit libkrun gvproxy && brew untap slp/krun`。
+- 过程与发现：
+  - colima 0.10.3（含 master）有 bug：`--vm-type krunkit` 时，除非显式 `--mount-type sshfs`，否则 mountType 被设成 `9p`，lima 的 krunkit 驱动直接拒绝启动（`environment/vm/lima/yaml.go` 只在 `vz` 下给 virtiofs）。用 `--mount-type sshfs`（reverse-sshfs）才能起来，宿主目录挂载会变慢。
+  - VM 内 balloon 设备特性位 bit 5（`VIRTIO_BALLOON_F_REPORTING`）已协商，内核 `CONFIG_PAGE_REPORTING=y`，`buddyinfo` 有大量高阶空闲块。
+  - 在 VM 内用 Python 占 2.5G 随机数据再释放：krunkit 进程 RSS 在峰值 2696M，释放后 100 秒仍 2701M；再手动 `drop_caches` + `compact_memory` 等 90 秒，RSS 反而到 2776M，footprint 一直约 4.4G。第一轮测试留下的约 4.2G 也只是被宿主压缩（进程 CMPRS 列），不是释放。
+- 结论：在本机（macOS 26.6.2、lima 2.2.0、krunkit 1.3.2、libkrun 1.19.6）上 krunkit 没有把内存还给宿主，和社区实测不一致。不迁移现有 VM。
+- 顺带核对（13:16）：各 VM 实际用量远小于宿主为它占着的内存。
+  - `konghai` 的 `colima`：上限 12G，宿主占 12G，VM 内 used 5.2G，其余是 page cache。
+  - `colima-multica`：上限 6G，宿主占 4.7G，VM 内 used 0.7G。
+  - `colima-moo`：已被 `hon` 调成 6G 并重启（新 PID 35822），宿主占 5.0G，VM 内 used 3.0G。
+
 ## 2026-10-20 12:34 CST - 安装 fseventsd 看门狗 LaunchDaemon
 
 - 服务器：`mac-mini`
