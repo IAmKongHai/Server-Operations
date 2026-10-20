@@ -18,7 +18,7 @@
   - 14:15 第二次 `--migrate`：ditto 复制约 9 分钟，14:25:49 复制完成，挂载、写 fstab、改 `.env`，14:26:05 拉起 runner。
 - 验证：
   - `diskutil info CIWork` 的 Mount Point 为 `/Users/konghai/gha`；`stat` 显示 `/Users/konghai/gha` 和 `gha/s1` 在 `disk3s7`，家目录在 `disk3s5`；`.fseventsd/no_log` 在；Spotlight 关闭。
-  - `Runner.Listener` 10 个；cypressoai 的 sonar 1..4、mobile-1 在 GitHub 上 online；acquilang-ci-1..3、acquilang-native-1、konghai-friends-lab-1 日志在 14:25 出现 `Listening for Jobs`；acquilang-ci-3 随即接到 `sonar` job。
+  - `Runner.Listener` 10 个；cypressoai 的 sonar 1..4、mobile-1 在 GitHub 上 online；acquilang-ci-1..3、acquilang-native-1、konghai-friends-lab-1 日志在 14:25 出现 `Listening for Jobs`；acquilang-ci-3 随即接到 `sonar` job。14:30 该 job 结果 `Succeeded`（耗时约 4 分钟），是迁移后第一个在新卷上跑通的 job。
 - 待办：观察首批 iCare sonar / 前端覆盖率任务是否正常；找时间重启一次验证开机自动挂载；之后删除备份、收回 `/etc/sudoers.d/konghai-ciwork`。
 
 ## 2026-10-20 13:15 CST - 安装 krunkit 并验证能否把 VM 内存还给宿主（结论：不能）
