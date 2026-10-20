@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 12:34 CST - 安装 fseventsd 看门狗 LaunchDaemon
+
+- 服务器：`mac-mini`
+- 操作人：用户执行 `sudo /Users/konghai/gha/scripts/install-mac-mini-fseventsd-watchdog.sh`；脚本由 `Claude` 编写并验证。
+- 原因：fseventsd 曾泄漏到 32G（见本日 11:35 条目），内核层面无法让某个卷不向 fseventsd 送事件（见 12:15 条目和 XNU `vfs_fsevents.c`），先上监控加自动重启兜底，同时在下次泄漏时抓到元凶。
+- 影响：新增 LaunchDaemon `system/com.konghai.fseventsd-watchdog`（`StartInterval` 300、`RunAtLoad`），以 root 运行 `/usr/local/sbin/fseventsd-watchdog.sh`（源码 `scripts/mac-mini-fseventsd-watchdog.sh`）。
+  - 每次记一行 fseventsd 的 footprint（`top` MEM 列，含压缩/换出）、RSS、CPU、swap、load。
+  - footprint ≥ 1024MB：抓现场（`ps`、`lsof -p`、`sample` 5 秒、`fs_usage` 15 秒及按进程汇总的 `writers-by-process.txt`），每小时最多一次。
+  - footprint ≥ 4096MB：先抓现场，再 `killall fseventsd`，由 launchd 拉起。
+  - 日志 `/var/log/fseventsd-watchdog/watchdog.log`（5MB 轮转），现场 `/var/log/fseventsd-watchdog/captures/<时间>/`（保留 30 天），均 `a+r`。
+- 备份：无（纯新增）。
+- 回滚方式：`sudo launchctl bootout system/com.konghai.fseventsd-watchdog`，再删 `/Library/LaunchDaemons/com.konghai.fseventsd-watchdog.plist` 和 `/usr/local/sbin/fseventsd-watchdog.sh`。
+- 验证：`launchctl print` 显示 `run interval = 300 seconds`、`runs = 1`、`last exit code = 0`；`launchd.err.log` 为空；首行日志 `pid=70734 etime=58:47 mem_mb=3 rss_mb=18 cpu=0.8 swap_used=9968.00M load1=18.29`。抓现场和自动 kill 两条分支尚未实际触发过。
+
 ## 2026-10-20 12:15 CST - 验证 no_log 独立卷能否让 fseventsd 不处理 CI / VM 文件事件
 
 - 服务器：`mac-mini`
