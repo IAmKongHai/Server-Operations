@@ -1,5 +1,26 @@
 # mac-mini 运维时间线
 
+## 2026-10-20 14:26 CST - CI 目录迁到独立 APFS 卷 CIWork（no_log，关 Spotlight）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，经用户授权（`/etc/sudoers.d/konghai-ciwork`，只放行 root 所有的 `/usr/local/sbin/ciwork-migrate.sh`）。脚本源码 `scripts/migrate-mac-mini-ci-to-nofsevents-volume.sh`。
+- 原因：内核层面无法让卷不向 fseventsd 送事件（见本日 12:15 条目和 XNU 源码），用户选择用独立卷 + `no_log` 至少省掉事件日志落盘和约 28% 的 fseventsd CPU。VM 方案已被否（VM 内存只占不还，见 13:15 条目）。VM 磁盘不迁：同一文件的连续改动内核会合并，事件很少。
+- 影响：
+  - 新卷 `CIWork`（`disk3s7`，UUID `8FF8D622-BAB7-47C3-8601-44CBB7988E7F`，quota 300G，Owners Enabled），`.fseventsd/no_log`，`.metadata_never_index`，`mdutil -i off`。
+  - 直接挂载到 `/Users/konghai/gha`（不用符号链接，避免进程实际目录和 `GITHUB_WORKSPACE` 不一致导致 LCOV 路径对不上 Sonar）。`/etc/fstab` 新增 `UUID=8FF8D622-BAB7-47C3-8601-44CBB7988E7F /Users/konghai/gha apfs rw`。挂载点下面的原目录是 `root:wheel 755`，卷没挂上时 runner 写入会报权限错误，不会悄悄写回系统数据卷。
+  - 迁入：原 `/Users/konghai/gha` 全部内容（各 runner workFolder、`cache/pnpm-store`、`cache/go-mod`、`scripts/`、`backups/`），以及 sonar 1..4 的 Go 编译缓存（现为 `/Users/konghai/gha/cache/go-build-s{1..4}`）。卷用量 53.7G。
+  - `mac-mini-sonar-{1..4}/.env` 的 `GOCACHE` 改为 `/Users/konghai/gha/cache/go-build-sN`。
+  - CI 停机：14:09:39 ~ 14:26:05，约 16.5 分钟。
+- 备份：`/Users/konghai/gha.pre-ciwork-20261020`（原目录整体）、`/Users/konghai/actions-runner/mac-mini-sonar-*/cache/go-build`（原 GOCACHE，未删）、`mac-mini-sonar-*/.env.bak-ciwork-20261020`。原来没有 `/etc/fstab`，所以没有 fstab 备份。确认 CI 正常并经用户同意后再删。
+- 回滚方式：停所有 runner → `diskutil unmount /Users/konghai/gha` → 删 `/etc/fstab` 中的 CIWork 行 → `rmdir /Users/konghai/gha && mv /Users/konghai/gha.pre-ciwork-20261020 /Users/konghai/gha` → 用 `.env.bak-ciwork-20261020` 还原四个 `.env` → `ciwork-migrate.sh --start-runners`。
+- 变更时序：
+  - 14:09 `--prepare` 建卷完成；首次 `--migrate` 停完全部 runner 后，脚本因 macOS `/bin/bash` 3.2 把 `$NOHUP_RUNNER（` 的全角括号当成变量名报 `unbound variable` 退出，数据未动。修成 `${VAR}` 并新增 `--start-runners`，用户重装 root 副本。
+  - 14:15 第二次 `--migrate`：ditto 复制约 9 分钟，14:25:49 复制完成，挂载、写 fstab、改 `.env`，14:26:05 拉起 runner。
+- 验证：
+  - `diskutil info CIWork` 的 Mount Point 为 `/Users/konghai/gha`；`stat` 显示 `/Users/konghai/gha` 和 `gha/s1` 在 `disk3s7`，家目录在 `disk3s5`；`.fseventsd/no_log` 在；Spotlight 关闭。
+  - `Runner.Listener` 10 个；cypressoai 的 sonar 1..4、mobile-1 在 GitHub 上 online；acquilang-ci-1..3、acquilang-native-1、konghai-friends-lab-1 日志在 14:25 出现 `Listening for Jobs`；acquilang-ci-3 随即接到 `sonar` job。
+- 待办：观察首批 iCare sonar / 前端覆盖率任务是否正常；找时间重启一次验证开机自动挂载；之后删除备份、收回 `/etc/sudoers.d/konghai-ciwork`。
+
 ## 2026-10-20 13:15 CST - 安装 krunkit 并验证能否把 VM 内存还给宿主（结论：不能）
 
 - 服务器：`mac-mini`
