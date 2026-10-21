@@ -5,6 +5,7 @@
 # sudo /Users/for-konghai/gha/scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh
 #
 # 不要运行 ./svc.sh install / start。那会再写一份用户域 LaunchAgent，和 Daemon 双开。
+# runner 只在 CIWork 卷挂到 ~/gha 后启动（KeepAlive PathState 盯 ~/gha/.ciwork-mounted）。
 set -euo pipefail
 
 if [[ $(id -u) -ne 0 ]]; then
@@ -69,8 +70,10 @@ cat > "$SOURCE_PLIST" <<EOF
   <key>UserName</key><string>${USER_NAME}</string>
   <key>GroupName</key><string>${GROUP_NAME}</string>
   <key>WorkingDirectory</key><string>${RUNNER_ROOT}</string>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><false/>
+  <key>KeepAlive</key><dict><key>PathState</key><dict>
+    <key>${USER_HOME}/gha/.ciwork-mounted</key><true/>
+  </dict></dict>
   <key>SessionCreate</key><true/>
   <key>StandardOutPath</key><string>${LOG_DIR}/stdout.log</string>
   <key>StandardErrorPath</key><string>${LOG_DIR}/stderr.log</string>

@@ -1,5 +1,26 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-21 12:55 CST - CIWork 迁移：fstab 被 TCC 拒绝，改用挂载守护 + runner PathState（进行中，CI 停机）
+
+- 服务器：`lemon-imac`
+- 操作人：用户执行各 sudo 步骤；脚本由 `Claude` 编写。用户要求 CI 一直停着，全部弄好、验证重启后再拉起。
+- 原因：11:45 起用户依次执行了看门狗安装、`--prepare`、`--migrate`。看门狗正常（`CAPTURE_MB=512`、`KILL_MB=2048`，每 5 分钟一行）。`--migrate` 在 11:49:52 写 `/etc/fstab` 时失败退出。
+- 当前状态：
+  - `CIWork`（`disk3s7`，UUID `C5079133-03F5-4185-8107-E7514202F50E`，quota 100G，`no_log`，Spotlight off）已挂在 `/Users/for-konghai/gha`，用量 21G。原目录在 `~/gha.pre-ciwork-20261021`。
+  - 3 个 runner 11:45:44 停止至今，并已 `launchctl disable`，重启也不会拉起。`.env` / plist 的 GOCACHE 还是旧路径。
+- 排查：
+  - 统一日志：`Refusing TCCAccessRequest for service kTCCServiceSystemPolicySysAdminFiles from client ... sshd-keygen-wrapper`，`bash deny file-write-create /private/etc/fstab`。TCC 按责任进程（sshd）判定，euid 0 也不行。7 月 crontab 被拒是同一原因。
+  - 12:49 改用一次性 LaunchDaemon 由 launchd 拉起 `/bin/bash` 写 fstab（`lemon-imac-ciwork-fstab-via-launchd.sh`），同样 `Operation not permitted`。
+  - 屏幕共享登不进去，无法在图形界面给"终端"或 sshd 授完全磁盘访问权限。`screensharingd` 日志为 `client evidence does not match ... Probably a password error`（RSA-SRP）。12:36–12:39 for-konghai 失败 4 次、zhangli 失败 1 次，不像是单个账户的密码数据问题，原因未明。
+  - 坑：zsh 有内置 `log` 命令，SSH 里查统一日志必须写 `/usr/bin/log`，否则什么都查不到。
+- 方案（B）：放弃 fstab。
+  - 新增 `install-lemon-imac-ciwork-automount.sh`：LaunchDaemon `system/com.konghai.ciwork-mount`（`RunAtLoad` + 每 5 分钟），跑 `/usr/local/sbin/ciwork-mount.sh`，卷不在 `~/gha` 就卸下再挂过去，日志 `/var/log/ciwork-mount.log`。卷根目录放标记 `.ciwork-mounted`。
+  - 3 个 runner plist 改为 `RunAtLoad false` + `KeepAlive { PathState { ~/gha/.ciwork-mounted: true } }`：卷没挂好就不启动（GitHub 上 offline），不会接 job 后在 root 所有的空挂载点上报错。`install-lemon-imac-runner-daemons.sh` / `install-lemon-imac-acquilang-ci-runner-daemon.sh` 模板同步修改；acquilang 现有 plist 用 PlistBuddy 原地改，备份 `*.bak-automount-<日期>`。
+  - `--finish` 有挂载守护时不再写 fstab，拉起前检查标记，`start_runners` 先 `launchctl enable`。
+- 验证：本机 gui 域实测 `PathState`：无标记不启动；建标记立即启动；进程退出且标记仍在时自动重启。PlistBuddy 改 acquilang plist 副本 `plutil -lint` 通过。
+- 回滚方式：`bootout` 并删除 `com.konghai.ciwork-mount` 的 plist 和脚本，用 `*.bak-automount-*` / `*.bak-ciwork-*` 还原 plist 和 `.env`；卸载 CIWork 后把 `~/gha.pre-ciwork-20261021` 改回 `~/gha`，再 enable + bootstrap 3 个 runner。
+- 待办：用户执行 `install-lemon-imac-ciwork-automount.sh` → `sudo reboot` → 确认开机自动挂载、runner 未启动 → `--finish`。
+
 ## 2026-10-21 11:45 CST - 准备 fseventsd 看门狗与 CIWork 独立卷迁移脚本（尚未执行 sudo 步骤）
 
 - 服务器：`lemon-imac`

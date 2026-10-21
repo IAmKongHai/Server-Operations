@@ -14,6 +14,7 @@
 # 用法（root）：
 #   sudo migrate-lemon-imac-ci-to-nofsevents-volume.sh --prepare   # 建卷、no_log、关 Spotlight；不影响 CI
 #   sudo migrate-lemon-imac-ci-to-nofsevents-volume.sh --migrate   # 逐个等 runner 空闲后停掉，复制、挂载、改 GOCACHE、拉起
+#   sudo migrate-lemon-imac-ci-to-nofsevents-volume.sh --finish    # --migrate 挂载后中断时，接着做 fstab / GOCACHE / plist / 拉起
 #   sudo migrate-lemon-imac-ci-to-nofsevents-volume.sh --status
 #   sudo migrate-lemon-imac-ci-to-nofsevents-volume.sh --start-runners  # 出错中断后手动拉起所有 runner
 #
@@ -101,6 +102,8 @@ drain_and_stop() {
 
 start_runners() {
   for label in "${DAEMON_LABELS[@]}"; do
+    # 重启前用 launchctl disable 挡住了自动拉起，这里先恢复
+    launchctl enable "system/$label"
     launchctl bootstrap system "/Library/LaunchDaemons/$label.plist" 2>&1 | tee -a "$LOG" || true
   done
   sleep 15
@@ -139,27 +142,43 @@ migrate() {
   diskutil mount -mountPoint "$TARGET_DIR" "$VOLUME_NAME" | tee -a "$LOG"
   [[ $(volume_mountpoint) == "$TARGET_DIR" ]] || die "挂载到 $TARGET_DIR 失败"
 
-  # 开机自动挂到同一路径
+  finish
+}
+
+# 挂载之后的收尾：fstab、GOCACHE、重写 plist、拉起 runner。--migrate 中途失败时可单独用 --finish 接着跑
+finish() {
+  [[ $(volume_mountpoint) == "$TARGET_DIR" ]] || die "${VOLUME_NAME} 应已挂在 ${TARGET_DIR}（当前 $(volume_mountpoint)）"
+
+  # 开机自动挂到同一路径。SSH 会话没有完全磁盘访问权限时 TCC 会拒绝写 /etc/fstab，
+  # 只报警告不中断，先把 runner 拉起来，fstab 另行补写
   local uuid line
   uuid=$(volume_uuid)
   line="UUID=$uuid $TARGET_DIR apfs rw"
-  [[ -f /etc/fstab ]] && cp /etc/fstab "/etc/fstab.bak-ciwork-$STAMP"
-  grep -q "$uuid" /etc/fstab 2>/dev/null || echo "$line" >>/etc/fstab
-  log "fstab：$line"
+  if [[ -f /Library/LaunchDaemons/com.konghai.ciwork-mount.plist ]]; then
+    log "开机挂载由 com.konghai.ciwork-mount 负责，不写 fstab"
+  elif grep -q "$uuid" /etc/fstab 2>/dev/null; then
+    log "fstab 已有：$line"
+  elif { [[ ! -f /etc/fstab ]] || cp /etc/fstab "/etc/fstab.bak-ciwork-$STAMP"; } && echo "$line" >>/etc/fstab; then
+    log "fstab：$line"
+  else
+    log "WARNING: 写 /etc/fstab 失败（多半是 TCC），重启后卷不会挂到 ${TARGET_DIR}；需补写：${line}"
+  fi
 
   # GOCACHE 改到卷上：.env 用 sed，plist 由安装器重写（它会同时 bootstrap 并 kickstart lemon-imac-1/2）
   for n in "${GO_SLOTS[@]}"; do
     local env_file=$RUNNER_ROOT/lemon-imac-$n/.env
-    cp -p "$env_file" "$env_file.bak-ciwork-$STAMP"
+    [[ -f $env_file.bak-ciwork-$STAMP ]] || cp -p "$env_file" "$env_file.bak-ciwork-$STAMP"
     sed -i '' "s|^GOCACHE=.*|GOCACHE=$TARGET_DIR/cache/go-build-li$n|" "$env_file"
     log "lemon-imac-$n $(grep '^GOCACHE=' "$env_file")"
   done
   for label in actions.runner.cypressoai.lemon-imac-1 actions.runner.cypressoai.lemon-imac-2 \
     com.cypressoai.gha-runner-maintenance com.cypressoai.gha-runner-maintenance-weekly; do
-    cp -p "/Library/LaunchDaemons/$label.plist" "/Library/LaunchDaemons/$label.plist.bak-ciwork-$STAMP"
+    local plist=/Library/LaunchDaemons/$label.plist
+    [[ -f $plist.bak-ciwork-$STAMP ]] || cp -p "$plist" "$plist.bak-ciwork-$STAMP"
   done
   bash "$TARGET_DIR/scripts/install-lemon-imac-runner-daemons.sh" 2>&1 | tee -a "$LOG"
 
+  [[ -f $TARGET_DIR/.ciwork-mounted ]] || log "WARNING: 缺少 $TARGET_DIR/.ciwork-mounted，runner 的 PathState 条件不满足，不会启动（先跑 install-lemon-imac-ciwork-automount.sh）"
   start_runners
   status
   log "完成。确认 CI 正常后，再删除 $BACKUP_DIR、$RUNNER_ROOT/lemon-imac-*/cache/go-build 和 /Library/LaunchDaemons/*.bak-ciwork-$STAMP"
@@ -183,7 +202,8 @@ status() {
 case "${1:-}" in
   --prepare) prepare ;;
   --migrate) migrate ;;
+  --finish) finish ;;
   --status) status ;;
   --start-runners) start_runners ;;
-  *) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

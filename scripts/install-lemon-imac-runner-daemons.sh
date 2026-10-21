@@ -6,6 +6,9 @@
 #   sudo /Users/for-konghai/gha/scripts/install-lemon-imac-runner-daemons.sh
 #
 # 不要再运行 ./svc.sh install / start，那会把 LaunchAgent 装回去并和 Daemon 双开。
+#
+# runner 只在 CIWork 卷挂到 ~/gha 后启动：KeepAlive 用 PathState 盯 ~/gha/.ciwork-mounted
+# （见 install-lemon-imac-ciwork-automount.sh）。
 set -euo pipefail
 
 if [[ $(id -u) -ne 0 ]]; then
@@ -87,9 +90,15 @@ write_runner_plist() {
   <key>WorkingDirectory</key>
   <string>${root}</string>
   <key>RunAtLoad</key>
-  <true/>
+  <false/>
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>PathState</key>
+    <dict>
+      <key>${USER_HOME}/gha/.ciwork-mounted</key>
+      <true/>
+    </dict>
+  </dict>
   <key>SessionCreate</key>
   <true/>
   <key>StandardOutPath</key>
