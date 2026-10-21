@@ -122,7 +122,7 @@ gh api orgs/konghai-friends-lab/actions/runners \
 runs-on: [self-hosted, caimiaomiao-ci]
 ```
 
-macOS runner **不支持** job 级 `services:` 容器；需要 Postgres / Redis 的 job 要在 step 里自己 `docker run`（随机端口映射，不要占宿主 5432 / 6379）。`.env` 里 `GOCACHE=~/gha/cache/go-build-cmm1`，`GOMODCACHE`、`PNPM_STORE_PATH` 与 sonar 槽共享。
+本机**没有预装 node**：`actions/setup-node` 必须放在 `pnpm/action-setup` 前面，否则 pnpm 12 自安装报 `node: command not found`。macOS runner **不支持** job 级 `services:` 容器；需要 Postgres / Redis 的 job 要在 step 里自己 `docker run`（随机端口映射，不要占宿主 5432 / 6379）。`.env` 里 `GOCACHE=~/gha/cache/go-build-cmm1`，`GOMODCACHE`、`PNPM_STORE_PATH` 与 sonar 槽共享。
 
 LaunchDaemon：`system/actions.runner.caimiamiao.caimiamiao-1`。不要 `./svc.sh install`。重装 Daemon（仓库副本 `scripts/install-caimiamiao-runner-daemon.sh`）：
 

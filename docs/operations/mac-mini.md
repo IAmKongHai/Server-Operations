@@ -18,7 +18,12 @@
   - 复制 `bin/runsvc.sh` 到 runner 根目录，生成 plist（`plutil -lint` OK）。
   - 14:22 用户执行 `sudo /Users/konghai/gha/scripts/install-caimiamiao-runner-daemon.sh`（需 sudo 密码）：launchd `state = running`，`Runner.Listener run --startuptype service` 在跑。
 - 验证：`gh api orgs/caimiamiao/actions/runners` → `caimiamiao-1` `online`、`busy=false`，labels `self-hosted, macOS, ARM64, caimiaomiao-ci`。
-- 待办：`cmm-api` 的 `verify` job 用了 `services:`（Postgres 18 / Redis 7），macOS runner 不支持，迁移时要改成 step 里 `docker run`；本机 colima 里已有 `cmm-postgres` 容器（Exited），注意端口别撞。
+- 后续（同日 14:30–14:45）：三个仓库的检查 job 改用 `[self-hosted, caimiaomiao-ci]`，在独立 worktree（`/Users/konghai/Code/Project/caimiaomiao-worktrees/`）开分支 `ci/self-hosted-runner`，不动各仓主目录：
+  - `caimiamiao/cmm-api#9`：`verify` 的 `services:` 改为 step 内 `docker run`（`127.0.0.1` 随机端口，`if: always()` 删容器；宿主 5432 / 6379 已被 `richer-postgres` / `shared-dev-redis` 占用）。通过，3m41s，事后无遗留 `cmm-ci-*` 容器。
+  - `caimiamiao/cmm-admin#8`：通过，39s。
+  - `caimiamiao/cmm-xcx#11`：首次失败，`pnpm/action-setup` 在 `setup-node` 前，pnpm 12 自安装 preinstall `sh: node: command not found`（本机 runner 没有预装 node）。调换顺序后通过，55s；admin 同步调换。
+  - `cmm-xcx-ui-demo` 未改：其 AGENTS.md 规定只在 `main` 改、不加 CI，唯一 workflow 是部署。
+  - 部署 job 全部保留 `ubuntu-latest`。
 
 ## 2026-10-20 16:44 CST - 统一调整三台 colima VM 的内存上限
 
