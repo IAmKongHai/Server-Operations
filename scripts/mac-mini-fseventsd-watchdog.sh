@@ -1,12 +1,12 @@
 #!/bin/bash
-# mac-mini fseventsd 看门狗：由 LaunchDaemon 每 5 分钟以 root 跑一次。
+# fseventsd 看门狗（mac-mini、lemon-imac 共用）：由 LaunchDaemon 每 5 分钟以 root 跑一次。
 # 1. 每次记一行 fseventsd 的内存占用（footprint）、RSS、CPU、swap、load
 # 2. 占用超过 CAPTURE_MB：抓现场（进程快照、lsof、sample、15 秒 fs_usage），每小时最多一次
 # 3. 占用超过 KILL_MB：先抓现场，再 killall fseventsd，由 launchd 自动拉起
 #
 # 日志：/var/log/fseventsd-watchdog/watchdog.log
 # 现场：/var/log/fseventsd-watchdog/captures/<时间>/，保留 30 天
-# 安装：sudo scripts/install-mac-mini-fseventsd-watchdog.sh
+# 安装：sudo scripts/install-mac-mini-fseventsd-watchdog.sh 或 install-lemon-imac-fseventsd-watchdog.sh
 set -uo pipefail
 
 CAPTURE_MB=${CAPTURE_MB:-1024}

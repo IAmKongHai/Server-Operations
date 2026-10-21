@@ -109,7 +109,7 @@ write_runner_plist() {
     <key>LC_ALL</key>
     <string>en_US.UTF-8</string>
     <key>GOCACHE</key>
-    <string>${root}/cache/go-build</string>
+    <string>${USER_HOME}/gha/cache/go-build-li${slot}</string>
     <key>GOMODCACHE</key>
     <string>${USER_HOME}/go/pkg/mod</string>
     <key>PNPM_STORE_PATH</key>
@@ -159,7 +159,7 @@ write_maintenance_plist() {
     <key>WORK_DIRS</key>
     <string>${USER_HOME}/gha/li1 ${USER_HOME}/gha/li2</string>
     <key>GOCACHE_DIRS</key>
-    <string>${USER_HOME}/actions-runner/lemon-imac-1/cache/go-build ${USER_HOME}/actions-runner/lemon-imac-2/cache/go-build</string>
+    <string>${USER_HOME}/gha/cache/go-build-li1 ${USER_HOME}/gha/cache/go-build-li2</string>
     <key>PNPM_STORE</key>
     <string>${USER_HOME}/gha/cache/pnpm-store</string>
     <key>GOMODCACHE_DIR</key>

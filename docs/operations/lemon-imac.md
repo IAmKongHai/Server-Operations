@@ -1,5 +1,21 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-21 11:45 CST - 准备 fseventsd 看门狗与 CIWork 独立卷迁移脚本（尚未执行 sudo 步骤）
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`。用户要求参照 mac-mini 给这台机器加 fseventsd 看门狗，并建 runner 专用的独立卷（`no_log`）。
+- 影响：只把脚本同步到 `~/gha/scripts/`，没有改 LaunchDaemon、没有建卷、没有停 runner。
+  - 新增 `install-lemon-imac-fseventsd-watchdog.sh`：安装 `system/com.konghai.fseventsd-watchdog`，复用 `mac-mini-fseventsd-watchdog.sh`。8GB 机器阈值调低为 footprint ≥ 512MB 抓现场、≥ 2048MB 自动 `killall fseventsd`。
+  - 新增 `migrate-lemon-imac-ci-to-nofsevents-volume.sh`：按 mac-mini 流程建 `CIWork` 卷（`disk3`，quota 100G，`no_log`，关 Spotlight），等 3 个 runner 空闲后停掉，把 `~/gha`（约 9G）和两份 GOCACHE（约 10.5G）复制进卷，卷直接挂到 `/Users/for-konghai/gha` 并写 `/etc/fstab`。
+  - `install-lemon-imac-runner-daemons.sh` 的 GOCACHE 改为 `~/gha/cache/go-build-li{1,2}`（runner plist 与维护 plist 的 `GOCACHE_DIRS` 同步）。迁移脚本在挂载后重跑它重写 plist，`.env` 用 sed 改。没用符号链接：维护脚本的 `find` / `du` 不跟进符号链接，GOCACHE 清理会静默失效。
+- 备份：迁移脚本会保留 `~/gha.pre-ciwork-<日期>`、旧 `cache/go-build`、`.env.bak-ciwork-<日期>`、`/Library/LaunchDaemons/*.plist.bak-ciwork-<日期>`。
+- 回滚方式：本次只同步了脚本，旧版安装器可从 git 历史取回；目前不需要回滚。
+- 验证：三个脚本 `bash -n` 通过，`shellcheck -S warning` 无告警；看门狗脚本以普通用户、临时日志目录空跑一次，输出 `pid=565 etime=12-11:19:33 mem_mb=8 rss_mb=6`。
+- 待办（需用户 sudo）：
+  1. `sudo ~/gha/scripts/install-lemon-imac-fseventsd-watchdog.sh`
+  2. `sudo ~/gha/scripts/migrate-lemon-imac-ci-to-nofsevents-volume.sh --prepare`
+  3. 选 CI 空闲时段：`sudo ~/gha/scripts/migrate-lemon-imac-ci-to-nofsevents-volume.sh --migrate`
+
 ## 2026-10-21 11:35 CST - 只读排查 fseventsd 是否像 mac-mini 一样内存泄漏（结论：没有）
 
 - 服务器：`lemon-imac`
