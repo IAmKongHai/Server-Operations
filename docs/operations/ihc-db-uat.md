@@ -1,5 +1,16 @@
 # ihc-db-uat 运维时间线
 
+## 2026-09-22 16:17 CST — CYP-2600 补两项 Encrypt VIEW DEFINITION 并重测七行
+
+- **操作人：** Grok。用户批准 K1/K2 整包：两项对象级 `VIEW DEFINITION`、真实受限 login 的无业务数据重测、失败则撤销本轮新增授权。
+- **身份与路径：** TCP `10.100.0.4:1433`，实例 `ihc-db-uat`，版本 `14.0.3550.4`，客户端 `10.61.0.14`。授权用 `cyp2600_admin`。重测分别用 `sup_runtime_prod` 和 `public_hr_runtime_prod` 的新连接。
+- **前检：** PASS。两项显式授权原来不存在，SID 匹配，模块 hash 未变，没有 `DENY VIEW DEFINITION`。
+- **授权：** K1 主库 `sup_runtime_prod`，K2 WebKit `public_hr_runtime_prod`，对象都是对称密钥 `Encrypt`，只有 `VIEW DEFINITION`。没有 `CONTROL`，没有 `WITH GRANT OPTION`，没有动 `EncryptCompany`。
+- **中断：** 约 16:15 第一次写入 K1 后，探针使用了错误的 `sys.openkeys` 列名，重测未开始。该行已 `REVOKE`，并与前检快照一致。16:16–16:17 的完整运行通过，K1 和 K2 保留。
+- **重测：** R060–R063、R094–R096 合成通过。打开后会话里只有 `Encrypt`，关闭后为空。`CONTROL` 仍为 0。diagram、整表 `SELECT TOP (0) *`、跨库语句仍被拒绝，错误号 229、230、916。没有业务行写入。
+- **未做：** 未改矩阵，未签收版本。HR 连接池复用未测。未注册、删号、补偿、轮换，未改 Key Vault 或 Azure。
+- **证据：** iCare `docs/deployment/cyp-2600-key-permission-result-2026-09-22.md`。原始 JSON 在 `_backups/cyp2600-inventory/20260922T081726Z/`。
+
 ## 2026-09-22 15:15 CST — CYP-2600 五份备份 VERIFYONLY 和十行模块实测
 
 - **操作人：** Grok。用户确认接续两项一起做：校验已有五份备份，并用受限 login 测十行模块；业务注册、删号、补偿和轮换只准备审批清单，不执行。
