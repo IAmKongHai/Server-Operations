@@ -20,6 +20,15 @@
 - 每次执行任务后，如果工作区有变更，必须用中文写清楚变更目的并提交 `git commit`，提交完成才算任务完成
 - 提交信息应保持规范：优先沿用仓库已有风格；没有明确风格时使用 Conventional Commits，例如 `docs: 记录 dev-cypresso 容器停用时间线`
 
+## 本机工具
+- **Moo Ticket：** 凡提到 `https://t.moospark.com/` 的链接（如 `https://t.moospark.com/tickets/ICARE-15`），一律用 `moo-ticket-cli` skill（`moo` 命令）查询/评论/流转该工单，不要用 WebFetch 或浏览器抓页面。
+- **SonarQube：** 服务器地址是 `http://mac-mini:9000`，API token 已注入环境变量 `SONAR_TOKEN`，可直接查询：
+
+  ```bash
+  curl -s -u "$SONAR_TOKEN:" "http://mac-mini:9000/api/issues/search?componentKeys=<projectKey>&pullRequest=<PR号>&resolved=false"
+  curl -s -u "$SONAR_TOKEN:" "http://mac-mini:9000/api/qualitygates/project_status?projectKey=<projectKey>&pullRequest=<PR号>"
+  ```
+
 ## 生产服务器操作守则
 
 **`nyh-prod` 是生产服务器**。其它任何被纳入本仓库的服务器，默认都按生产对待，除非 README 明确标注是测试环境。
