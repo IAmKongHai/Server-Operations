@@ -1,5 +1,25 @@
 # mac-mini 运维时间线
 
+## 2026-10-21 14:22 CST - 为 org caimiamiao 注册 runner caimiamiao-1
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户选定"在 mac-mini 上给 caimiamiao 注册新的 org runner"。
+- 原因：菜喵喵 4 个仓库在 GitHub org `caimiamiao`，现有 runner 都在 `cypressoai` / `konghai-friends-lab`，不能跨 org 接 job；仓库 workflow 目前全是 `ubuntu-latest`。
+- 前置：用户用 `BigStone558`（原唯一 admin）把 `IAmKongHai` 设为 org Owner，`gh api user/memberships/orgs/caimiamiao` 返回 `admin`。
+- 选型：
+  - runner `caimiamiao-1`，label `caimiaomiao-ci`（专用，不与 iCare / AcquiLang 池抢活），Default group（`visibility=all`），先 1 个 slot。
+  - 目录 `~/actions-runner/caimiamiao-1`，workFolder `~/gha/cmm1`（CIWork 卷，剩余 221G），版本 2.337.0（复用 `~/actions-runner/actions-runner-osx-arm64-2.337.0.tar.gz`）。
+  - `.env`：`GOCACHE=/Users/konghai/gha/cache/go-build-cmm1`，`GOMODCACHE` / `PNPM_STORE_PATH` 与 sonar 槽共享；`.path` 复制自 `konghai-friends-lab-1`。
+  - plist 由 `konghai-friends-lab-1` 的 plist 替换名称生成；安装脚本 `scripts/install-caimiamiao-runner-daemon.sh`（同步到 `~/gha/scripts/`）。
+- 备份：新增，无既有文件被改。
+- 回滚方式：`sudo launchctl bootout system/actions.runner.caimiamiao.caimiamiao-1 && sudo rm /Library/LaunchDaemons/actions.runner.caimiamiao.caimiamiao-1.plist`；`cd ~/actions-runner/caimiamiao-1 && ./config.sh remove --token <org remove token>`；删除 `~/actions-runner/caimiamiao-1`、`~/gha/cmm1`、`~/gha/cache/go-build-cmm1`。
+- 变更时序：
+  - 14:20 `gh api -X POST orgs/caimiamiao/actions/runners/registration-token` 取 token，`config.sh --unattended` 注册成功。
+  - 复制 `bin/runsvc.sh` 到 runner 根目录，生成 plist（`plutil -lint` OK）。
+  - 14:22 用户执行 `sudo /Users/konghai/gha/scripts/install-caimiamiao-runner-daemon.sh`（需 sudo 密码）：launchd `state = running`，`Runner.Listener run --startuptype service` 在跑。
+- 验证：`gh api orgs/caimiamiao/actions/runners` → `caimiamiao-1` `online`、`busy=false`，labels `self-hosted, macOS, ARM64, caimiaomiao-ci`。
+- 待办：`cmm-api` 的 `verify` job 用了 `services:`（Postgres 18 / Redis 7），macOS runner 不支持，迁移时要改成 step 里 `docker run`；本机 colima 里已有 `cmm-postgres` 容器（Exited），注意端口别撞。
+
 ## 2026-10-20 16:44 CST - 统一调整三台 colima VM 的内存上限
 
 - 服务器：`mac-mini`

@@ -1,11 +1,12 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-10-20
+> 最后更新：2026-10-21
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
+> org runner（caimiamiao）：`caimiamiao-1`（label `caimiaomiao-ci`，workFolder `~/gha/cmm1`）  
 > 仓库级 runner（`IAmKongHai/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）
 > 日常 CI 仓库级 runner：`mac-mini-acquilang-ci-1` … `5`（label `acquilang-ci`，workFolder `~/gha/alc1` … `alc5`）
-> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/mac-mini-acquilang-native-1`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`  
+> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-acquilang-native-1`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
 > 旧 LaunchAgent plist 停在 `~/Library/LaunchAgents.disabled-20260815/`。  
@@ -110,6 +111,28 @@ sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab.kongh
 
 ```bash
 gh api orgs/konghai-friends-lab/actions/runners \
+  --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
+```
+
+## caimiamiao `caimiamiao-1`
+
+组织级 runner，org `caimiamiao`（菜喵喵）Default group `visibility=all`，org 内仓库（`cmm-api`、`cmm-admin`、`cmm-xcx`、`cmm-xcx-ui-demo`）都能用。**不是** `cypressoai` / `konghai-friends-lab` 池成员。2026-10-21 注册，`IAmKongHai` 已是该 org Owner。workflow 写：
+
+```yaml
+runs-on: [self-hosted, caimiaomiao-ci]
+```
+
+macOS runner **不支持** job 级 `services:` 容器；需要 Postgres / Redis 的 job 要在 step 里自己 `docker run`（随机端口映射，不要占宿主 5432 / 6379）。`.env` 里 `GOCACHE=~/gha/cache/go-build-cmm1`，`GOMODCACHE`、`PNPM_STORE_PATH` 与 sonar 槽共享。
+
+LaunchDaemon：`system/actions.runner.caimiamiao.caimiamiao-1`。不要 `./svc.sh install`。重装 Daemon（仓库副本 `scripts/install-caimiamiao-runner-daemon.sh`）：
+
+```bash
+sudo /Users/konghai/gha/scripts/install-caimiamiao-runner-daemon.sh
+```
+
+```bash
+sudo /bin/launchctl kickstart -k system/actions.runner.caimiamiao.caimiamiao-1
+gh api orgs/caimiamiao/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
