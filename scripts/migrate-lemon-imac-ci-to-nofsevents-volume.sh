@@ -176,6 +176,10 @@ finish() {
     local plist=/Library/LaunchDaemons/$label.plist
     [[ -f $plist.bak-ciwork-$STAMP ]] || cp -p "$plist" "$plist.bak-ciwork-$STAMP"
   done
+  # 重启验证前 runner 被 launchctl disable 过；disabled 的服务 bootstrap 会报 5: Input/output error
+  for label in "${DAEMON_LABELS[@]}"; do
+    launchctl enable "system/$label"
+  done
   bash "$TARGET_DIR/scripts/install-lemon-imac-runner-daemons.sh" 2>&1 | tee -a "$LOG"
 
   [[ -f $TARGET_DIR/.ciwork-mounted ]] || log "WARNING: 缺少 $TARGET_DIR/.ciwork-mounted，runner 的 PathState 条件不满足，不会启动（先跑 install-lemon-imac-ciwork-automount.sh）"

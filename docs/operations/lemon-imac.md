@@ -1,5 +1,25 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-21 22:15 CST - --finish 拉起 runner（CIWork 迁移完成），退出 for-konghai 图形会话
+
+- 服务器：`lemon-imac`
+- 操作人：用户执行 `--finish`（两次）；`Claude` 修脚本、验证，并经用户要求通过 SSH 退出 for-konghai 图形会话。
+- 原因：重启验证通过后恢复 CI；for-konghai 的图形会话是开机解锁后登录的，runner 不依赖它，占内存。
+- 影响：CI 从 11:45:44 停到 22:12:17，约 10.5 小时（含用户要求的等待和 8 小时 FileVault 待解锁）。
+- 变更时序：
+  - 22:08 第一次 `--finish`：`.env` 的 GOCACHE 已改，安装器在 `lemon-imac-1` 上报 `Bootstrap failed: 5: Input/output error` 后退出。原因：重启前 runner 被 `launchctl disable`，而安装器是先 `bootstrap` 后 `enable`，disabled 的服务 bootstrap 会报 5。修复：安装器的 `install_daemon` 改为先 `enable`；`finish` 在调用安装器前先 enable 3 个 runner。plist 备份 `*.bak-ciwork-20261021` 是改前原版，重跑不会覆盖。
+  - 22:12 第二次 `--finish`：4 个 plist 重写并加载，`Runner.Listener 数量：3（期望 3）`。末尾 `start_runners` 对已加载的 lemon-imac-1/2 再 bootstrap 报了两次 `5`，属预期（已加载）。
+  - 22:14 `osascript -e 'tell application "loginwindow" to «event aevtrlgo»'` 退出 for-konghai 图形会话（只开着终端和 Siri AI），不弹确认框，返回 0。
+- 验证：
+  - 3 个 runner `state = running`、enabled，`KeepAlive.PathState` 为 `~/gha/.ciwork-mounted`。lemon-imac-1/2 的 GOCACHE 为 `~/gha/cache/go-build-li{1,2}`，维护任务 `GOCACHE_DIRS` 同步更新。
+  - 日志 14:12:17Z / 14:12:18Z / 14:12:23Z 均为 `Listening for Jobs`。GitHub API：`lemon-imac-acquilang-ci-1` online。cypressoai org 的 runner 列表本机 token 无权限查询（403）。
+  - 退出登录后 `who` 只剩 `zhangli console`，`/dev/console` 属主为 root（登录窗口）。3 个 `Runner.Listener` PID 不变（3439 / 3444 / 3464），CIWork 仍挂在 `~/gha`。
+- 回滚方式：见本日 12:55 条目。
+- 待办：
+  1. 观察迁移后第一个 job 结果。
+  2. CI 正常几天后删除备份：`~/gha.pre-ciwork-20261021`（约 9G）、`~/actions-runner/lemon-imac-{1,2}/cache/go-build`（约 10.5G）、`/Library/LaunchDaemons/*.bak-ciwork-20261021`、`*.bak-automount-20261021`。
+  3. 由用户决定是否关闭 FileVault；计划内重启改用 `sudo fdesetup authrestart`。
+
 ## 2026-10-21 22:06 CST - 重启验证 CIWork 开机自动挂载（通过）；发现 FileVault 让重启后卡在解锁界面 8 小时
 
 - 服务器：`lemon-imac`

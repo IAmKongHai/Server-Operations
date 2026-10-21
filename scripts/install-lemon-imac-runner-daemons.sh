@@ -35,8 +35,9 @@ install_daemon() {
   if launchctl print "system/${label}" >/dev/null 2>&1; then
     launchctl bootout "system/${label}" || true
   fi
-  launchctl bootstrap system "$plist"
+  # 先 enable：disabled 的服务 bootstrap 会报 5: Input/output error
   launchctl enable "system/${label}"
+  launchctl bootstrap system "$plist"
   echo "installed system/${label}"
 }
 
