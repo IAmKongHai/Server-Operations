@@ -1,5 +1,19 @@
 # mac-mini 运维时间线
 
+## 2026-10-21 15:10 CST - SonarQube 新建菜喵喵三个项目并接入 CI
+
+- 服务器：`mac-mini`（SonarQube `http://mac-mini:9000`，26.5 + community branch plugin）
+- 操作人：`Claude`，用户要求给 cmm-api / cmm-admin / cmm-xcx 接入 SonarQube 并导入覆盖率，cmm-api 并进 `verify`。
+- 变更：
+  - 新建项目 `caimiamiao_cmm-api`、`caimiamiao_cmm-admin`、`caimiamiao_cmm-xcx`（主分支 `main`，默认 gate「Cypresso Way 50%」）。
+  - 每个项目生成 `PROJECT_ANALYSIS_TOKEN`（名 `gha-caimiamiao-<repo>`，属 `admin` 用户），直接写入对应仓库 Actions secret `SONAR_TOKEN`；另设 `SONAR_HOST_URL=http://mac-mini:9000`。org `caimiamiao` 是 GitHub Free，用仓库级 secret。
+  - 仓库侧：`cmm-api#10`（runner 迁移 + `verify` 内 `go test -coverprofile` + 扫描，gate 红挡部署；取代已关闭的 `#9`）；`cmm-admin#9`、`cmm-xcx#12`（独立 `sonar.yml`，先跑 vitest 覆盖率，gate 红不挡部署；新增 `@vitest/coverage-v8` 与 vitest 同版本）。
+- 回滚方式：`api/projects/delete?project=<key>`；`api/user_tokens/revoke?name=gha-caimiamiao-<repo>`；`gh secret delete SONAR_TOKEN|SONAR_HOST_URL -R caimiamiao/<repo>`。
+- 验证：三个 PR 检查全部通过，均在 `caimiamiao-1` 上运行。PR 分析 gate 全 OK；整体覆盖率 cmm-api 26.0%、cmm-admin 74.9%、cmm-xcx 58.8%。
+- 注意：
+  - cmm-api 按包统计覆盖率，`internal/httpserver` 集成测试覆盖到的其它包不计入，所以偏低；需要时可加 `-coverpkg=./...`。
+  - vitest 0.34（cmm-xcx）只认 `--coverage.enabled`，`--coverage` 会报错；未被测试加载的文件不在 lcov 里，Sonar 按未覆盖算，所以比 vitest 自报的低。
+
 ## 2026-10-21 14:22 CST - 为 org caimiamiao 注册 runner caimiamiao-1
 
 - 服务器：`mac-mini`
