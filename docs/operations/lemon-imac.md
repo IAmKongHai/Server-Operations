@@ -13,7 +13,8 @@
 - 验证：
   - 3 个 runner `state = running`、enabled，`KeepAlive.PathState` 为 `~/gha/.ciwork-mounted`。lemon-imac-1/2 的 GOCACHE 为 `~/gha/cache/go-build-li{1,2}`，维护任务 `GOCACHE_DIRS` 同步更新。
   - 日志 14:12:17Z / 14:12:18Z / 14:12:23Z 均为 `Listening for Jobs`。GitHub API：`lemon-imac-acquilang-ci-1` online。cypressoai org 的 runner 列表本机 token 无权限查询（403）。
-  - 退出登录后 `who` 只剩 `zhangli console`，`/dev/console` 属主为 root（登录窗口）。3 个 `Runner.Listener` PID 不变（3439 / 3444 / 3464），CIWork 仍挂在 `~/gha`。
+  - 退出登录后 `who` 只剩 `zhangli console`，`/dev/console` 属主为 root（登录窗口）。
+  - 22:17:00 zhangli 的图形会话也退出了（loginwindow PID 1256，`logout state: LogoutComplete`）。这一步不是 `Claude` 执行的：for-konghai 退出 15 秒后 zhangli 还在。22:18 起本机没有任何图形会话，只剩 SSH。3 个 `Runner.Listener` PID 不变（3439 / 3444 / 3464），CIWork 仍挂在 `~/gha`。
 - 回滚方式：见本日 12:55 条目。
 - 待办：
   1. 观察迁移后第一个 job 结果。
