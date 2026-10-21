@@ -1,5 +1,25 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-21 22:06 CST - 重启验证 CIWork 开机自动挂载（通过）；发现 FileVault 让重启后卡在解锁界面 8 小时
+
+- 服务器：`lemon-imac`
+- 操作人：用户执行 `install-lemon-imac-ciwork-automount.sh` 并 `sudo reboot`；`Claude` 只读验证。
+- 影响：只读。runner 仍按用户要求 disabled，CI 继续停机。
+- 备份：`install-lemon-imac-ciwork-automount.sh` 已生成 acquilang plist 备份 `*.bak-automount-20261021`。
+- 回滚方式：见本日 12:55 条目。
+- 验证：
+  - 13:43 安装（标记 `~/gha/.ciwork-mounted` 时间 13:43），随即重启；`kern.boottime` 为 13:43:30。
+  - `/var/log/ciwork-mount.log`：`21:59:42 CIWork 当前挂载点：/Volumes/CIWork，挂到 /Users/for-konghai/gha` → `21:59:52 已挂载；marker 存在`。开机后系统先自动挂到 `/Volumes/CIWork`，守护 10 秒内挪到目标位置。`com.konghai.ciwork-mount` `runs = 1`、`last exit code = 0`、`run interval = 300 seconds`，err 日志为空。
+  - `diskutil info CIWork` 的 Mount Point 为 `/Users/for-konghai/gha`，用量 21G，与迁移时一致。
+  - 3 个 runner 仍为 disabled，没有 `Runner.Listener`。acquilang plist 已是 `RunAtLoad false` + `KeepAlive.PathState`。
+  - fseventsd 看门狗随开机运行，新 fseventsd PID 1184，footprint 3–6M，swap 归零。
+  - `~/gha/scripts` 上的迁移脚本、两个安装器与仓库一致。
+- 发现：**FileVault 已开启**（`fdesetup status`）。13:43 重启后 Data 卷一直锁着，`/Library/LaunchDaemons` 里的服务（看门狗、挂载守护、runner）都起不来。看门狗日志在 13:40 到 21:59 之间是空的，直到 21:59 有人在本机控制台登录（`who`：`zhangli console 21:59`）才解锁。也就是说，这台机器只要重启或断电，CI 就会一直掉线，直到有人到场输密码。
+  - 计划内重启改用 `sudo fdesetup authrestart`：下次开机自动解锁一次，不用到场。
+  - 要扛住断电、自动更新这类意外重启，只能关 FileVault，由用户决定。
+- 现象：解锁登录后 load 冲到 108–163（iconservicesagent、Siri、BiomeAgent、mediaanalysisd 等登录后的初始化），两分钟后回落到 35，没有 swap。
+- 待办：用户执行 `--finish` 拉起 runner；决定 FileVault 怎么处理。
+
 ## 2026-10-21 12:55 CST - CIWork 迁移：fstab 被 TCC 拒绝，改用挂载守护 + runner PathState（进行中，CI 停机）
 
 - 服务器：`lemon-imac`
