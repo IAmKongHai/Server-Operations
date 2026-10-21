@@ -1,5 +1,22 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-21 11:35 CST - 只读排查 fseventsd 是否像 mac-mini 一样内存泄漏（结论：没有）
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`。mac-mini 前一天 fseventsd 泄漏到 32G（见 `docs/operations/mac-mini.md` 2026-10-20 11:35 条目），用户怀疑这台 macOS runner 机也有同样问题。
+- 影响：只读。没有杀进程、没有改配置。
+- 备份：无。
+- 回滚方式：无变更，无需回滚。
+- 现场（11:32）：
+  - macOS 27.0.1（26A434），uptime 12 天 11 小时，load `1.55 / 1.63 / 1.73`（8 核）。
+  - `fseventsd`（PID 565）随开机启动、从未重启，etime 12 天：`top` MEM（footprint，含压缩/换出）**8.3M**，RSS 6.6M，CPU 0%，累计 CPU 时间 111 分钟。
+  - 同期负载不低：`lemon-imac-1` / `lemon-imac-2` 近 12 天分别有 237 / 218 个 `Worker_*.log`（约 455 个 job），另有 `lemon-imac-acquilang-ci-1` 在跑。
+  - `mds_stores` 26M、`mds` 89M，正常。内存大头是 `zhangli` 图形会话里的 Finder（883M）、WindowServer、Office、微信。
+  - swap 已用 1.87G / 3G，`memory_pressure` 显示空闲 71%，没有被挤爆。
+  - Data 卷 145G / 228G（73%），可用 56G。
+- 判断：这台没有 fseventsd 泄漏迹象，暂不需要像 mac-mini 那样装看门狗。mac-mini 的泄漏更可能和它特有的负载有关（三台 colima VM 经 virtiofs 挂整个家目录、4 个 sonar slot 并发 Go 链接），不是 macOS runner 的通病。
+- 待办：之后做 runner 巡检时顺带看一眼 `top -l 1 -pid $(pgrep -x fseventsd) -stats mem`；超过 1G 再考虑把 mac-mini 的看门狗移植过来。
+
 ## 2026-10-10 11:37 CST - AcquiLang runner 改为 LaunchDaemon
 
 - 服务器：`lemon-imac`；runner `lemon-imac-acquilang-ci-1`（GitHub id `28`）。
