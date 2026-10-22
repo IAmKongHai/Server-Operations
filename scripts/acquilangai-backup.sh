@@ -5,19 +5,19 @@
 #
 # 设计要点：
 #   1. TimescaleDB 不能用普通 pg_dump 干净恢复（hypertable / chunk 元数据不会还原），
-#      所以本脚本采取"备份整个 docker volume"策略：tar 整个 /var/lib/postgresql/data
+#      所以本脚本采取"备份整个 docker volume"策略：tar 整个 PG18 数据卷（容器内挂在 /var/lib/postgresql）
 #   2. 容器在跑时先 docker stop 再 tar，保证快照一致；结束后 docker start
 #   3. Colima 只挂载 ~/stacks，不能把 ~/backups 直接 bind 进容器。
 #      tar 先写到 ~/stacks/acquilang-postgres/backup-stage，再 mv 到备份目录
 #   4. 滚动保留 7 份
 #
 # 恢复方式（volume tar 路径）：
-#   docker volume create acquilangai_postgres_data
+#   docker volume create acquilangai_postgres18_data
 #   # 把 tar 拷到 ~/stacks/acquilang-postgres/（Colima 可见）后解压进 volume
 #   docker run --rm \
-#     -v acquilangai_postgres_data:/dest \
+#     -v acquilangai_postgres18_data:/dest \
 #     -v "$HOME/stacks/acquilang-postgres:/src:ro" \
-#     alpine sh -c 'tar --numeric-owner -xzf /src/acquilangai-YYYYMMDD.tar.gz -C /dest && rm -f /dest/postmaster.pid'
+#     alpine sh -c 'tar --numeric-owner -xzf /src/acquilangai-YYYYMMDD.tar.gz -C /dest && rm -f /dest/18/docker/postmaster.pid'
 #   cd ~/stacks/acquilang-postgres && docker-compose up -d
 
 set -euo pipefail
@@ -29,7 +29,7 @@ STAGE_DIR="$HOME/stacks/acquilang-postgres/backup-stage"
 KEEP_COUNT=7
 TIMESTAMP="$(date +%Y%m%d)"
 TARGET="$BACKUP_DIR/acquilangai-$TIMESTAMP.tar.gz"
-VOLUME_NAME="acquilangai_postgres_data"
+VOLUME_NAME="acquilangai_postgres18_data"
 LOCK_DIR="/tmp/acquilangai-backup.lock"
 START_AFTER=""
 
