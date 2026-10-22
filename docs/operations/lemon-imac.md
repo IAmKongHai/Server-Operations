@@ -7,8 +7,8 @@
 - 原因：迁移后 6 个 job 全部成功（见 09:40 条目），GOCACHE 已确认写到卷上，旧路径没有新写入。
 - 影响：删除前逐项核对存在性、大小和属主（均为 `for-konghai`，没有其他用户的文件）。`~/gha/backups/acquilang-ci-20261010-1123` 在卷上也有一份，旧目录里那份可以删。
   - 已删：`~/gha.pre-ciwork-20261021`（8.8G）、`~/actions-runner/lemon-imac-{1,2}/cache`（只含 `go-build`，5.2G + 5.3G）、`~/actions-runner/lemon-imac-{1,2}/.env.bak-ciwork-20261021`、空目录 `~/Library/LaunchAgents.disabled-20261021`（10-21 重跑安装器时生成）。
-  - 未动：`~/Library/LaunchAgents.disabled-20260819`（8 月旧物，不属于本次迁移）。
-  - 待用户 sudo 删：`/Library/LaunchDaemons/*.plist.bak-ciwork-20261021`（4 个）和 `*.plist.bak-automount-20261021`（1 个）。
+  - 用户已 sudo 删除 `/Library/LaunchDaemons/*.plist.bak-ciwork-20261021`（4 个）和 `*.plist.bak-automount-20261021`（1 个），目录里已没有 `.bak` 文件。
+  - 用户要求一并清掉无用旧物：`~/Library/LaunchAgents.disabled-20260819`（16K，2026-08-19 改 LaunchDaemon 时挪出的 4 个旧 LaunchAgent plist）、`~/Library/LaunchAgents/com.cypressoai.gha-runner-maintenance{,-weekly}.plist.bak.20260808`（launchd 不加载 `.bak`）。删除后 `~/Library/LaunchAgents` 为空。
 - 回滚方式：不可回滚。删除后要回退迁移，只能从 CIWork 卷把数据复制回系统卷，并按仓库里的安装器旧版本（git 历史）重装 plist。
 - 验证：上述路径均已不存在；Data 卷可用空间从 40G 增到 58G；3 个 `Runner.Listener` 仍在。
 - 决定：**FileVault 不能关**。这是朋友自用的机器，意外关机后由她本人登录一次解锁，期间 CI 离线可以接受。计划内重启用 `sudo fdesetup authrestart`。
