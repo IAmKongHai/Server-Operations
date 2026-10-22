@@ -1,5 +1,29 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-22 09:40 CST - 只读：CIWork 迁移后 job 运行情况（6 个全部成功）
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`（只读）。
+- 影响：无变更。
+- 备份：无。
+- 回滚方式：无需。
+- 结果（2026-10-21 22:12 拉起 runner 以来，时间为 CST）：
+
+  | runner | job | 时间 | 结果 |
+  | --- | --- | --- | --- |
+  | `lemon-imac-2` | CI | 10-21 22:47 | Succeeded |
+  | `lemon-imac-1` | SonarQube Scan | 10-22 05:17–05:29 | Succeeded |
+  | `lemon-imac-2` | Frontend Tests 4/4 | 09:05–09:10 | Succeeded |
+  | `lemon-imac-2` | Lint | 09:12–09:16 | Succeeded |
+  | `lemon-imac-1` | SonarQube Scan | 09:12–09:23 | Succeeded |
+  | `lemon-imac-2` | Flag shared-code changes | 09:31–09:32 | Succeeded |
+
+  `lemon-imac-acquilang-ci-1` 期间没有接到 job。
+- GOCACHE 已在卷上生效：`~/gha/cache/go-build-li2` 从 5.3G 涨到 6.8G，两个新 GOCACHE 下有 20514 个文件比标记文件新（ditto 保留了原 mtime，所以这些都是迁移后新写的）。旧的 `~/actions-runner/lemon-imac-{1,2}/cache/go-build` 和 `~/gha.pre-ciwork-20261021` 在 22:12 之后没有新文件，说明没有东西还在往旧路径写。
+- CIWork 用量 22.0G，仍挂在 `~/gha`；挂载守护此后没有动作（卷一直在位）。
+- fseventsd（PID 1184，已运行 11.5 小时）footprint 5M，swap 0，load 约 1.6–2。
+- 坑：远端 shell 是 zsh，`f=$(find ...); cat $f` 不按空格拆分，多个文件会被当成一个路径。改用 `find -print0 | xargs -0`。
+
 ## 2026-10-21 22:15 CST - --finish 拉起 runner（CIWork 迁移完成），退出 for-konghai 图形会话
 
 - 服务器：`lemon-imac`
