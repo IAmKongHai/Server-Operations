@@ -99,7 +99,7 @@
 | `tizi-cyp`     | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                        | **是**（代理节点，按生产对待）    |
 | `tizi-ddy`     | 代理节点（`80.251.215.131`，Debian 13，3x-ui）                                         | **是**（代理节点，按生产对待）    |
 | `mac-mini`     | 家里的 Mac mini；`ssh mac-mini-hon` 以 `hon` 登录（`colima-moo` / `colima-multica` 属主）；`konghai` 免密 sudo（用户要求长期保留，供性能排查）：`/etc/sudoers.d/konghai-diag`（`fs_usage`/`lsof`/`log`/`killall fseventsd`）、`konghai-fsetest`（仅测试卷 `FSETest` 的建卷/挂载/删卷）、`konghai-ciwork`（仅 `/usr/local/sbin/ciwork-migrate.sh`，含 `--status`/`--start-runners`） | 否                                |
-| `lemon-imac`   | Tailscale 网内 iMac（8 核 / 8GB），跑 org `cypressoai` self-hosted runner `lemon-imac-1/2`；`ssh lemon-imac` 以 `for-konghai` 登录 | 否（CI runner 机，改 runner / LaunchAgent 前仍需确认） |
+| `lemon-imac`   | Tailscale 网内 iMac（8 核 / 8GB），朋友自用机（控制台账户 `zhangli`，FileVault 开启且不能关）；跑 org `cypressoai` self-hosted runner `lemon-imac-1/2` 和仓库 `IAmKongHai/AcquiLangAI` 级 runner `lemon-imac-acquilang-ci-1`；`ssh lemon-imac` 以 `for-konghai` 登录 | 否（CI runner 机，改 runner / LaunchAgent 前仍需确认） |
 | `umacbook-pro` | Tailscale 网内 MacBook Pro（`100.113.23.49`，主机名 `UdeMacBook-Pro.local`，M1 / 8GB），跑 org `cypressoai` self-hosted runner `umacbook-pro-1/2`；`ssh umacbook-pro` 以 `for-konghai` 登录 | 否（CI runner 机，改 runner / LaunchAgent 前仍需确认） |
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
 | `pve`          | Proxmox VE 虚拟化宿主，计划承载开发测试 VM；当前可通过 `ssh pve` 以 root 密钥登录    | 否（测试环境，但仍需备份后再改）  |
@@ -133,13 +133,17 @@
   - fseventsd 看门狗：LaunchDaemon `system/com.konghai.fseventsd-watchdog`，每 5 分钟跑 `/usr/local/sbin/fseventsd-watchdog.sh`（源码 `scripts/mac-mini-fseventsd-watchdog.sh`）。内存 ≥1G 抓现场、≥4G 自动 `killall fseventsd`；日志和现场在 `/var/log/fseventsd-watchdog/`，`konghai` 可直接读
 - `lemon-imac` 目录约定：
   - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/` — GitHub Actions runner 程序与配置，`.env` 内含 per-slot `GOCACHE`
-  - `/Users/for-konghai/gha/li{1,2}` — 对应 slot 的短路径 workFolder（2026-08-08 由不对称的 `li`/`li2` 统一而来）
+  - `/Users/for-konghai/gha/li{1,2}` — 对应 slot 的短路径 workFolder（2026-08-08 由不对称的 `li`/`li2` 统一而来）；`lemon-imac-acquilang-ci-1` 的 workFolder 是 `/Users/for-konghai/gha/alci1`
   - 改 workFolder 时必须同步改两个维护 LaunchDaemon plist 里硬编码的 `WORK_DIRS`，否则每日/每周清理会静默失效、磁盘涨回去
-  - `/Users/for-konghai/actions-runner/lemon-imac-{1,2}/cache/go-build` — per-slot Go 编译缓存（共享 `GOMODCACHE=~/go/pkg/mod`）
-  - `/Users/for-konghai/gha/cache/pnpm-store` — 本机 pnpm store（两 slot 共享）
-  - `/Users/for-konghai/gha/scripts/` — 维护与启停脚本（`gha-runner-maintenance.sh`、`prune-gocache.sh`、`install-lemon-imac-runner-daemons.sh`、`lemon-imac-runner-resume.sh`）
-  - LaunchDaemon（2026-08-19 起，注销图形用户后仍在线）：runner 为 `system/actions.runner.cypressoai.lemon-imac-{1,2}`；维护任务为 `system/com.cypressoai.gha-runner-maintenance{,-weekly}`（crontab 被 TCC 拒绝，不能再改回 LaunchAgent）。**不要** `./svc.sh install` / `start`，那会把 LaunchAgent 装回 `~/Library/LaunchAgents` 并和 Daemon 双开。启停见 `docs/runbooks/lemon-imac-runner-start-stop.md`
-  - fseventsd 看门狗：LaunchDaemon `system/com.konghai.fseventsd-watchdog`，每 5 分钟跑 `/usr/local/sbin/fseventsd-watchdog.sh`（与 mac-mini 共用源码 `scripts/mac-mini-fseventsd-watchdog.sh`，安装用 `scripts/install-lemon-imac-fseventsd-watchdog.sh`）。8GB 机器阈值调低：内存 ≥512M 抓现场、≥2G 自动 `killall fseventsd`（plist 里的 `CAPTURE_MB` / `KILL_MB`）；日志和现场在 `/var/log/fseventsd-watchdog/`，`for-konghai` 可直接读。FileVault 开着，重启后要等朋友登录解锁才会跑
+  - `/Users/for-konghai/gha` 是独立 APFS 卷 `CIWork` 的挂载点（2026-10-21 迁入；`disk3s7`，UUID `C5079133-03F5-4185-8107-E7514202F50E`，`.fseventsd/no_log`，Spotlight 关闭，quota 100G），不是普通目录。卷没挂上时挂载点是 root 所有的空目录
+  - CIWork **不走 `/etc/fstab`**：写 fstab 需要 TCC 的 `SystemPolicySysAdminFiles`，SSH（`sshd-keygen-wrapper`）和 launchd 拉起的 bash 都被拒，root 也不行。改由 LaunchDaemon `system/com.konghai.ciwork-mount`（`RunAtLoad` + 每 5 分钟）跑 `/usr/local/sbin/ciwork-mount.sh`，卷不在 `~/gha` 就挪过去；日志 `/var/log/ciwork-mount.log`。源码 `scripts/install-lemon-imac-ciwork-automount.sh`
+  - 3 个 runner plist 是 `RunAtLoad false` + `KeepAlive.PathState` 盯 `~/gha/.ciwork-mounted`（卷根目录的标记文件）：卷没挂好 runner 就不启动，GitHub 上显示 offline。runner 全部 offline 时先看卷挂没挂、`ciwork-mount.log`，再看是不是 FileVault 还没解锁
+  - `/Users/for-konghai/gha/cache/go-build-li{1,2}` — per-slot Go 编译缓存（共享 `GOMODCACHE=~/go/pkg/mod`）。路径同时写在 `.env`、runner plist 的 `GOCACHE` 和维护 plist 的 `GOCACHE_DIRS` 里，改路径要改 `scripts/install-lemon-imac-runner-daemons.sh` 后重跑，`.env` 另改。**不要**用符号链接代替：维护脚本的 `find` / `du` 不跟进符号链接，清理会静默失效
+  - `/Users/for-konghai/gha/cache/pnpm-store` — 本机 pnpm store（两 slot 共享）；acquilang 用 `gha/cache/acquilang-pnpm-store` 和 `gha/cache/acquilang-npm`
+  - `/Users/for-konghai/gha/scripts/` — 维护与启停脚本（`gha-runner-maintenance.sh`、`prune-gocache.sh`、`install-lemon-imac-runner-daemons.sh`、`install-lemon-imac-acquilang-ci-runner-daemon.sh`、`install-lemon-imac-ciwork-automount.sh`、`install-lemon-imac-fseventsd-watchdog.sh`、`lemon-imac-runner-resume.sh`）
+  - LaunchDaemon（2026-08-19 起，注销图形用户后仍在线）：runner 为 `system/actions.runner.cypressoai.lemon-imac-{1,2}` 和 `system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`；维护任务为 `system/com.cypressoai.gha-runner-maintenance{,-weekly}`（crontab 被 TCC 拒绝，不能再改回 LaunchAgent）。**不要** `./svc.sh install` / `start`，那会把 LaunchAgent 装回 `~/Library/LaunchAgents` 并和 Daemon 双开。启停见 `docs/runbooks/lemon-imac-runner-start-stop.md`。被 `launchctl disable` 过的 runner 要先 `enable` 再 `bootstrap`，否则报 `Bootstrap failed: 5: Input/output error`
+  - 计划内重启用 `sudo fdesetup authrestart`（下次开机自动解锁一次）。意外关机后 Data 卷锁着，所有 LaunchDaemon（runner、挂载、看门狗）都要等朋友本人登录解锁才会起来，属正常
+  - fseventsd 看门狗：LaunchDaemon `system/com.konghai.fseventsd-watchdog`，每 5 分钟跑 `/usr/local/sbin/fseventsd-watchdog.sh`（与 mac-mini 共用源码 `scripts/mac-mini-fseventsd-watchdog.sh`，安装用 `scripts/install-lemon-imac-fseventsd-watchdog.sh`）。8GB 机器阈值调低：内存 ≥512M 抓现场、≥2G 自动 `killall fseventsd`（plist 里的 `CAPTURE_MB` / `KILL_MB`）；日志和现场在 `/var/log/fseventsd-watchdog/`，`for-konghai` 可直接读
   - Tailscale：Homebrew `tailscaled` 1.102.2，LaunchDaemon `system/homebrew.mxcl.tailscale`，节点 `100.81.246.93` / MagicDNS `lemon-imac`。**不要**再装 GUI Standalone（会和 daemon 抢隧道）。CLI：`/opt/homebrew/bin/tailscale`
   - 当前 labels 同 `umacbook-pro`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
   - 8GB 内存 + 双 slot 并发容易顶满内存/磁盘，重活优先派给 `mac-mini`
