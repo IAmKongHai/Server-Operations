@@ -313,11 +313,14 @@ move_khmini() {
 
 remount_ciwork() {
   [[ $(diskutil info CIWork | awk -F': *' '/Mount Point/{print $2}') == "$H_HOME/gha" ]] && { log "CIWork 已挂在 $H_HOME/gha"; return; }
-  diskutil unmount "$K_HOME/gha" | tee -a "$LOG"
+  # 常驻的 spindump / mds 会只读占着卷上的文件，普通 unmount 失败；runner 已全停，强制卸载不丢数据
+  if [[ $(diskutil info CIWork | awk -F': *' '/Mount Point/{print $2}') == "$K_HOME/gha" ]]; then
+    diskutil unmount force "$K_HOME/gha" | tee -a "$LOG"
+  fi
   cp -p /etc/fstab "/etc/fstab.bak-hon-$STAMP"
   sed -i '' "s|^UUID=$CIWORK_UUID $K_HOME/gha |UUID=$CIWORK_UUID $H_HOME/gha |" /etc/fstab
   grep -q "$H_HOME/gha" /etc/fstab || die "fstab 未改成 $H_HOME/gha"
-  rmdir "$K_HOME/gha"
+  if [[ -d $K_HOME/gha ]]; then rmdir "$K_HOME/gha"; fi
   # 挂载点下方的目录 root 所有：卷没挂上时写入直接失败，不会悄悄写回系统数据卷
   mkdir -p "$H_HOME/gha"
   chown root:wheel "$H_HOME/gha"
