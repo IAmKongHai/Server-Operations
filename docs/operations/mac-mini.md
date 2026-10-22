@@ -1,5 +1,52 @@
 # mac-mini 运维时间线
 
+## 2026-10-22 19:14 CST - 团队资产迁到 hon：服务窗口（U2）与 runner 窗口（U3）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户确认下班后立即停机；需要 root 的步骤走 `/usr/local/sbin/hon-migrate.sh` / `hon-team-services.sh`（源码 `scripts/migrate-mac-mini-team-to-hon.sh`、`scripts/install-mac-mini-team-services-daemons.sh`，由 `scripts/install-hon-migrate.sh` 安装，临时 sudoers `/etc/sudoers.d/konghai-hon-migrate`）。计划：`docs/plans/2026-10-22-1645-ops-mac-mini-team-assets-to-hon-plan.md`。
+- 原因：konghai 回归私人账户，团队 runner / 容器 / 定时任务改由 hon 承载。
+- 影响：19:14–20:09 mac-mini 上全部 runner 停止接 job；19:16–19:22 SonarQube、共享开发库（5434 / 6379 / 3900）、acquilang / nyh / richer / sub2api 停机约 6 分钟。
+- 备份：
+  - 快照 `/var/backups/hon-migration-20261022/`（root 700）：runner plist、`com.konghai.*` plist、fstab、sudoers.d、两个账户的 crontab、各 runner `.runner` / `.env` / `.path`、各 stack 配置、konghai `colima.yaml`、`acquilangai-backup.sh`。
+  - 导出 `/Users/hon/migration/`（17G）：每个 postgres 的 `pg_dumpall`、13 个命名卷的原始 tar、`images.tar`、`baseline-{before,after}.txt`、`crontab.konghai.before-export`。
+  - konghai 的 colima `default` VM 磁盘保留（计划 7 天后删除）；`/etc/fstab.bak-hon-20261022`。
+- 回滚方式：
+  - 服务：hon 侧 `docker-compose stop` 各 stack，`sudo launchctl bootout system/com.cypressoai.colima-team`；`sudo launchctl enable system/com.konghai.colima && sudo launchctl bootstrap system /Library/LaunchDaemons/com.konghai.colima.plist`（konghai 的容器 restart=always 会随 VM 起来）；`crontab -u konghai` 恢复 `/Users/hon/migration/crontab.konghai.before-export`。
+  - runner：停 runner；`mv /Users/hon/actions-runner/<name> /Users/konghai/actions-runner/`；用快照覆盖 plist、`.runner` / `.env` / `.path`；fstab 改回 `/Users/konghai/gha`，卸载 CIWork 后 `mkdir /Users/konghai/gha`（root:wheel 755）再挂载，卷内 `chown -R konghai:staff`；拉起 runner。
+- 变更时序：
+  - 17:50 U1：盘点、写脚本，hon 下放 `~/.colima/team/colima.yaml`（照搬 konghai 的，只把 mounts 改成 `/Users/hon/stacks`）。19:13 快照，`--baseline before` 记录 5 个 postgres 共 20 个库的库大小与全部用户表精确行数、redis DBSIZE、garage bucket。
+  - 19:14 `--drain-runners`：13 个 runner 与 hon 的 khmini 都空闲，立即停完。窗口顺序比计划多了这一步放在最前：先停 runner 再停 VM，避免在跑的 job 因 Docker 断开而失败。
+  - 19:14–19:19 `--services-export`：dump → 停容器 → 打包卷（`--numeric-owner`）→ `docker save` 10 个镜像 → ditto `~/stacks`、`~/backups`、`~/scripts/acquilangai-backup.sh` 到 hon → konghai crontab 删 claude-cron（7 行）/ 两个备份 / 生产同步。
+  - 19:19 `--stop-konghai-vm`：bootout 并 disable `com.konghai.colima`，`colima stop`。
+  - 19:19 `hon-team-services.sh --colima`：LaunchDaemon `com.cypressoai.colima-team`（UserName=hon，`colima start --profile team --foreground`），19:20 team Running（6C/8G/100G）；VM 内 virtiofs 只有 `/Users/hon/stacks` 和 grafana 目录。
+  - 19:22 `--services-import sonarqube` 先起 SonarQube 核对，再导入其余 7 个 stack；`cmm-postgres` 只 `up --no-start`。
+  - 19:23 `hon-team-services.sh --jobs`：`com.cypressoai.sonarqube-backup`（03:30）、`com.cypressoai.acquilang-backup`（04:00）、`com.cypressoai.acquilang-prod-sync`（0/6/12/18 点，装好但 disabled，等 KTD9 受限密钥）。
+  - 19:26 `--runners` 第一次：khmini 挪进 `/Users/hon/actions-runner/khmini/` 并在 `user/504` 重新拉起；CIWork 卸载失败（常驻 `spindump` 只读占着卷上的 node 二进制、`mds` 占卷根）。脚本改为 `diskutil unmount force` 后重装。
+  - 19:44 `--runners` 第二次：CIWork 改挂 `/Users/hon/gha`（fstab 同步，原挂载点删除，新挂载点 root:wheel 755），卷内除 `m1` / `al1` 外 chown hon；11 个普通 runner `mv` 到 `/Users/hon/actions-runner/`，plist 改 UserName=hon、路径、去掉 PATH 里的 `~/.cargo/bin` / `~/.volta/bin`（705 份 job 日志无 cargo 使用，`.volta` 不存在），`DOCKER_HOST` 指向 team；签名 runner 只改 workFolder 为 `/Users/hon/gha/{m1,al1}`、`PNPM_STORE_PATH` 改为 konghai 所有的 `cache/pnpm-store-signing`；konghai crontab 清空。
+  - 19:47 sonar 1–4、caimiamiao-1、friends-lab-1 起不来（exit 127）：这些目录的 `bin` / `externals` 是 runner 自更新留下的指向 `/Users/konghai/actions-runner/...` 的绝对符号链接。以 hon 改成相对链接后起来；脚本同步修正。
+  - 19:48 发现 runner 进程 `HOME=/Users/konghai`（plist 的 HOME 没有结尾斜杠，sed 漏改）。19:49 全部停下（期间没有 job 被分配），脚本改用 `plutil -replace EnvironmentVariables.HOME` 后重装，20:09 重跑 `--runners` 并重新拉起 khmini。
+  - 19:48 `hon-team-services.sh --maintenance`：`com.cypressoai.gha-runner-maintenance{,-weekly}`，WORK_DIRS 同原 crontab，GOCACHE_DIRS 改为 CIWork 上的 `go-build-s{1..4}` 和 `go-build-cmm1`（原 crontab 指向 10-20 已删除的 `actions-runner/*/cache/go-build`）。
+- 验证：
+  - 数据：`baseline-after` 与 `baseline-before` 比对，20 个库的 `pg_database_size` 全部一致；表行数只有两类差异——SonarQube 启动时清理 `ce_activity` / `ce_scanner_context` 等（少几十行），sub2api 启动后写入 `ops_system_logs` / `ops_system_metrics` / redis（多 1～3 条）。
+  - SonarQube `api/system/status` UP，项目数 23（与 `projects` 表基线一致）。
+  - 9000 / 5432 / 5433 / 5434 / 5437 / 6379 / 3900 / 3001 / 18080 从工作机均可连通；sub2api 首页 200；grafana `api/health` 200、dashboards 在；`cmm-postgres` 为 Created（未启动）。
+  - 备份：SonarQube 备份手动触发成功，`sonarqube-20261022.dump` 1.0G。AcquiLang 备份首次触发仍是旧脚本（打包旧卷，27M），换成仓库修正版后 48M，容器自动恢复 healthy。
+  - runner：`Runner.Listener` 11 个 USER=hon、HOME=/Users/hon、`DOCKER_HOST` 为 team socket；2 个签名 runner 仍为 konghai；khmini 在 `/Users/hon/actions-runner/khmini`。GitHub 上 11 个启用 runner 与 khmini online，`acquilang-ci-4/5` offline，labels 不变。
+  - CIWork：`diskutil info` 挂载点 `/Users/hon/gha`，Spotlight disabled，剩余 207G。
+  - 日维护手动触发：扫描 `/Users/hon/gha/s{1..4}` 等，`=== done ===`，无 `No such file`。
+  - 真实 job（rerun 已成功的 PR CI）：
+    - `cypressoai/iCare-backend` SonarQube Scan 在 `mac-mini-sonar-4` 成功；`cypressoai/iCare-frontend-mas` Typecheck、Frontend Tests 1/4、2/4 在 `mac-mini-sonar-{1,2,3}` 成功。迁移后的 SonarQube CE 正常处理两次分析。
+    - `konghai-friends-lab/YPF-YunShu` CI `quality` 在 `konghai-friends-lab-1` 成功。
+    - `caimiamiao/cmm-admin` sonarqube 首次失败（`pnpm: command not found`）：5 个 rerun 同时跑，AcquiLang 的 `pnpm/action-setup` 在同一时刻改写共用的 `~/setup-pnpm`。这个竞争在 konghai 下也存在。单独重跑后在 `caimiamiao-1` 成功。
+    - `IAmKongHai/AcquiLangAI` CI：首次 admin / native 测试超时（rerun 期间负载 17），sonar 失败。单独重跑后 native 成功；sonar 仍失败，原因是它读 `$HOME/Code/Project/AcquiLangAI/acquilang-backend/.env`，这个文件只在 konghai 的个人工作副本里。处理：复制为 `/Users/hon/.config/acquilang/backend-ci.env`（600，含 DashScope 等密钥），acquilang-ci-1..5 的 `.env` 加 `ACQUILANG_BACKEND_ENV` 指向它（原文件备份 `.env.bak-20261022`），空闲时 `launchctl kickstart -k` 重启 ci-1..3。20:3x 重跑后 sonar 在 `mac-mini-acquilang-ci-3` 成功，整次 CI success。
+  - 历史 Worker 日志里引用 konghai 家目录的只剩 `~/.config/icare/preview`（签名 runner，U5 处理）。
+- 迁移中发现的既有问题：
+  - SonarQube 备份自 2026-08-18 起每天失败：`backup.sh` 写死 `/usr/local/bin/docker`，该路径已不存在。hon 副本已改为 `DOCKER="$(command -v docker)"`（备份 `backup.sh.bak-20261022`）。
+  - AcquiLang 备份一直在打包已停用的旧卷 `acquilangai_postgres_data`；`scripts/acquilangai-backup.sh` 已改为 `acquilangai_postgres18_data` 并部署到 `/Users/hon/scripts/`。
+  - AcquiLang 生产同步自 2026-10-19 00:00 起每次报「生产库 public 表只有 48，停止」，开发库停在 10-18。未处理，hon 下同步任务保持 disabled。
+- 另见：konghai 的 sudoers 里有 ServBay 加的 `NOPASSWD: /bin/launchctl`（及 kill / security 等），等于免密 root，与本次迁移无关，未改。
+- 待办：`mac-mini-mobile-1` Android preview 验证（该 workflow 会合并 develop 到 release、打 tag、发 UAT 元数据，需用户决定何时触发）；U4 khmini 改 LaunchDaemon；U5 签名 runner；U6 清理与重启验证；KTD9 nyh-prod 受限密钥需用户确认。
+
 ## 2026-10-21 15:10 CST - SonarQube 新建菜喵喵三个项目并接入 CI
 
 - 服务器：`mac-mini`（SonarQube `http://mac-mini:9000`，26.5 + community branch plugin）
