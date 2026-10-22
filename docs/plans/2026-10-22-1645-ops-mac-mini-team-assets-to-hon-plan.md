@@ -63,6 +63,7 @@ execution: code
 
 - **konghai 只做私人用途，hon 作为团队账户。** (session-settled: user-directed — chosen over 在 konghai 下给 moo-decision 另建 runner：konghai 是含 iCloud 的私人账户，hon 本来就给同事部署用) Governs R1, R2, R4, R7
 - **konghai 下的全部 VM、数据库、容器都迁，包括 sub2api 与 richer。** (session-settled: user-directed — chosen over 把 sub2api / richer 当私人留在 konghai：konghai 以后不做开发) Governs R7
+- **接受 hon 下所有进程都能读到签名 / 商店凭据和库副本。** (session-settled: user-directed — chosen over 签名凭据改为只在签名 job 中经 GitHub secret 注入：用户接受该风险，凭据仍以 600 文件放在 hon 下) Governs R2, R7
 - **claude-cron 和 konghai Multica 删除不迁。** (session-settled: user-directed — chosen over 迁到 hon：两者早已不用) Governs R3
 
 ### Success Criteria
@@ -167,7 +168,7 @@ flowchart TB
 | 原始卷导入后 postgres 起不来（属主 / 权限） | 每个库有 `pg_dumpall` 保险（KTD7）；konghai VM 磁盘保留 7 天（KTD11） |
 | sub2api 的 bind 数据目录经 virtiofs 后属主映射不同 | 导入后先单独起 sub2api 核对；不行则改为命名卷后导入 |
 | runner 依赖 konghai 家目录里的工具（plist PATH 含 `~/.cargo/bin`、`~/.volta/bin`；`~/.sonar`、`~/.npm`、`~/.cache/golangci-lint`） | U1 盘点每个 runner 的真实依赖，缺的在 hon 下补齐或从 PATH 去掉；`~/.sonar` 等缓存允许首次重建 |
-| hon 账户由同事使用，迁入后能接触 iCare 商店密钥、AcquiLang 生产库副本 | 已是用户决定（Key Decisions）。文件权限 600 只防其他本地账户，不防 hon 下的进程：全部 runner job（含 khmini、caimiamiao、friends-lab）、hon 的 Multica AI agent runtime、moo-app 都能读到这些文件，也能经 `team` 的 docker socket 访问各库。nyh-prod 只给受限密钥（KTD9） |
+| hon 账户由同事使用，迁入后能接触 iCare 商店密钥、AcquiLang 生产库副本 | 已是用户决定（Key Decisions）。文件权限 600 只防其他本地账户，不防 hon 下的进程：全部 runner job（含 khmini、caimiamiao、friends-lab）、hon 的 Multica AI agent runtime、moo-app 都能读到这些文件，也能经 `team` 的 docker socket 访问各库。用户已明确接受此风险（Key Decisions）；nyh-prod 只给受限密钥（KTD9） |
 | U3 到 U5 之间签名 runner 以 konghai 运行在 hon 名下的卷上 | KTD5 的过渡安排；U3 后立即跑一次 Android preview 构建确认 |
 | FileVault 开启，意外重启后需 konghai 解锁 | 与现状相同，不受本迁移影响；R10 验证用计划内重启 |
 | 13 个 runner 同时停机 | U3 等所有 `Runner.Worker` 结束再停，参照 2026-10-20 实测约 16 分钟 |
