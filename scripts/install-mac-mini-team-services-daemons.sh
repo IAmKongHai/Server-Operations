@@ -4,11 +4,13 @@
 #   com.cypressoai.sonarqube-backup     每天 03:30
 #   com.cypressoai.acquilang-backup     每天 04:00
 #   com.cypressoai.acquilang-prod-sync  0/6/12/18 点；装好但保持 disabled，nyh-prod 受限密钥落地后再 enable
+#   com.cypressoai.gha-runner-maintenance{,-weekly}  runner 磁盘维护，每天 03:15 / 周日 04:30（原 konghai crontab）
 #
 # 用法（root）：
 #   sudo hon-team-services.sh --colima      # 只装 colima team 守护（先由 hon 手动建好 team profile）
 #   sudo hon-team-services.sh --jobs        # 装三个定时任务
 #   sudo hon-team-services.sh --enable-sync # 受限密钥就绪后启用同步
+#   sudo hon-team-services.sh --maintenance # 装 runner 维护任务（CIWork 改挂到 /Users/hon/gha 之后）
 #
 # 所有任务显式设置 DOCKER_HOST 指向 team：hon 下还有 moo / multica，docker 当前 context 会漂移。
 set -euo pipefail
@@ -116,13 +118,59 @@ install_jobs() {
     "$sync_calendar" disabled
 }
 
+# 维护脚本在 CIWork 卷上；WORK_DIRS 与原 crontab 相同，GOCACHE_DIRS 改为 CIWork 上的 per-slot 缓存
+# （原 crontab 指向 2026-10-20 已删除的 actions-runner/*/cache/go-build）
+install_maintenance() {
+  local gha=$H_HOME/gha mode label calendar
+  [[ -x $gha/scripts/gha-runner-maintenance.sh ]] || { echo "缺少 $gha/scripts/gha-runner-maintenance.sh（CIWork 挂好了吗）" >&2; exit 1; }
+  for mode in daily weekly; do
+    if [[ $mode == daily ]]; then
+      label=com.cypressoai.gha-runner-maintenance
+      calendar='  <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>15</integer></dict>'
+    else
+      label=com.cypressoai.gha-runner-maintenance-weekly
+      calendar='  <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>4</integer><key>Minute</key><integer>30</integer></dict>'
+    fi
+    install_daemon "$label" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$label</string>
+  <key>UserName</key><string>hon</string>
+  <key>GroupName</key><string>staff</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>$gha/scripts/gha-runner-maintenance.sh</string></array>
+  <key>WorkingDirectory</key><string>$gha/scripts</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>$H_HOME</string>
+    <key>PATH</key><string>$PATH_VALUE</string>
+    <key>WORK_DIRS</key><string>$gha/s1 $gha/s2 $gha/s3 $gha/s4 $gha/m1 $gha/al1</string>
+    <key>GOCACHE_DIRS</key><string>$gha/cache/go-build-s1 $gha/cache/go-build-s2 $gha/cache/go-build-s3 $gha/cache/go-build-s4 $gha/cache/go-build-cmm1</string>
+    <key>PNPM_STORE</key><string>$gha/cache/pnpm-store</string>
+    <key>GOMODCACHE_DIR</key><string>$gha/cache/go-mod</string>
+    <key>MODE</key><string>$mode</string>
+    <key>LOG_FILE</key><string>$LOG_ROOT/gha-runner-maintenance.log</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+$calendar
+  <key>StandardOutPath</key><string>$LOG_ROOT/gha-runner-maintenance.stdout.log</string>
+  <key>StandardErrorPath</key><string>$LOG_ROOT/gha-runner-maintenance.stderr.log</string>
+</dict>
+</plist>
+EOF
+  done
+}
+
 case "${1:-}" in
   --colima) install_colima ;;
   --jobs) install_jobs ;;
+  --maintenance) install_maintenance ;;
   --enable-sync)
     launchctl enable "system/$SYNC_LABEL"
     launchctl bootstrap system "/Library/LaunchDaemons/$SYNC_LABEL.plist"
     echo "enabled system/$SYNC_LABEL"
     ;;
-  *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

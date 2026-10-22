@@ -2,11 +2,7 @@
 # 把 mac-mini 上 konghai 名下的团队资产迁到 hon（计划：docs/plans/2026-10-22-1645-ops-mac-mini-team-assets-to-hon-plan.md）。
 # 只放需要 root 的步骤；hon 侧不需要 root 的操作（建 colima team profile 等）经 ssh mac-mini-hon 直接做。
 #
-# 安装（用户执行一次，脚本改动后重装）：
-#   sudo install -o root -g wheel -m 755 scripts/migrate-mac-mini-team-to-hon.sh /usr/local/sbin/hon-migrate.sh
-#   sudo install -o root -g wheel -m 755 scripts/install-mac-mini-team-services-daemons.sh /usr/local/sbin/hon-team-services.sh
-#   echo 'konghai ALL=(root) NOPASSWD: /usr/local/sbin/hon-migrate.sh, /usr/local/sbin/hon-team-services.sh' \
-#     | sudo tee /etc/sudoers.d/konghai-hon-migrate && sudo chmod 440 /etc/sudoers.d/konghai-hon-migrate
+# 安装（以 konghai 执行，脚本改动后重跑）：sudo ~/hon-migrate-src/install-hon-migrate.sh（见 scripts/install-hon-migrate.sh）
 #
 # 子命令（root）：
 #   --status                     只读：runner、CIWork、两个账户的 colima、团队 LaunchDaemon
@@ -15,6 +11,10 @@
 #   --services-export            U2：dump、停容器、打包卷、存镜像、复制 stacks/backups 到 hon、改 konghai crontab
 #   --stop-konghai-vm            U2：停 konghai 的 colima（磁盘保留）并 disable 守护
 #   --services-import [stack..]  U2：导入镜像和卷，按顺序 up（不给参数时 up 除 cmm-postgres 外的全部）
+#   --drain-runners              窗口开头：等 job 结束后停全部 konghai runner 与 hon 的 khmini
+#   --runners                    U3：khmini 挪进子目录、CIWork 改挂 /Users/hon/gha、11 个普通 runner 改以 hon 运行，
+#                                签名 runner 只改 workFolder（仍以 konghai 运行），拉起 runner，去掉 konghai 维护 crontab
+#   --start-runners              出错中断后按现有 plist 拉起 runner（acquilang-ci-4/5 除外）
 #
 # 注意：macOS /bin/bash 是 3.2，变量后紧跟中文全角字符要写成 ${VAR}。
 set -euo pipefail
@@ -34,6 +34,7 @@ SNAPSHOT_DIR=/var/backups/hon-migration-$STAMP
 STACK_ORDER=(sonarqube shared-dev-postgres shared-dev-redis shared-dev-s3 acquilang-postgres nyh-postgres richer sub2api)
 NO_START_STACKS=(cmm-postgres)
 # konghai crontab 里迁走或删除的行（runner 维护两行留到 U3）
+CRON_DROP_PATTERN_U3='gha-runner-maintenance'
 CRON_DROP_PATTERN='claude-cron|Codex 每日触发|Claude Code 每日触发|sonarqube/backup.sh|SonarQube DB 每日备份|acquilangai-backup.sh|AcquiLangAI postgres|sync-from-prod.sh|AcquiLang 生产库同步'
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; }
@@ -41,6 +42,19 @@ die() { log "ERROR: $*"; exit 1; }
 kdocker() { DOCKER_HOST=$K_SOCK "$DOCKER" "$@"; }
 hdocker() { DOCKER_HOST=$H_SOCK "$DOCKER" "$@"; }
 # 匿名卷名是 64 位十六进制，不迁
+K_RUNNERS=$K_HOME/actions-runner
+H_RUNNERS=$H_HOME/actions-runner
+REGULAR_RUNNERS=(mac-mini-sonar-1 mac-mini-sonar-2 mac-mini-sonar-3 mac-mini-sonar-4
+  mac-mini-acquilang-ci-1 mac-mini-acquilang-ci-2 mac-mini-acquilang-ci-3 mac-mini-acquilang-ci-4 mac-mini-acquilang-ci-5
+  caimiamiao-1 konghai-friends-lab-1)
+# U5 前仍以 konghai 运行
+SIGNING_RUNNERS=(mac-mini-mobile-1 mac-mini-acquilang-native-1)
+# 一直 disabled，plist 照改但不拉起
+DISABLED_RUNNERS=(mac-mini-acquilang-ci-4 mac-mini-acquilang-ci-5)
+KHMINI_LABEL=ai.cypresso.actions-runner
+HON_UID=$(id -u hon)
+CIWORK_UUID=8FF8D622-BAB7-47C3-8601-44CBB7988E7F
+DRAIN_TIMEOUT_SEC=5400
 named_volumes() { "$@" volume ls --format '{{.Name}}' | grep -vE '^[0-9a-f]{64}$' || true; }
 
 [[ $(id -u) -eq 0 ]] || { echo "请用 sudo 运行" >&2; exit 1; }
@@ -95,7 +109,7 @@ snapshot() {
   done
   cp -p $K_HOME/.colima/default/colima.yaml "$SNAPSHOT_DIR/colima.default.yaml"
   cp -p $K_HOME/scripts/acquilangai-backup.sh "$SNAPSHOT_DIR/"
-  log "快照完成：$SNAPSHOT_DIR（runner $(ls "$SNAPSHOT_DIR/runners" | wc -l | tr -d ' ') 个，plist $(ls "$SNAPSHOT_DIR/launchdaemons" | wc -l | tr -d ' ') 个）"
+  log "快照完成：${SNAPSHOT_DIR}（runner $(ls "$SNAPSHOT_DIR/runners" | wc -l | tr -d ' ') 个，plist $(ls "$SNAPSHOT_DIR/launchdaemons" | wc -l | tr -d ' ') 个）"
 }
 
 # 每个 postgres 的库大小与全部用户表的精确行数；redis 键数；garage bucket
@@ -131,7 +145,7 @@ baseline() {
     esac
   done
   chown hon:staff "$EXPORT_DIR" "$out"
-  log "基线（$which）写入 $out：$(wc -l <"$out" | tr -d ' ') 行"
+  log "基线（${which}）写入 ${out}：$(wc -l <"$out" | tr -d ' ') 行"
 }
 
 services_export() {
@@ -203,7 +217,7 @@ stop_konghai_vm() {
 }
 
 services_import() {
-  hdocker info >/dev/null 2>&1 || die "hon 的 team VM 未运行（$H_SOCK）"
+  hdocker info >/dev/null 2>&1 || die "hon 的 team VM 未运行（${H_SOCK}）"
   if [[ ! -f $EXPORT_DIR/.images-loaded ]]; then
     log "导入镜像"
     hdocker load -i "$EXPORT_DIR/images.tar" | tee -a "$LOG"
@@ -240,6 +254,162 @@ services_import() {
   hdocker ps -a --format '{{.Names}}\t{{.Status}}' | sort | tee -a "$LOG"
 }
 
+runner_label() { basename "$(ls /Library/LaunchDaemons/actions.runner.*."$1".plist)" .plist; }
+# slot 目录 → 是否在跑 job（Runner.Worker 是 Listener 的子进程）
+runner_busy() { pgrep -f "$1/bin[^ ]*/Runner.Worker" >/dev/null; }
+is_disabled_runner() { [[ " ${DISABLED_RUNNERS[*]} " == *" $1 "* ]]; }
+
+# 逐个等空闲再停，不打断正在跑的 job
+drain_runners() {
+  local pending=() name label still deadline=$(($(date +%s) + DRAIN_TIMEOUT_SEC)) khmini_pending=1
+  for name in "${REGULAR_RUNNERS[@]}" "${SIGNING_RUNNERS[@]}"; do
+    is_disabled_runner "$name" || pending+=("$name")
+  done
+  while ((${#pending[@]} > 0 || khmini_pending)); do
+    still=()
+    for name in "${pending[@]+"${pending[@]}"}"; do
+      label=$(runner_label "$name")
+      if ! launchctl print "system/$label" >/dev/null 2>&1; then
+        log "$label 未加载，跳过"
+      elif runner_busy "$K_RUNNERS/$name"; then
+        still+=("$name")
+      else
+        launchctl bootout "system/$label" && log "已停 $label"
+      fi
+    done
+    pending=("${still[@]+"${still[@]}"}")
+    if ((khmini_pending)); then
+      if ! launchctl print "user/$HON_UID/$KHMINI_LABEL" >/dev/null 2>&1; then
+        khmini_pending=0
+      elif ! runner_busy "$H_RUNNERS" && ! runner_busy "$H_RUNNERS/khmini"; then
+        launchctl bootout "user/$HON_UID/$KHMINI_LABEL" && log "已停 khmini"
+        khmini_pending=0
+      fi
+    fi
+    if ((${#pending[@]} > 0 || khmini_pending)); then
+      (($(date +%s) < deadline)) || die "等待 runner 空闲超时：${pending[*]:-} khmini=${khmini_pending}（用 --start-runners 拉起已停的）"
+      log "等待空闲：${pending[*]:-} $( ((khmini_pending)) && echo khmini)"
+      sleep 30
+    fi
+  done
+  sleep 3
+  if pgrep -f "/actions-runner/.*Runner.Listener" >/dev/null; then die "仍有 Runner.Listener 在跑"; fi
+  log "所有 runner 已停"
+}
+
+# khmini 原来直接装在 actions-runner 根下，挪进 khmini/ 子目录，hon 的 runner 根下只放 runner 子目录
+move_khmini() {
+  [[ -d $H_RUNNERS/khmini ]] && { log "khmini 已在子目录，跳过"; return; }
+  mkdir "$H_RUNNERS/khmini"
+  local entry
+  for entry in "$H_RUNNERS"/* "$H_RUNNERS"/.[!.]*; do
+    [[ -e $entry && $entry != "$H_RUNNERS/khmini" ]] && mv "$entry" "$H_RUNNERS/khmini/"
+  done
+  sed -i '' "s|$H_RUNNERS|$H_RUNNERS/khmini|g" "$H_RUNNERS/khmini/$KHMINI_LABEL.plist"
+  chown -R hon:staff "$H_RUNNERS"
+  launchctl bootstrap "user/$HON_UID" "$H_RUNNERS/khmini/$KHMINI_LABEL.plist"
+  log "khmini 已挪到 $H_RUNNERS/khmini 并拉起"
+}
+
+remount_ciwork() {
+  [[ $(diskutil info CIWork | awk -F': *' '/Mount Point/{print $2}') == "$H_HOME/gha" ]] && { log "CIWork 已挂在 $H_HOME/gha"; return; }
+  diskutil unmount "$K_HOME/gha" | tee -a "$LOG"
+  cp -p /etc/fstab "/etc/fstab.bak-hon-$STAMP"
+  sed -i '' "s|^UUID=$CIWORK_UUID $K_HOME/gha |UUID=$CIWORK_UUID $H_HOME/gha |" /etc/fstab
+  grep -q "$H_HOME/gha" /etc/fstab || die "fstab 未改成 $H_HOME/gha"
+  rmdir "$K_HOME/gha"
+  # 挂载点下方的目录 root 所有：卷没挂上时写入直接失败，不会悄悄写回系统数据卷
+  mkdir -p "$H_HOME/gha"
+  chown root:wheel "$H_HOME/gha"
+  chmod 755 "$H_HOME/gha"
+  diskutil mount -mountPoint "$H_HOME/gha" CIWork | tee -a "$LOG"
+  [[ $(diskutil info CIWork | awk -F': *' '/Mount Point/{print $2}') == "$H_HOME/gha" ]] || die "挂载到 $H_HOME/gha 失败"
+  # 卷内除签名 runner 的 m1 / al1 外都给 hon；系统目录不动
+  chown hon:staff "$H_HOME/gha"
+  local entry
+  for entry in "$H_HOME/gha"/* "$H_HOME/gha"/.[!.]*; do
+    case $(basename "$entry") in
+      m1 | al1 | .fseventsd | .Spotlight-V100 | .Trashes | .metadata_never_index) ;;
+      *) [[ -e $entry ]] && chown -R hon:staff "$entry" ;;
+    esac
+  done
+  # U5 前签名 runner 以 konghai 运行，用单独的 pnpm store（共享 store 已属 hon）
+  mkdir -p "$H_HOME/gha/cache/pnpm-store-signing"
+  chown konghai:staff "$H_HOME/gha/cache/pnpm-store-signing"
+  log "CIWork 已改挂 $H_HOME/gha 并 chown hon"
+}
+
+# 把 runner 配置里的 konghai 路径换成 hon，PATH 去掉不用的 ~/.cargo/bin、~/.volta/bin
+rewrite_runner_files() {
+  local dir=$1 f
+  for f in .runner .runner_migrated .env .path .service; do
+    [[ -f $dir/$f ]] && sed -i '' "s|$K_HOME/|$H_HOME/|g" "$dir/$f"
+  done
+  [[ -f $dir/.path ]] && sed -i '' -e "s|:$H_HOME/.cargo/bin||" -e "s|:$H_HOME/.volta/bin||" "$dir/.path"
+  return 0
+}
+
+move_regular_runner() {
+  local name=$1 label plist
+  label=$(runner_label "$name")
+  plist=/Library/LaunchDaemons/$label.plist
+  if [[ -d $K_RUNNERS/$name ]]; then
+    mv "$K_RUNNERS/$name" "$H_RUNNERS/$name"
+  fi
+  rewrite_runner_files "$H_RUNNERS/$name"
+  chown -R hon:staff "$H_RUNNERS/$name"
+  sed -i '' -e "s|$K_HOME/|$H_HOME/|g" -e "s|<string>konghai</string>|<string>hon</string>|" \
+    -e "s|:$H_HOME/.cargo/bin||" -e "s|:$H_HOME/.volta/bin||" "$plist"
+  plutil -replace EnvironmentVariables.DOCKER_HOST -string "$H_SOCK" "$plist"
+  plutil -lint "$plist" >/dev/null
+  [[ $(plutil -extract UserName raw -o - "$plist") == hon ]] || die "$plist UserName 未改成 hon"
+  mkdir -p "$H_HOME/Library/Logs/$label"
+  chown hon:staff "$H_HOME/Library/Logs/$label"
+  log "  $name → $H_RUNNERS/$name"
+}
+
+start_runners() {
+  local name label
+  for name in "${REGULAR_RUNNERS[@]}" "${SIGNING_RUNNERS[@]}"; do
+    is_disabled_runner "$name" && continue
+    label=$(runner_label "$name")
+    launchctl print "system/$label" >/dev/null 2>&1 && continue
+    launchctl enable "system/$label"
+    launchctl bootstrap system "/Library/LaunchDaemons/$label.plist" 2>&1 | tee -a "$LOG" || true
+  done
+  sleep 15
+  ps -axo user=,command= | awk '/[R]unner.Listener/ {print "  " $1, $2}' | tee -a "$LOG"
+}
+
+runners() {
+  hdocker info >/dev/null 2>&1 || die "team VM 未运行：sonar runner 需要 ${H_SOCK}"
+  if pgrep -f "/actions-runner/.*Runner.Listener" >/dev/null; then die "还有 runner 在跑，先 --drain-runners"; fi
+  mkdir -p "$H_RUNNERS"
+  chown hon:staff "$H_RUNNERS"
+
+  log "1/5 khmini 挪进子目录"
+  move_khmini
+  log "2/5 CIWork 改挂"
+  remount_ciwork
+  log "3/5 普通 runner 改以 hon 运行"
+  local name
+  for name in "${REGULAR_RUNNERS[@]}"; do move_regular_runner "$name"; done
+  log "4/5 签名 runner 改 workFolder（仍以 konghai 运行）"
+  for name in "${SIGNING_RUNNERS[@]}"; do
+    sed -i '' "s|$K_HOME/gha/|$H_HOME/gha/|g" "$K_RUNNERS/$name/.runner"
+    [[ -f $K_RUNNERS/$name/.runner_migrated ]] && sed -i '' "s|$K_HOME/gha/|$H_HOME/gha/|g" "$K_RUNNERS/$name/.runner_migrated"
+    sed -i '' "s|^PNPM_STORE_PATH=.*|PNPM_STORE_PATH=$H_HOME/gha/cache/pnpm-store-signing|" "$K_RUNNERS/$name/.env"
+  done
+  log "5/5 拉起 runner，去掉 konghai 维护 crontab"
+  start_runners
+  local tmp
+  tmp=$(mktemp)
+  crontab -u konghai -l | grep -vE "$CRON_DROP_PATTERN_U3" >"$tmp" || true
+  crontab -u konghai "$tmp"
+  rm -f "$tmp"
+  log "konghai crontab 剩余非注释行：$(crontab -u konghai -l | grep -cvE '^\s*(#|$)' || true)"
+}
+
 case "${1:-}" in
   --status) status ;;
   --snapshot) snapshot ;;
@@ -247,5 +417,8 @@ case "${1:-}" in
   --services-export) services_export ;;
   --stop-konghai-vm) stop_konghai_vm ;;
   --services-import) shift; services_import "$@" ;;
-  *) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  --drain-runners) drain_runners ;;
+  --runners) runners ;;
+  --start-runners) start_runners ;;
+  *) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
