@@ -360,10 +360,18 @@ move_regular_runner() {
     mv "$K_RUNNERS/$name" "$H_RUNNERS/$name"
   fi
   rewrite_runner_files "$H_RUNNERS/$name"
-  chown -R hon:staff "$H_RUNNERS/$name"
+  # runner 自更新留下的 bin / externals 是指向旧目录的绝对路径符号链接，改成相对路径
+  local link target
+  for link in "$H_RUNNERS/$name"/*; do
+    [[ -L $link ]] || continue
+    target=$(readlink "$link")
+    [[ $target == "$K_RUNNERS/$name/"* ]] && ln -sfhn "$(basename "$target")" "$link"
+  done
+  chown -Rh hon:staff "$H_RUNNERS/$name"
   sed -i '' -e "s|$K_HOME/|$H_HOME/|g" -e "s|<string>konghai</string>|<string>hon</string>|" \
     -e "s|:$H_HOME/.cargo/bin||" -e "s|:$H_HOME/.volta/bin||" "$plist"
   plutil -replace EnvironmentVariables.DOCKER_HOST -string "$H_SOCK" "$plist"
+  plutil -replace EnvironmentVariables.HOME -string "$H_HOME" "$plist"
   plutil -lint "$plist" >/dev/null
   [[ $(plutil -extract UserName raw -o - "$plist") == hon ]] || die "$plist UserName 未改成 hon"
   mkdir -p "$H_HOME/Library/Logs/$label"
