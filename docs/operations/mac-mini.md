@@ -1,5 +1,26 @@
 # mac-mini 运维时间线
 
+## 2026-10-23 11:38 CST - 团队资产迁到 hon：签名 runner 改以 hon 运行（U5）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户要求签名 runner 直接改用 hon 运行，并授权触发 iCare 与 AcquiLang 各一次 Android 打包验证。root 步骤为 `hon-migrate.sh --signing`（`scripts/migrate-mac-mini-team-to-hon.sh`）。
+- 原因：U3 时签名 runner 只改了 workFolder，仍以 konghai 运行（计划 KTD5 的过渡安排）。
+- 影响：`mac-mini-mobile-1`、`mac-mini-acquilang-native-1` 停机约 2 分钟（11:38–11:40），期间无 job。
+- 备份：konghai 名下的 `~/.config/icare`、`~/Library/Android/sdk` 原样保留，未删除；runner 配置快照在 `/var/backups/hon-migration-20261022/`。
+- 回滚方式：停两个 runner；`mv /Users/hon/actions-runner/<name> /Users/konghai/actions-runner/`；用快照覆盖 plist 与 `.runner` / `.env` / `.path`；`chown -R konghai:staff /Users/hon/gha/{m1,al1}`；拉起 runner。
+- 变更：
+  - 复制 `~/.config/icare/{preview,production}` 到 hon（目录 700、文件 600），`testflight.json` / `appstore.json` 的 `ascKeyPath` 改为 `/Users/hon/...`；Android SDK（12G）ditto 到 `/Users/hon/Library/Android/sdk`。`.gradle` 与 `~/.expo` 不复制。
+  - 两个 runner `mv` 到 `/Users/hon/actions-runner/`，plist / `.env` / `.path` 中的 `ANDROID_HOME`、platform-tools PATH、HOME、UserName 改为 hon，`DOCKER_HOST` 指向 team，`bin` / `externals` 改为相对符号链接。
+  - `m1` / `al1` chown hon，`PNPM_STORE_PATH` 改回共享 `cache/pnpm-store`，删除过渡用的 `cache/pnpm-store-signing`。
+  - hon 侧已具备：Xcode license 已接受（`xcodebuild -license check` 通过），`aws`、openjdk 17、node@22 均在 Homebrew。
+  - 只在 10-15 前的旧 workflow 中用到的 `~/bin/deploy-icare-preview-apk.sh` 不再需要，未复制。
+- 验证：
+  - 两个 `Runner.Listener` USER=hon、HOME=/Users/hon；workFolder 分别为 `/Users/hon/gha/m1`、`/Users/hon/gha/al1`。mac-mini 上 14 个 runner 全部以 hon 运行。
+  - `cypressoai/iCare-mobile-app` EAS Preview Local（android，source develop）run `39896265562` 成功：`Preview APK (local)` 在 `mac-mini-mobile-1` 11:40–12:20（hon 下首次构建，无 gradle 缓存），随后 `Publish preview shell metadata` 成功。副作用：develop 合并进 `release`、新增日期 tag、预览 APK 发布到 `mas-icare.cypress.sg`。
+  - `AcquiLangAI` 构建并提交 Native App（android，profile preview）run `39896477711` 成功：`mac-mini-acquilang-native-1` 11:43–12:05。副作用：新增日期 tag 与 GitHub Release；APK 只上传为 artifact，未发布、未提交商店。
+  - iOS 未验证（iCare preview iOS 会提交 TestFlight 外部审核）。
+- 待办：经用户确认后删除 konghai 名下的 `~/.config/icare`、`~/Library/Android/sdk`，并在 Expo 后台注销 konghai 在 mac-mini 上的会话（计划 U5 / KTD11）。
+
 ## 2026-10-23 CST - 清除 ServBay 残留
 
 - 服务器：`mac-mini`
