@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-10-23 CST - 清除 ServBay 残留
+
+- 服务器：`mac-mini`
+- 操作人：用户要求「在 mac-mini 上把 ServBay 彻底移除」；shell 配置由 `Claude` 修改，需要 root 的部分由用户执行 `scripts/remove-mac-mini-servbay-leftovers.sh`。
+- 原因：ServBay 应用本体（`/Applications/ServBay.app`、`/Applications/ServBay`）早已删除，但 `/etc/sudoers.d/servbay` 仍给 `%admin` 免密 root 跑 `/bin/launchctl`、`kill`、`security` 等，以及 `/Applications/ServBay/**` 下任意文件。`/Applications` 对 admin 可写，等于免密 root。
+- 影响：无服务受影响；`servbay.host`、`agent.nyh`、`center.nyh` 不再解析到 127.0.0.1（ServBay 已不在，原本也无服务响应）。
+- 备份：`/var/backups/servbay-removal-20261023/`（`sudoers.servbay`、`hosts`、`servbay-certs.pem`）；`~/.zshrc.bak-20261023-servbay`、`~/.bash_profile.bak-20261023-servbay`。
+- 回滚方式：从上述备份还原对应文件；证书用 `sudo security add-certificates -k /Library/Keychains/System.keychain servbay-certs.pem`。
+- 变更：
+  - `~/.zshrc`、`~/.bash_profile`：删除 ServBay Environment Block、mariadb PATH 行和一行 ServBay 注释（这些 PATH 指向 admin 可写的已不存在目录）。
+  - 移除 `/etc/sudoers.d/servbay`。首次执行时 `visudo -c` 因 `konghai-ciwork`（644）、`konghai-diag` / `konghai-fsetest`（640）不是 0440 返回失败，脚本中止；改为先 `chmod 0440 /etc/sudoers.d/*`（规则内容不变）后重跑。
+  - 删除 `/etc/hosts` 中 `Custom ServBay Hosts` 块，刷新 DNS 缓存。
+  - 删除 System 钥匙串中 3 张 ServBay 根证书（User CA ECC、Public CA ECC、Public CA RSA；原本无信任设置）。
+- 验证：`sudo -l` 中无 ServBay 条目；`/etc/sudoers.d` 只剩 4 个 `konghai-*` 且均为 0440；hosts 与 System 钥匙串中 ServBay 计数为 0；shell 配置语法检查通过。
+
 ## 2026-10-22 19:14 CST - 团队资产迁到 hon：服务窗口（U2）与 runner 窗口（U3）
 
 - 服务器：`mac-mini`
