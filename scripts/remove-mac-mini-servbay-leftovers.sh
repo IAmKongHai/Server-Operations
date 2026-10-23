@@ -34,8 +34,10 @@ fi
 
 # 3. System 钥匙串里的 ServBay 根证书（按 SHA-1 逐张删，先导出备份）
 hashes=$(security find-certificate -a -Z -c ServBay /Library/Keychains/System.keychain 2>/dev/null | awk '/SHA-1 hash:/ {print $3}')
+if [[ -n $hashes ]]; then
+  security find-certificate -a -p -c ServBay /Library/Keychains/System.keychain >"$BACKUP_DIR/servbay-certs.pem"
+fi
 for hash in $hashes; do
-  security find-certificate -a -Z -p -c ServBay /Library/Keychains/System.keychain >"$BACKUP_DIR/servbay-certs.pem"
   security delete-certificate -Z "$hash" /Library/Keychains/System.keychain
   echo "已删除证书 $hash"
 done
