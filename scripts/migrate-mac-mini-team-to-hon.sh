@@ -15,6 +15,8 @@
 #   --runners                    U3：khmini 挪进子目录、CIWork 改挂 /Users/hon/gha、11 个普通 runner 改以 hon 运行，
 #                                签名 runner 只改 workFolder（仍以 konghai 运行），拉起 runner，去掉 konghai 维护 crontab
 #   --start-runners              出错中断后按现有 plist 拉起 runner（acquilang-ci-4/5 除外）
+#   --signing                    U5：等签名 runner 空闲后停下，复制 ~/.config/icare 与 Android SDK 到 hon，
+#                                两个签名 runner 改以 hon 运行，m1 / al1 给 hon，pnpm store 回到共享
 #
 # 注意：macOS /bin/bash 是 3.2，变量后紧跟中文全角字符要写成 ${VAR}。
 set -euo pipefail
@@ -421,6 +423,58 @@ runners() {
   log "konghai crontab 剩余非注释行：$(crontab -u konghai -l | grep -cvE '^\s*(#|$)' || true)"
 }
 
+signing() {
+  hdocker info >/dev/null 2>&1 || die "team VM 未运行"
+  local name label deadline=$(($(date +%s) + DRAIN_TIMEOUT_SEC))
+  log "1/5 等签名 runner 空闲后停下"
+  for name in "${SIGNING_RUNNERS[@]}"; do
+    label=$(runner_label "$name")
+    while runner_busy "$K_RUNNERS/$name"; do
+      (($(date +%s) < deadline)) || die "等待 $name 空闲超时"
+      log "  等待 $name"
+      sleep 30
+    done
+    launchctl bootout "system/$label" 2>/dev/null || true
+    log "  已停 $label"
+  done
+
+  log "2/5 复制签名凭据与 Android SDK 到 hon"
+  if [[ ! -d $H_HOME/.config/icare ]]; then
+    mkdir -p "$H_HOME/.config"
+    ditto "$K_HOME/.config/icare" "$H_HOME/.config/icare"
+    # App Store Connect 密钥路径写死在 json 里
+    sed -i '' "s|$K_HOME/.config/icare/|$H_HOME/.config/icare/|g" \
+      "$H_HOME/.config/icare/preview/testflight.json" "$H_HOME/.config/icare/production/appstore.json"
+    chown -R hon:staff "$H_HOME/.config/icare"
+    chmod 700 "$H_HOME/.config/icare" "$H_HOME/.config/icare"/*
+  fi
+  if [[ ! -d $H_HOME/Library/Android/sdk ]]; then
+    mkdir -p "$H_HOME/Library/Android"
+    ditto "$K_HOME/Library/Android/sdk" "$H_HOME/Library/Android/sdk"
+    chown -R hon:staff "$H_HOME/Library/Android"
+  fi
+  log "  icare 凭据与 Android SDK（$(du -sh "$H_HOME/Library/Android/sdk" | cut -f1)）已就绪"
+
+  log "3/5 签名 runner 改以 hon 运行"
+  for name in "${SIGNING_RUNNERS[@]}"; do
+    move_regular_runner "$name"
+    sed -i '' "s|^PNPM_STORE_PATH=.*|PNPM_STORE_PATH=$H_HOME/gha/cache/pnpm-store|" "$H_RUNNERS/$name/.env"
+  done
+
+  log "4/5 m1 / al1 给 hon，删除过渡用的 pnpm-store-signing"
+  chown -R hon:staff "$H_HOME/gha/m1" "$H_HOME/gha/al1"
+  rm -rf "$H_HOME/gha/cache/pnpm-store-signing"
+
+  log "5/5 拉起签名 runner"
+  for name in "${SIGNING_RUNNERS[@]}"; do
+    label=$(runner_label "$name")
+    launchctl enable "system/$label"
+    launchctl bootstrap system "/Library/LaunchDaemons/$label.plist" 2>&1 | tee -a "$LOG" || true
+  done
+  sleep 15
+  ps -axo user=,command= | awk '/[R]unner.Listener/ {print "  " $1, $2}' | tee -a "$LOG"
+}
+
 case "${1:-}" in
   --status) status ;;
   --snapshot) snapshot ;;
@@ -431,5 +485,6 @@ case "${1:-}" in
   --drain-runners) drain_runners ;;
   --runners) runners ;;
   --start-runners) start_runners ;;
-  *) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  --signing) signing ;;
+  *) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
