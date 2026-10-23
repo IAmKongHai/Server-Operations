@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# 【已过时】2026-10 首次本地构建用的一次性脚本，依赖 konghai 的个人工作副本。
+# 2026-10-23 起签名 runner 以 hon 运行、konghai 不再保存签名凭据，本地构建改由
+# AcquiLangAI 的「构建并提交 Native App」workflow 在 mac-mini-acquilang-native-1 上完成。不要再运行。
+#
 # 在 mac-mini 图形登录后的 Terminal 里跑一次，打通 Expo 的本机 --local 门槛。
 # 不要用纯 SSH：iOS 签名可能要弹钥匙串。不要 sudo。不要把 EXPO_TOKEN 写进本文件。
 #

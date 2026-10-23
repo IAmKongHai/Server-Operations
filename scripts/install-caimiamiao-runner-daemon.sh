@@ -1,7 +1,7 @@
 #!/bin/bash
 # 把 org `caimiamiao` 的 runner caimiamiao-1 装成 LaunchDaemon。
 # 注销图形用户、重启后仍在线。必须在 mac-mini 上以 root 运行：
-#   sudo /Users/konghai/gha/scripts/install-caimiamiao-runner-daemon.sh
+#   sudo /Users/hon/gha/scripts/install-caimiamiao-runner-daemon.sh
 #
 # 不要运行 ./svc.sh install / start，那会把 LaunchAgent 装回
 # ~/Library/LaunchAgents，登录后和 Daemon 双开。
@@ -12,13 +12,13 @@ if [[ $(id -u) -ne 0 ]]; then
   exit 1
 fi
 
-if pgrep -f '/Users/konghai/actions-runner/caimiamiao-1/.*/Runner.Worker' >/dev/null; then
+if pgrep -f '/Users/hon/actions-runner/caimiamiao-1/.*/Runner.Worker' >/dev/null; then
   echo "ERROR: Runner.Worker is running; wait for the job to finish." >&2
   pgrep -lf 'caimiamiao-1.*Runner.Worker' || true
   exit 1
 fi
 
-USER_NAME="konghai"
+USER_NAME="hon"
 GROUP_NAME="staff"
 USER_HOME="/Users/${USER_NAME}"
 ROOT="${USER_HOME}/actions-runner/caimiamiao-1"
@@ -40,11 +40,11 @@ fi
 while read -r pid; do
   [[ -n "$pid" ]] || continue
   kill -TERM "$pid" 2>/dev/null || true
-done < <(pgrep -f '/Users/konghai/actions-runner/caimiamiao-1/bin/Runner.Listener' || true)
+done < <(pgrep -f '/Users/hon/actions-runner/caimiamiao-1/bin/Runner.Listener' || true)
 while read -r pid; do
   [[ -n "$pid" ]] || continue
   kill -TERM "$pid" 2>/dev/null || true
-done < <(pgrep -f '/Users/konghai/actions-runner/caimiamiao-1/runsvc.sh' || true)
+done < <(pgrep -f '/Users/hon/actions-runner/caimiamiao-1/runsvc.sh' || true)
 sleep 1
 
 mkdir -p "$LOG_DIR"

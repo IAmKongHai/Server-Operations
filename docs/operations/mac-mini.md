@@ -1,5 +1,22 @@
 # mac-mini 运维时间线
 
+## 2026-10-23 14:00 CST - 团队资产迁到 hon：清理 khmini 旧目录，同步脚本与文档（U7）
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户确认删除 khmini 旧 workFolder 与 LaunchAgent plist。
+- 原因：U4 后 khmini 已是 LaunchDaemon、workFolder 在 `~/gha/khm1`；仓库与机器上的脚本、文档仍写 konghai 路径。
+- 影响：无服务影响。
+- 备份：runner 目录里被刷新的 plist 副本留 `.bak-20261023`。
+- 回滚方式：用 `.bak-20261023` 还原 plist 副本；删除的目录不可恢复。
+- 变更：
+  - 删除 `/Users/hon/actions-runner/khmini/_work`（1.5G）、`ai.cypresso.actions-runner.plist`（原 LaunchAgent），以及原 LaunchAgent 的输出日志 `runner.log`。
+  - moo-decision#67 已由用户合并；随后 develop 的 push 部署 run `39905661375` 在 khmini LaunchDaemon 上成功。
+  - 仓库脚本改为 hon：`install-caimiamiao-runner-daemon.sh`、`install-konghai-friends-lab-runner-daemon.sh`、`install-mac-mini-acquilang-native-runner-daemon.sh`、`install-mac-mini-acquilang-ci-runner-daemon.sh`（生成的 plist 加 `DOCKER_HOST`）、`install-mac-mini-fseventsd-watchdog.sh`（用法路径）、`mac-mini/acquilang-postgres/sync-from-prod.sh`（`HOME` / `DOCKER_HOST` 默认值）。`migrate-mac-mini-ci-to-nofsevents-volume.sh`、`acquilang-first-local-eas-builds.sh` 标为已过时。
+  - 同步到机器：上述 7 个脚本覆盖 `/Users/hon/gha/scripts/` 中的同名副本；`sync-from-prod.sh` 覆盖 `/Users/hon/stacks/acquilang-postgres/`。`gha-runner-maintenance.sh`、`mac-mini-fseventsd-watchdog.sh` 线上与仓库本就不一致，未动。
+  - 用 `/Library/LaunchDaemons` 的现行 plist 刷新各 runner 目录里的 plist 副本（friends-lab、acquilang-ci-1..5、acquilang-native-1、caimiamiao-1）。这些副本是安装脚本 `cp` 的源，原来仍是 `UserName=konghai`，重跑安装脚本会把 runner 改回 konghai。
+  - 文档：`AGENTS.md` mac-mini 行与目录约定、`docs/runbooks/mac-mini-runner-start-stop.md`（新增定时维护与 khmini 小节）、`docs/runbooks/ci-runner-pools.md`（缓存与维护表）。
+- 验证：`grep -rn /Users/konghai AGENTS.md docs/runbooks scripts mac-mini` 只剩历史说明、已过时脚本、迁移脚本里的源路径和 konghai 自己的恢复脚本；`/Users/hon/gha/scripts` 中只有两个已过时脚本含 konghai 路径。
+
 ## 2026-10-23 12:54 CST - 团队资产迁到 hon：khmini 改为 LaunchDaemon（U4），删除 konghai 签名凭据，修正 hon 的 docker context
 
 - 服务器：`mac-mini`

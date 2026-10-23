@@ -1,4 +1,7 @@
 #!/bin/bash
+# 【已过时】2026-10-22 起 CIWork 改挂 /Users/hon/gha、runner 改以 hon 运行，
+# 由 scripts/migrate-mac-mini-team-to-hon.sh 取代。本脚本只作 2026-10-20 迁移的历史记录，不要再运行。
+#
 # 把 mac-mini 的 CI 目录迁到独立 APFS 卷 CIWork（.fseventsd/no_log，关闭 Spotlight），
 # 让 fseventsd 不再为 CI 的海量文件改动写事件日志（2026-10-20 实测省约 28% fseventsd CPU）。
 #

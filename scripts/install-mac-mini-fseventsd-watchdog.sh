@@ -1,6 +1,6 @@
 #!/bin/bash
 # 在 mac-mini 上安装 fseventsd 看门狗 LaunchDaemon（每 5 分钟跑一次）。
-# sudo /Users/konghai/gha/scripts/install-mac-mini-fseventsd-watchdog.sh
+# sudo /Users/hon/gha/scripts/install-mac-mini-fseventsd-watchdog.sh
 # 重复执行会覆盖脚本和 plist 并重新加载，不影响其它服务。
 # 卸载：
 #   sudo launchctl bootout system/com.konghai.fseventsd-watchdog

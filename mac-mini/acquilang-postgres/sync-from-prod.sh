@@ -23,8 +23,8 @@
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-export DOCKER_HOST="${DOCKER_HOST:-unix:///Users/konghai/.colima/default/docker.sock}"
-export HOME="${HOME:-/Users/konghai}"
+export DOCKER_HOST="${DOCKER_HOST:-unix:///Users/hon/.colima/team/docker.sock}"
+export HOME="${HOME:-/Users/hon}"
 
 STACK="$HOME/stacks/acquilang-postgres"
 BACKUP_DIR="$HOME/backups/acquilang-dev-before-sync"

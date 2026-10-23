@@ -1,7 +1,7 @@
 #!/bin/bash
 # 把仓库级 runner mac-mini-acquilang-native-1 装成 LaunchDaemon。
 # 注销图形用户、重启后仍在线。必须在 mac-mini 上以 root 运行：
-#   sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
+#   sudo /Users/hon/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
 #
 # 不要运行 ./svc.sh install / start，那会把 LaunchAgent 装回
 # ~/Library/LaunchAgents，登录后和 Daemon 双开。
@@ -12,13 +12,13 @@ if [[ $(id -u) -ne 0 ]]; then
   exit 1
 fi
 
-if pgrep -f '/Users/konghai/actions-runner/mac-mini-acquilang-native-1/.*/Runner.Worker' >/dev/null; then
+if pgrep -f '/Users/hon/actions-runner/mac-mini-acquilang-native-1/.*/Runner.Worker' >/dev/null; then
   echo "ERROR: Runner.Worker is running; wait for the job to finish." >&2
   pgrep -lf 'mac-mini-acquilang-native-1.*Runner.Worker' || true
   exit 1
 fi
 
-USER_NAME="konghai"
+USER_NAME="hon"
 GROUP_NAME="staff"
 USER_HOME="/Users/${USER_NAME}"
 ROOT="${USER_HOME}/actions-runner/mac-mini-acquilang-native-1"

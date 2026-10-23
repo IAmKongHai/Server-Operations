@@ -193,7 +193,8 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 
 | 主机 | GOCACHE | GOMODCACHE | PNPM_STORE_PATH |
 |------|---------|------------|-----------------|
-| mac-mini slot N | `~/actions-runner/mac-mini-sonar-N/cache/go-build` | `~/gha/cache/go-mod` | `~/gha/cache/pnpm-store` |
+| mac-mini sonar slot N | `~/gha/cache/go-build-sN`（2026-10-20 起在 CIWork 卷；2026-10-22 起 `~` = `/Users/hon`） | `~/gha/cache/go-mod` | `~/gha/cache/pnpm-store` |
+| mac-mini `caimiamiao-1` / `khmini` | `~/gha/cache/go-build-cmm1` / `go-build-khm1` | 同上 | 同上 |
 | lemon-imac slot N | `~/actions-runner/lemon-imac-N/cache/go-build` | `~/go/pkg/mod` | `~/gha/cache/pnpm-store` |
 | umacbook-pro slot N | `~/actions-runner/umacbook-pro-N/cache/go-build` | `~/go/pkg/mod` | `~/gha/cache/pnpm-store` |
 | mas-go-dev-ci-N | `/opt/actions-runner/<name>/cache/go-build` | `/home/actions-runner/go/pkg/mod` | `/var/cache/gha/pnpm-store` |
@@ -204,7 +205,7 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 
 | 主机 | 调度 | 动作 |
 |------|------|------|
-| mac-mini | crontab 03:15 日 / 周日 04:30 | `~/gha/scripts/gha-runner-maintenance.sh` |
+| mac-mini | hon 的 LaunchDaemon 03:15 / 周日 04:30（2026-10-22 由 konghai crontab 改来，注销后仍调度） | `~/gha/scripts/gha-runner-maintenance.sh` |
 | lemon-imac | LaunchDaemon 03:25 / 周日 04:45（crontab TCC 不可用；2026-08-19 由 LaunchAgent 改来，注销后仍调度） | 同上 |
 | umacbook-pro | LaunchDaemon 03:20 / 周日 04:40（2026-08-19 由 crontab+LaunchAgent 改来，注销后仍调度；MAX_GB=15） | 同上 |
 | mas-go-dev | systemd timer 03:15 / 周日 04:30 UTC | `/opt/gha-scripts/...`；含 CI + 部署 work |

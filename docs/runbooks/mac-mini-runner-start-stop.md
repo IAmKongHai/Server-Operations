@@ -1,17 +1,18 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-10-21
+> 最后更新：2026-10-23
+> **2026-10-22/23 起全部 runner 以 `hon` 运行**：程序目录 `/Users/hon/actions-runner/<name>`，workFolder 在 CIWork 卷 `/Users/hon/gha/<slot>`，LaunchDaemon 都是 `UserName=hon`、`HOME=/Users/hon`，除 khmini 外 `DOCKER_HOST=unix:///Users/hon/.colima/team/docker.sock`。下文 `~` 均指 `/Users/hon`。迁移记录见 [operations/mac-mini.md](../operations/mac-mini.md) 2026-10-22 / 23 条目。
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
 > org runner（caimiamiao）：`caimiamiao-1`（label `caimiaomiao-ci`，workFolder `~/gha/cmm1`）  
 > 仓库级 runner（`IAmKongHai/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）
 > 日常 CI 仓库级 runner：`mac-mini-acquilang-ci-1` … `5`（label `acquilang-ci`，workFolder `~/gha/alc1` … `alc5`）
-> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-acquilang-native-1`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`  
+> 仓库级 runner（`cypressoai/moo-decision`）：`khmini`（label `khmini`，SIT 部署，workFolder `~/gha/khm1`）
+> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-acquilang-native-1`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`、`~/actions-runner/khmini`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
-> 旧 LaunchAgent plist 停在 `~/Library/LaunchAgents.disabled-20260815/`。  
-> 固定恢复脚本：`~/bin/mac-mini-runner-resume.sh`（kickstart 1..4 + mobile-1 + acquilang-native-1）  
-> 日志：`~/Library/Logs/mac-mini-runner-resume.log`  
+> 旧 LaunchAgent plist 停在 `/Users/konghai/Library/LaunchAgents.disabled-20260815/`（历史）。  
+> 恢复脚本：`/Users/konghai/bin/mac-mini-runner-resume.sh`（kickstart 1..4 + mobile-1 + acquilang-native-1，需 `sudo`；KeepAlive 已开，一般用不上）  
 > 池与 label 定义见 [ci-runner-pools.md](./ci-runner-pools.md)
 >
 > 2026-08-19 曾 `launchctl disable` 停掉 `mac-mini-sonar-3/4` 给 Multica 留并发；**2026-08-25 已 enable + bootstrap 恢复**，四 slot 重新 online。当时条目见 [operations/mac-mini.md](../operations/mac-mini.md)。
@@ -34,12 +35,12 @@ brew list azure-cli || brew install azure-cli
 command -v az          # 必须打印 /opt/homebrew/bin/az
 az version             # azure-cli 有版本即可
 # 以 runner 的 PATH 再确认一次，避免只在交互 shell 里看得到：
-PATH='/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/konghai/Library/Android/sdk/platform-tools:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' command -v az
+PATH='/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/hon/Library/Android/sdk/platform-tools:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' command -v az
 ```
 
 不要为了 `az` 改 plist 或重启 `mac-mini-mobile-1`。不要给 runner 写 storage key / connection string。交互 `az login` 只给人手工验证，不能替代 GitHub Actions 的 OIDC。装 CLI **不会**让现有 `ota-publish-js.yml` 自动直传 Blob。
 
-SSH 进 mac-mini 时 **不要** 跑默认 `az login`：当时 `/dev/console` 往往是 `root`，没有 `konghai` 图形会话，`osascript` 开浏览器会 `-10810`（没装 Firefox 还会再报 `-1728`）。用设备代码，在你面前的浏览器完成登录：
+SSH 进 mac-mini 时 **不要** 跑默认 `az login`：当时 `/dev/console` 往往是 `root`，没有图形会话，`osascript` 开浏览器会 `-10810`（没装 Firefox 还会再报 `-1728`）。用设备代码，在你面前的浏览器完成登录：
 
 ```bash
 az login --use-device-code
@@ -64,7 +65,7 @@ macOS **默认禁用** `com.apple.atrun`（plist 里 `Disabled=true`）。
 ## 立即恢复
 
 ```bash
-ssh mac-mini 'sudo ~/bin/mac-mini-runner-resume.sh'
+ssh -t mac-mini 'sudo /Users/konghai/bin/mac-mini-runner-resume.sh'
 ```
 
 或：
@@ -100,7 +101,7 @@ runs-on: [self-hosted, konghai-friends-lab]
 2026-10-20 起已是 LaunchDaemon：`system/actions.runner.konghai-friends-lab.konghai-friends-lab-1`，重启后自动在线。**不要**再手动 `nohup ./runsvc.sh`，会和 Daemon 双开（2026-10-20 发生过一次）。重装 Daemon：
 
 ```bash
-sudo /Users/konghai/gha/scripts/install-konghai-friends-lab-runner-daemon.sh
+sudo /Users/hon/gha/scripts/install-konghai-friends-lab-runner-daemon.sh
 ```
 
 不要 `./svc.sh install`。重启 Daemon：
@@ -127,7 +128,7 @@ runs-on: [self-hosted, caimiaomiao-ci]
 LaunchDaemon：`system/actions.runner.caimiamiao.caimiamiao-1`。不要 `./svc.sh install`。重装 Daemon（仓库副本 `scripts/install-caimiamiao-runner-daemon.sh`）：
 
 ```bash
-sudo /Users/konghai/gha/scripts/install-caimiamiao-runner-daemon.sh
+sudo /Users/hon/gha/scripts/install-caimiamiao-runner-daemon.sh
 ```
 
 ```bash
@@ -149,7 +150,7 @@ runs-on: [self-hosted, macos, arm64, acquilang-native-ci]
 若需重装 Daemon：
 
 ```bash
-sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
+sudo /Users/hon/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
 ```
 
 kickstart：
@@ -171,21 +172,21 @@ gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
 | --- | --- | --- | --- |
 | 1–5 | `~/actions-runner/mac-mini-acquilang-ci-N` | `~/gha/alcN` | `system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N` |
 
-五个 slot 都是系统 LaunchDaemon，`RunAtLoad` / `KeepAlive`，以 `konghai` 运行。`ci-2` … `5` 在 2026-10-10 00:53–01:03 曾短暂用用户域 LaunchAgent 拉起，01:03 已卸下并改成系统服务。`~/Library/LaunchAgents/` 里不再有这些 plist。
+五个 slot 都是系统 LaunchDaemon，`RunAtLoad` / `KeepAlive`，2026-10-22 起以 `hon` 运行。`ci-2` … `5` 在 2026-10-10 00:53–01:03 曾短暂用用户域 LaunchAgent 拉起，01:03 已卸下并改成系统服务。`~/Library/LaunchAgents/` 里不再有这些 plist。
 
 2026-10-10 01:23 起，`ci-4` 和 `ci-5` 被 `launchctl disable`，用来把同时落在 mac-mini 上的 AcquiLang job 限制在 3 个。注册还在，GitHub 上显示 offline。恢复命令见 [mac-mini 运维记录](../operations/mac-mini.md) 同日条目。`lemon-imac` 当时 SSH 不可达，还没有接走这部分 job。
 
 - plist：`/Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist`
 - 日志：`~/Library/Logs/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N/`
 - Python：`/opt/homebrew/opt/python@3.12/bin/python3.12`（接入时为 3.12.11）。CI 直接调用，不使用依赖 `/Users/runner` 的 `setup-python` macOS 安装包。
-- 各 slot 的 `.env` 把 `PNPM_STORE_PATH` 和 `npm_config_store_dir` 指到同一个 `/Users/konghai/gha/cache/pnpm-store`。不复制 Native 的凭据。
+- 各 slot 的 `.env` 把 `PNPM_STORE_PATH` 和 `npm_config_store_dir` 指到同一个 `/Users/hon/gha/cache/pnpm-store`。不复制 Native 的凭据。sonar job 读的后端测试配置是 `ACQUILANG_BACKEND_ENV=/Users/hon/.config/acquilang/backend-ci.env`（600，含密钥；workflow 默认读 `$HOME/Code/Project/AcquiLangAI/acquilang-backend/.env`，hon 下没有这份工作副本）。
 - `config.sh` 不生成根目录的 `runsvc.sh`。从 `bin/runsvc.sh` 复制。不要跑 `./svc.sh install`，那会再写一份用户域 LaunchAgent，并和系统服务抢同一个 runner。
 - 安装脚本只安装尚未存在的系统服务；已有 plist 或已加载的系统服务会跳过，不覆盖、不重启。
 
 安装脚本仓库副本：[`scripts/install-mac-mini-acquilang-ci-runner-daemon.sh`](../../scripts/install-mac-mini-acquilang-ci-runner-daemon.sh)。不带参数时只处理 slot 1。新 slot 示例：
 
 ```bash
-sudo /Users/konghai/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh 2 3 4 5
+sudo /Users/hon/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh 2 3 4 5
 ```
 
 只读检查：
@@ -211,7 +212,7 @@ sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acqu
 sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist
 ```
 
-`~/bin/mac-mini-runner-resume.sh` 和 crontab 日/周清理的 `WORK_DIRS` 仍不包含 `alc1` … `alc5`。定时清理需另行确认后添加。
+恢复脚本和日/周清理的 `WORK_DIRS` 仍不包含 `alc1` … `alc5`。定时清理需另行确认后添加。
 
 ## 校验
 
@@ -227,14 +228,25 @@ gh api orgs/cypressoai/actions/runners \
 
 期望 `status` = `online`。全员注销后也应如此。
 
-## 定时（推荐 cron）
+## 定时维护
 
-```cron
-# konghai crontab 示例：每天 16:00 拉起
-0 16 * * * /Users/konghai/bin/mac-mini-runner-resume.sh
-```
+runner 磁盘维护是 hon 的 LaunchDaemon（2026-10-22 起，原 konghai crontab 已删）：
 
-不要把恢复脚本只放在 `/tmp`（重启会丢）。
+- `system/com.cypressoai.gha-runner-maintenance`：每天 03:15
+- `system/com.cypressoai.gha-runner-maintenance-weekly`：周日 04:30
+- 脚本 `~/gha/scripts/gha-runner-maintenance.sh`；`WORK_DIRS` = `s1..s4 m1 al1 khm1`，`GOCACHE_DIRS` = `cache/go-build-s{1..4} go-build-cmm1 go-build-khm1`
+- 日志 `~/Library/Logs/gha-runner-maintenance.log`；安装 / 重装：`scripts/install-mac-mini-team-services-daemons.sh --maintenance`
+
+runner 本身靠 `KeepAlive` 自愈，不需要定时拉起。
+
+## moo-decision `khmini`（SIT 部署）
+
+仓库级 runner，只给 `cypressoai/moo-decision` 的 `Deploy SIT (khmini)` 用（label `khmini`）。2026-10-23 起是 LaunchDaemon `system/actions.runner.cypressoai-moo-decision.khmini`（`UserName=hon`，开机即起，不需要登录 hon 图形界面），workFolder `~/gha/khm1`，`.env` 有 per-slot `GOCACHE=~/gha/cache/go-build-khm1`。
+
+- **不设 `DOCKER_HOST`**：moo-decision 的工具链显式用 `docker --context colima-moo`。hon 的默认 context 必须保持 `colima-moo`；`team` 的 `colima.yaml` 为 `autoActivate: false`，避免启动时抢 context。
+- `.path` 与原 LaunchAgent 一致（含 `/opt/homebrew/bin`）：`runsvc.sh` 用 `.path` 作为 job 的 PATH。
+- moo-app 的 server / worker / web 在 hon 的用户域 `user/504`，由 `deploy.sh` 用 `launchctl bootstrap user/$(id -u)` 管理。runner 在 system 域，所以 `deploy.sh` 必须显式写 `user/$(id -u)/<label>`（cypressoai/moo-decision#67）。moo-app 重启后不会自己回来，要等下一次部署。
+- 重装：`sudo /usr/local/sbin/hon-migrate.sh --khmini`（迁移期间的脚本，源码 `scripts/migrate-mac-mini-team-to-hon.sh`）。
 
 ## 相关
 
