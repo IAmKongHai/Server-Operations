@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-10-23 12:54 CST - 团队资产迁到 hon：khmini 改为 LaunchDaemon（U4），删除 konghai 签名凭据，修正 hon 的 docker context
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`；用户确认删除 konghai 名下签名凭据，并选择修改 moo-decision 的 `deploy.sh`（方案 A）让 khmini 以 LaunchDaemon 运行、无需登录 hon 图形界面。root 步骤为 `hon-migrate.sh --khmini`、`hon-team-services.sh --maintenance`。
+- 原因：khmini 原为 hon 用户域里手动 bootstrap 的 LaunchAgent（重启不恢复），workFolder 在系统数据卷，没有缓存与维护（计划 R5）。
+- 影响：khmini 停机约 15 秒；12:55 一次 SIT 部署失败（见下），SIT 服务未中断。
+- 备份：`~/actions-runner/khmini/.runner.bak-20261023`、`.env.bak-20261023`；原 LaunchAgent plist `~/actions-runner/khmini/ai.cypresso.actions-runner.plist` 保留未删；`~/.colima/team/colima.yaml.bak-20261023`。
+- 回滚方式：`sudo launchctl bootout system/actions.runner.cypressoai-moo-decision.khmini` 并移走其 plist；用 `.bak-20261023` 还原 `.runner` / `.env`；以 hon 执行 `launchctl bootstrap user/504 ~/actions-runner/khmini/ai.cypresso.actions-runner.plist`。
+- 变更时序：
+  - 删除 konghai 名下 `~/.config/icare`、`~/Library/Android/sdk`（12G）、`~/.expo/state.json`（Expo 用户 `koghai`）。不可恢复；hon 已有副本且 U5 打包已验证。服务端会话需用户在 Expo 后台注销。
+  - 修正 hon 的 docker 默认 context：`team` 的 `colima.yaml` 为 `autoActivate: true`，守护进程启动时把 hon 的 currentContext 改成了 `colima-team`。改为 `autoActivate: false`（与 multica 一致，只有 moo 为 true），并 `docker context use colima-moo`。
+  - 12:54 `--khmini`：bootout hon 用户域的 `ai.cypresso.actions-runner`；`.runner` workFolder `_work` → `/Users/hon/gha/khm1`；`.env` 加 `GOCACHE=/Users/hon/gha/cache/go-build-khm1`、共享 `GOMODCACHE` / `PNPM_STORE_PATH`；`.path` 写成原 LaunchAgent 的 PATH（`runsvc.sh` 以 `.path` 作为 job PATH）；安装 LaunchDaemon `actions.runner.cypressoai-moo-decision.khmini`（UserName=hon，不设 `DOCKER_HOST`：moo-decision 工具链显式用 `--context colima-moo`）。维护任务 WORK_DIRS / GOCACHE_DIRS 加入 `khm1`。
+  - 12:55 手动触发 `Deploy SIT (khmini)` run `39902907365` 失败：`deploy.sh` 用不带域的 `launchctl list <label>` 找 moo-app，在 system 域看不到 `user/504` 的服务，跳过 bootout；随后 `bootstrap user/504` 报 `5: Input/output error`（服务仍在）。数据库已迁移到 118、二进制已更新但服务仍是旧进程。以 hon 手动 bootout / bootstrap 三个服务补完重启，healthz 200。
+  - 13:10 moo-decision 分支 `fix/khmini-deploy-launchctl-user-domain`：查找改为 `launchctl print user/$(id -u)/<label>`，同步更新 `docs/operations/khmini-dev-infra.md`。在该分支手动触发 `Deploy SIT` run `39904626051` 成功（13:14–13:15），三个服务换新 pid、healthz 200、job 工作目录在 `~/gha/khm1`。PR：cypressoai/moo-decision#67（base develop）。
+- 验证：khmini 在 GitHub online（label `khmini`）；`Runner.Listener` 由 LaunchDaemon 以 hon 运行；hon 用户域里旧的 `ai.cypresso.actions-runner` 已不存在；SIT 部署走通。
+- 注意：#67 合并前，develop 上的 push 仍会用旧 `deploy.sh`，部署会在重启步骤失败（数据库已迁移、服务未换），需以 hon 手动补重启。
+- 待办：#67 合并后确认自动部署成功；经用户确认删除 `~/actions-runner/khmini/_work`（旧 workFolder，1.5G）和原 LaunchAgent plist。
+
 ## 2026-10-23 11:38 CST - 团队资产迁到 hon：签名 runner 改以 hon 运行（U5）
 
 - 服务器：`mac-mini`
