@@ -16,7 +16,8 @@ BACKUP_DIR=/var/backups/servbay-removal-$(date +%Y%m%d)
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
-# 1. sudoers
+# 1. sudoers（visudo -c 对非 0440 的文件报错并返回失败，先把 sudoers.d 统一成标准权限，规则内容不变）
+chmod 0440 /etc/sudoers.d/*
 if [[ -f /etc/sudoers.d/servbay ]]; then
   mv /etc/sudoers.d/servbay "$BACKUP_DIR/sudoers.servbay"
   visudo -c >/dev/null
