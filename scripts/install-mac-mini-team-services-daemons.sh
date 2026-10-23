@@ -146,8 +146,8 @@ install_maintenance() {
   <dict>
     <key>HOME</key><string>$H_HOME</string>
     <key>PATH</key><string>$PATH_VALUE</string>
-    <key>WORK_DIRS</key><string>$gha/s1 $gha/s2 $gha/s3 $gha/s4 $gha/m1 $gha/al1</string>
-    <key>GOCACHE_DIRS</key><string>$gha/cache/go-build-s1 $gha/cache/go-build-s2 $gha/cache/go-build-s3 $gha/cache/go-build-s4 $gha/cache/go-build-cmm1</string>
+    <key>WORK_DIRS</key><string>$gha/s1 $gha/s2 $gha/s3 $gha/s4 $gha/m1 $gha/al1 $gha/khm1</string>
+    <key>GOCACHE_DIRS</key><string>$gha/cache/go-build-s1 $gha/cache/go-build-s2 $gha/cache/go-build-s3 $gha/cache/go-build-s4 $gha/cache/go-build-cmm1 $gha/cache/go-build-khm1</string>
     <key>PNPM_STORE</key><string>$gha/cache/pnpm-store</string>
     <key>GOMODCACHE_DIR</key><string>$gha/cache/go-mod</string>
     <key>MODE</key><string>$mode</string>

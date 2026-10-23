@@ -17,6 +17,7 @@
 #   --start-runners              出错中断后按现有 plist 拉起 runner（acquilang-ci-4/5 除外）
 #   --signing                    U5：等签名 runner 空闲后停下，复制 ~/.config/icare 与 Android SDK 到 hon，
 #                                两个签名 runner 改以 hon 运行，m1 / al1 给 hon，pnpm store 回到共享
+#   --khmini                     U4：khmini 从 hon 的 LaunchAgent 改为 LaunchDaemon，workFolder 迁到 CIWork 的 khm1
 #
 # 注意：macOS /bin/bash 是 3.2，变量后紧跟中文全角字符要写成 ${VAR}。
 set -euo pipefail
@@ -475,6 +476,77 @@ signing() {
   ps -axo user=,command= | awk '/[R]unner.Listener/ {print "  " $1, $2}' | tee -a "$LOG"
 }
 
+# khmini 不设 DOCKER_HOST：moo-decision 的工具链显式用 --context colima-moo，指向 team 反而会错
+KHMINI_DAEMON_LABEL=actions.runner.cypressoai-moo-decision.khmini
+KHMINI_PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+khmini() {
+  local dir=$H_RUNNERS/khmini plist=/Library/LaunchDaemons/$KHMINI_DAEMON_LABEL.plist
+  local deadline=$(($(date +%s) + DRAIN_TIMEOUT_SEC))
+  local log_dir=$H_HOME/Library/Logs/$KHMINI_DAEMON_LABEL
+  log "1/4 等 khmini 空闲后停掉 LaunchAgent"
+  while runner_busy "$dir"; do
+    (($(date +%s) < deadline)) || die "等待 khmini 空闲超时"
+    log "  等待 khmini"
+    sleep 30
+  done
+  launchctl bootout "user/$HON_UID/$KHMINI_LABEL" 2>/dev/null || true
+  launchctl print "system/$KHMINI_DAEMON_LABEL" >/dev/null 2>&1 && launchctl bootout "system/$KHMINI_DAEMON_LABEL"
+
+  log "2/4 workFolder 改到 ${H_HOME}/gha/khm1，补缓存路径"
+  mkdir -p "$H_HOME/gha/khm1" "$H_HOME/gha/cache/go-build-khm1" "$log_dir"
+  chown hon:staff "$H_HOME/gha/khm1" "$H_HOME/gha/cache/go-build-khm1" "$log_dir"
+  [[ -f $dir/.runner.bak-$STAMP ]] || cp -p "$dir/.runner" "$dir/.runner.bak-$STAMP"
+  [[ -f $dir/.env.bak-$STAMP ]] || cp -p "$dir/.env" "$dir/.env.bak-$STAMP"
+  sed -i '' "s|\"workFolder\": \"_work\"|\"workFolder\": \"$H_HOME/gha/khm1\"|" "$dir/.runner"
+  grep -q "\"workFolder\": \"$H_HOME/gha/khm1\"" "$dir/.runner" || die ".runner 的 workFolder 未改成 khm1"
+  grep -q '^GOCACHE=' "$dir/.env" || echo "GOCACHE=$H_HOME/gha/cache/go-build-khm1" >>"$dir/.env"
+  grep -q '^GOMODCACHE=' "$dir/.env" || echo "GOMODCACHE=$H_HOME/gha/cache/go-mod" >>"$dir/.env"
+  grep -q '^PNPM_STORE_PATH=' "$dir/.env" || echo "PNPM_STORE_PATH=$H_HOME/gha/cache/pnpm-store" >>"$dir/.env"
+  # runsvc.sh 用 .path 作为 job 的 PATH；保持与原 LaunchAgent 的 PATH 一致
+  echo "$KHMINI_PATH" >"$dir/.path"
+  cp -p "$dir/bin/runsvc.sh" "$dir/runsvc.sh"
+  chown hon:staff "$dir/.runner" "$dir/.env" "$dir/.path" "$dir/runsvc.sh"
+
+  log "3/4 安装 LaunchDaemon $KHMINI_DAEMON_LABEL"
+  cat >"$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$KHMINI_DAEMON_LABEL</string>
+  <key>UserName</key><string>hon</string>
+  <key>GroupName</key><string>staff</string>
+  <key>ProgramArguments</key>
+  <array><string>$dir/runsvc.sh</string></array>
+  <key>WorkingDirectory</key><string>$dir</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ACTIONS_RUNNER_SVC</key><string>1</string>
+    <key>HOME</key><string>$H_HOME</string>
+    <key>LANG</key><string>en_US.UTF-8</string>
+    <key>PATH</key><string>$KHMINI_PATH</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>SessionCreate</key><true/>
+  <key>StandardOutPath</key><string>$log_dir/stdout.log</string>
+  <key>StandardErrorPath</key><string>$log_dir/stderr.log</string>
+</dict>
+</plist>
+EOF
+  chown root:wheel "$plist"
+  chmod 644 "$plist"
+  plutil -lint "$plist" >/dev/null
+
+  log "4/4 拉起"
+  launchctl enable "system/$KHMINI_DAEMON_LABEL"
+  launchctl bootstrap system "$plist"
+  sleep 15
+  pgrep -fl "$dir/bin[^ ]*/Runner.Listener" | tee -a "$LOG" || die "khmini Runner.Listener 未启动"
+  log "回滚：sudo launchctl bootout system/${KHMINI_DAEMON_LABEL}；用 .runner / .env 的 .bak-${STAMP} 还原；以 hon 执行 launchctl bootstrap user/${HON_UID} ${dir}/${KHMINI_LABEL}.plist"
+}
+
 case "${1:-}" in
   --status) status ;;
   --snapshot) snapshot ;;
@@ -486,5 +558,6 @@ case "${1:-}" in
   --runners) runners ;;
   --start-runners) start_runners ;;
   --signing) signing ;;
-  *) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  --khmini) khmini ;;
+  *) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
