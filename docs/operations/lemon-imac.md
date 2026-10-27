@@ -1,5 +1,19 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-28 01:00 CST - lemon-imac-acquilang-ci-1 的 `shell: bash` 切到 Homebrew bash 5.3.20
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude` 改文件；用户要求升级，并执行 sudo 重启。
+- 原因：该 runner 的 `.path` 只有系统目录，装了 Homebrew bash 后仍用 3.2，和另外两个 runner 不一致。
+- 选型：不把 `/opt/homebrew/bin` 整体加进 `.path`，以免 `node` 等其它 brew 工具混进 AcquiLang job 环境。改为新建只含 `bash` 符号链接的 `shims/` 目录，放在 `.path` 最前面。
+- 影响：runner 重启约数秒，期间无 job。
+- 备份：`~/actions-runner/lemon-imac-acquilang-ci-1/.path.bak.20261028`（原值 `/usr/bin:/bin:/usr/sbin:/sbin`）。
+- 回滚方式：用 `.path.bak.20261028` 覆盖 `.path`，然后在没有 `Runner.Worker` 时执行 `sudo launchctl kickstart -k system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`；`shims/` 可留可删。
+- 变更：
+  - 00:59 `mkdir shims && ln -s /opt/homebrew/bin/bash shims/bash`；`.path` 改为 `/Users/for-konghai/actions-runner/lemon-imac-acquilang-ci-1/shims:/usr/bin:/bin:/usr/sbin:/sbin`。
+  - 01:00 用户执行 `pgrep -fl Runner.Worker || sudo launchctl kickstart -k system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`。
+- 验证：`Runner.Listener` 新 pid 7711，01:00:05 启动，进程环境 `PATH` 为新值；`_diag` 显示 `Listening for Jobs`（runner 2.338.0）；GitHub API 显示 `online busy=false`。按新 `.path` 模拟 `shell: bash` 得到 5.3.20，`node` 仍不在 `PATH` 里（与改前一致）。真实 job 待下一轮确认。
+
 ## 2026-10-28 00:55 CST - 安装 Homebrew bash 5.3.20
 
 - 服务器：`lemon-imac`
