@@ -4,6 +4,23 @@
 
 SSH：`ssh icare-uat-runner-1`（兼容 `ssh icare-uat-runner`）→ `icareadmin@10.30.6.4`。主机名 `icare-2-uat-ci-runner`。
 
+## 2026-10-27 21:58 CST — v2026-10-27.04 UAT 构建在 GitHub 上"一直排队"排查
+
+- **操作人：** Claude（`k-cypresso`），只读排查；取消由用户在网页上点，重跑 deploy 经用户确认后执行。
+- **现象：** backend run [40512927516](https://github.com/cypressoai/iCare-backend/actions/runs/40512927516) 的 `Build and mirror UAT images` 在 GitHub 上一直显示 `queued`、`steps: []`，但 API 里 `runner_name=icare-2-uat-runner`、`started_at=13:34:19Z`，runner-1 显示 online + busy，runner-2 空闲。前端 run 40512940678 的 wait job 跟着一直轮询到 `gha=queued`。
+- **结论：** runner 没离线，也没卡死，**是 GitHub 侧 job 状态没同步**。runner-1 的 `_diag/Worker_20261027-133421-utc.log` 显示 13:34:27 起正常逐步执行，5 个镜像全部构建推送完成，14:01:14 `Job result: Succeeded`，日志和 timeline 上报的 success rate 都是满的。期间 broker websocket 断过几次（`remote party closed the WebSocket connection without completing the close handshake`），但不影响执行。当时 GitHub Status 没有挂 Actions 故障。
+- **影响：** UAT 发版晚了大约 10 分钟。用户在网页上点的取消没有中止构建（构建已经跑完），却让下游的 `Migrate then roll UAT containers` 变成了 `cancelled`。
+- **备份：** 未改 VM / runner / Docker / `/var/cache/buildx`，无需备份。
+- **回滚方式：** 无配置变更；deploy 重跑是正常发版路径。
+- **变更时序：**
+  - 14:01 UTC 用户网页取消 → runner 侧 Worker 已完成，以 exit 100 退出；GitHub 仍显示 `queued`
+  - 此时 API `force-cancel` 返回 409（not in progress），`rerun` 返回 403（already running）
+  - 14:03 GitHub 状态自行追上：build job `success`，deploy job `cancelled`；14:05 run 收尾为 `cancelled`
+  - 14:06 用户确认后 `gh api -X POST .../runs/40512927516/rerun-failed-jobs`，只重跑 deploy，不重新构建
+  - 14:07:15 deploy 已在 runner-1 上执行，但 GitHub 到 14:10:32 才显示 `in_progress`，又是一次延迟
+- **验证：** backend run attempt 2 `completed/success`（deploy 14:11:38 成功）；前端 wait job 14:09:58 等到 UAT 运行版本 `.04`，`Deploy MAS to Azure UAT` 在 `icare-2-uat-runner-2` 上执行，前端 run `completed/success`。
+- **经验：** 以后看到 UAT job "排队"但 API 里已经有 `runner_name` / `started_at`，先上 runner 看 `_diag/Worker_*.log` 是否在跑，**不要急着点取消**：取消会把还没开始的下游 job 一起取消。build 和 deploy 分别受 workflow 级 `azure-uat-images`、job 级 `azure-uat-deploy` 两把 concurrency 锁保护（`cancel-in-progress: false`），GitHub 状态卡死期间新打的 tag 也会被锁住排队。
+
 ## 2026-10-15 21:16 CST — runner 组 `icare-2-uat` 放行 moo-ocr / moo-decision
 
 - **操作人：** Claude（`k-cypresso`，org admin），用户确认后执行。
