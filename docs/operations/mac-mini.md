@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-10-28 00:55 CST - 安装 Homebrew bash 5.3.20
+
+- 服务器：`mac-mini`
+- 操作人：`Claude`，用户要求"两台都装 bash"。
+- 原因：系统 `/bin/bash` 是 3.2，CI 和手工脚本反复踩 3.2 的坑（`$VAR` 紧跟中文、`set -u` 下空数组）。
+- 影响：14 个 runner 的 `.path` 都以 `/opt/homebrew/bin` 开头，CI 里 `shell: bash` 的步骤从 3.2 变为 5.3.20。plist 写死 `/bin/bash` 的 LaunchDaemon（`fseventsd-watchdog`、维护任务）和 `sudo` 跑的脚本不受影响。
+- 备份：不涉及（新装包，无配置改动）。
+- 回滚方式：以 `konghai` 执行 `brew uninstall bash`（依赖 `json-c` 可再 `brew autoremove`），`shell: bash` 回落到 `/bin/bash` 3.2。不需要重启 runner。
+- 变更：00:54 确认无 `Runner.Worker` 在跑；以 `konghai` 执行 `brew install bash`，装入 `bash 5.3.20` 和依赖 `json-c 0.19`，没有升级其他包。
+- 验证：`/opt/homebrew/bin/bash --version` 为 5.3.20；以 `hon` 按每个 runner 的 `.path` 模拟 `bash --noprofile --norc -eo pipefail`，14 个 runner 全部得到 5.3.20。真实 CI job 待下一轮运行后确认。
+
 ## 2026-10-28 00:45 CST - 只读排查：SSH 跑 gh 报 401、远端脚本的 bash 3.2 兼容性
 
 - 服务器：`mac-mini`（顺带扫描 `lemon-imac`）

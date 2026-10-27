@@ -1,5 +1,16 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-28 00:55 CST - 安装 Homebrew bash 5.3.20
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`，用户要求"两台都装 bash"。
+- 原因：系统 `/bin/bash` 是 3.2，脚本反复踩 3.2 的坑。
+- 影响：`lemon-imac-{1,2}` 的 `.path` 以 `/opt/homebrew/bin` 开头，CI 里 `shell: bash` 从 3.2 变为 5.3.20。`lemon-imac-acquilang-ci-1` 的 `.path` 是 `/usr/bin:/bin:/usr/sbin:/sbin`，仍是 3.2（未改动）。plist 写死 `/bin/bash` 的 LaunchDaemon（`ciwork-mount`、`fseventsd-watchdog`、维护任务）不受影响。
+- 备份：不涉及（新装包，无配置改动）。
+- 回滚方式：以 `for-konghai` 执行 `brew uninstall bash`（依赖 `ncurses` 可再 `brew autoremove`）。不需要重启 runner。
+- 变更：00:54 确认无 `Runner.Worker` 在跑；以 `for-konghai` 执行 `brew install bash`，装入 `bash 5.3.20` 和依赖 `ncurses 6.6`（`readline 8.3.3` 原已存在），没有升级其他包。
+- 验证：按 3 个 runner 的 `.path` 模拟 `bash --noprofile --norc -eo pipefail`：`lemon-imac-{1,2}` 为 5.3.20，`lemon-imac-acquilang-ci-1` 为 3.2.57。真实 CI job 待下一轮运行后确认。
+
 ## 2026-10-28 00:52 CST - 同步 migrate-lemon-imac-ci-to-nofsevents-volume.sh 为仓库版本
 
 - 服务器：`lemon-imac`

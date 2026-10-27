@@ -131,6 +131,7 @@
   - 定时任务（hon 的 LaunchDaemon，源码 `scripts/install-mac-mini-team-services-daemons.sh`）：`com.cypressoai.sonarqube-backup` 03:30、`com.cypressoai.acquilang-backup` 04:00、`com.cypressoai.gha-runner-maintenance{,-weekly}` 03:15 / 周日 04:30；`com.cypressoai.acquilang-prod-sync`（0/6/12/18 点）已装但 **disabled**（生产同步自 10-19 失败，nyh-prod 受限密钥未落地）。备份在 `/Users/hon/backups/`
   - 签名与团队凭据只在 hon 下（600）：`~/.config/icare/{preview,production}`、`~/.config/acquilang/backend-ci.env`（AcquiLang CI 的 `ACQUILANG_BACKEND_ENV`）；Android SDK `~/Library/Android/sdk`。hon 下所有进程都能读到它们，这是用户接受的风险
   - Homebrew 仍归 `konghai`，hon 只读 / 执行 `/opt/homebrew`。`azure-cli` **必须**是 `/opt/homebrew/bin/az`（跟 brew 最新稳定即可），幂等安装 `brew list azure-cli || brew install azure-cli`，runner 的 launchd PATH 已含 `/opt/homebrew/bin`，装完不必改 plist、不必重启 runner；不要装到 `/usr/local/bin`
+  - bash：2026-10-28 起装了 Homebrew bash 5（`/opt/homebrew/bin/bash`），runner `.path` 里它排在 `/bin` 前，所以 CI 的 `shell: bash` 是 5.x。plist 写死 `/bin/bash` 的 LaunchDaemon（`fseventsd-watchdog`、维护任务）和 `sudo` 跑的脚本仍是 3.2（不要改成 Homebrew bash：`/opt/homebrew` 归普通用户可写，root 执行它等于提权），这些脚本必须兼容 3.2
   - **不要**给 runner 写 Azure storage connection string / account key。GHA 上传走 OIDC（`azure/login` + `--auth-mode login`）。交互 `az login` 只给人手工验证；SSH 进来时用 `az login --use-device-code`（无图形会话时默认 `az login` 会 osascript `-10810`）。装 `az` **不会**让 `ota-publish-js.yml` 自动直传 Blob
   - fseventsd 看门狗：LaunchDaemon `system/com.konghai.fseventsd-watchdog`，每 5 分钟跑 `/usr/local/sbin/fseventsd-watchdog.sh`（源码 `scripts/mac-mini-fseventsd-watchdog.sh`）。内存 ≥1G 抓现场、≥4G 自动 `killall fseventsd`；日志和现场在 `/var/log/fseventsd-watchdog/`，`konghai` 可直接读（label 名保留 `com.konghai.*`，是系统级服务，与账户无关）
 - `lemon-imac` 目录约定：
@@ -147,6 +148,7 @@
   - 计划内重启用 `sudo fdesetup authrestart`（下次开机自动解锁一次）。意外关机后 Data 卷锁着，所有 LaunchDaemon（runner、挂载、看门狗）都要等朋友本人登录解锁才会起来，属正常
   - fseventsd 看门狗：LaunchDaemon `system/com.konghai.fseventsd-watchdog`，每 5 分钟跑 `/usr/local/sbin/fseventsd-watchdog.sh`（与 mac-mini 共用源码 `scripts/mac-mini-fseventsd-watchdog.sh`，安装用 `scripts/install-lemon-imac-fseventsd-watchdog.sh`）。8GB 机器阈值调低：内存 ≥512M 抓现场、≥2G 自动 `killall fseventsd`（plist 里的 `CAPTURE_MB` / `KILL_MB`）；日志和现场在 `/var/log/fseventsd-watchdog/`，`for-konghai` 可直接读
   - Tailscale：Homebrew `tailscaled` 1.102.2，LaunchDaemon `system/homebrew.mxcl.tailscale`，节点 `100.81.246.93` / MagicDNS `lemon-imac`。**不要**再装 GUI Standalone（会和 daemon 抢隧道）。CLI：`/opt/homebrew/bin/tailscale`
+  - bash：2026-10-28 起装了 Homebrew bash 5。`lemon-imac-{1,2}` 的 `.path` 以 `/opt/homebrew/bin` 开头，`shell: bash` 是 5.x；`lemon-imac-acquilang-ci-1` 的 `.path` 是 `/usr/bin:/bin:/usr/sbin:/sbin`，仍是 3.2。plist 写死 `/bin/bash` 的 LaunchDaemon（`ciwork-mount`、`fseventsd-watchdog`、维护任务）保持不变，脚本必须兼容 3.2
   - 当前 labels 同 `umacbook-pro`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
   - 8GB 内存 + 双 slot 并发容易顶满内存/磁盘，重活优先派给 `mac-mini`
 - `umacbook-pro` 目录约定：
