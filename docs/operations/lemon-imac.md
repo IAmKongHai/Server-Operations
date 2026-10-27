@@ -1,5 +1,15 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-28 00:45 CST - 只读扫描：线上脚本的 bash 3.2 兼容性
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`，只读扫描，未改动服务器。
+- 原因：mac-mini 上出现过 bash 3.2 把 `$VAR` 后的中文当成变量名导致 exit 1，检查本机线上脚本副本。
+- 影响：无。
+- 回滚方式：不涉及。
+- 结论：`/usr/local/sbin/*.sh` 与 `~/gha/scripts/*.sh` 中只有 `migrate-lemon-imac-ci-to-nofsevents-volume.sh` 是旧副本，最后一行"完成"日志会触发该问题（仓库已在 `5bb368e` 修复）。迁移 10-21 已完成，不影响现网；重跑前先用仓库版本覆盖。
+- 文档：`docs/solutions/mac-mini/integration-issues/ssh-gh-401-keychain-locked-and-bash32-pitfalls-2026-10-28.md`。
+
 ## 2026-10-22 09:50 CST - 删除 CIWork 迁移备份；FileVault 保持开启
 
 - 服务器：`lemon-imac`

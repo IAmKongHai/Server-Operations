@@ -1,5 +1,17 @@
 # mac-mini 运维时间线
 
+## 2026-10-28 00:45 CST - 只读排查：SSH 跑 gh 报 401、远端脚本的 bash 3.2 兼容性
+
+- 服务器：`mac-mini`（顺带扫描 `lemon-imac`）
+- 操作人：`Claude`，只读排查，未改动服务器。
+- 原因：`ssh mac-mini 'gh api ...'` 报 401；`sudo hon-migrate.sh` 曾因 bash 3.2 把中文当变量名而 exit 1。
+- 影响：无。
+- 回滚方式：不涉及。
+- 结论：
+  - 401：`konghai` 激活的 gh 账号 `IAmKongHai` 的 token 存在登录钥匙串，SSH 会话里读取返回 `36`（`errSecInteractionNotAllowed`）。mac-mini 上 `k-cypresso`、`hon003` 都没有查 runner 的权限，所以不修，改为一律在本机查 GitHub API。
+  - bash 3.2：`/usr/local/sbin/*.sh`、`/Users/hon/gha/scripts/*.sh` 扫描干净；仓库 `scripts/` 两处已在 `5bb368e` 修复。
+- 文档：`docs/solutions/mac-mini/integration-issues/ssh-gh-401-keychain-locked-and-bash32-pitfalls-2026-10-28.md`。
+
 ## 2026-10-23 14:00 CST - 团队资产迁到 hon：清理 khmini 旧目录，同步脚本与文档（U7）
 
 - 服务器：`mac-mini`
