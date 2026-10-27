@@ -1,5 +1,16 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-28 00:52 CST - 同步 migrate-lemon-imac-ci-to-nofsevents-volume.sh 为仓库版本
+
+- 服务器：`lemon-imac`
+- 操作人：`Claude`，用户要求同步。
+- 原因：线上副本最后一行日志是 `$BACKUP_DIR、`，bash 3.2 会把中文当变量名，`set -u` 下 exit 1（见下一条）。
+- 影响：无。该迁移 10-21 已完成，脚本不在任何定时任务里；与仓库版本只差第 188 行。
+- 备份：`~/gha/scripts/migrate-lemon-imac-ci-to-nofsevents-volume.sh.bak.20261028`。
+- 回滚方式：用 `.bak.20261028` 覆盖回去。
+- 变更：`scp -p` 仓库 `scripts/migrate-lemon-imac-ci-to-nofsevents-volume.sh` 覆盖 `~/gha/scripts/` 中同名文件。
+- 验证：两端 sha256 一致（`c8f3cba01d9bdd05…`）；`/bin/bash -n` 语法检查通过；`$VAR` 紧跟非 ASCII 的匹配数为 0。
+
 ## 2026-10-28 00:45 CST - 只读扫描：线上脚本的 bash 3.2 兼容性
 
 - 服务器：`lemon-imac`

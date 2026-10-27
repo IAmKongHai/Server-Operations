@@ -112,4 +112,4 @@ grep -nE 'declare -[a-zA-Z]*[An]|local -[a-zA-Z]*[An]|mapfile|readarray|\$\{[A-Z
 
 - 仓库 `scripts/`：两处 `$VAR` 紧跟中文已改（提交 `5bb368e`），没有 bash 4+ 语法；`set -u` 下可能为空的数组都已加 `+` 保护。
 - mac-mini `/usr/local/sbin/*.sh`、`/Users/hon/gha/scripts/*.sh`：干净。
-- lemon-imac：只有 `~/gha/scripts/migrate-lemon-imac-ci-to-nofsevents-volume.sh` 还是旧副本，问题在最后一行"完成"日志。该迁移 10-21 已做完，不影响现网；以后要重跑，先用仓库版本覆盖。
+- lemon-imac：只有 `~/gha/scripts/migrate-lemon-imac-ci-to-nofsevents-volume.sh` 是旧副本，问题在最后一行"完成"日志；同日已同步为仓库版本（见 `docs/operations/lemon-imac.md`）。
