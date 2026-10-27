@@ -66,7 +66,7 @@ log "公网 URL: $PUBLIC_URL"
 
 log "检查 SSH 连通性…"
 ssh -o BatchMode=yes -o ConnectTimeout=15 "$SSH_HOST" 'true' \
-  || die "无法 SSH 到 $SSH_HOST（检查 ~/.ssh/config 与密钥）"
+  || die "无法 SSH 到 ${SSH_HOST}（检查 ~/.ssh/config 与密钥）"
 
 REMOTE_TMP="/tmp/${REMOTE_NAME}.$$.upload"
 TS="$(date +%Y%m%d%H%M%S)"

@@ -185,7 +185,7 @@ finish() {
   [[ -f $TARGET_DIR/.ciwork-mounted ]] || log "WARNING: 缺少 $TARGET_DIR/.ciwork-mounted，runner 的 PathState 条件不满足，不会启动（先跑 install-lemon-imac-ciwork-automount.sh）"
   start_runners
   status
-  log "完成。确认 CI 正常后，再删除 $BACKUP_DIR、$RUNNER_ROOT/lemon-imac-*/cache/go-build 和 /Library/LaunchDaemons/*.bak-ciwork-$STAMP"
+  log "完成。确认 CI 正常后，再删除 ${BACKUP_DIR}、${RUNNER_ROOT}/lemon-imac-*/cache/go-build 和 /Library/LaunchDaemons/*.bak-ciwork-$STAMP"
 }
 
 status() {
