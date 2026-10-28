@@ -1,5 +1,19 @@
 # tizi-cyp 运维时间线
 
+## 2026-10-28 20:42 CST - 排查：经本节点访问 malaysiadigital.mdec.my 上传慢、远端 DNS 是否生效
+
+- 服务器：`tizi-cyp`（3x-ui，inbound `in-443-tcp`，vless reality `:443`）
+- 操作人：`Claude`。用户在 `malaysiadigital.mdec.my` 提交资料时一直 loading，想找一个离它服务器近的代理节点。
+- 发现：
+  - 站点的 DNS 由 Akamai 托管，前面是 Akamai CDN，应用是 OutSystems 做的。源站是 AWS 新加坡 `ap-southeast-1` 的 ALB（`mdec.outsystemsenterprise.com`，`54.151.214.221` / `13.229.186.112`）。把 Host 设为 `malaysiadigital.mdec.my` 直连这个 ALB，返回的 `indexVersionToken` 与走 CDN 拿到的一致。
+  - 本节点（洛杉矶）到源站 TCP 往返约 167ms，Akamai 洛杉矶边缘回源约 177ms。`rao-tizi`、`tizi-ddy` 也都在洛杉矶，数据相同。`tizi` 这次 SSH 超时。
+  - xray 入站开了 sniffing，`destOverride=[http,tls,quic,fakedns]`，`routeOnly=false`。所以即使客户端发来的是 IP，xray 也会改用嗅探出的域名，在服务端重新解析，效果等同于强制远端 DNS。服务端解析走系统 resolver（Tailscale `100.100.100.100`，没配全局 resolver，回落到系统默认），`malaysiadigital.mdec.my` 解析到 Akamai 洛杉矶边缘 `23.45.173.81`。
+  - xray 的 access log 是 `none`，看不到客户端实际发来的是域名还是 IP。
+  - 用户 Mac 没开系统代理，也没开 TUN（v2rayN 在运行，但配置指向 `tz.skysms.xyz`，即 `tizi`，实际没有流量经过它）。流量走 `home-router` Passwall 透明代理，出口是本节点。路由器 DNS 是 chinadns-ng 分流（见 `docs/operations/home-router.md` 2026-09-18），我这边没有路由器的 SSH 密钥，没能读 UCI 复核。
+- 结论：远端 DNS 在服务端 sniffing 这一层已经生效，上传慢不是 DNS 的问题。根本原因是出口在洛杉矶，而源站在新加坡，上传要绕一圈太平洋。建议换新加坡节点（最好是 AWS ap-southeast-1），新节点同样开 sniffing 并设 `routeOnly=false`。
+- 影响：只做了只读排查，没有改 3x-ui、xray、路由器。
+- 回滚方式：无变更，无需回滚。
+
 ## 2026-10-11 15:45 CST - 排查：家里路由器切到 cyp-tizi 节点后仍不通
 
 - 服务器：`tizi-cyp`（3x-ui，inbound id `1` `cyp-tizi`，vless reality `:443`）
