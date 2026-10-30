@@ -1,5 +1,25 @@
 # mssql-ref 运维操作时间线
 
+## 2026-10-30 23:51 CST - 压缩内存：VM 18G → 10G，SQL Server 上限 6G
+
+- 服务器：`mssql-ref`（`pve` VMID `110`）
+- 操作人：`Claude`（用户确认夜间可停机）
+- 原因：给 PVE 腾内存，准备迁入 `mac-mini` 的 colima VM。原 `max server memory` 14336 MB，committed 约 12G；常用数据缓存只有约 7G（`medicalassistance_preprod` 约 5G、`_replicated` 约 1.2G、tempdb 约 0.9G），执行计划缓存约 1.8G。
+- 备份：
+  - VM 内 `/var/opt/mssql/mssql.conf.bak.20261030`（原文件没有 `[memory]` 段）
+  - PVE `/root/110.conf.bak.20261030`（原 `memory: 18432`）
+  - 原 `sp_configure`：`max server memory (MB)` = 14336，`optimize for ad hoc workloads` = 0
+- 做了什么：
+  1. `sp_configure 'max server memory (MB)', 6144`；`sp_configure 'optimize for ad hoc workloads', 1`；`RECONFIGURE`
+  2. `mssql-conf set memory.memorylimitmb 8192`
+  3. PVE：`qm shutdown 110` → `qm set 110 --memory 10240` → `qm start 110`
+- 影响：停机约 3 分钟，连接中的 SIT / 开发客户端（`mas-go-dev` 容器、`gulhi.lan` 等）断开后需重连。常用数据缓存从约 8G 降到 6G 以内，冷查询读盘会多一些。
+- 回滚方式：
+  - `sp_configure 'max server memory (MB)', 14336`；`sp_configure 'optimize for ad hoc workloads', 0`；`RECONFIGURE`
+  - 用 `mssql.conf.bak.20261030` 覆盖回 `mssql.conf`（或 `mssql-conf unset memory.memorylimitmb`）
+  - PVE：`qm shutdown 110 && qm set 110 --memory 18432 && qm start 110`
+- 验证：VM `free` total 约 9.9G；`dm_os_sys_info.physical_memory_kb` = 8192 MB，`committed_target` = 6144 MB；`errorlog` 显示 `Recovery is complete`，17 个库全部 ONLINE。PVE 宿主机 available 升到约 18.2G。
+
 ## 2026-08-24 23:18 CST - 为 mas-go-dev ecom/sup 在 authprovidermasuat_preprod 建最小权限用户
 
 - 服务器：`mssql-ref` / 库 `authprovidermasuat_preprod`

@@ -1,5 +1,14 @@
 # pve 运维操作时间线
 
+## 2026-10-30 23:51 CST - VM 110 mssql-ref 内存 18432 → 10240 MiB
+
+- 服务器：`pve`
+- 操作人：`Claude`
+- 原因 / 细节：见 `docs/operations/mssql-ref.md` 同时间条目。
+- 备份：`/root/110.conf.bak.20261030`
+- 回滚方式：`qm shutdown 110 && qm set 110 --memory 18432 && qm start 110`
+- 验证：`qm list` 显示 110 = 10240 MiB running；宿主机 `free` available 约 18.2G（关 `mas-win` 前约 2.2G）。
+
 ## 2026-10-30 23:38 CST - 关停 VM 120 mas-win；评估 mssql-ref 压内存与 mac-mini VM 迁入容量
 
 - 服务器：`pve`
