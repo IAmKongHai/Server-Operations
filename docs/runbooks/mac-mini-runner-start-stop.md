@@ -1,18 +1,18 @@
 # mac-mini GitHub Actions runner：启停与定时
 
-> 最后更新：2026-10-23
+> 最后更新：2026-10-30
 > **2026-10-22/23 起全部 runner 以 `hon` 运行**：程序目录 `/Users/hon/actions-runner/<name>`，workFolder 在 CIWork 卷 `/Users/hon/gha/<slot>`，LaunchDaemon 都是 `UserName=hon`、`HOME=/Users/hon`，除 khmini 外 `DOCKER_HOST=unix:///Users/hon/.colima/team/docker.sock`。下文 `~` 均指 `/Users/hon`。迁移记录见 [operations/mac-mini.md](../operations/mac-mini.md) 2026-10-22 / 23 条目。
 > org runner（cypressoai）：`mac-mini-sonar-1` … `4`（质量门）+ `mac-mini-mobile-1`（preview 本机构建）  
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
 > org runner（caimiamiao）：`caimiamiao-1`（label `caimiaomiao-ci`，workFolder `~/gha/cmm1`）  
-> 仓库级 runner（`IAmKongHai/AcquiLangAI`）：`mac-mini-acquilang-native-1`（label `acquilang-native-ci`，workFolder `~/gha/al1`）
+> 仓库级 runner（`IAmKongHai/qingfan`）：`mac-mini-qingfan-ci-1` … `3`（label `qingfan-ci`、`qingfan-frontend`，workFolder `~/gha/qf1` … `qf3`）。原 `mac-mini-acquilang-native-1` 已于 2026-10-30 移除
 > 日常 CI 仓库级 runner：`mac-mini-acquilang-ci-1` … `5`（label `acquilang-ci`，workFolder `~/gha/alc1` … `alc5`）
 > 仓库级 runner（`cypressoai/moo-decision`）：`khmini`（label `khmini`，SIT 部署，workFolder `~/gha/khm1`）
-> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-acquilang-native-1`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`、`~/actions-runner/khmini`  
+> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-qingfan-ci-{1..3}`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`、`~/actions-runner/khmini`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
 > 旧 LaunchAgent plist 停在 `/Users/konghai/Library/LaunchAgents.disabled-20260815/`（历史）。  
-> 恢复脚本：`/Users/konghai/bin/mac-mini-runner-resume.sh`（kickstart 1..4 + mobile-1 + acquilang-native-1，需 `sudo`；KeepAlive 已开，一般用不上）  
+> 恢复脚本：`/Users/konghai/bin/mac-mini-runner-resume.sh`（kickstart 1..4 + mobile-1，需 `sudo`；KeepAlive 已开，一般用不上）  
 > 池与 label 定义见 [ci-runner-pools.md](./ci-runner-pools.md)
 >
 > 2026-08-19 曾 `launchctl disable` 停掉 `mac-mini-sonar-3/4` 给 Multica 留并发；**2026-08-25 已 enable + bootstrap 恢复**，四 slot 重新 online。当时条目见 [operations/mac-mini.md](../operations/mac-mini.md)。
@@ -75,10 +75,9 @@ for n in 1 2 3 4; do
   sudo /bin/launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
 sudo /bin/launchctl kickstart -k system/actions.runner.cypressoai.mac-mini-mobile-1
-sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1
 ```
 
-KeepAlive 已开，崩溃后 launchd 会自己拉。resume 主要给「人为 bootout 之后」用。`acquilang-native-1` 在装上 LaunchDaemon 之前，kickstart 会报 not loaded。
+KeepAlive 已开，崩溃后 launchd 会自己拉。resume 主要给「人为 bootout 之后」用。
 
 ## 停止
 
@@ -87,7 +86,6 @@ for n in 1 2 3 4; do
   sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-sonar-$n
 done
 sudo launchctl bootout system/actions.runner.cypressoai.mac-mini-mobile-1
-sudo launchctl bootout system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1
 ```
 
 ## konghai-friends-lab `konghai-friends-lab-1`
@@ -137,36 +135,28 @@ gh api orgs/caimiamiao/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
-## AcquiLangAI `mac-mini-acquilang-native-1`
+## qingfan `mac-mini-qingfan-ci-1` … `3`
 
-仓库级 runner，只给 `IAmKongHai/AcquiLangAI` 用。**不要**贴 `mac-mini`（会命中 iCare `mac-mini-mobile-1`），**不要**贴 `konghai-friends-lab`（会和 org 槽抢活）。workflow 写：
+仓库级 runner，只注册到 `IAmKongHai/qingfan`（个人账号下的私有仓库，用不了任何 org 池）。2026-10-30 起取代原来的 GitHub 托管 runner。
 
-```yaml
-runs-on: [self-hosted, macos, arm64, acquilang-native-ci]
-```
+| slot | 程序 | 工作目录 | 服务 |
+| --- | --- | --- | --- |
+| 1–3 | `~/actions-runner/mac-mini-qingfan-ci-N` | `~/gha/qfN` | `system/actions.runner.IAmKongHai-qingfan.mac-mini-qingfan-ci-N` |
 
-仓库迁移后保留旧 LaunchDaemon 名称，不要据服务名判断仓库归属。2026-09-11 21:40 CST 已装 LaunchDaemon：`system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1`。不要 `./svc.sh install`。仓库副本：`scripts/install-mac-mini-acquilang-native-runner-daemon.sh`。
-
-若需重装 Daemon：
-
-```bash
-sudo /Users/hon/gha/scripts/install-mac-mini-acquilang-native-runner-daemon.sh
-```
-
-kickstart：
+- labels：`self-hosted`、`macOS`、`ARM64`、`qingfan-ci`、`qingfan-frontend`。`qingfan-ci` 只在 mac-mini 上，用于 go 测试（要 Docker 起一次性 PostgreSQL）、server 构建和 dmg 签名公证；`qingfan-frontend` 同时在 lemon-imac 的 `lemon-imac-qingfan-ci-1` 上，用于前端分片。
+- `.env`：per-slot `GOCACHE=~/gha/cache/go-build-qfN`，共享 `GOMODCACHE=~/gha/cache/go-mod`。plist 带 `DOCKER_HOST` 指向 colima `team`。
+- 测试用的 FFmpeg 不是 Homebrew 的（没有 `drawtext`），workflow 用 `scripts/package.sh tools` 解压安装包同款 9.0.2，缓存在各 slot 的 `_tool/qingfan/`。
+- 发版的签名钥匙串建在 `$RUNNER_TEMP`，job 结束时 `security delete-keychain`，不会残留在 hon 的钥匙串搜索列表里。
+- 重装服务（已在则跳过）：`sudo /Users/hon/gha/scripts/install-mac-mini-qingfan-ci-runner-daemon.sh 1 2 3`。仓库副本：`scripts/install-mac-mini-qingfan-ci-runner-daemon.sh`。
 
 ```bash
-sudo /bin/launchctl kickstart -k system/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1
-```
-
-```bash
-gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
+gh api repos/IAmKongHai/qingfan/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
 ## AcquiLangAI 日常 CI `mac-mini-acquilang-ci-1` … `5`
 
-仓库级 runner，只注册到 `IAmKongHai/AcquiLangAI`。五个 slot 使用同一个 label `acquilang-ci`，GitHub 把 backend、admin、native、web、sonar 分到空闲 slot。原生打包继续使用 `acquilang-native-ci`。这些实例共享 mac-mini 的 CPU、内存与磁盘，也不带 cypressoai 池标签。
+仓库级 runner，只注册到 `IAmKongHai/AcquiLangAI`。五个 slot 使用同一个 label `acquilang-ci`，GitHub 把 backend、admin、native、web、sonar 分到空闲 slot。原生打包的 `acquilang-native-ci` runner（`mac-mini-acquilang-native-1`）已于 2026-10-30 移除。这些实例共享 mac-mini 的 CPU、内存与磁盘，也不带 cypressoai 池标签。
 
 | slot | 程序 | 工作目录 | 服务 |
 | --- | --- | --- | --- |
@@ -234,7 +224,7 @@ runner 磁盘维护是 hon 的 LaunchDaemon（2026-10-22 起，原 konghai cront
 
 - `system/com.cypressoai.gha-runner-maintenance`：每天 03:15
 - `system/com.cypressoai.gha-runner-maintenance-weekly`：周日 04:30
-- 脚本 `~/gha/scripts/gha-runner-maintenance.sh`；`WORK_DIRS` = `s1..s4 m1 al1 khm1`，`GOCACHE_DIRS` = `cache/go-build-s{1..4} go-build-cmm1 go-build-khm1`
+- 脚本 `~/gha/scripts/gha-runner-maintenance.sh`；`WORK_DIRS` = `s1..s4 m1 khm1 qf1..qf3`，`GOCACHE_DIRS` = `cache/go-build-s{1..4} go-build-cmm1 go-build-khm1 go-build-qf{1..3}`
 - 日志 `~/Library/Logs/gha-runner-maintenance.log`；安装 / 重装：`scripts/install-mac-mini-team-services-daemons.sh --maintenance`
 
 runner 本身靠 `KeepAlive` 自愈，不需要定时拉起。

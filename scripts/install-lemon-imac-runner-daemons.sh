@@ -167,7 +167,7 @@ write_maintenance_plist() {
     <key>PATH</key>
     <string>${PATH_VALUE}</string>
     <key>WORK_DIRS</key>
-    <string>${USER_HOME}/gha/li1 ${USER_HOME}/gha/li2</string>
+    <string>${USER_HOME}/gha/li1 ${USER_HOME}/gha/li2 ${USER_HOME}/gha/qf1</string>
     <key>GOCACHE_DIRS</key>
     <string>${USER_HOME}/gha/cache/go-build-li1 ${USER_HOME}/gha/cache/go-build-li2</string>
     <key>PNPM_STORE</key>

@@ -1,6 +1,6 @@
 # GitHub Actions self-hosted runner 池（cypressoai）
 
-> 最后更新：2026-10-10
+> 最后更新：2026-10-30
 > 目标：按**任务重量**分层共享池，提高 PR CI 吞吐；部署机不接质量门禁；runner 侧减流量 + 护磁盘。
 
 ## 池定义
@@ -18,7 +18,8 @@
 | 会员端 preview 本机构建 | `mobile-preview-ci` | **仅** `mac-mini-mobile-1` | iCare-mobile-app preview `eas build --local`（Android APK / iOS IPA，串行） | 质量门、backend CI、EAS 云构建、production、AcquiLang Native |
 | AcquiLang Sonar | `acquilang-ci`（+ `macos`,`arm64`） | **仅** mac-mini 上仍在线的 `mac-mini-acquilang-ci-1` … `3`（`ci-4`、`ci-5` 于 2026-10-10 停用，注册保留） | Sonar。后端测试库在 mac-mini localhost | 原生打包、其它仓库、mas-go-dev |
 | AcquiLang 可分散检查 | `acquilang-build` | mac-mini `ci-1` … `3`、`mas-go-dev-acquilang-ci-1`、`lemon-imac-acquilang-ci-1` | backend / admin / web / CI 汇总。native 还要加 `macos` + `arm64`，落在 mac-mini `ci-1` … `3` 或 lemon-imac | Sonar、原生打包、iCare / tk-flywheel |
-| AcquiLang Native 本机构建 | `acquilang-native-ci` | **仅** `mac-mini-acquilang-native-1`（仓库级，`IAmKongHai/AcquiLangAI`） | AcquiLangAI `eas build --local`（iOS IPA / Android AAB，串行）后 `eas submit` | iCare 质量门、iCare preview、org 内其它仓 |
+| qingfan 构建 / 测试 | `qingfan-ci`（+ `macos`,`arm64`） | **仅** mac-mini `mac-mini-qingfan-ci-1` … `3`（仓库级，`IAmKongHai/qingfan`） | go 测试（Colima 起一次性 PostgreSQL）、server 构建、dmg 签名公证 | 其它仓库；生产部署（`deploy` / `oss` / `publish` 仍走 `ubuntu-24.04`） |
+| qingfan 前端分片 | `qingfan-frontend`（+ `macos`,`arm64`） | mac-mini `mac-mini-qingfan-ci-1` … `3`、lemon-imac `lemon-imac-qingfan-ci-1` | vitest 三个分片、admin / claw 测试、两端构建 | Go、Docker、签名 |
 | 菜喵喵（org `caimiamiao`） | `caimiaomiao-ci` | **仅** mac-mini `caimiamiao-1`（org 级，Default group） | `caimiamiao/*` 仓库的检查类 job（Go / pnpm）；部署 job 仍走 `ubuntu-latest` | `cypressoai` / `konghai-friends-lab` 仓库；`services:` 容器（macOS 不支持） |
 
 历史标签 `frontend-sonar-ci` 仍保留在部分 runner 上便于回滚；**新 workflow 应使用 `frontend-quality-ci`（PR）与 `mac-mini-sonar`（full）**。
@@ -29,7 +30,8 @@
 |-------------|------|---------------------|
 | `mac-mini-sonar-1..4` | mac-mini（10 核 / 32GB） | **`self-hosted`**, `mac-mini-sonar`, `macos`, `arm64`, `frontend-tests-ci`, `frontend-quality-ci`, `frontend-sonar-ci`, `backend-ci`。2026-08-19 曾停 3/4；**2026-08-25 已恢复四 slot 在线** |
 | `mac-mini-mobile-1` | mac-mini | **`self-hosted`**, `macos`, `arm64`, `macos-arm64`, `mac-mini`, **`mobile-preview-ci`**（**无** sonar / quality / backend 标签）。宿主须有 Homebrew `azure-cli`（`/opt/homebrew/bin/az`），供日后 OTA JS 直传 Azure Blob；现网 workflow 仍走 GitHub artifact + `ubuntu-latest` upload，见 [mac-mini-runner-start-stop.md](./mac-mini-runner-start-stop.md) |
-| `mac-mini-acquilang-native-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, `macos-arm64`, **`acquilang-native-ci`**（**无** `mac-mini` / sonar / quality / `konghai-friends-lab`） |
+| `mac-mini-qingfan-ci-1` … `3` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`qingfan-ci`**, **`qingfan-frontend`**。仓库级（`IAmKongHai/qingfan`），workFolder `~/gha/qf1..3`，2026-10-30 起 LaunchDaemon。原 `mac-mini-acquilang-native-1`（`acquilang-native-ci`）同日移除 |
+| `lemon-imac-qingfan-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`qingfan-frontend`**（**无** `qingfan-ci`）。仓库级，workFolder `~/gha/qf1`，2026-10-30 起 LaunchDaemon |
 | `caimiamiao-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`caimiaomiao-ci`**；org `caimiamiao`，workFolder `~/gha/cmm1`，2026-10-21 起 LaunchDaemon |
 | `mac-mini-acquilang-ci-1` … `5` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**, **`acquilang-build`**。`ci-1` 自 2026-09-15；`ci-2` … `5` 自 2026-10-10。2026-10-10 01:23 起 `ci-4`、`ci-5` disabled，不接 job |
 | `mas-go-dev-acquilang-ci-1` | mas-go-dev | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
@@ -47,7 +49,7 @@
 
 **调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
-`runs-on: [self-hosted, mac-mini]` 会命中 iCare 的 `mac-mini-mobile-1`（它带 `mac-mini` 标签）。AcquiLang Native 必须写 `[self-hosted, macos, arm64, acquilang-native-ci]`。
+`runs-on: [self-hosted, mac-mini]` 会命中 iCare 的 `mac-mini-mobile-1`（它带 `mac-mini` 标签）。
 
 **组 visibility 同样硬匹配**：label 对上但仓库不在该 runner group 的 selected 名单里，job 会一直 `queued`、runner 空闲。`mas-go-dev` 组（id 3）里是 `mas-go-dev` 部署 runner + `mas-go-dev-ci-1/2`。2026-09-09 已把 `cypressoai/evp` 加进该组，否则 EVP 的 `Linux + docker + backend-ci` job 永远没人接（唯一匹配者是 `mas-go-dev-ci-1`）。2026-10-05 已把 `cypressoai/moo-ticket` 加进该组，原因相同。SIT 部署仍走 `shared-sit` 组。EVP / moo-ticket workflow **不要**写裸 `docker` / 不要贴 `mas-go-dev` label，避免抢部署 runner。
 
@@ -89,6 +91,17 @@
 | SonarQube Scan（frontend） | `[self-hosted, frontend-quality-ci]`（PR 快扫，不含覆盖率） |
 | Deploy SIT | runner group `shared-sit` + labels `self-hosted, Linux, X64, shared-sit`（`mas-go-dev` 上的 `shared-sit`） |
 | Deploy production | **仅** `workflow_dispatch`；`[self-hosted, Linux, X64, dev-cypresso-ci]`（dev-cypresso 本机）。不要用 `shared-sit` / `mas-go-dev` |
+
+### `qingfan`（`IAmKongHai/qingfan`，个人仓库，只能用仓库级 runner）
+
+| Job | Label |
+|-----|-------|
+| CI `go`（全量 Go 测试 + Colima 一次性 `postgres:17-alpine`，随机本地端口） | `[self-hosted, macOS, ARM64, qingfan-ci]` |
+| CI `frontend (compass / linkflow / rest)` | `[self-hosted, macOS, ARM64, qingfan-frontend]` |
+| Release `server` / `installers`（dmg 签名公证 + Windows zip） | `[self-hosted, macOS, ARM64, qingfan-ci]` |
+| Release `version` / `deploy` / `oss` / `publish` | `ubuntu-24.04`（持有生产密钥；`deploy` 按出口 IP 开 DO 防火墙） |
+
+测试用安装包同款 FFmpeg 9.0.2（`scripts/package.sh tools`），不用 Homebrew 的（没有 `drawtext`）。
 
 ### `moo-ticket`
 

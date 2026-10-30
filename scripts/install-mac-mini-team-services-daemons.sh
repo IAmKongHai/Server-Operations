@@ -118,7 +118,7 @@ install_jobs() {
     "$sync_calendar" disabled
 }
 
-# 维护脚本在 CIWork 卷上；WORK_DIRS 与原 crontab 相同，GOCACHE_DIRS 改为 CIWork 上的 per-slot 缓存
+# 维护脚本在 CIWork 卷上；WORK_DIRS 在原 crontab 基础上去掉 al1（native runner 2026-10-30 移除）、加 qingfan 的 qf1..3，GOCACHE_DIRS 为 CIWork 上的 per-slot 缓存
 # （原 crontab 指向 2026-10-20 已删除的 actions-runner/*/cache/go-build）
 install_maintenance() {
   local gha=$H_HOME/gha mode label calendar
@@ -146,8 +146,8 @@ install_maintenance() {
   <dict>
     <key>HOME</key><string>$H_HOME</string>
     <key>PATH</key><string>$PATH_VALUE</string>
-    <key>WORK_DIRS</key><string>$gha/s1 $gha/s2 $gha/s3 $gha/s4 $gha/m1 $gha/al1 $gha/khm1</string>
-    <key>GOCACHE_DIRS</key><string>$gha/cache/go-build-s1 $gha/cache/go-build-s2 $gha/cache/go-build-s3 $gha/cache/go-build-s4 $gha/cache/go-build-cmm1 $gha/cache/go-build-khm1</string>
+    <key>WORK_DIRS</key><string>$gha/s1 $gha/s2 $gha/s3 $gha/s4 $gha/m1 $gha/khm1 $gha/qf1 $gha/qf2 $gha/qf3</string>
+    <key>GOCACHE_DIRS</key><string>$gha/cache/go-build-s1 $gha/cache/go-build-s2 $gha/cache/go-build-s3 $gha/cache/go-build-s4 $gha/cache/go-build-cmm1 $gha/cache/go-build-khm1 $gha/cache/go-build-qf1 $gha/cache/go-build-qf2 $gha/cache/go-build-qf3</string>
     <key>PNPM_STORE</key><string>$gha/cache/pnpm-store</string>
     <key>GOMODCACHE_DIR</key><string>$gha/cache/go-mod</string>
     <key>MODE</key><string>$mode</string>

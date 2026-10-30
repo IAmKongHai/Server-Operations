@@ -1,5 +1,23 @@
 # lemon-imac 运维操作时间线
 
+## 2026-10-30 08:55 CST - 新增 qingfan 前端分片 runner `lemon-imac-qingfan-ci-1`
+
+- 服务器：`lemon-imac`；仓库 `IAmKongHai/qingfan`。
+- 操作人：`Claude` 注册 runner、写脚本；用户执行 sudo 安装。用户确认“在 lemon-imac 加 1 个 slot，专门跑前端分片”。
+- 原因：qingfan 的 CI 拆成 go + 3 个前端分片并行跑。mac-mini 上的 3 个 slot 要同时承担 go、server 构建和签名，前端分片需要更多并发。
+- 选型：仓库级 runner（GitHub id `24`），labels `self-hosted,macOS,ARM64,qingfan-frontend`，**不带** `qingfan-ci`，所以不会接 Go、Docker 或签名 job。workFolder `~/gha/qf1`（CIWork，700），`.env` 设 `NPM_CONFIG_CACHE=~/gha/cache/qingfan-npm`，`.path` 为 `/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`。runner 2.338.0（SHA-256 `df4cebda…bdf9df2`）。LaunchDaemon `system/actions.runner.IAmKongHai-qingfan.lemon-imac-qingfan-ci-1`，与其它 runner 一样是 `RunAtLoad false` + `KeepAlive.PathState` 盯 `~/gha/.ciwork-mounted`。
+- 影响：8GB 机器上的第 4 个 runner（另有 `lemon-imac-1/2`、`lemon-imac-acquilang-ci-1`）。前端分片是 jsdom vitest，单进程（`maxWorkers: 1`）。
+- 备份：`~/gha/backups/qingfan-ci-20261030/` 里存了两个维护 plist 的改前版本。
+- 回滚方式：确认没有 job 后 `sudo launchctl bootout system/actions.runner.IAmKongHai-qingfan.lemon-imac-qingfan-ci-1` 并移走 plist；从 GitHub 删除 runner；用备份的维护 plist 覆盖后对两个维护任务 bootout / bootstrap。qingfan 前端分片仍可由 mac-mini 的 3 个 slot 承接。
+- 变更时序：
+  1. 以 for-konghai 下载并校验 runner 包到 `~/gha/backups/runner-pkg/`，用短期 token（经 stdin 传入）注册；复制根目录 `runsvc.sh`；没有执行 `./svc.sh install`。
+  2. 新增 `scripts/install-lemon-imac-qingfan-ci-runner-daemon.sh`（由 AcquiLang 那份改来）：安装 LaunchDaemon，并用 PlistBuddy 把 `~/gha/qf1` 幂等加进两个维护 plist 的 `WORK_DIRS`，只重载维护任务，不碰 `lemon-imac-1/2`。`scripts/install-lemon-imac-runner-daemons.sh` 的 `WORK_DIRS` 同步加上 `qf1`，以后重装也不会丢。
+  3. 08:48 前用户执行 `ssh -t lemon-imac 'sudo /Users/for-konghai/gha/scripts/install-lemon-imac-qingfan-ci-runner-daemon.sh'`。
+- 验证：
+  - 服务 `state = running`；GitHub 上 `online`。
+  - 两个维护 plist 的 `WORK_DIRS` = `li1 li2 qf1`。
+  - PR CI [run 40980773654](https://github.com/IAmKongHai/qingfan/actions/runs/40980773654) 的 `frontend (linkflow)`、`frontend (compass)` 都落在这台机器上并成功，vitest 分别用了 47 秒、52 秒（GitHub 托管 runner 上分别为 72 秒、76 秒）。
+
 ## 2026-10-28 01:00 CST - lemon-imac-acquilang-ci-1 的 `shell: bash` 切到 Homebrew bash 5.3.20
 
 - 服务器：`lemon-imac`

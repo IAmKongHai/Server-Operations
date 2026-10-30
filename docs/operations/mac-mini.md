@@ -1,5 +1,36 @@
 # mac-mini 运维时间线
 
+## 2026-10-30 08:55 CST - 新增 qingfan 仓库级 runner 3 个；移除 mac-mini-acquilang-native-1
+
+- 服务器：`mac-mini`；仓库 `IAmKongHai/qingfan`、`IAmKongHai/AcquiLangAI`。
+- 操作人：`Claude` 注册 runner、写脚本、清理目录；用户执行 sudo 脚本。用户确认“选 B，在 mac-mini 上注册 3 个仓库级 runner”，并要求移除“永远用不到了”的 `mac-mini-acquilang-native-1`。
+- 原因：qingfan 的 CI（约 8 分钟）和发版（约 10 分钟）都在 GitHub 托管 runner 上跑，关键路径是一个串行的 `make test`，其中 vitest 占 224 秒（`maxWorkers: 1`）。`IAmKongHai` 是个人账号（API `type=User`），不能挂 org 级 runner，只能注册仓库级 runner。
+- 选型：
+  - `mac-mini-qingfan-ci-1` … `3`（仓库内 GitHub id `21` … `23`），labels `self-hosted,macOS,ARM64,qingfan-ci,qingfan-frontend`；workFolder `~/gha/qf1..3`（CIWork，700）；`.env` 带 per-slot `GOCACHE=~/gha/cache/go-build-qfN`、共享 `GOMODCACHE=~/gha/cache/go-mod`；`.path` 为 `/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`。runner 2.338.0（SHA-256 `df4cebda…bdf9df2`，包在 `~/gha/backups/runner-pkg/`），保留自动更新。
+  - LaunchDaemon `system/actions.runner.IAmKongHai-qingfan.mac-mini-qingfan-ci-N`，`UserName=hon`，带 `DOCKER_HOST` 指向 colima `team`（go job 起一次性 `postgres:17-alpine`）。脚本 `scripts/install-mac-mini-qingfan-ci-runner-daemon.sh`，由 `install-mac-mini-acquilang-ci-runner-daemon.sh` 改名而来。
+  - `qingfan-ci` 只在 mac-mini，用于 go 测试、server 构建和 dmg 签名公证；`qingfan-frontend` 同时在 lemon-imac 的 `lemon-imac-qingfan-ci-1` 上。
+  - workflow 侧见 IAmKongHai/qingfan#44：发版里持有生产密钥的 `version` / `deploy` / `oss` / `publish` 仍走 `ubuntu-24.04`。
+- 影响：新增 3 个常驻 runner，与 mac-mini 上其它 13 个 runner 共享 10 核 / 32GB；qingfan job 未运行时只有空闲的 Listener 进程。native-1 原本没有 job，移除不影响 AcquiLang CI（`ci-1..3` 仍在线）。
+- 备份：`~/gha/backups/qingfan-ci-20261030/`（700），内有两个维护 plist 的改前版本，以及 native-1 的 plist、`.runner`、`.env`、`.path`、`.service`。`~/bin/mac-mini-runner-resume.sh`（konghai）备份为 `.bak.20261030`。
+- 回滚方式：
+  - qingfan：确认没有 job 后 `sudo launchctl bootout system/actions.runner.IAmKongHai-qingfan.mac-mini-qingfan-ci-N` 并移走 plist；从 GitHub 删除 runner；qingfan 的 workflow 改回 `ubuntu-24.04` / `macos-14`。
+  - native-1：GitHub 注册和程序目录已删除，不能原样恢复，只能重新注册（`scripts/install-mac-mini-acquilang-native-runner-daemon.sh` 仍在仓库里）。
+- 变更时序：
+  1. 只读确认：`/Users/hon/actions-runner/` 下没有任何注册到 `IAmKongHai` org 的 runner（个人账号不能有 org 级 runner）；CIWork 剩余 210G；负载约 3。
+  2. 08:33 前以 hon 下载并校验 runner 包，用短期 token（经 stdin 传入，未落盘）注册 3 个 slot；从 `bin/runsvc.sh` 复制根目录 `runsvc.sh`；没有执行 `./svc.sh install`。
+  3. 改 `scripts/install-mac-mini-team-services-daemons.sh` 的维护任务：`WORK_DIRS` 去掉 `al1`、加 `qf1..3`；`GOCACHE_DIRS` 加 `go-build-qf1..3`。同步到 `~/gha/scripts/`。
+  4. 用户要求把 sudo 步骤合到一个脚本里（不要复制带 `rm` 的长命令）：新增 `scripts/setup-mac-mini-qingfan-ci.sh`。内容：native-1 没在跑 job 才 bootout，plist 只 `mv` 到备份目录；安装 3 个 qingfan Daemon；把仓库版维护脚本装到 `/usr/local/sbin/hon-team-services.sh` 后执行 `--maintenance`。
+  5. 08:51 前用户执行 `ssh -t mac-mini 'sudo /Users/hon/gha/scripts/setup-mac-mini-qingfan-ci.sh'`。
+  6. 08:53 注销 native-1：`config.sh remove` 先因残留的 `.service` 标记拒绝（`Uninstall service first`），把 `.service` 移到备份目录后又报 404：`.runner` 里的 `gitHubUrl` 还是转移前的 `konghai-friends-lab/AcquiLangAI`，注销接口不跟随仓库重定向。改用 `gh api -X DELETE repos/IAmKongHai/AcquiLangAI/actions/runners/21` 删除。
+  7. 08:54 删除 `~/actions-runner/mac-mini-acquilang-native-1`（884M）、`~/gha/al1`（1.9G）、`~/Library/Logs/actions.runner.konghai-friends-lab-AcquiLangAI.mac-mini-acquilang-native-1`。`.env` 里只有 Android SDK / JDK / pnpm 路径，这些共用目录没动。从 konghai 的 `~/bin/mac-mini-runner-resume.sh` 删去 native-1 的 kickstart 行。
+- 验证：
+  - GitHub：`mac-mini-qingfan-ci-1..3` 为 `online`；`IAmKongHai/AcquiLangAI` 的 runner 列表里已没有 native-1。
+  - `launchctl print system/<native-1>` 报 `Could not find service`，没有残留进程；`/Library/LaunchDaemons/` 里有 3 个 qingfan plist，没有 native plist。
+  - 两个维护 plist 的 `WORK_DIRS` = `s1..s4 m1 khm1 qf1 qf2 qf3`。
+  - PR CI [run 40980773654](https://github.com/IAmKongHai/qingfan/actions/runs/40980773654) 全部成功：`go`（`mac-mini-qingfan-ci-2`）2 分 18 秒，其中全量 `go test` 48 秒、PostgreSQL 一次性实例 1 秒起好、PG 测试 14 秒；`frontend (rest)`（`mac-mini-qingfan-ci-1`）1 分 23 秒。首次运行包含 setup-go / setup-node / FFmpeg 下载的冷启动开销。
+- 边界：发版里的 `installers`（签名公证）和 `server` 要等下一次打 tag 才会在本机跑到。签名钥匙串建在 `$RUNNER_TEMP`，job 结束时 `security delete-keychain`。
+- 启停：[mac-mini runner runbook](../runbooks/mac-mini-runner-start-stop.md) 的 qingfan 小节。
+
 ## 2026-10-28 00:55 CST - 安装 Homebrew bash 5.3.20
 
 - 服务器：`mac-mini`
