@@ -1,5 +1,23 @@
 # pve 运维操作时间线
 
+## 2026-10-30 23:38 CST - 关停 VM 120 mas-win；评估 mssql-ref 压内存与 mac-mini VM 迁入容量
+
+- 服务器：`pve`
+- 操作人：`Claude`（用户确认 `mas-win` 已不再使用、可关机）
+- 原因：要给 PVE 腾资源，计划把 `mac-mini` 上的 colima VM 迁过来。
+- 变更前：`120 mas-win` running，`memory: 6144`、`cores: 4`、`onboot: 1`、`startup: order=20,up=90,down=180`。
+- 做了什么：
+  - `qm shutdown 120 --timeout 180`（经 guest agent 正常关机）。
+  - `qm set 120 --onboot 0`，避免宿主机重启后被拉起。`startup` 顺序参数保留未动。
+  - 其余均为只读：`qm config`、`pvesm status`、宿主机 `free` / `lscpu`；`mssql-ref` 内 `sys.configurations` / `dm_os_buffer_descriptors` / `dm_os_memory_clerks` / 会话。
+- 影响：MAS 老 C# / IIS 参考站（`192.168.2.21` 上 `9020-9023` / `4859`）不可访问；磁盘与快照未删。
+- 回滚方式：`qm start 120`；需要开机自启再 `qm set 120 --onboot 1`。
+- 验证：`qm status 120` = stopped，`onboot: 0`；宿主机 available 由约 2.2G 升到约 6.3G。
+- 评估结论（未执行）：
+  - 宿主机 i5-9600，6 核无超线程，32G 内存；`nvme-data` 剩约 354G、`local-lvm` 剩约 355G。KSM 当前合并约 2.8G。
+  - `mssql-ref`：`max server memory` = 14336 MB，未设 `memory.memorylimitmb`；committed 约 12G，其中 buffer pool 约 8G（`medicalassistance_preprod` 约 5G、`_replicated` 约 1.2G、tempdb 约 0.9G），执行计划缓存约 1.8G。
+  - `mas-go-dev`：8G 里实际用约 2.3G。
+
 ## 2026-10-30 23:31 CST - 只读查看 VM 运行情况
 
 - 服务器：`pve`

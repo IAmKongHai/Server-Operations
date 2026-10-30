@@ -1,5 +1,15 @@
 # mas-win 运维操作时间线
 
+## 2026-10-30 23:38 CST - VM 关机并取消开机自启
+
+- 服务器：`mas-win`（`pve` VMID `120`）
+- 操作人：`Claude`（用户确认已不再使用）
+- 原因：给 PVE 腾内存（6G / 4 核），准备迁入 `mac-mini` 的 VM。
+- 做了什么：`qm shutdown 120`；`qm set 120 --onboot 0`。磁盘、快照、`Web.config` 均未动。
+- 影响：C# / IIS 参考站全部不可访问。
+- 回滚方式：`qm start 120`；如需自启再 `qm set 120 --onboot 1`。
+- 验证：`qm status 120` = stopped。详见 `docs/operations/pve.md` 同时间条目。
+
 ## 2026-08-24 23:32 CST - MAS-API / Webkit 连到 ihc20260824 preprod catalog
 
 - 服务器：`mas-win`（`192.168.2.21`）
