@@ -1,5 +1,28 @@
 # mac-mini 运维时间线
 
+## 2026-10-31 01:00 CST - colima moo 迁走并停用；colima team 缩到 4C/3G 只给 CI 用
+
+- 服务器：`mac-mini`（hon）
+- 操作人：`Claude`
+- 原因：腾内存，接续 00:44 条目
+- 做了什么：
+  - moo-dev-infra 和 moo-ocr Kafka 迁到 team-svc（详见 `docs/operations/team-svc.md`）。colima `moo` 里的 8 个容器 `docker stop` + `restart=no`；`colima stop -p moo`
+  - 停用 `moo-colima-supervisor`：它在等前台的 `colima start` 子进程，`SIGTERM` 处理不了，只能 `kill -9` 自身，再结束子进程；hon crontab 删掉它的 `@reboot` 行（备份 `~/backups/hon-crontab.bak.20261031-moo`）
+  - `team-svc-forwarders` 增加回环端口 15432、16379、19000、9092、8083、19094，moo-app 和以后的 moo-ocr 照旧连 `localhost`
+  - moo-app server / worker 重新 `launchctl bootstrap` 到 hon 的 user 域
+  - colima `team`：`~/.colima/team/colima.yaml` 改为 `cpu: 4`、`memory: 3`（备份 `colima.yaml.bak.20261031`），然后 `colima stop -p team`。LaunchDaemon 里的 `colima start --foreground`（pid 65480）没有退出，导致 KeepAlive 不触发、runner 约 4 分钟没有 Docker 可用（期间没有 job 在跑）；`kill` 掉该进程后 launchd 按新规格拉起（runs=2）
+- 影响：moo-app 停了约 10 分钟；CI 的 Docker 中断约 4 分钟
+- 回滚方式：`colima.yaml` 用备份还原后 `kill` 守护进程里的 `colima start`；moo 回滚见 `docs/operations/team-svc.md`
+- 验证：
+  - `colima list`：team 4C/3GiB Running，moo Stopped，multica 已删除
+  - 按 qingfan / cmm-api CI 的写法在 team 里起 `postgres:17-alpine`，经 `127.0.0.1:<随机端口>` 可以连上
+  - colima 的 Virtualization 进程 RSS 合计从约 4.9G 降到 1.3G；`memory_pressure` 显示空闲 78%（迁移前 55%）
+  - SonarQube 重建索引产生的 6342 个 `ISSUE_SYNC` 任务约 10 分钟跑完，队列清空
+- 未完成（需用户）：
+  - 把 runner 和备份 LaunchDaemon 的 `DOCKER_HOST` 改成远程（需 root）
+  - qingfan `ci.yml` 和 caimiamiao `cmm-api` 的 `deploy.yml` 要改成连远程 Docker 的地址（后者是生产部署 workflow，未动）
+  - moo-app 进程迁到 team-svc：要改 moo-decision 的部署 workflow，并在 VM 上装 runner
+
 ## 2026-10-31 00:44 CST - 卸载 multica；colima team 的服务迁到 PVE team-svc，老端口改为 ssh 转发
 
 - 服务器：`mac-mini`（hon）→ `pve` VM `150 team-svc`（`192.168.2.23`）

@@ -8,6 +8,9 @@
 #             5433 acquilang-postgres、18080 sub2api
 #   127.0.0.1 5434 shared-dev-postgres、6379 shared-dev-redis、3900 shared-dev-s3
 #             （原来就只听回环，由 tailscale serve 转到 tailnet，保持暴露面不变）
+#   127.0.0.1 moo（原 colima moo，给 mac-mini 上的 moo-app / moo-ocr 用）：15432 postgres、16379 redis、
+#             19000 seaweedfs S3、9092 kafka、8083 kafka-connect、19094 moo-ocr kafka。
+#             两个 Kafka 都 advertise localhost:<同端口>，经本转发后客户端回连仍然可达
 #
 # 用 /usr/bin/ssh -L 而不是 socat：mac-mini 开着应用防火墙，Homebrew 的 socat 未签名，
 # 外部入站会被拦（只有本机回环能通），放行它需要 root；系统自带的 ssh 默认允许入站。
@@ -33,7 +36,7 @@ exec >> "$log_file" 2>&1
 
 forwards=()
 for port in 9000 5432 3001 5437 5433 18080; do forwards+=(-L "0.0.0.0:$port:127.0.0.1:$port"); done
-for port in 5434 6379 3900; do forwards+=(-L "127.0.0.1:$port:127.0.0.1:$port"); done
+for port in 5434 6379 3900 15432 16379 19000 9092 8083 19094; do forwards+=(-L "127.0.0.1:$port:127.0.0.1:$port"); done
 
 ssh_pid=""
 cleanup() {

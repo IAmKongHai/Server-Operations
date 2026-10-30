@@ -1,0 +1,24 @@
+# team-svc 运维操作时间线
+
+## 2026-10-31 01:05 CST - 迁入 moo-dev-infra（含 CDC）与 moo-ocr Kafka
+
+- 服务器：`team-svc`（PVE VM 150，`192.168.2.23`）
+- 操作人：`Claude`
+- 原因：mac-mini 腾内存，见 `docs/plans/2026-10-31-0010-ops-mac-mini-vms-to-pve-plan.md`
+- 做了什么：
+  1. mac-mini 上先停 moo-app 的 server / worker（`launchctl bootout user/<hon uid>/ai.cypresso.moo-app.{server,worker}`），再停 debezium-server、kafka-connect、cdc-scanner
+  2. `~/moo-dev-infra`（不含 `backups/`）同步到 `/opt/stacks/moo-dev-infra`；`.env` 补上 `COMPOSE_PROJECT_NAME=moo-dev`、`COMPOSE_FILE`、`COMPOSE_PROFILES=debezium-server`，以及 debezium-server 原来从 shell 传入的 `CDC_STATE_JDBC_URL` / `CDC_STATE_PASSWORD`；新增 `docker-compose.team-svc.yml`（postgres / redis / s3 / kafka / kafka-connect 加 `restart: unless-stopped`，Kafka 堆 `-Xmx512m`，Connect 堆 `-Xmx768m`）；在 x86 上重新构建 `moo-dev-postgres`（postgres 17 + PostGIS）
+  3. Postgres 先用 `pg_dumpall` 导出导入：`moo_ocr` 的一张 jsonb 表在 plain SQL 导入时报 `invalid input syntax for type json`，`moo_test` 库也没建出来。删掉这两个库，改用 `pg_dump -Fc -C` + `pg_restore -C` 单独重导，之后 9 个库的表数和精确行数全部一致（`moo_fraud_detection` 1483 万行）
+  4. Kafka 两个卷（`moo-dev_kafka-data` 843 个文件、`moo-ocr_kafka-secure-data` 411 个文件）和 `moo-dev_s3data-dev`（197 个文件）用 tar 拷贝，文件数一致。`docker system df` 显示的 2.7G / 1.3G 是稀疏的预分配索引文件，实际占用只有 33M / 18M
+  5. `/opt/stacks/moo-ocr-kafka`：`compose.yaml` 来自 `~/moo-ocr/deploy/kafka.compose.yaml`，`.env` 设 `COMPOSE_PROJECT_NAME=moo-ocr`，`KAFKA_PASSWORD` 取自原容器
+- 验证：
+  - 8 个 moo 容器 Up，有健康检查的都是 healthy
+  - kafka-connect 的 `icare-claims-v2`、`icare-v4` 连接器和任务都是 RUNNING
+  - debezium-server 日志出现 "Skipping change … smaller than the last recorded position"，说明是从原来的 offset 续读，没有重新快照
+  - cdc-scanner 输出 `cdc scan started`；moo-dev Kafka 有 31 个 topic
+  - mac-mini 上的 moo-app 经 ssh 转发连过来，`http://127.0.0.1:18188/healthz` 和 tailnet `:18188/healthz` 都返回 200
+- 回滚方式：停掉这两个 stack；在 mac-mini 上把 colima `moo` 里的容器 `docker update --restart=unless-stopped` 后 `colima start -p moo`，从 forwarder 里去掉 moo 的 6 个端口。这段时间 CDC 写进 team-svc Kafka 的数据不会带回
+
+## 2026-10-31 00:44 CST - 建机并迁入 colima team 的服务
+
+详见 `docs/operations/pve.md`、`docs/operations/mac-mini.md` 同时间条目。
