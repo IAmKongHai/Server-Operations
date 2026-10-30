@@ -7,8 +7,9 @@
 #   1. TimescaleDB 不能用普通 pg_dump 干净恢复（hypertable / chunk 元数据不会还原），
 #      所以本脚本采取"备份整个 docker volume"策略：tar 整个 PG18 数据卷（容器内挂在 /var/lib/postgresql）
 #   2. 容器在跑时先 docker stop 再 tar，保证快照一致；结束后 docker start
-#   3. Colima 只挂载 ~/stacks，不能把 ~/backups 直接 bind 进容器。
-#      tar 先写到 ~/stacks/acquilang-postgres/backup-stage，再 mv 到备份目录
+#   3. 2026-10-31 起库在 PVE 的 team-svc（192.168.2.23），docker 走 ssh 远程调用（DOCKER_HOST），
+#      远端不能 bind mac-mini 的目录，所以 tar 输出到 stdout，先写 backup-stage 再 mv 到备份目录。
+#      卷里是 x86_64 的 PG 数据目录，只能恢复到 x86_64 主机
 #   4. 滚动保留 7 份
 #
 # 恢复方式（volume tar 路径）：
@@ -23,6 +24,8 @@
 set -euo pipefail
 
 PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+# LaunchDaemon 里设的是 colima team 的 socket，这里覆盖成 team-svc
+export DOCKER_HOST="${TEAM_SVC_DOCKER_HOST:-ssh://ubuntu@192.168.2.23}"
 DOCKER="$(command -v docker)"
 BACKUP_DIR="$HOME/backups/acquilangai"
 STAGE_DIR="$HOME/stacks/acquilang-postgres/backup-stage"
@@ -71,12 +74,11 @@ if [ -n "$RUNNING_USERS" ]; then
 fi
 
 TMP_NAME="acquilangai-$TIMESTAMP.tar.gz.tmp"
+STAGE_TMP="$STAGE_DIR/$TMP_NAME"
 "$DOCKER" run --rm \
   -v "$VOLUME_NAME":/data:ro \
-  -v "$STAGE_DIR":/backup \
-  alpine sh -c "cd /data && tar -czf /backup/$TMP_NAME ."
+  alpine sh -c "cd /data && tar -czf - ." > "$STAGE_TMP"
 
-STAGE_TMP="$STAGE_DIR/$TMP_NAME"
 if [ ! -f "$STAGE_TMP" ]; then
   echo "[ERROR] Staging backup missing: $STAGE_TMP" >&2
   exit 3
