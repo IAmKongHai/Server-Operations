@@ -1,5 +1,19 @@
 # pve 运维操作时间线
 
+## 2026-10-31 00:44 CST - 新建 VM 150 team-svc，承接 mac-mini colima team 的服务
+
+- 服务器：`pve`
+- 操作人：`Claude`
+- 原因：mac-mini 腾内存，见 `docs/plans/2026-10-31-0010-ops-mac-mini-vms-to-pve-plan.md`
+- 做了什么：
+  - 下载 `noble-server-cloudimg-amd64.img` 到 `/var/lib/vz/template/iso/`
+  - `qm create 150 --name team-svc --memory 12288 --balloon 0 --cores 4 --cpu host`，系统盘 `nvme-data:vm-150-disk-0` 200G（discard、iothread、ssd），cloud-init 设 `ubuntu` 用户、`192.168.2.23/24`、网关和 DNS `192.168.2.1`，`onboot: 1`，`startup: order=30,up=60`
+  - SSH 公钥：konghai 本机 + mac-mini hon（`/root/team-svc-keys.pub`）
+  - VM 内：时区 Asia/Shanghai，`qemu-guest-agent`，Docker CE 29.9（`log-driver: local`），Tailscale 1.104（`--hostname=team-svc --accept-dns=false`，等待登录），`vm.max_map_count=524288`（SonarQube ES 需要），stack 放在 `/opt/stacks/<name>`
+- 影响：`nvme-data` thin pool 的逻辑分配总量继续超出物理容量（LVM 有告警，实际占用约 64%）
+- 回滚方式：`qm stop 150 && qm destroy 150`（需先确认数据已迁回）
+- 验证：Ubuntu 24.04.5 x86_64，12 个容器 healthy，VM 内 available 约 8.3G
+
 ## 2026-10-30 23:51 CST - VM 110 mssql-ref 内存 18432 → 10240 MiB
 
 - 服务器：`pve`

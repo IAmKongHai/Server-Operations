@@ -1,5 +1,33 @@
 # mac-mini 运维时间线
 
+## 2026-10-31 00:44 CST - 卸载 multica；colima team 的服务迁到 PVE team-svc，老端口改为 ssh 转发
+
+- 服务器：`mac-mini`（hon）→ `pve` VM `150 team-svc`（`192.168.2.23`）
+- 操作人：`Claude`（用户确认：multica 不再使用可直接卸载；其余按计划推荐方案；夜间可停机）
+- 原因：腾出 mac-mini 内存跑 AI 模型。计划：`docs/plans/2026-10-31-0010-ops-mac-mini-vms-to-pve-plan.md`
+- multica 卸载：
+  - 备份：`~/backups/multica/multica-pgdumpall-20261031.sql.gz`（101 张表）、`~/backups/multica/hon-crontab.bak.20261031`
+  - `multica daemon stop`，结束两个 supervisor，`colima delete -p multica --force`；hon crontab 删掉两条 `@reboot multica-*-supervisor`；删除 `~/.local/bin/multica`、`multica-colima-supervisor`、`multica-runtime-supervisor`。`~/.multica` 配置与日志保留
+- team 迁移（每个库 `pg_dumpall` 导出导入，迁移前后逐库核对表数与精确行数，全部一致）：
+
+  | 服务 | 库 / 数据 | 核对 |
+  | --- | --- | --- |
+  | acquilang-postgres | 5 个库 | 一致 |
+  | nyh-postgres | 4 个库，约 650 万行 | 一致 |
+  | shared-dev-postgres | `moo_ticket`、`moo_ticket_test` | 一致 |
+  | sub2api | postgres 47853 行 + `data/` + `redis_data/` | 一致，`/health` 200 |
+  | richer | postgres 3470 万行 + grafana 卷 | 一致，`/api/health` ok |
+  | sonarqube | postgres 131 万行 + `sonarqube_extensions` 卷 + `sonarqube-web/` | 一致，23 个项目；ES 索引未拷，启动后重建 |
+  | shared-dev-redis / shared-dev-s3 | 卷直接拷贝 | Garage 节点 ID 不变，`moo-ticket` bucket 829 个对象 |
+
+  - colima team 里的旧容器全部 `docker stop` + `docker update --restart=no`，数据卷保留，供回滚
+  - `cmm-postgres` 原来就没在运行，未迁移（数据在 `~/stacks/cmm-postgres/postgres_data`）
+- 老地址兼容：`~/.local/bin/team-svc-forwarders`（源码 `scripts/mac-mini-team-svc-forwarders.sh`）用 `/usr/bin/ssh -N -L` 把 `0.0.0.0` 上的 9000 / 5432 / 3001 / 5437 / 5433 / 18080 和 `127.0.0.1` 上的 5434 / 6379 / 3900 转到 team-svc；hon crontab 加了 `@reboot`。没有用 socat：mac-mini 开着应用防火墙，未签名的 socat 收不到外部入站，放行它需要 root
+- 备份：`~/scripts/acquilangai-backup.sh`（源码 `scripts/acquilangai-backup.sh`）和 `~/stacks/sonarqube/backup.sh` 内部 `export DOCKER_HOST=ssh://ubuntu@192.168.2.23`，原文件留了 `.bak.20261031`。LaunchDaemon 本身没改（需要 root）
+- 回滚方式：停 forwarder（`kill $(cat ~/.local/run/team-svc-forwarders.pid)`，删 crontab 那行），在 colima team 里 `docker update --restart=always` + `docker start` 对应容器；备份脚本用 `.bak.20261031` 还原。VM 上这段时间的新写入不会带回
+- 验证：经 tailnet 访问 `mac-mini:9000` 返回 SonarQube UP，`:3001` 和 `:18080` 返回 200，`5432/5433/5434/5437` 能完成 Postgres 握手，`6379` 返回 `-NOAUTH`，`3900` 返回 S3 403。两个备份手动各跑一次成功（`sonarqube-20261031.dump` 1.0G、`acquilangai-20261031.tar.gz` 57M）
+- 未完成：runner 的 `DOCKER_HOST` 仍指向 colima team（改 LaunchDaemon 需要 root），所以 team VM 暂不能停；moo 迁移另记
+
 ## 2026-10-30 08:55 CST - 新增 qingfan 仓库级 runner 3 个；移除 mac-mini-acquilang-native-1
 
 - 服务器：`mac-mini`；仓库 `IAmKongHai/qingfan`、`IAmKongHai/AcquiLangAI`。
