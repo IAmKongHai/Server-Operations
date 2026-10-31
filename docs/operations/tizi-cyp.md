@@ -1,5 +1,16 @@
 # tizi-cyp 运维时间线
 
+## 2026-10-31 10:55 CST - 停用 mssql-ref-proxy（socat 1433 跳板）
+
+- 服务器：`tizi-cyp`
+- 操作人：`Claude`（用户已确认这个跳板没用了）
+- 原因：这个跳板是专门给 `dev-cypresso` 连 `mssql-ref` 用的（`100.116.91.14:1433` → `100.124.140.78:1433`），`dev-cypresso` 已经永久删除。
+- 影响：Tailscale 上的 `1433` 不再监听。停用前查过，没有活跃连接。
+- 备份：`/root/mssql-ref-proxy.service.bak.20261031`（unit 文件的副本）。原 unit `/etc/systemd/system/mssql-ref-proxy.service` 和说明 `/root/mssql-ref-proxy.README` 都没删。
+- 回滚方式：`systemctl enable --now mssql-ref-proxy`。
+- 做了什么：`systemctl disable --now mssql-ref-proxy`，然后 `systemctl reset-failed mssql-ref-proxy`（socat 收到 SIGTERM 后退出码非零，单元会显示 failed，清掉免得误报）。
+- 验证：服务 `inactive` / `disabled`，`1433` 不再监听。`x-ui`、`tailscaled` 都是 active，xray `*:443` 正常。剩下的 failed 单元只有 `networking.service`（`eth1` 拿不到 DHCP 的老问题）。
+
 ## 2026-10-31 10:00 CST - 升级内核到 6.12.113 修复 CVE-2026-98432
 
 - 服务器：`tizi-cyp`（`89.208.242.203`）
