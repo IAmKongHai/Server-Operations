@@ -1,5 +1,15 @@
 # pve 运维操作时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`pve`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：Proxmox，运行 `7.0.6-2-pve`（5-29 编译），受影响；MPTCP 监听只有 Tailscale。等 Proxmox 内核更新。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-10-31 00:44 CST - 新建 VM 150 team-svc，承接 mac-mini colima team 的服务
 
 - 服务器：`pve`

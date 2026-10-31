@@ -1,5 +1,15 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`mas-go-dev`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：AL2023，运行 `6.1.159`（2025-12），受影响；默认 `kernel` 包的修复还在 pending，`kernel6.12` / `kernel6.18` 已修。`docker-proxy` 开着大量 MPTCP 监听（含 `0.0.0.0:5173-5175`），只在内网。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-10-10 19:28 CST - 只读确认没有 AcquiLang 数据库
 
 - 服务器：`mas-go-dev`

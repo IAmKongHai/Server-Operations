@@ -1,5 +1,15 @@
 # km-landui 运维操作时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`km-landui`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：Ubuntu 22.04，运行 `6.8.0-1065-azure`（已装 `-1070`，同样未修），受影响；没有 MPTCP 监听。Ubuntu 还没出修复包。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-09-12 16:25 CST - 评估作为菜苗苗小程序 API 反代（只读）
 
 - 服务器：`km-landui`（`43.228.79.237`）对照 `mas-go-dev`（`100.109.223.53` / 家宽 `112.117.55.212`）

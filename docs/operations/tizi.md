@@ -1,5 +1,15 @@
 # tizi 运维时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`tizi`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：Rocky 9.7，运行 `5.14.0-611.49.1`，受影响；`net.mptcp.enabled=0`，没有 MPTCP 监听，但 bug 在通用 TCP 路径，仍有风险。RHEL 系还没出修复包。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-10-11 15:40 CST - 排查家里断网：client「konghai家里路由器」超流量被自动禁用
 
 - 服务器：`tizi`（s-ui，`vless-reality` 入站 `:443`，域名 `tz.skysms.xyz`）

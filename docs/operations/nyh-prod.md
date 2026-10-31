@@ -1,5 +1,15 @@
 # nyh-prod 运维时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：Debian 13，运行 `6.12.101`，受影响；MPTCP 监听只有回环（`nyh-notify`）和 Tailscale，但机器有公网 TCP。修复包 `6.12.113-1` 已发布，待用户确认窗口后升级并重启。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-10-10 19:36 CST - 只读评估 AcquiLang 生产库能否同步到 mac-mini
 
 - 服务器：`nyh-prod`

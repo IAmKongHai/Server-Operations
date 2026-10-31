@@ -1,5 +1,15 @@
 # team-svc 运维操作时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`team-svc`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：Ubuntu 24.04，运行 `6.8.0-147`，受影响；没有 MPTCP 监听。Ubuntu 还没出修复包。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-10-31 01:05 CST - 迁入 moo-dev-infra（含 CDC）与 moo-ocr Kafka
 
 - 服务器：`team-svc`（PVE VM 150，`192.168.2.23`）

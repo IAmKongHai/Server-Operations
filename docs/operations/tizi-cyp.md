@@ -1,5 +1,15 @@
 # tizi-cyp 运维时间线
 
+## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
+
+- 服务器：`tizi-cyp`
+- 操作人：`Claude`
+- 原因：CVE-2026-98432（IPv4 TCP use-after-free，Anthropic 演示了对 MPTCP 监听服务器远程拿 root）公开，需要确认各服务器是否受影响。
+- 影响：只读（`uname`、`net.mptcp.enabled`、`ss -Mlnp`、已装内核列表）。没升级、没重启。
+- 回滚方式：无服务器变更，无需回滚。
+- 结果：Debian 13，运行 `6.12.88`，受影响；xray 在 `*:443` 公网开着 MPTCP 监听，风险最高，正是 Anthropic 演示的场景。修复包 `6.12.113-1` 已发布，待用户确认后升级并重启。
+- 汇总与建议：`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`
+
 ## 2026-10-28 20:42 CST - 排查：经本节点访问 malaysiadigital.mdec.my 上传慢、远端 DNS 是否生效
 
 - 服务器：`tizi-cyp`（3x-ui，inbound `in-443-tcp`，vless reality `:443`）
