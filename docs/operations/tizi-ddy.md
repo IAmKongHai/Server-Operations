@@ -1,5 +1,21 @@
 # tizi-ddy 运维时间线
 
+## 2026-10-31 09:59 CST - 升级内核到 6.12.113 修复 CVE-2026-98432
+
+- 服务器：`tizi-ddy`（`80.251.215.131`）
+- 操作人：`Claude`（用户已确认）
+- 原因：xray 在公网 `*:443` 开着 MPTCP 监听，正是 CVE-2026-98432 远程 root 的演示场景，风险最高。排查见 `docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`。
+- 影响：重启一次，代理断开约 12 秒。`tizi-ddy` 先做，`tizi-cyp` 后做，两台错开。
+- 备份：旧内核 `6.12.88+deb13-amd64` 保留在 `/boot` 和 GRUB 菜单里。
+- 回滚方式：控制台开机时在 GRUB 里选 `Debian GNU/Linux, with Linux 6.12.88+deb13-amd64`；长期回滚可设 `GRUB_DEFAULT` 后 `update-grub`。
+- 做了什么：
+  - `apt-get update`，然后执行 `apt-get install -y --no-install-recommends linux-image-amd64`（`6.12.88-1` → `6.12.113-1`）。加 `--no-install-recommends` 是为了不顺带装 `apparmor`，只改内核。
+  - 确认 GRUB 默认项（`GRUB_DEFAULT=0`）是新内核后，`systemctl reboot`。
+- 验证：
+  - `uname -r` = `6.12.113+deb13-amd64`。
+  - `x-ui`、`tailscaled` 都是 active（x-ui pid 757）。xray 监听 `*:443`，x-ui 面板监听 Tailscale `:2095`。从本机 `nc -z 80.251.215.131 443` 能连通。
+  - `networking.service` 显示 failed，原因是 `eth1` 拿不到 DHCP。重启前就是这样（之前的开机日志也一样），与本次升级无关，`eth0` 公网正常。
+
 ## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
 
 - 服务器：`tizi-ddy`
