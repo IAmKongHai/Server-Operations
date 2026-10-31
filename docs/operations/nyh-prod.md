@@ -1,5 +1,20 @@
 # nyh-prod 运维时间线
 
+## 2026-10-31 10:20 CST - 升级内核到 6.12.113 修复 CVE-2026-98432
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户已确认；用户说当时没有订单）
+- 原因：运行内核 `6.12.101` 受 CVE-2026-98432 影响，Debian 已发修复包。排查见 `docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`。
+- 影响：整机重启一次，所有站点、容器、supervisor 任务中断约 1 分钟（10:20:04 发出重启，10:21:01 SSH 恢复）。
+- 备份：旧内核 `6.12.101`、`6.12.48`、`6.12.43` 都留在 `/boot` 和 GRUB 里。重启前记录了现状：9 个容器（restart 策略都是 `unless-stopped` / `always`）、21 个 supervisor 进程、全部监听端口，以及 `bt` / `nginx` / `supervisor` / `redis` / `docker` / `php-fpm-74` / `php-fpm-82` 的开机自启（都是 enabled）。
+- 回滚方式：控制台开机时在 GRUB 的 Advanced options 里选 `6.12.101+deb13-amd64`。
+- 做了什么：`apt-get update`，然后执行 `apt-get install -y --no-install-recommends linux-image-amd64`（`6.12.101-1` → `6.12.113-1`，只装了这两个包），再 `systemctl reboot`。和 `cmm-prod` 同时做。
+- 验证：
+  - `uname -r` = `6.12.113+deb13-amd64`，没有 failed 的单元。
+  - 9 个容器全部 Up，`yunshu-api`、`acquilang-admin`、`acquilang-backend` 都是 healthy。
+  - supervisor 21 个进程全部 RUNNING。php-fpm 7.4 / 8.2 master、宝塔 `Bt-Panel` / `Bt-Task` 都在运行。
+  - 对外监听端口和重启前完全一致（`10463`、`80`、`443`、`888`、`3001`、`7480`、`8000`、`8181`、`8888`、`9100`、`9200`），回环上的 `nyh-notify :9870` 也在。
+
 ## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
 
 - 服务器：`nyh-prod`
