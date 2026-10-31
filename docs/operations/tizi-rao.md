@@ -1,4 +1,43 @@
-# rao-tizi 运维时间线
+# tizi-rao 运维时间线
+
+> 2026-10-31 起由 `rao-tizi` 改名为 `tizi-rao`（同一台 VPS，公网 `64.64.253.141`）。以下 10-31 之前的条目里写的 `rao-tizi` 都指这台机器的旧系统（Rocky 9.7 + S-UI）。
+
+## 2026-10-31 12:00 CST - 整装为 Debian 13 + 3x-ui，沿用旧 REALITY 身份，恢复 LLM 反代，改名 tizi-rao
+
+- 服务器：`tizi-rao`（原 `rao-tizi`，公网 `64.64.253.141`，Tailscale `100.75.71.21`）
+- 操作人：`Claude`（用户已在服务商控制台重装为 Debian 13，要求按统一格式改名为 `tizi-rao`，流程同 `tizi-kh`）
+- 原因：从 Rocky 9.7 + S-UI 1.4.1 统一到 Debian 13 + 3x-ui + Xray；同时这台是 `litellm-us.konghai.me`（CNAME `rao-tz.skysms.xyz`）实际所在的机器，nginx `:8443` 的 LLM API 反代要原样恢复。
+- 选型：和 `tizi-kh` 相同（沿用旧身份、恢复 Tailscale state、升级内核并重启、SSH 只用密钥、时区上海、fail2ban + vnstat）。另外：
+  - REALITY 伪装站沿用 `iosapps.itunes.apple.com`
+  - 分享地址：旧入站没设 External，旧链接主机名是 IP（`100.75.71.21`、`64.64.253.141`、`127.0.0.1`）。新入站设成 `rao-tz.skysms.xyz`。已在用旧链接的客户端连的是同一个 IP，不受影响
+  - 恢复 LLM 反代：nginx + certbot（nginx 插件），证书 lineage `litellm-us-konghai-me-20260520`（有效期到 2026-12-16），过期的旧 lineage `litellm-us.konghai.me` 一并放回，它没有续期配置，不会触发续期
+- 备份：重装前全量备份见下方 10:18 条目（本机 `_backups/rao-tizi-pre-reinstall-20261031/`）；机上另有 `/root/x-ui.db.fresh-install-20261031`、`/root/vnstat.db.fresh-20261031`、`/root/llm-proxy.conf.bak.20261031`、`/etc/letsencrypt.debian-default.20261031`、`/etc/network/interfaces.bak.20261031`、`/etc/hosts.bak.20261031`
+- 回滚方式：
+  - 面板 / 入站：`systemctl stop x-ui`，用备份库覆盖 `/etc/x-ui/x-ui.db`，再 `systemctl start x-ui`
+  - LLM 反代：`cp /root/llm-proxy.conf.bak.20261031 /etc/nginx/conf.d/llm-proxy.conf && nginx -t && systemctl reload nginx`
+  - SSH 密码登录：删除 `/etc/ssh/sshd_config.d/00-hardening.conf` 后 `systemctl reload ssh`
+  - 回到 Rocky + S-UI：只能重装系统，再从本机备份恢复
+- 变更时序：
+  1. 本机 `~/.ssh/config` 改为 `Host tizi-rao rao-tizi`（改前备份 `~/.ssh/config.bak.20261031-rao`），清理 `64.64.253.141` / `100.75.71.21` 的旧 known_hosts。这次控制台导入的公钥正确，直接用 `id_ed25519` 就登录上了，没用到密码
+  2. `hostnamectl set-hostname tizi-rao`，`/etc/hosts` 同步；镜像同样写了不存在的 `auto eth1`，改成 `allow-hotplug eth1`（重启后 `systemctl --failed` 为空）
+  3. 时区 `Asia/Shanghai`；locale `en_US.UTF-8`；`apt full-upgrade`（内核 `6.12.88` → `6.12.113`，修复 CVE-2026-98432）；装 `curl sqlite3 ufw fail2ban python3-systemd vnstat socat jq`；SSH `00-hardening.conf`；fail2ban `sshd` jail 用 systemd backend；重启
+  4. Tailscale 1.104.4：放回旧 state，IP 仍是 `100.75.71.21`；`tailscale set --hostname=tizi-rao`，MagicDNS 名已自动变成 `tizi-rao.taila93443.ts.net`
+  5. ufw：default deny；放行 `22/tcp`、`443/tcp`、`80/tcp`（certbot HTTP-01 / 跳转）、`8443/tcp`（LLM 反代）、`tailscale0` 全通
+  6. 3x-ui v3.11.0 + Xray 26.10.21，非交互安装；面板 `100.75.71.21:2095`，`subListen=127.0.0.1`。安装日志 `/root/3x-ui-install.log` 含面板账密，已 `chmod 600`
+  7. 用 API 建入站 remark `tizi-rao`（VLESS + REALITY `:443`，flow `xtls-rprx-vision`，`minClientVer=1.0.0`，sockopt `UseIPv4`），payload 由 S-UI 备份生成；停服务改库：`share_addr=rao-tz.skysms.xyz`，迁入本期已用流量（11 个客户端有用量）
+  8. root crontab：`59 23 11 * * sqlite3 /etc/x-ui/x-ui.db "UPDATE client_traffics SET up = 0, down = 0;"`（对齐服务商每月 11 日重置）
+  9. vnstat 2.13 恢复旧库，历史月度流量接上
+  10. nginx 1.26 + certbot：放回 `/etc/letsencrypt`（保留 live → archive 符号链接）和 `conf.d/llm-proxy.conf`；`listen 8443 ssl http2` 改成 `listen 8443 ssl;` + `http2 on;`（新版 nginx 不再推荐旧写法）；`certbot.timer` 已启用
+- 验证：
+  - `uname -r` = `6.12.113+deb13-amd64`；`x-ui`、`tailscaled`、`fail2ban`、`vnstat`、`ufw`、`cron`、`nginx`、`certbot.timer` 均 active，`systemctl --failed` 为空
+  - Xray 运行配置：15 个客户端（等于库里启用数），24 个 shortId，target `iosapps.itunes.apple.com:443`，`minClientVer=1.0.0`；启用 UUID + 私钥 + shortId 的哈希和备份一致
+  - 公网 TLS 探针：SNI `iosapps.itunes.apple.com` 返回 `CN=itunes-ssl.itunes.apple.com`
+  - 端到端：本机 Xray 以 `空海测试-2` 身份连 `rao-tz.skysms.xyz:443`，出口 IP `64.64.253.141`，Google 204、GitHub 200
+  - LLM 反代：`https://litellm-us.konghai.me:8443/{openai,anthropic,xai,groq/openai}/v1/models` 不带 key 返回上游 401，`cerebras` 返回 429（上游限流），说明请求到达了上游；`:80` 301 跳 HTTPS；证书 `CN=litellm-us.konghai.me`，到期 2026-12-16
+  - `certbot renew --dry-run --cert-name litellm-us-konghai-me-20260520` 成功
+  - 公网 2095 / 2096 不通；密码登录被拒；公网和 Tailscale 两条 SSH 路径都能用密钥登录
+- 面板入口：`http://100.75.71.21:2095/<webBasePath>/`，账密在机上 `/etc/x-ui/install-result.env`（600），**不入库**
+- 遗留：客户端 `饶家里路由器` 本期已用 254 / 300 GiB，11-11 才月清，可能提前用完被自动停用
 
 ## 2026-10-31 10:18 CST - 整装 Debian 13 前全量备份用户与配置到本机
 

@@ -63,4 +63,4 @@ eth0  合计          = 172.5 GB（约 9 天）
 4. [ ] 读出并备份现有 nft ruleset，新增 443 / 8443+80 / 其余 的 counter
 5. [ ] 复用 tizi 的 Telegram 告警脚本（消息标注主机名），配置 rao-tizi 阈值
 6. [ ] 验证告警链路（手动触发测试推送）
-7. [ ] 完成后在 `docs/operations/rao-tizi.md` 追加实施记录
+7. [ ] 完成后在 `docs/operations/tizi-rao.md` 追加实施记录
