@@ -1,5 +1,20 @@
 # pve 运维操作时间线
 
+## 2026-10-31 13:37 CST - 升级内核到 7.0.14-26-pve 修复 CVE-2026-98432
+
+- 服务器：`pve`（PVE 9.2.3，`pve-no-subscription` 源）
+- 操作人：`Claude`（用户已确认现在升级）
+- 原因：运行内核 `7.0.6-2-pve` 受 CVE-2026-98432 影响。`7.0.14-25` 起已修复：changelog 里源码基于 `Ubuntu-7.0.0-43.43`，与 Ubuntu 的修复目标版本一致；Proxmox 员工也在论坛确认了。复核见 `docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`。
+- 影响：宿主重启，在跑的三台 VM 跟着停机。VM 110 `mssql-ref` 约 3 分钟，VM 130 `mas-go-dev` 约 3 分钟，VM 150 `team-svc` 约 4 分钟。120 `mas-win`、140 `fnos-nas` 原本就是停着的，`onboot=0`，没动。
+- 备份：旧内核 `7.0.6-2-pve`、`6.17.13-13-pve` 还在 GRUB 里。重启前记录了现状：三台 VM 都是 `onboot=1`，没有正在跑的任务或 vzdump，mas-go-dev 上没有正在跑的 CI job，两台 Docker VM 里的容器都有 restart 策略。
+- 回滚方式：控制台开机时在 GRUB 的 Advanced options 里选 `7.0.6-2-pve`；要长期固定可以用 `proxmox-boot-tool kernel pin 7.0.6-2-pve`。
+- 做了什么：
+  - `apt-get install -y proxmox-kernel-7.0`（`7.0.6-2` → `7.0.14-26`，只装了 `proxmox-kernel-7.0` 和 `proxmox-kernel-7.0.14-26-pve-signed` 两个包，没有做 dist-upgrade）。自动保留的内核从 `7.0.2-3` 换成了 `7.0.14-26`。
+  - 13:37:13 `systemctl reboot`，13:39:08 SSH 恢复。之后 `pve-guests` 按 startup order 依次拉起 VM，每台间隔 60 秒：110 → 130 → 150（150 在 13:41:12 起来）。
+- 验证：
+  - `uname -r` = `7.0.14-26-pve`，没有 failed 的单元。`qm list` 里 110 / 130 / 150 都是 running。
+  - 各 VM 内部的验证见 `mssql-ref`、`mas-go-dev`、`team-svc` 各自的时间线。
+
 ## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
 
 - 服务器：`pve`

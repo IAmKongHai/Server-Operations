@@ -1,5 +1,13 @@
 # team-svc 运维操作时间线
 
+## 2026-10-31 13:37 CST - 随 PVE 宿主重启（VM 150）
+
+- 服务器：`team-svc`
+- 操作人：`Claude`（用户已确认）
+- 原因：PVE 宿主升级内核修复 CVE-2026-98432 后重启（见 `docs/operations/pve.md` 同一时间的条目），VM 跟着宿主一起关机再开机。这台 VM 本身的内核没有变。
+- 回滚方式：不涉及这台 VM 的变更。
+- 验证：运行中的容器 20 个，和重启前一样，没有 unhealthy；唯一一个没在跑的是 `moo-dev-s3-init-1`，它是 10-31 00:52 就已退出的一次性初始化容器。mac-mini 上的 `team-svc-forwarders` 自动重连，`http://mac-mini:9000/api/system/status` 返回 `UP`。内核仍是 `6.8.0-147`，Ubuntu 的修复还没发布。
+
 ## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
 
 - 服务器：`team-svc`
