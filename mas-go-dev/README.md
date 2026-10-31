@@ -1,8 +1,18 @@
-# mas-go-dev
+# mas-sit（原 mas-go-dev）
 
-PVE VM `130`，Amazon Linux 2023。Tailscale `100.109.223.53` / MagicDNS `mas-go-dev`，内网 `192.168.2.22`。
+PVE VM `160`，Debian 13（2026-10-31 由 AL2023 的 VM `130` 迁来，主机名从 `mas-go-dev` 改为 `mas-sit`）。Tailscale `100.109.223.53` / MagicDNS `mas-sit`，内网 `192.168.2.22`。
 
-`ssh mas-go-dev`（用户 `ec2-user`）。开发测试机，改 Docker / runner 前仍需备份。
+`ssh mas-sit`（兼容 `ssh mas-go-dev`，用户 `ec2-user`）。开发测试机，改 Docker / runner 前仍需备份。
+
+## 系统约定（Debian 13，2026-10-31 起）
+
+- 包管理用 `apt`；`unattended-upgrades` 自动装安全更新；`qemu-guest-agent` 已启用。时区保持 **UTC**（与旧机一致，timer 的 `OnCalendar` 按 UTC）。
+- 用户 / 组的号与旧机一致，迁移数据都按数字属主拷贝：`ec2-user` 1000:1000、`actions-runner` 993:992、`tk-flywheel-ci` 992:991、`acquilang-ci` 991:990、`docker` 993。Debian 自带的 `clock`、`kvm`、`render`、`systemd-resolve` 组已挪到 987–984。
+- DNS：`/etc/resolv.conf` → `/run/systemd/resolve/resolv.conf`，`/etc/systemd/resolved.conf.d/tailscale-magicdns.conf` 把 `~taila93443.ts.net` 交给 `100.100.100.100`。已卸载 `libnss-resolve`，`/etc/nsswitch.conf` 是 `files myhostname dns`：走 nss-resolve 时短名 `mac-mini` 解析不了（resolved 不拿路由域补全单标签名）。
+- Docker 29（download.docker.com），`/etc/docker/daemon.json`：`log-driver: local`、关闭 containerd snapshotter、`nofile 32768:65536`。drop-in `docker.service.d/10-after-tailscale.conf` + `/usr/local/sbin/wait-tailscale-ip.sh`：开机时等 `tailscale0` 拿到 `100.109.223.53` 再起 Docker（最多 90 秒），否则绑 TS IP 的容器会 bind 失败。
+- cloud-init 只管首次开机：`/etc/cloud/cloud.cfg.d/99-mas-sit-preserve.cfg` 关掉了重建 SSH 主机密钥、改主机名、改 `/etc/hosts`。SSH 主机密钥沿用旧机（ED25519 `SHA256:dBJKYVoD6PHKGWlXR7HqMNoQqeokLC/N9/7nVTRzrAQ`）。
+- 宿主工具：AWS CLI v2 在 `/usr/local/bin/aws`（`mas-go-dev-ci-1` 上的 prod 部署 job 要用）；`sqlcmd`、`btm` 在 `/usr/local/bin`；`build-essential`、`git`、`jq`、`zip`、`dirmngr` 等走 apt。locale 生成了 `en_US.UTF-8`（AcquiLang runner `.env` 用到）。
+- Tailscale state 沿用旧机节点（`accept-dns=false`），机器名 `mas-sit`。
 
 当前定位：内网 **SIT 合部署 VM**。iCare MAS Go 继续跑在 `/opt/mas-go-dev/`；其它项目的 SIT 也放到这台机，共用一套 PostgreSQL / Garage / Redis，不再为每个项目单独开 VM。
 

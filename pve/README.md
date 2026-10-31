@@ -39,7 +39,8 @@ ssh pve
 | ---: | --- | --- | --- | --- |
 | `110` | `mssql-ref` | `1` | `order=10,up=60,down=180` | 先启动数据库，给 SQL Server 预留启动时间 |
 | `120` | `mas-win` | `1` | `order=20,up=90,down=180` | 后启动 IIS / C# 应用 |
-| `130` | `mas-go-dev` | `1` | `order=30,up=60,down=180` | MAS Go + React 内网自动部署环境 |
+| `130` | `mas-go-dev-al2023` | `0` | `order=30,up=60,down=180` | 2026-10-31 起关机，仅作迁移回滚，到期 2026-11-07 |
+| `160` | `mas-sit` | `1` | `order=30,up=60,down=180` | 内网 SIT 合部署机（原 `mas-go-dev`） |
 | `140` | `fnos-nas` | `0` | - | fnOS NAS，当前手动启动，避免宿主机重启后抢占资源 |
 
 `pve-guests.service` 已启用并处于 active。宿主机重启后，PVE 会按上面的顺序恢复 VM；手动启动时也建议先启动 `mssql-ref`，等 `192.168.2.20:1433` 可用后再启动或访问 `mas-win`。
@@ -134,13 +135,13 @@ no pools available
 - 当前 VM：
   - `110 / mssql-ref`：运行 MAS 老系统参考数据库
   - `120 / mas-win`：运行 MAS 老 C# / IIS 参考应用
-  - `130 / mas-go-dev`：运行 MAS Go + React 内网自动部署环境
+  - `130 / mas-go-dev`：运行 MAS Go + React 内网自动部署环境（2026-10-31 由 VM `160 / mas-sit` 接替）
   - `140 / fnos-nas`：运行飞牛 fnOS NAS，存放可重新下载的影视资源
 
 附带状态：
 
 - VM `110` 已在 Ubuntu guest 内安装并启用 `qemu-guest-agent`，PVE 侧 `qm agent 110 ping` 正常。
-- VM `130` 使用 Amazon Linux 2023；AWS 官方文档说明 AL2023 当前不打包也不支持 KVM guest agent，默认仓库无 `qemu-guest-agent`。PVE 侧 `qm agent 130 ping` 会失败，但业务端口与健康检查正常。
+- VM `130` 使用 Amazon Linux 2023，默认仓库无 `qemu-guest-agent`（后手工装过）。2026-10-31 已由 Debian 13 的 VM `160` 接替，`qm agent 160 ping` 正常。
 
 ## 虚拟化检查
 
@@ -237,44 +238,27 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 
 相关计划：`docs/plans/2026-06-18-001-feat-fnos-nas-vm-deployment-plan.md`。
 
-### `mas-go-dev`
+### `mas-sit`（原 `mas-go-dev`）
 
-MAS Go + React 重构版内网自动部署 VM；2026-09-09 起同时作为内网 **SIT 合部署机**（共享 PostgreSQL / Garage 给其它项目，目录 `/opt/shared-sit/`）。该 VM 不替换 `dev-cypresso` 现有公网测试部署。档案见 `mas-go-dev/README.md`。
+内网 **SIT 合部署机**：iCare MAS Go SIT、EVP SIT、共享 PostgreSQL / Garage / Redis（`/opt/shared-sit/`）和 6 个 self-hosted runner。档案见 `mas-go-dev/README.md`。
 
-2026-05-17 创建完成：
+2026-10-31 从 VM `130`（Amazon Linux 2023）迁到 VM `160`（Debian 13），同时改名 `mas-sit`。LAN IP、Tailscale IP、SSH 主机密钥、runner 名称与 labels 都沿用旧机。迁移记录见 `docs/operations/mas-go-dev.md` 2026-10-31 条目，计划 `docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md`。
 
 | 项目 | 值 |
 | --- | --- |
-| VMID | `130` |
-| IP | `192.168.2.22/24` |
-| OS | Amazon Linux 2023.10.20260105 x86_64 |
-| Kernel | `6.1.159-181.297.amzn2023.x86_64` |
-| CPU / Memory | 4 vCPU / 8 GiB，balloon min 2 GiB |
-| Disk | `nvme-data:vm-130-disk-1`，120G thin-provisioned |
+| VMID | `160`（旧 VM `130 / mas-go-dev-al2023` 关机保留到 2026-11-07，`onboot=0`） |
+| IP | `192.168.2.22/24`；Tailscale `100.109.223.53` / MagicDNS `mas-sit` |
+| OS | Debian 13（trixie）genericcloud + cloud-init，用户 `ec2-user` |
+| Kernel | `6.12.113+deb13-cloud-amd64`（已修 CVE-2026-98432） |
+| CPU / Memory | 4 vCPU（`cpu host`）/ 8 GiB，`balloon 0` |
+| Disk | `nvme-data:vm-160-disk-0`，300G thin（discard、iothread、ssd） |
 | Network | `vmbr0` |
 | On boot | `onboot=1`，`startup=order=30,up=60,down=180` |
-| Docker | `25.0.14` |
-| Docker Compose | `v2.24.5` |
-| GitHub runner | org runner `mas-go-dev`（组 `mas-go-dev`，iCare）+ `shared-sit`（组 `shared-sit`，非 iCare SIT，目前 `cypressoai/evp`） |
-| Runtime root | `/opt/mas-go-dev` |
-
-目标用途：
-
-- 运行 GitHub Actions self-hosted runner：iCare 用组 `mas-go-dev`；非 iCare SIT 用组 `shared-sit`（目前 `cypressoai/evp`）。
-- 在 VM 内本地 checkout/build/deploy MAS Go 后端和 React 前端。
-- 连接 `mssql-ref` 上的 SQL Server：`192.168.2.20:1433`。
-- 作为内网多项目 SIT 合部署目标：共享 PostgreSQL（`100.109.223.53:5432`）、Garage S3（`:3900`）与 Redis（`:6380`，避开 iCare 的 `:6379`），应用走独立 compose，不与 iCare `shared-services` 混网。
-- 通过 Tailscale 暴露给团队访问（共享库/S3 只绑 Tailscale IP + 回环，不绑 `192.168.2.22`）。
-
-当前状态：
-
-- 前端 test image 已能在 `0.0.0.0:5174` 启动并通过 `/healthz`。
-- 用户确认后，已对 `mssql-ref` 执行 MAS Go 后端 `migrate + seed`；执行前已创建 VM `110` 快照 `before-mas-go-migrate-20260517` 和三库 SQL 备份。
-- 后端 test image 已启动，Docker health 为 `healthy`。
-- `http://192.168.2.22:5174/api/v1/health` 返回 HTTP 200。
-- 后端 workflow 每次 `mas-go-dev` 部署都会先通过临时容器执行 `migrate up -> seed dry-run check -> seed apply`，执行完自动删除容器。
-- VM `130` 已创建部署就绪快照：`mas-go-dev-deploy-ready-20260517`。
-- PVE 配置中有一个排查 UEFI Secure Boot 时留下的 4 MiB `unused0: nvme-data:vm-130-disk-0`，待确认后可清理。
+| Guest agent | `qemu-guest-agent`，`qm agent 160 ping` 正常 |
+| Docker | `29.9.2`（download.docker.com，overlay2，`log-driver: local`，containerd snapshotter 关闭） |
+| Docker Compose | `v5.6.1` |
+| GitHub runner | 6 个，见 `mas-go-dev/README.md` |
+| Runtime root | `/opt/mas-go-dev`、`/opt/shared-sit`、`/opt/evp-sit` |
 
 相关计划：`docs/plans/2026-05-17-001-feat-mas-go-dev-deployment-plan.md`。
 

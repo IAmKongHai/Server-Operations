@@ -1,5 +1,43 @@
 # mas-go-dev 运维操作时间线
 
+> 2026-10-31 起这台机器是 Debian 13 的 VM 160，主机名 / Tailscale 名 `mas-sit`（`ssh mas-sit`，兼容 `mas-go-dev`）。文件名沿用旧名。
+
+## 2026-10-31 14:46–15:10 CST - 迁到 Debian 13 并改名 mas-sit（U2–U6）
+
+- 服务器：`mas-go-dev` → `mas-sit`（VM 130 → VM 160）、`pve`
+- 操作人：`Claude`（用户已确认：关旧机释放内存、周末直接切换、全部改名 `mas-sit`）
+- 计划：`docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md`
+- 原因：AL2023 默认内核的 CVE-2026-98432 修复仍是 pending，Debian 13 已发 `6.12.113`；AL2023 没有官方 `qemu-guest-agent`；其它服务器都是 Debian 13。
+- 与计划的差异：
+  - 宿主内存低于闸门，用户选择先关旧机，所以没有并行搭建期，停机窗口从 14:47 一直到 15:05（约 18 分钟）。新机直接用 `192.168.2.22`、8G、balloon 0，不再经过临时 IP 和冷启动改 IP。
+  - 旧机关机后没法 rsync，改为给旧盘做 thin 快照只读挂到新机拷贝，原盘不动。
+  - 用户要求改名：PVE 名、主机名、Tailscale 机器名都是 `mas-sit`（MagicDNS `mas-sit.taila93443.ts.net`），短名 `mas-go-dev` 失效；IP 不变，runner 名不变。本机 `~/.ssh/config` 改为 `Host mas-sit mas-go-dev`（备份 `~/.ssh/config.bak.20261031-mas-sit`）。
+  - 时区保持 UTC（计划写的 `Asia/Shanghai` 与旧机不符）。
+  - 计划要迁的 `cmm` 库已不存在，无需迁移。
+- 备份：本机 `_backups/mas-go-dev-2026-11/`：U1 的主机配置包、`tailscale-state-final-20261031.tgz`（停服后）、`pgdump-20261031.tar`（`evp`、`tk_flywheel_ci`、`postgres` 的 `pg_dump -Fc` 和 `globals.sql`）、`baseline-u5-final.txt` / `baseline-u5-new.txt` / `baseline-u6-after-reboot.txt`、`image-map.txt`。旧机盘上另有 `/var/tmp/mas-go-dev-migrate/`（`images.tar` 3.9G、pgdump）。
+- 回滚方式（观察期到 2026-11-07）：在新机上 stop + disable 6 个 runner 和 `tailscaled`，`qm shutdown 160 && qm set 160 --onboot 0`；`qm start 130`，旧机上 `systemctl enable --now tailscaled`、6 个 runner 服务、`gha-runner-maintenance{,-weekly}.timer`、`docker-builder-prune.timer`，按下面的顺序起 compose（iCare 镜像变量见 `_backups/.../container-images.txt`），再 `tailscale set --hostname=mas-go-dev`。旧机的 compose 容器都还在（只是 stopped），`docker start` 即可。新机期间写入的 SIT 数据会丢。
+- 变更时序：
+  1. 14:47 确认 6 个 runner 空闲，在旧机 `systemctl disable --now` 6 个 runner 和 3 个 timer，GitHub 随后显示 offline。
+  2. 14:48 停应用层 6 个 compose 项目；数据层仍在时采最终基准（与 U1 相比只有 iCare redis db0 少了 2 个带 TTL 的 key），`pg_dump` 三个库；再停数据层。
+  3. 14:50 `docker save` 20 个长期服务镜像（按 ID 去重，3.9G）；`tailscaled` disable --now；旧机关机，`onboot 0`，改名 `mas-go-dev-al2023`（见 `docs/operations/pve.md`）。
+  4. 14:52 建 VM 160（Debian 13 genericcloud，内核 `6.12.113+deb13-cloud-amd64`），挂旧盘快照。
+  5. 系统底座：挪开 Debian 占用的 990–993 号组（`clock`、`kvm`、`render`、`systemd-resolve` → 987–984），按旧机的号建 `docker` 993、`actions-runner` 993:992、`tk-flywheel-ci` 992:991、`acquilang-ci` 991:990；`full-upgrade`；装 `qemu-guest-agent`、`unattended-upgrades`（`20auto-upgrades` 打开）、`build-essential`、`git`、`jq`、`rsync`、`zstd`、`zip`、`unzip`、`gnupg`、`dirmngr`、`python3`、`libatomic1`、`sysstat`、`locales`（生成 `en_US.UTF-8`）等；AWS CLI v2（官方包）、`sqlcmd`、`btm`。先写 `daemon.json`（`log-driver: local`、关 containerd snapshotter、`nofile 32768:65536`）再装 Docker CE 29.9.2 / compose v5.6.1 / buildx 0.38.1。装 Tailscale 1.104.4 后立刻 disable。复制 MagicDNS drop-in，`/etc/resolv.conf` 链到 `/run/systemd/resolve/resolv.conf`。新增 Docker 等 TS IP 的 drop-in（旧机没有，开机全靠碰巧）。8G `/swapfile`、`/var/cache/buildx`（775）、`/var/cache/gha/*`、`/var/log/gha`。cloud-init 写 `99-mas-sit-preserve.cfg`（KTD13）。
+  6. 用旧机实际的 compose 文件在 compose v5 上 `config -q`：全部通过，只缺部署时才注入的变量（`MAS_IMAGE`、`VTM_ENV_FILE` 等）。
+  7. rsync（`-aHAS --numeric-ids`）：`/opt` 下 `acquilang-ci`、`actions-runner`、`tk-flywheel-ci`、`evp-sit`、`gha-scripts`、`mas-go-dev`、`shared-sit`、`vps-traffic-monitor`，排除 `_work`、`work`、`cache/go-build`、`_diag`、tk-flywheel 的 `cache`；`/home/actions-runner`（排除 `go`、`.cache`、`.npm`、`.sonar`、`setup-pnpm`）、`/home/tk-flywheel-ci`、`/home/ec2-user`；runner 和 timer 的 systemd unit / drop-in（不带 `.bak`）。6 个命名卷按原 compose 标签建好后整卷拷贝，`rsync -c -n` 复核 0 差异。`docker load` 后 20 个镜像 ID 与旧机全部一致；`icare/public-backend` 按 ID 打回 tag，postgres / garage / shared-sit redis 按 compose 里的 digest 拉取，ID 相同。
+  8. 放回旧 SSH 主机密钥（RSA / ECDSA / ED25519，改为 `root:root 600`；DSA 不再带），指纹与 U1 一致。清掉装包时生成的空 Tailscale state，放回旧 state 后首次启动：`tailscale ip -4` = `100.109.223.53`；再 `tailscale set --hostname=mas-sit`。
+  9. 第一次 `qm reboot 160`：`systemctl --failed` 为空，Docker 晚于 tailscaled Running 约 1 秒启动。发现短名 `mac-mini` 解析不了：Debian 镜像的 nsswitch 是 `files myhostname resolve [!UNAVAIL=return] dns`，resolved 不拿路由域 `~taila93443.ts.net` 补全单标签名。卸载 `libnss-resolve`（nsswitch 变成 `files myhostname dns`，与旧机行为一致）后，宿主和 `--network host` 容器里 `http://mac-mini:9000` 都返回 `UP`。
+  10. 只起数据层（shared-sit postgres / s3 / redis、icare-backend-infra）。`scripts/mas-go-dev-data-baseline.sh` 与旧机停服前的最终基准 **逐行一致**（52 + 31 张表的行数、Garage `evp` 40 个对象、各 Redis DB key 数、azurite 10 个容器 / 272 个 blob）。Garage 节点 ID 不变，PG 日志显示正常关机后启动。
+  11. 按顺序起应用层（脚本 `/root/migrate/start-app-layer.sh`，镜像 tag 和端口变量取自旧容器配置）：`icare-backend` api / worker（等 `/healthz`）→ ecom / sup（与 `deploy_external_api.sh` 相同的 TS 端口 override）→ `icare-public-backend` → `frontend-mas`（`0.0.0.0:5174`）→ `public-frontend`（`0.0.0.0:5173` / `5175`）→ `evp-sit`（api 先起）→ `vps-traffic-monitor`。旧机上的 `icare-backend-gotenberg-1` 是 6 月 compose 留下的孤儿（现 compose 已无此服务，api 用 `wkhtmltopdf`），按原配置用 `docker run` 补回。**意外**：api 对 `seed` 有依赖，`up` 时跑了一次 `icare-backend-seed-1`，目标 `mssql-ref` 的 `medicalassistance_preprod`：两套 migrate 都是 `no change`，seed 只是按原样重新声明 `super_admin` 角色 / 策略 / 绑定，菜单计划 `+0 ~0 -1` 没有删除（未加 `--prune-system`）。实际没有改动数据。
+  12. 用旧盘快照里的 `config.v2.json` 与新容器逐个比对（镜像、Env 值哈希、端口、挂载、网络、restart、资源限制）：24 个容器**全部一致**。
+  13. 确认 6 个 runner 的 `.path` / `.env` 与旧机相同（Debian 上无需修改），`systemctl enable --now` 6 个 runner 和 3 个 timer；GitHub 上 6 个都 online，ID、组、labels（含 `al2023`）与 U1 基准一致。
+  14. 删掉旧盘快照盘和临时 override 文件。
+- 验证（U6）：
+  - 入口：经 `100.109.223.53`、`mas-sit` 短名，`:5173`/`5174`/`5175`/`25173`/`25174`/`25175`/`18080` 返回 200，ecom / sup `/api/v1/health` 返回 200；经 LAN `192.168.2.22`，`0.0.0.0` 绑定的 5173–5175 返回 200，只绑 TS 的端口不通（与旧机相同）。5432 / 6379 / 6380 / 3900 / 10000 可连。
+  - 出站：`sqlcmd` 连 `192.168.2.20:1433` 成功；容器内可连 mssql-ref；GitHub API 200、GHCR 401（未认证，正常）；`actions-runner` 无需 sudo 可用 Docker；`gpg --recv-keys 679F1EE9…` 经 keyserver 成功（dirmngr 可用）。容器里 busybox `nslookup` 对公网名显示 SERVFAIL（quad-100 在 `accept-dns=false` 下不转发），实际解析会落到 `192.168.2.1`，容器内 HTTPS 访问 GitHub 成功；与旧机配置相同。
+  - 第二次 `qm reboot 160`（R9），无人干预：`systemctl --failed` 为空；Tailscale `100.109.223.53` / `mas-sit`；24 个容器运行、0 unhealthy；6 个 runner active 且 GitHub online；SSH ED25519 指纹不变；`qm agent 160 ping` 正常；数据基准与切换前只差 iCare redis db0 的 2 个 TTL key（应用写入缓存）。
+  - 平台：内核 `6.12.113+deb13-cloud-amd64`（CVE-2026-98432 已修），`apt-config dump` 显示 `Update-Package-Lists "1"`、`Unattended-Upgrade "1"`。
+  - 真实 CI：见下一条记录。
+
 ## 2026-10-31 14:50 CST - 迁 Debian 13 U1：只读盘点、基准、离机备份
 
 - 服务器：`mas-go-dev`（VM 130）、`pve`

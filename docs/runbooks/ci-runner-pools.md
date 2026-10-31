@@ -34,18 +34,20 @@
 | `lemon-imac-qingfan-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`qingfan-frontend`**（**无** `qingfan-ci`）。仓库级，workFolder `~/gha/qf1`，2026-10-30 起 LaunchDaemon |
 | `caimiamiao-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`caimiaomiao-ci`**；org `caimiamiao`，workFolder `~/gha/cmm1`，2026-10-21 起 LaunchDaemon |
 | `mac-mini-acquilang-ci-1` … `5` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**, **`acquilang-build`**。`ci-1` 自 2026-09-15；`ci-2` … `5` 自 2026-10-10。2026-10-10 01:23 起 `ci-4`、`ci-5` disabled，不接 job |
-| `mas-go-dev-acquilang-ci-1` | mas-go-dev | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
+| `mas-go-dev-acquilang-ci-1` | mas-sit | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
 | `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**（**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 11:37 起为 LaunchDaemon |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
-| `mas-go-dev` | mas-go-dev | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签）；组 `mas-go-dev` |
-| `mas-go-dev-ci-1/2` | mas-go-dev | **`self-hosted`**, `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`）；组 `mas-go-dev` |
-| `shared-sit` | mas-go-dev | **`self-hosted`**, `Linux`, `X64`, `docker`, `al2023`, **`shared-sit`**（**无** quality/tests / `mas-go-dev` 标签）；组 `shared-sit`，selected repo 目前仅 `cypressoai/evp` |
+| `mas-go-dev` | mas-sit | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签）；组 `mas-go-dev` |
+| `mas-go-dev-ci-1/2` | mas-sit | **`self-hosted`**, `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`）；组 `mas-go-dev` |
+| `shared-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, `al2023`, **`shared-sit`**（**无** quality/tests / `mas-go-dev` 标签）；组 `shared-sit`，selected repo 目前仅 `cypressoai/evp` |
 | `ip-172-31-42-99.ec2.internal` | dev-cypresso | `dev-cypresso-ci`（**仅**部署） |
 | `ip-172-31-42-99.ec2.internal-2` | dev-cypresso | 默认 Linux labels，不进专用池 |
 | `icare-2-uat-runner` | UAT VM `icare-2-uat-ci-runner`（`ssh icare-uat-runner-1`，兼容 `icare-uat-runner`） | `azure`, `uat` |
 | `icare-2-uat-runner-2` | UAT burst VM `icare-2-uat-ci-runner-2`（`ssh icare-uat-runner-2`，CYP-2263 D8s_v5） | `azure`, `uat`；**必须**预建 `/var/cache/buildx` 属主 `icareadmin` |
 | `icare-2-uat-wait` | 原 UAT VM `icare-uat-runner-1` 上的 wait slot（`/opt/actions-runner-uat-wait`） | `uat-wait`（**不要**进 group `icare-2-uat`；Default pool） |
+
+`mas-sit`（原 `mas-go-dev` 主机）2026-10-31 起是 Debian 13，runner 名称、组和 labels 都没变。`al2023` 标签暂时保留：没有任何 workflow 的 `runs-on` 引用它，观察期（到 2026-11-07）结束后再删。
 
 **调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
@@ -117,7 +119,7 @@
 
 ## 容量注意
 
-- **8GB 机**（lemon / umacbook / mas-go-dev）：适合轻中质量活与测试分片；**禁止**挂完整 Coverage / 全量 branch Sonar。
+- **8GB 机**（lemon / umacbook / mas-sit）：适合轻中质量活与测试分片；**禁止**挂完整 Coverage / 全量 branch Sonar。
 - 同机多 runner **不增加** CPU/内存，只增加抢占；8GB 机若 Vitest 与 Sonar 同时打满可考虑减 slot 或降 `VITEST_MAX_WORKERS`。
 - umacbook-pro 为个人本：合盖/断网会掉线，只作吞吐扩容，不当唯一关键路径。**2026-09-01 起带到学校，`umacbook-pro-1/2` 已 disable+bootout（保留 Tailscale，未注销 GitHub）；回来用 `umacbook-pro-runner-resume.sh`。**
 - lemon / umacbook 的 Go 由 job 内 `setup-go` 安装；本机 login PATH 可能没有 `go`/`node`，属正常。
@@ -128,7 +130,7 @@
 
 Sonar Scanner CLI（`SonarSource/sonarqube-scan-action` 默认）会做 GPG 签名校验；任意承接 Sonar 的 self-hosted runner 必须满足：
 
-| 检查项 | macOS | Linux（AL2023 等） |
+| 检查项 | macOS | Linux（Debian 13 等） |
 |--------|-------|-------------------|
 | 完整 GnuPG | `brew install gnupg` → `gpg` + `dirmngr` | 完整 `gnupg2`（不要只用 `gnupg2-minimal`） |
 | runner service PATH 可见 gpg | 各 slot `.path` **含** `/opt/homebrew/bin`（SSH login shell 有 brew ≠ service 有） | `.path` 含 `/usr/bin`（通常默认已有） |
@@ -193,7 +195,7 @@ grep -E 'GOCACHE|GOMODCACHE|PNPM_STORE' ~/actions-runner/<slot>/.env
 ./scripts/prune-gocache.sh ~/actions-runner/<slot>/cache/go-build
 # 删迁移前 orphan（runner 已改 per-slot 后）：
 rm -rf ~/Library/Caches/go-build
-# mas-go-dev：
+# mas-sit（原 mas-go-dev 主机）：
 sudo -u actions-runner bash -lc './scripts/prune-gocache.sh /opt/actions-runner/mas-go-dev-ci-N/cache/go-build'
 # Linux：确认 Listener 进程环境（systemd EnvironmentFile 后）
 pid=$(pgrep -f 'mas-go-dev-ci-1/bin/Runner.Listener' | head -1)
@@ -221,7 +223,7 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 | mac-mini | hon 的 LaunchDaemon 03:15 / 周日 04:30（2026-10-22 由 konghai crontab 改来，注销后仍调度） | `~/gha/scripts/gha-runner-maintenance.sh` |
 | lemon-imac | LaunchDaemon 03:25 / 周日 04:45（crontab TCC 不可用；2026-08-19 由 LaunchAgent 改来，注销后仍调度） | 同上 |
 | umacbook-pro | LaunchDaemon 03:20 / 周日 04:40（2026-08-19 由 crontab+LaunchAgent 改来，注销后仍调度；MAX_GB=15） | 同上 |
-| mas-go-dev | systemd timer 03:15 / 周日 04:30 UTC | `/opt/gha-scripts/...`；含 CI + 部署 work |
+| mas-sit | systemd timer 03:15 / 周日 04:30 UTC | `/opt/gha-scripts/...`；含 CI + 部署 work |
 | dev-cypresso | systemd timer 03:50 UTC | **仅** work 清理，不碰 buildx / 质量 store |
 
 维护脚本会：清过期 `_temp` 与 stale 仓库 work 目录；**保留** `_tool` / `_actions`；按 2 天 mtime + 体积门槛修剪 GOCACHE；weekly 可选 `pnpm store prune` / 超 cap 的 `go clean -modcache`。有 `Runner.Worker` 时跳过破坏性 prune。

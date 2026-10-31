@@ -103,7 +103,7 @@
 | `nas`          | 家用 NAS，跑 `mas-old-sql2022-fts-nas`（SQL Server）、`mas-old-windows` 等 Docker 容器 | **是**                            |
 | `pve`          | Proxmox VE 虚拟化宿主，计划承载开发测试 VM；当前可通过 `ssh pve` 以 root 密钥登录    | 否（测试环境，但仍需备份后再改）  |
 | `mssql-ref`    | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库；当前可通过 `ssh ubuntu@192.168.2.20` 登录 | 否（参考/测试数据库，改库前仍需备份确认） |
-| `mas-go-dev`   | PVE 上的 Amazon Linux 2023 VM（`192.168.2.22` / Tailscale `100.109.223.53`），iCare MAS Go 内网 SIT + 其它项目合部署的 SIT VM，跑后端容器、共享 PostgreSQL/Garage 与 self-hosted GitHub Actions runner；`ssh mas-go-dev` 以 `ec2-user` 登录 | 否（开发测试环境，但改 Docker / runner 前仍需备份确认） |
+| `mas-sit`      | PVE 上的 Debian 13 VM 160（`192.168.2.22` / Tailscale `100.109.223.53`，MagicDNS `mas-sit`；2026-10-31 由 AL2023 VM 130 `mas-go-dev` 迁来并改名），iCare MAS Go 内网 SIT + 其它项目合部署的 SIT VM，跑后端容器、共享 PostgreSQL/Garage/Redis 与 6 个 self-hosted GitHub Actions runner（runner 名仍是 `mas-go-dev*`）；`ssh mas-sit`（兼容 `mas-go-dev`）以 `ec2-user` 登录 | 否（开发测试环境，但改 Docker / runner 前仍需备份确认） |
 | `fnos-nas`     | PVE 上的飞牛 fnOS VM（VMID 140，`192.168.2.9`），存放可重新下载的影视资源                | 否（不承诺数据可恢复；曾出现 SSH 超时不可达）  |
 | `team-svc`     | PVE 上的 Ubuntu 24.04 VM（VMID 150，`192.168.2.23` / Tailscale `100.80.124.63`，4C/12G/200G），2026-10-31 起承接原 mac-mini colima `team` / `moo` 的全部服务（SonarQube、各项目开发库、shared-dev、sub2api、richer、moo-dev-infra + CDC、moo-ocr Kafka）、moo-app（moo-decision SIT 演示环境）和 runner `team-svc`（moo-decision / cmm-api / qingfan 的仓库级 runner，跑需要 Docker 的 job）；`ssh ubuntu@192.168.2.23`，档案 `team-svc/README.md` | 否（开发 / 团队服务，但 SonarQube、CDC 和 CI 团队在用，停机或改 Docker / runner 前仍需确认） |
 | `km-landui`    | 内网设备，纳入例行安全扫描清单                                                          | 否                                |
@@ -119,7 +119,7 @@
 - `nas` 上的 SQL Server 容器承载历史业务数据库（`medicalassistance` 等），关键容器统一用 `--restart=always` 而非 `unless-stopped`，避免 NAS 重启后不自动拉起
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
 - `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认
-- `mas-go-dev` 是 MAS Go 内网 SIT，并作为其它项目的合部署 SIT VM（共享 PostgreSQL / Garage 在 `/opt/shared-sit/`）；过往文档常以 `192.168.2.22` 指代，现以 Tailscale `100.109.223.53` 为对外入口。同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI 与已部署的 SIT
+- `mas-sit`（原 `mas-go-dev`）是 MAS Go 内网 SIT，并作为其它项目的合部署 SIT VM（共享 PostgreSQL / Garage 在 `/opt/shared-sit/`）；过往文档常以 `192.168.2.22` 或 `mas-go-dev` 指代，现以 Tailscale `100.109.223.53` 为对外入口。仓库里的档案目录、运维时间线文件名仍沿用 `mas-go-dev`。旧 VM 130（`mas-go-dev-al2023`）关机保留作回滚，到期 2026-11-07，回滚步骤见 `docs/operations/mas-go-dev.md` 2026-10-31 条目。同时跑着 self-hosted GitHub Actions runner，停机或重启容器会影响 CI 与已部署的 SIT
 - `icare-uat-runner-1` / `icare-uat-runner-2` 是 Azure UAT 发版机（组 `icare-2-uat`）。档案见 `icare-uat-runner-1/README.md`、`icare-uat-runner-2/README.md`。Buildx local cache 路径是 `/var/cache/buildx`，属主必须是 runner 用户 `icareadmin`；`/var/cache` 属 root，新 burst 机不预建就会在 `Prepare backend build cache` 上 Permission denied。`icare-uat-runner-2` 已于 2026-08-23 补齐。wait slot 只在 runner-1，不要装到 runner-2。
 - `mac-mini` 目录约定（2026-10-22/23 迁到 hon，计划 `docs/plans/2026-10-22-1645-ops-mac-mini-team-assets-to-hon-plan.md`）：
   - `/Users/hon/actions-runner/<name>/` — 全部 16 个 runner（sonar-1..4、mobile-1、acquilang-ci-1..5、qingfan-ci-1..3、caimiamiao-1、konghai-friends-lab-1、moo-decision 的 khmini；acquilang-native-1 已于 2026-10-30 移除），LaunchDaemon `UserName=hon`、`HOME=/Users/hon`；除 khmini 外 `DOCKER_HOST=unix:///Users/hon/.colima/team/docker.sock`（hon 下有三个 colima profile，不能依赖默认 context）。`acquilang-ci-4/5` 保持 disabled。启停见 `docs/runbooks/mac-mini-runner-start-stop.md`
@@ -160,7 +160,7 @@
   - LaunchDaemon（2026-08-19 起，注销图形用户后仍在线）：runner 为 `system/actions.runner.cypressoai.umacbook-pro-{1,2}`；维护任务为 `system/com.cypressoai.gha-runner-maintenance{,-weekly}`（原 crontab 已删，避免双跑）。**不要** `./svc.sh install` / `start`。启停见 `docs/runbooks/umacbook-pro-runner-start-stop.md`
   - Tailscale：Homebrew `tailscaled` 1.102.2，LaunchDaemon `system/homebrew.mxcl.tailscale`，节点 `100.113.23.49` / MagicDNS `umacbook-pro`。**不要**再装 GUI Standalone（会和 daemon 抢隧道）。CLI：`/opt/homebrew/bin/tailscale`
   - 当前 labels：`self-hosted,macos,arm64,macos-arm64,umacbook-pro,frontend-tests-ci,frontend-quality-ci,backend-ci`（Tests + 质量 + 后端池；详见 `docs/runbooks/ci-runner-pools.md`）
-- `mas-go-dev` 上的目录约定：
+- `mas-sit` 上的目录约定：
   - `/opt/mas-go-dev/backend/` — iCare backend 部署目录，每次 PR 由 runner 同步 `backend.compose.yaml`、构建镜像并滚动 `api` + `worker` 容器；`.env.docker` 在此本地维护（600 权限），仓库内对应 `backend/.env.docker.example`
   - `/opt/mas-go-dev/frontend-mas/` — iCare frontend-mas 部署目录，同上由 runner 维护
   - `/opt/mas-go-dev/infra/` — iCare 集成测试基础设施目录，承载 `infra.compose.yaml`（`icare-backend-infra` compose project），跑 `azurite` + `redis` 两个常驻容器供 worker / api 经 `shared-services` 网络通过 DNS 名 `azurite` / `redis` 访问。**不由 runner 自动管理**，仅在仓库内 `backend/infra.compose.yaml` 变更或手动调整基础设施时执行 `sudo -u actions-runner docker compose -f infra.compose.yaml up -d`；容器使用 `restart: always`，VM 重启后自动拉起
