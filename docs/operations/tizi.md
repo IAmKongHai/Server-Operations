@@ -1,5 +1,34 @@
 # tizi 运维时间线
 
+## 2026-10-31 10:18 CST - 整装 Debian 13 前全量备份用户与配置到本机
+
+- 服务器：`tizi`
+- 操作人：`Claude`
+- 原因：用户计划把 `tizi` 从 Rocky 9.7 整装为 Debian 13，重装会抹掉整盘（包括 `/root/backup`），要先把用户与配置拉回本机。
+- 影响：只读。在 `/root` 下生成备份目录和 tar 包，没有改服务、配置、防火墙和 crontab，也没有重启。
+- 回滚方式：无服务器变更。备份包在服务器 `/root/tizi-pre-reinstall-20261031-101744*`，可以删，重装时也会一起被抹掉。
+- 做了什么：
+  - 新增脚本 `scripts/backup-proxy-node-pre-reinstall.sh`，执行方式：`ssh tizi 'bash -s' -- tizi < scripts/backup-proxy-node-pre-reinstall.sh`
+  - 本机位置（`_backups/` 已 gitignore，含密钥，不入库）：`_backups/tizi-pre-reinstall-20261031/tizi-pre-reinstall-20261031-101744.tar.gz`（58M）+ `.sha256`，同目录下有解包副本
+  - 备份内容：
+    - S-UI 1.4.1 / sing-box v1.13.4：用 `sqlite3 .backup` 做在线一致性备份；`clients` / `inbounds` / `tls` / `settings` / `users` 等表另外导出为 JSON（体积大的 `stats` / `changes` 只在 db 里）
+    - 账户：`/etc/passwd`、`shadow`、`group`、`sudoers`（没有 UID≥1000 的普通用户）；`/root/.ssh`；`/etc/ssh` 整目录（含主机密钥）
+    - nginx（`:8443` LLM API 反代 `llm-proxy.conf`）、`/etc/letsencrypt`（`litellm-us.konghai.me`）、firewalld、sysctl（bbr/fq、fastopen、rp_filter）、自定义 systemd unit、root crontab、`/var/lib/tailscale`、`/var/lib/vnstat`、`/opt`、`/root` 下的小文件（旧 S-UI 库副本和二进制只留清单）
+    - 现场快照：`ip addr`/`route`、`ss`、`ps`、`rpm -qa`、已启用服务列表
+    - certbot 是 `/usr/local/bin/certbot`（pip 装在 python3.13 下），cron 一天两次 `renew` 后 reload nginx；`/opt/envoy` 只有一个二进制，没在运行
+- 验证：
+  - 本机 `shasum -a 256 -c` OK，解包后 S-UI 库 `PRAGMA integrity_check` = `ok`
+  - 客户端数 18（启用 16），和线上一致；入站只有 1 个 `vless-reality`；TLS 记录 1 条
+  - `authorized_keys` 只有一把 `ssh-ed25519 konghai@konghai.me`
+  - 线上 `/root/.ssh` 目录权限是 `600`（没有 x 位），解包后本机进不去；本机副本已 `chmod 700`，包里的文件完整
+- 重建要点（Debian 13）：
+  - 网络：eth0 走 DHCP，没有其它网卡配置要迁
+  - Tailscale：先停 `tailscaled`，把备份的 `/var/lib/tailscale` 放回去再启动，可以保留原节点身份和 `100.90.28.83`（面板 `webListen` 绑的是这个 IP）。如果改成重新登录，要在控制台删掉旧节点，面板监听也要改成新 IP
+  - SSH：放回 `/etc/ssh/ssh_host_*`，客户端就不会报 host key 变更
+  - 防火墙：Debian 用 ufw，对应现有规则：22、80、443、8443/tcp 对公网，`tailscale0` 全放行
+  - 流量月清 cron：每月 29 日 23:59
+  - 面板选型（照 S-UI 原样恢复，还是按 `docs/runbooks/proxy-node-reinstall-upgrade.md` 迁到 3x-ui）等重装时再定
+
 ## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
 
 - 服务器：`tizi`
