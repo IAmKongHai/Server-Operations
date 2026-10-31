@@ -2,6 +2,23 @@
 
 > 2026-10-31 起这台机器是 Debian 13 的 VM 160，主机名 / Tailscale 名 `mas-sit`（`ssh mas-sit`，兼容 `mas-go-dev`）。文件名沿用旧名。
 
+## 2026-10-31 17:00 CST - 删除 4 个 runner 上的 `al2023` 标签
+
+- 服务器：`mas-sit`（只改 GitHub 上的 runner 标签，机器本身没动）
+- 操作人：`Claude`（用户已确认现在删，不等 11-07）
+- 原因：机器已经是 Debian 13，`al2023` 名不副实。标签存在 GitHub 上、跟着 runner 注册走，不影响回滚到 VM 130，所以没必要等观察期结束。
+- 影响：没有 workflow 用它，调度不变。如果之后有 job 写了 `runs-on: [..., al2023]`，会一直排队。
+- 备份（删除前的标签）：
+  - `mas-go-dev`（26）：`self-hosted,Linux,X64,docker,mas-go-dev,al2023`
+  - `mas-go-dev-ci-1`（28）：`self-hosted,Linux,X64,docker,al2023,mas-go-dev-ci,backend-ci,frontend-sonar-ci,frontend-quality-ci`
+  - `mas-go-dev-ci-2`（29）：`self-hosted,Linux,X64,al2023,mas-go-dev-ci,backend-ci,frontend-sonar-ci,frontend-quality-ci`
+  - `shared-sit`（41）：`self-hosted,Linux,X64,docker,al2023,shared-sit`
+- 回滚：`gh api -X POST /orgs/cypressoai/actions/runners/<id>/labels -f 'labels[]=al2023'`，即时生效，不用重启 runner。
+- 做了什么：
+  1. 复查引用：runner 组 3（10 个仓库）和组 6（`evp`）范围内，逐个拉取默认分支、`develop`、`main` 上 `.github/` 下所有 `yml` / `yaml` / `sh`，共 16 个「仓库 × 分支」，`al2023` 命中 0。仓库级 runner（AcquiLang、tk-flywheel）本来就没有这个标签，不在范围内。
+  2. `gh api -X DELETE /orgs/cypressoai/actions/runners/{26,28,29,41}/labels/al2023`。
+- 验证：4 个 runner 都 online、busy=false，除 `al2023` 外其余标签和删除前一致。
+
 ## 2026-10-31 14:46–15:10 CST - 迁到 Debian 13 并改名 mas-sit（U2–U6）
 
 - 服务器：`mas-go-dev` → `mas-sit`（VM 130 → VM 160）、`pve`

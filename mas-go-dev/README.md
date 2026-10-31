@@ -120,7 +120,7 @@ ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-dire
 
 tk-flywheel runner 使用独立用户 `tk-flywheel-ci`，不在 Docker / sudo 组；最多 2 核 / 3 GiB，工作区与缓存位于 `/opt/tk-flywheel-ci/`。服务和维护方式见 [tk-flywheel CI 档案](tk-flywheel-ci/README.md)。
 
-`shared-sit` labels：`self-hosted`, `Linux`, `X64`, `docker`, `al2023`, `shared-sit`。不要贴 `mas-go-dev` / `backend-ci` / `frontend-quality-ci`。EVP Checks 仍走 GitHub-hosted `ubuntu-latest`。
+`shared-sit` labels：`self-hosted`, `Linux`, `X64`, `docker`, `shared-sit`（`al2023` 已于 2026-10-31 迁 Debian 后删除）。不要贴 `mas-go-dev` / `backend-ci` / `frontend-quality-ci`。EVP Checks 仍走 GitHub-hosted `ubuntu-latest`。
 
 部署 job 应写：
 

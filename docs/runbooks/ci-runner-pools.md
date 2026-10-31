@@ -38,16 +38,16 @@
 | `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**（**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 11:37 起为 LaunchDaemon |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
-| `mas-go-dev` | mas-sit | `mas-go-dev`, `docker`, `al2023`（**无** quality/tests 标签）；组 `mas-go-dev` |
+| `mas-go-dev` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, `mas-go-dev`（**无** quality/tests 标签）；组 `mas-go-dev` |
 | `mas-go-dev-ci-1/2` | mas-sit | **`self-hosted`**, `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`）；组 `mas-go-dev` |
-| `shared-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, `al2023`, **`shared-sit`**（**无** quality/tests / `mas-go-dev` 标签）；组 `shared-sit`，selected repo 目前仅 `cypressoai/evp` |
+| `shared-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, **`shared-sit`**（**无** quality/tests / `mas-go-dev` 标签）；组 `shared-sit`，selected repo 目前仅 `cypressoai/evp` |
 | `ip-172-31-42-99.ec2.internal` | dev-cypresso | `dev-cypresso-ci`（**仅**部署） |
 | `ip-172-31-42-99.ec2.internal-2` | dev-cypresso | 默认 Linux labels，不进专用池 |
 | `icare-2-uat-runner` | UAT VM `icare-2-uat-ci-runner`（`ssh icare-uat-runner-1`，兼容 `icare-uat-runner`） | `azure`, `uat` |
 | `icare-2-uat-runner-2` | UAT burst VM `icare-2-uat-ci-runner-2`（`ssh icare-uat-runner-2`，CYP-2263 D8s_v5） | `azure`, `uat`；**必须**预建 `/var/cache/buildx` 属主 `icareadmin` |
 | `icare-2-uat-wait` | 原 UAT VM `icare-uat-runner-1` 上的 wait slot（`/opt/actions-runner-uat-wait`） | `uat-wait`（**不要**进 group `icare-2-uat`；Default pool） |
 
-`mas-sit`（原 `mas-go-dev` 主机）2026-10-31 起是 Debian 13，runner 名称、组和 labels 都没变。`al2023` 标签暂时保留：没有任何 workflow 的 `runs-on` 引用它，观察期（到 2026-11-07）结束后再删。
+`mas-sit`（原 `mas-go-dev` 主机）2026-10-31 起是 Debian 13，runner 名称和组没变。原来 4 个 runner（`mas-go-dev`、`mas-go-dev-ci-1/2`、`shared-sit`）带的 `al2023` 标签已于 2026-10-31 17:00 删除（复查过组 3 / 6 的 10 个仓库的默认分支、`develop`、`main`，没有引用）。新 workflow 不要再写 `al2023`，否则 job 会一直排队。
 
 **调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
