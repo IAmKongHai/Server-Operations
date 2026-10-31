@@ -68,6 +68,8 @@ tk-flywheel CI 已建：常驻库 / 角色 `tk_flywheel_ci`（各限 12 连接�
 
 ## 菜苗苗 SIT
 
+> 2026-10-31 盘点：`/opt/cmm-sit`、容器和 shared-sit 里的 `cmm` 库都已不在本机，仓库里没有下线记录。以下为历史配置。
+
 位置：`/opt/cmm-sit/`（属主 `ec2-user`）。compose 源文件在 `caimiaomiao` 的 `backend-cmm-api/deploy/sit/`；本仓库 `mas-go-dev/cmm-sit/` 仅作对照。不要用 `cypressoai` runner 组 `shared-sit`。
 
 | 入口 | 地址 |
@@ -93,14 +95,17 @@ ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-dire
 
 ## GitHub Actions runner
 
-同机五套 systemd runner，**不要**混组和混 label。
+同机六个 systemd runner，**不要**混组和混 label。
 
 | 名字 | 组 | 目录 | 用途 |
 | --- | --- | --- | --- |
 | `mas-go-dev` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev` | iCare 本机部署 |
-| `mas-go-dev-ci-1/2` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-{1,2}` | iCare 质量门禁 |
+| `mas-go-dev-ci-1/2` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-{1,2}` | 组内仓库的质量门禁；`ci-1` 带 `docker`，还跑 Telegram-bot / moo-ticket / EVP 的 prod 部署（用宿主 `aws` CLI） |
 | `shared-sit` | `shared-sit`（id 6，selected：目前仅 `cypressoai/evp`） | `/opt/actions-runner/shared-sit` | 非 iCare SIT 部署 |
+| `mas-go-dev-acquilang-ci-1` | 仓库级：`IAmKongHai/AcquiLangAI` | `/opt/acquilang-ci/runner` | AcquiLang 日常检查，label `acquilang-build`，见 [档案](acquilang-ci/README.md) |
 | `mas-go-dev-tk-flywheel-ci-1` | 仓库级：`IAmKongHai/tk-flywheel` | `/opt/tk-flywheel-ci/runner` | tk-flywheel 四个 CI job，专用 label `tk-flywheel-ci` |
+
+组 `mas-go-dev`（id 3）的仓库名单见 `docs/operations/mas-go-dev.md`；3 组 timer：`docker-builder-prune`、`gha-runner-maintenance`、`gha-runner-maintenance-weekly`。
 
 tk-flywheel runner 使用独立用户 `tk-flywheel-ci`，不在 Docker / sudo 组；最多 2 核 / 3 GiB，工作区与缓存位于 `/opt/tk-flywheel-ci/`。服务和维护方式见 [tk-flywheel CI 档案](tk-flywheel-ci/README.md)。
 
@@ -116,9 +121,20 @@ runs-on:
 
 服务：`actions.runner.cypressoai.shared-sit.service`（enabled）。用户 `actions-runner`。registration token 注册后已删，不入库。
 
-## iCare 目录（未改）
+## iCare 目录
 
-- `/opt/mas-go-dev/backend/`、`frontend-mas/`、`infra/`（azurite + redis，网络 `shared-services`）
-- GitHub org runner `mas-go-dev`，组 `mas-go-dev`，只服务 iCare 仓库
+| 目录 | compose 项目 | 端口 |
+| --- | --- | --- |
+| `/opt/mas-go-dev/infra/` | `icare-backend-infra`（azurite + redis，网络 `shared-services`） | `:10000`、`:6379` |
+| `/opt/mas-go-dev/backend/` | `icare-backend`（api、worker、gotenberg；profile `external-api` 的 ecom / sup） | api `127.0.0.1:8080`；ecom `:8081`、sup `:8082` |
+| `/opt/mas-go-dev/public-backend/` | `icare-public-backend`（app / hr / map） | `:8090`–`:8092` |
+| `/opt/mas-go-dev/frontend-mas/` | `frontend-mas` | `0.0.0.0:5174` |
+| `/opt/mas-go-dev/public-frontend/` | `public-frontend`（hr / member portal） | `0.0.0.0:5173`、`0.0.0.0:5175` |
+
+除特别注明外，端口都是 `127.0.0.1` + `100.109.223.53` 双绑定。iCare 主库在 `mssql-ref`（`192.168.2.20:1433`），不在本机。镜像 tag 由部署 workflow 传入；ecom / sup 的 Tailscale 端口由 `backend/deploy_external_api.sh` 临时生成 override 追加，手工 `docker compose up` 会丢掉这两个绑定。
+
+## 其它
+
+- `/opt/vps-traffic-monitor/`：compose 项目 `vps-traffic-monitor`（`app/docker-compose.yml`），只绑 `100.109.223.53:18080`，由 `cypressoai/vps-traffic-monitor` 的 `deploy-mas-go-dev.yml` 部署。
 
 不要对整机 `docker compose --remove-orphans` 或随意 `docker system prune`。

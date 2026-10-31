@@ -1,5 +1,57 @@
 # mas-go-dev 运维操作时间线
 
+## 2026-10-31 14:50 CST - 迁 Debian 13 U1：只读盘点、基准、离机备份
+
+- 服务器：`mas-go-dev`（VM 130）、`pve`
+- 操作人：`Claude`
+- 计划：`docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md` U1
+- 原因：换系统前先把旧机现状、验收基准和离机备份备齐，并确认没有阻断条件。
+- 影响：只读。服务器上没改任何东西。
+- 备份：本机 `_backups/mas-go-dev-2026-11/`（gitignored，600）：
+  - `mas-go-dev-host-secrets-20261031.tgz`：`/var/lib/tailscale`、`/etc/default/tailscaled`、`/etc/ssh/ssh_host_*`、各项目 env 文件、FCM 凭据、`garage.toml`、`evp-key.secret.txt`、`vps-traffic-monitor` 的 `config.yaml` 和 `ssh/`、runner 与 3 组 timer 的 systemd unit / drop-in、`resolved.conf.d`、`/etc/sysconfig/docker`、`sudoers.d`、`ec2-user` 的 `.ssh`（`tar --numeric-owner`）
+  - `ssh-host-fingerprints.txt`（ED25519 `SHA256:dBJKYVoD6PHKGWlXR7HqMNoQqeokLC/N9/7nVTRzrAQ`）
+  - `baseline-u1-live.txt`（服务运行中采的数据基准，U5 停服后会再采一次作正式基准）
+  - `container-images.txt`（每个容器的镜像 tag 和 ID）、`images-all.txt`
+- 回滚方式：无服务器变更，无需回滚。
+- 盘点结果：
+  - **系统**：AL2023，内核 `6.1.159`，时区 **UTC**（计划写的 `Asia/Shanghai` 与现状不符；新机保持 UTC，timer 的 `OnCalendar` 才不会错位）。Docker `25.0.14`、compose `2.24.5`、buildx `0.12.1`，没有 `daemon.json`，`/etc/sysconfig/docker` 里 `OPTIONS="--default-ulimit nofile=32768:65536"`。`ip_nonlocal_bind=0`、`ip_forward=1`，其余 sysctl 是发行版默认。8G `/swapfile`。`/etc/hosts` 由 cloud-init 管理。
+  - **开机顺序**：没有任何机制保证 Docker 晚于 `tailscaled` 拿到 `100.109.223.53`。本次启动是 `tailscaled` 在 12.9s 进入 Running、`docker.service` 22.1s 才开始启动，碰巧赶上。新机要补一个 drop-in（U3）。
+  - **用户 / 组**：`ec2-user` 1000:1000、`actions-runner` 993:992、`tk-flywheel-ci` 992:991、`acquilang-ci` 991:990、`docker` 993（成员 `ec2-user`、`actions-runner`）。FCM 凭据属主 `10001:999`（999 在 AL2023 是 `ssh_keys`）。SSH 主机私钥属组也是 999、mode 640，迁到 Debian 后要改回 `root:root 600`。
+  - **compose 项目（10 个，24 个容器）**：
+
+    | 项目 | 目录 | 命名卷 / bind | 端口 |
+    | --- | --- | --- | --- |
+    | `shared-sit-postgres` | `/opt/shared-sit/postgres` | `shared_sit_pg_data`（601M） | `127.0.0.1` + TS `:5432` |
+    | `shared-sit-s3` | `/opt/shared-sit/s3` | `shared_sit_s3_data`（6.3M）、`garage.toml` | `:3900` |
+    | `shared-sit-redis` | `/opt/shared-sit/redis` | `shared_sit_redis_data`（空） | `:6380` |
+    | `icare-backend-infra` | `/opt/mas-go-dev/infra` | `icare-backend-infra_azurite-data`（170M）、`icare-backend-infra_redis-data`（67M） | `:10000`、`:6379` |
+    | `icare-backend` | `/opt/mas-go-dev/backend` | `icare-backend_member-attachment-uploads`（空）、FCM bind | api `127.0.0.1:8080`；ecom / sup `127.0.0.1` + TS `:8081` / `:8082` |
+    | `icare-public-backend` | `/opt/mas-go-dev/public-backend` | FCM bind | `:8090`–`:8092` |
+    | `frontend-mas` | `/opt/mas-go-dev/frontend-mas` | — | `0.0.0.0:5174` |
+    | `public-frontend` | `/opt/mas-go-dev/public-frontend` | — | `0.0.0.0:5173`、`0.0.0.0:5175` |
+    | `evp-sit` | `/opt/evp-sit` | — | `:25173`–`:25175`、`:28081`–`:28083`、`127.0.0.1:28084` |
+    | `vps-traffic-monitor` | `/opt/vps-traffic-monitor/app` | bind `config.yaml`、`data/`、`ssh/` | TS `:18080` |
+
+    「:端口」未注明的都是 `127.0.0.1` + `100.109.223.53` 双绑定。另有 388 个 CI 留下的匿名卷，不迁。
+  - **compose 依赖 CI 注入的环境变量**：iCare 各项目的镜像 tag（`ECOM_IMAGE` 等）由部署 workflow 传入；ecom / sup 的 TS 端口来自 `deploy_external_api.sh` 生成后即删的 `/tmp` override。所以 U5 不能在新机上直接 `docker compose up`，要按 `container-images.txt` 里的镜像把这些变量补齐，ecom / sup 另外重建同样的 override。`icare-public-backend` 跑的镜像 `icare/public-backend:mas-go-dev-7b77000…` 现在已经没有 tag（`ce9a52d8cd8d`），save 时要按 ID 导出再打回 tag。
+  - **iCare 主库**在 `mssql-ref`（`192.168.2.20:1433`），不在本机，不用迁。
+  - **CMM**：`/opt/cmm-sit` 和容器都不在了，shared-sit PostgreSQL 里也已经没有 `cmm` 库（10-10 还在），shared-sit-redis 是空的。计划里「迁 `cmm` 库和 Redis DB 2」这一项没有东西可迁。
+  - **runner（6 个，均 online、空闲）**：
+
+    | 名称 | 范围 / 组 | 目录 | labels |
+    | --- | --- | --- | --- |
+    | `mas-go-dev`（id 26） | org / `mas-go-dev` | `/opt/actions-runner/mas-go-dev` | `self-hosted,Linux,X64,docker,mas-go-dev,al2023` |
+    | `mas-go-dev-ci-1`（28） | org / `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-1` | `…,docker,al2023,mas-go-dev-ci,backend-ci,frontend-sonar-ci,frontend-quality-ci` |
+    | `mas-go-dev-ci-2`（29） | org / `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-2` | 同上但没有 `docker` |
+    | `shared-sit`（41） | org / `shared-sit` | `/opt/actions-runner/shared-sit` | `self-hosted,Linux,X64,docker,al2023,shared-sit` |
+    | `mas-go-dev-acquilang-ci-1`（27） | `IAmKongHai/AcquiLangAI` | `/opt/acquilang-ci/runner` | `self-hosted,Linux,X64,acquilang-build` |
+    | `mas-go-dev-tk-flywheel-ci-1`（2） | `IAmKongHai/tk-flywheel` | `/opt/tk-flywheel-ci/runner` | `self-hosted,Linux,X64,tk-flywheel-ci` |
+
+    6 个 `.path` 都是标准路径加一个不存在的 `/var/lib/snapd/snap/bin`，Debian 上不用改。`.env` 里只有缓存路径。timer：`docker-builder-prune`（每天 20:00 UTC）、`gha-runner-maintenance`（03:15）、`gha-runner-maintenance-weekly`（周日 04:30）。
+  - **宿主工具**：`mas-go-dev-ci-1` 上跑的 Telegram-bot / moo-ticket / EVP 的 prod 部署 job 直接用宿主的 `aws`（AL2023 的 `awscli-2`，2.32.22），新机要装 AWS CLI v2。`kubectl` 由 job 自己下载。AcquiLang 的 Python 由 `uv` 管，不依赖系统 `python3.12`。`/home/actions-runner` 下除缓存外有 `.docker`、`.kube`、`.config`，要随迁。
+- workflow 检查（Stop condition）：拉取 runner 组 3 / 6 里 10 个仓库加 AcquiLangAI、tk-flywheel 的默认分支，以及存在的 `develop` / `main`，共 18 个「仓库 × 分支」的 `.github/**/*.{yml,yaml,sh}`。只有 `iCare-backend`（`develop` 的 `sit-deploy.yml` / `sonar.yml`，`main` 的 `sonar.yml` / `deploy.yml`）有 `dnf` / `yum`，都在 `Ensure C Build Toolchain` 步骤里，先判断 `command -v gcc`，后面还有 `apt-get` 分支，新机装好 gcc 就会直接跳过。**不构成阻断。** 没有任何 `runs-on` 引用 `al2023`。
+- PVE 核对：VMID 160 空闲；`192.168.2.24` ping 不通、ARP `INCOMPLETE`，没有 VM 的 `ipconfig0` 用它。`nvme-data` Data 69.14%（剩约 288G），旧盘实际分配 86%，新盘只放迁移的数据，够用。**宿主 MemAvailable 约 5.6 GiB，低于 KTD9 的 6G 闸门**；swap 0。各 VM 实际 RSS：110 4.7G（宿主 1 小时前刚重启，SQL Server 还会往 10G 涨）、130 8.1G、150 11.9G。按计划停在 U2 之前，等用户决定。
+
 ## 2026-10-31 13:37 CST - 随 PVE 宿主重启（VM 130）
 
 - 服务器：`mas-go-dev`
