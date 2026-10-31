@@ -48,6 +48,7 @@ Debian 13 cloud 镜像的系统组从 999 往下分配：`clock` 993、`kvm` 992
 ```bash
 groupmod -g 987 clock   # 再 find / -xdev -gid 993 -exec chgrp -h 987 {} +
 # kvm→986、render→985、systemd-resolve→984 同理；groupmod 会同步改 passwd 里的主组
+# 复用这些号之前先核对没有账号的主组仍是旧号：getent passwd | awk -F: '$4>=990 && $4<=993'
 groupadd -g 993 docker; groupadd -g 992 actions-runner   # …
 useradd -u 993 -g 992 -m actions-runner                   # …
 ```

@@ -15,7 +15,12 @@
   - 时区保持 UTC（计划写的 `Asia/Shanghai` 与旧机不符）。
   - 计划要迁的 `cmm` 库已不存在，无需迁移。
 - 备份：本机 `_backups/mas-go-dev-2026-11/`：U1 的主机配置包、`tailscale-state-final-20261031.tgz`（停服后）、`pgdump-20261031.tar`（`evp`、`tk_flywheel_ci`、`postgres` 的 `pg_dump -Fc` 和 `globals.sql`）、`baseline-u5-final.txt` / `baseline-u5-new.txt` / `baseline-u6-after-reboot.txt`、`image-map.txt`。旧机盘上另有 `/var/tmp/mas-go-dev-migrate/`（`images.tar` 3.9G、pgdump）。
-- 回滚方式（观察期到 2026-11-07）：在新机上 stop + disable 6 个 runner 和 `tailscaled`，`qm shutdown 160 && qm set 160 --onboot 0`；`qm start 130`，旧机上 `systemctl enable --now tailscaled`、6 个 runner 服务、`gha-runner-maintenance{,-weekly}.timer`、`docker-builder-prune.timer`，按下面的顺序起 compose（iCare 镜像变量见 `_backups/.../container-images.txt`），再 `tailscale set --hostname=mas-go-dev`。旧机的 compose 容器都还在（只是 stopped），`docker start` 即可。新机期间写入的 SIT 数据会丢。
+- 回滚方式（观察期到 2026-11-07）：
+  1. 新机上 stop + disable 6 个 runner、3 个 timer 和 `tailscaled`，然后 `qm shutdown 160 && qm set 160 --onboot 0`。
+  2. `qm start 130 && qm set 130 --onboot 1`，旧机上 `systemctl enable --now tailscaled`，确认 `tailscale ip -4` 是 `100.109.223.53`，再 `tailscale set --hostname=mas-go-dev`。
+  3. 按下面第 10、11 步的顺序起容器：先数据层，再应用层，等 api `/healthz` 和各入口返回 200。旧机的 compose 容器都还在（只是 stopped），`docker start <容器名>` 即可，不需要 compose 变量。
+  4. 服务就绪后，最后才 `systemctl enable --now` 6 个 runner 和 3 个 timer，避免排队的 job 在服务恢复前就落到旧机。
+  5. 新机期间写入的 SIT 数据会丢。
 - 变更时序：
   1. 14:47 确认 6 个 runner 空闲，在旧机 `systemctl disable --now` 6 个 runner 和 3 个 timer，GitHub 随后显示 offline。
   2. 14:48 停应用层 6 个 compose 项目；数据层仍在时采最终基准（与 U1 相比只有 iCare redis db0 少了 2 个带 TTL 的 key），`pg_dump` 三个库；再停数据层。

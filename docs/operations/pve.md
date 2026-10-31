@@ -13,7 +13,7 @@
   3. `qm create 160 --name mas-sit --memory 8192 --balloon 0 --cores 4 --cpu host --machine q35 --agent enabled=1 --onboot 1 --startup order=30,up=60,down=180`，系统盘 `import-from` 镜像后扩到 300G（`nvme-data:vm-160-disk-0`，discard、iothread、ssd），cloud-init 用户 `ec2-user`、`192.168.2.22/24`、网关和 DNS `192.168.2.1`、SSH 公钥与旧机相同。旧机已关，所以直接用原 IP 和最终内存，不再走临时地址。
   4. 数据源：`lvcreate -s -kn -n vm-160-disk-1 nvme-data/vm-130-disk-1`（旧盘 thin 快照），以 `ro=1` 挂到 VM 160 作 `scsi1`，VM 内 `ro,norecovery,nouuid` 挂载后 rsync。迁移完成后已 `qm set 160 --delete scsi1` + `qm disk unlink --force` 删掉快照；原盘 `vm-130-disk-1` 全程没动。
 - 影响：宿主 MemAvailable 从约 5.6 GiB 回到约 14 GiB（旧机关机），新机起来后静态内存配置与之前相同（10 + 12 + 8）。nvme-data 新盘实际占用约 8%。
-- 回滚方式：`qm shutdown 160 && qm set 160 --onboot 0`，然后 `qm start 130`，在旧机上 `systemctl enable --now tailscaled`、6 个 runner 服务和 3 个 timer，按 `docs/operations/mas-go-dev.md` 的启动顺序起 compose。新机期间写入的 SIT 数据会丢。
+- 回滚方式：先在新机上停用 runner、timer 和 `tailscaled`，`qm shutdown 160 && qm set 160 --onboot 0`，然后 `qm start 130 && qm set 130 --onboot 1`。旧机上依次恢复 `tailscaled` → 容器（数据层、应用层）→ runner 和 timer，详细步骤见 `docs/operations/mas-go-dev.md` 2026-10-31 条目。新机期间写入的 SIT 数据会丢。
 - 验证：`qm config 130` 为 `onboot: 0`、`name: mas-go-dev-al2023`；VM 160 两次 `qm reboot` 后 `qm agent 160 ping` 都正常。
 - 到期：VM 130 及其盘保留到 **2026-11-07**，之后经用户确认再销毁（含 `unused0` 4M 盘）。
 
