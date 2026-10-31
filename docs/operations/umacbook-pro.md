@@ -44,7 +44,7 @@
 
 ## 2026-08-24 11:31 CST - 只读确认 iCare-Operations-backend Sonar 失败为 Quality Gate，不是 runner
 
-- 服务器：`umacbook-pro`（runner `umacbook-pro-1`）；对照 `mac-mini-sonar-1`、`mas-go-dev-ci-1`、`mac-mini` SonarQube
+- 服务器：`umacbook-pro`（runner `umacbook-pro-1`）；对照 `mac-mini-sonar-1`、`mas-sit-ci-1`、`mac-mini` SonarQube
 - 操作人：`Grok`
 - 原因：排查 [iCare-Operations-backend Job 97312142152](https://github.com/cypressoai/iCare-Operations-backend/actions/runs/32686256580/job/97312142152)（run `32686256580`，PR [#9](https://github.com/cypressoai/iCare-Operations-backend/pull/9) `bugfix/CYP-2260-front-door-timeouts`）是 runner 侧还是代码侧失败。
 - 影响：仅 `gh` 读 Actions / PR / 后续 run；本机 Tailscale 未开，未能直连 `mac-mini:9000`；未改 runner、Tailscale、SonarQube、workflow 或业务代码，未重跑 Job。
@@ -54,7 +54,7 @@
   1. 核对目标 Job 全部步骤、同 run 的 `test-lint-build`，以及同一 PR 前后 4 次 `SonarQube Scan`。
   2. 对照失败 SHA `7b6b751f…` 与后续只改 workflow 的 SHA `bbc349ea…`（run `32686596773` 新增 `Diagnose failed SonarQube quality gate`）。
 - 验证结果：
-  - 目标 Job 落在 `umacbook-pro-1`，labels `[self-hosted, backend-ci]`。checkout、Setup Go、依赖下载、coverage artifact 下载与合并全部成功；`Run Tests with Coverage` 按设计 skip（PR 复用 `test-lint-build` 的 artifact）。同 run 的 `test-lint-build` 在 `mas-go-dev-ci-1` 上全绿（Test / Lint / Build）。
+  - 目标 Job 落在 `umacbook-pro-1`，labels `[self-hosted, backend-ci]`。checkout、Setup Go、依赖下载、coverage artifact 下载与合并全部成功；`Run Tests with Coverage` 按设计 skip（PR 复用 `test-lint-build` 的 artifact）。同 run 的 `test-lint-build` 在 `mas-sit-ci-1` 上全绿（Test / Lint / Build）。
   - Scanner 使用缓存 CLI `8.1.0.6389`，成功连上 SonarQube Community Build `26.3.0.120487`（server id `6A4192E1-AZ0pWpBAREjmC3q_HCWj`），上传 94.9 kB 分析报告。唯一失败是 Quality Gate：`QUALITY GATE STATUS: FAILED`，scanner 退出码 3。不是 runner PATH / GPG / Tailscale / Sonar 宿主故障。
   - 同一 PR 首跑（run `32684452619`，SHA `ee6405c9…`）已在 **`mac-mini-sonar-1`** 上以同样的 QG FAILED / exit 3 挂掉；后续三次都是 `test-lint-build` 绿、`SonarQube Scan` 红。换 runner 复现，排除单机故障。
   - 根因在业务代码门禁：`new_violations = 2 > 0`。后续诊断 run 定位为：
@@ -84,7 +84,7 @@
 
 ## 2026-08-22 18:40 CST - 复核业务仓「pnpm 不在 PATH」判断：不是 runner 故障
 
-- 服务器：`umacbook-pro`（`umacbook-pro-2`）；对照 `mas-go-dev-ci-1/2`、`mac-mini-sonar-1`
+- 服务器：`umacbook-pro`（`umacbook-pro-2`）；对照 `mas-sit-ci-1/2`、`mac-mini-sonar-1`
 - 操作人：`Grok`
 - 原因：iCare-Operations-frontend 业务仓 session 报告称 Job 失败是自托管 runner 环境故障：`pnpm: command not found`、exit 127、`PNPM_HOME` 有值但二进制不在 PATH、`pnpm/action-setup` 没生效；并把 SonarQube skipping 解释成 verify 挂了拿不到 coverage。
 - 影响：只读核对 PR #6 全部失败 CI Job 与两次 Deploy Azure UAT；未改 runner、PATH、`.env`、workflow，未重跑。
@@ -93,12 +93,12 @@
 - 做了什么：
   1. 把该仓近几次失败 Job 的 runner / 失败步骤拉齐。
   2. 在 Job 97017663194、97017224954、97016658908、96995577083、96991249563 日志里搜 `pnpm: command not found`、exit 127。
-  3. 核对 Deploy Azure UAT run `32567471377`（`mas-go-dev-ci-1`）与更早的 `32565550318`。
+  3. 核对 Deploy Azure UAT run `32567471377`（`mas-sit-ci-1`）与更早的 `32565550318`。
 - 验证结果：
   - **没有任何一条失败日志含 `pnpm: command not found` 或 exit 127。** `pnpm/action-setup@v4` 均 success，随后 `pnpm install --frozen-lockfile` 跑完（例：umacbook-pro-2 上 9.1s / pnpm 11.18.0）。
   - PR #6 的 CI 失败全是 **SonarQube PR Scan Quality Gate**（scanner exit 3）。同 run 的 `verify` 全绿，coverage artifact 已上传；Sonar job 里 `Run Tests with Coverage` **按设计 skip**（PR 走 download-artifact，不是 verify 挂了）。`PNPM_HOME` 出现在 env dump 是 action-setup 的正常输出，不能当成 PATH 坏了。
   - 业务仓 session 说的「已经 `gh run rerun --failed`」对 SHA `106b4abe` 无意义：同一 SHA 门禁仍会红。真正转绿的是后续提交 `27972885` 的 run `32567470568`。
-  - 另两趟 Deploy Azure UAT 也不是 pnpm PATH：`32565550318` 未分配 runner，annotation 为 OIDC `claim environment cannot be null`；`32567471377` 上 pnpm 已装好，挂在 `pnpm test:coverage`（11 failed / 24 passed）——`VITE_API_BASE_URL` 绝对地址让单测断言的相对路径对不上。详见 `docs/operations/mas-go-dev.md` 同日条目。
+  - 另两趟 Deploy Azure UAT 也不是 pnpm PATH：`32565550318` 未分配 runner，annotation 为 OIDC `claim environment cannot be null`；`32567471377` 上 pnpm 已装好，挂在 `pnpm test:coverage`（11 failed / 24 passed）——`VITE_API_BASE_URL` 绝对地址让单测断言的相对路径对不上。详见 `docs/operations/mas-sit.md` 同日条目。
 - 备注：不要根据「Sonar 某 step skipped + env 里有 PNPM_HOME」推断 runner 坏了。该 workflow 的 skip 是 PR vs schedule 的分叉。
 
 ## 2026-08-20 11:44 CST - SSH 注销 for-konghai 图形会话，runner / Tailscale 仍在

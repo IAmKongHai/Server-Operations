@@ -8,16 +8,16 @@
 | 逻辑池 | Label | 成员机器 | 承接 job | 明确不接 |
 |--------|-------|----------|----------|----------|
 | 前端测试分片 | `frontend-tests-ci` | mac-mini、lemon-imac、umacbook-pro | Frontend Tests 1–4/4 | Coverage、完整 Sonar、Docker 部署 |
-| 前端质量 | `frontend-quality-ci` | 上表 Mac + mas-go-dev-ci-1/2 | Lint、Typecheck、Frontend Tests 汇总、**PR** SonarQube Scan | Coverage、完整 branch Sonar、生产 Docker 部署 |
+| 前端质量 | `frontend-quality-ci` | 上表 Mac + mas-sit-ci-1/2 | Lint、Typecheck、Frontend Tests 汇总、**PR** SonarQube Scan | Coverage、完整 branch Sonar、生产 Docker 部署 |
 | 前端重活 | `mac-mini-sonar`（+ `macos`,`arm64`） | **仅** mac-mini | Frontend Coverage、完整 Branch Sonar、deploy quality-gate、Verify MAS UAT static bundle | — |
-| 后端质量 | `backend-ci` | mac-mini、lemon-imac、umacbook-pro、mas-go-dev-ci | 后端 Lint / Build and Test / Sonar | Docker 镜像 build-push 到 GHCR（仍走 dev-cypresso） |
+| 后端质量 | `backend-ci` | mac-mini、lemon-imac、umacbook-pro、mas-sit-ci | 后端 Lint / Build and Test / Sonar | Docker 镜像 build-push 到 GHCR（仍走 dev-cypresso） |
 | 现网/集成部署构建 | `dev-cypresso-ci` | **仅** dev-cypresso | set-vars、Build and Push、Deploy to Server（前后端）；EVP 生产 `workflow_dispatch`（`deploy-prod.yml`） | 任何 Lint / Sonar / Tests |
-| mas-go-dev 本机部署 | `mas-go-dev` | **仅** mas-go-dev 部署 runner | Deploy to mas-go-dev（前后端） | 质量门禁（质量用 `mas-go-dev-ci`） |
-| 非 iCare SIT 本机部署 | `shared-sit` / runner group `shared-sit` | **仅** mas-go-dev 上的 `shared-sit` runner | EVP 等非 iCare 项目部署到 `/opt/evp-sit` 等 | 质量门禁、iCare 仓库、`mas-go-dev` label |
+| mas-sit 本机部署 | `mas-sit` | **仅** mas-sit 部署 runner | Deploy to mas-sit（前后端） | 质量门禁（质量用 `mas-sit-ci`） |
+| 非 iCare SIT 本机部署 | `shared-sit` / runner group `shared-sit` | **仅** mas-sit 上的 `shared-sit` runner | EVP 等非 iCare 项目部署到 `/opt/evp-sit` 等 | 质量门禁、iCare 仓库、`mas-sit` label |
 | Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner、**icare-2-uat-runner-2**（CYP-2263 burst） | Deploy MAS to Azure UAT、UAT 镜像构建 / mirror | 日常 PR CI |
 | 会员端 preview 本机构建 | `mobile-preview-ci` | **仅** `mac-mini-mobile-1` | iCare-mobile-app preview `eas build --local`（Android APK / iOS IPA，串行） | 质量门、backend CI、EAS 云构建、production、AcquiLang Native |
-| AcquiLang Sonar | `acquilang-ci`（+ `macos`,`arm64`） | **仅** mac-mini 上仍在线的 `mac-mini-acquilang-ci-1` … `3`（`ci-4`、`ci-5` 于 2026-10-10 停用，注册保留） | Sonar。后端测试库在 mac-mini localhost | 原生打包、其它仓库、mas-go-dev |
-| AcquiLang 可分散检查 | `acquilang-build` | mac-mini `ci-1` … `3`、`mas-go-dev-acquilang-ci-1`、`lemon-imac-acquilang-ci-1` | backend / admin / web / CI 汇总。native 还要加 `macos` + `arm64`，落在 mac-mini `ci-1` … `3` 或 lemon-imac | Sonar、原生打包、iCare / tk-flywheel |
+| AcquiLang Sonar | `acquilang-ci`（+ `macos`,`arm64`） | **仅** mac-mini 上仍在线的 `mac-mini-acquilang-ci-1` … `3`（`ci-4`、`ci-5` 于 2026-10-10 停用，注册保留） | Sonar。后端测试库在 mac-mini localhost | 原生打包、其它仓库、mas-sit |
+| AcquiLang 可分散检查 | `acquilang-build` | mac-mini `ci-1` … `3`、`mas-sit-acquilang-ci-1`、`lemon-imac-acquilang-ci-1` | backend / admin / web / CI 汇总。native 还要加 `macos` + `arm64`，落在 mac-mini `ci-1` … `3` 或 lemon-imac | Sonar、原生打包、iCare / tk-flywheel |
 | qingfan 构建 / 测试 | `qingfan-ci`（+ `macos`,`arm64`） | **仅** mac-mini `mac-mini-qingfan-ci-1` … `3`（仓库级，`IAmKongHai/qingfan`） | go 测试（Colima 起一次性 PostgreSQL）、server 构建、dmg 签名公证 | 其它仓库；生产部署（`deploy` / `oss` / `publish` 仍走 `ubuntu-24.04`） |
 | qingfan 前端分片 | `qingfan-frontend`（+ `macos`,`arm64`） | mac-mini `mac-mini-qingfan-ci-1` … `3`、lemon-imac `lemon-imac-qingfan-ci-1` | vitest 三个分片、admin / claw 测试、两端构建 | Go、Docker、签名 |
 | 菜喵喵（org `caimiamiao`） | `caimiaomiao-ci` | **仅** mac-mini `caimiamiao-1`（org 级，Default group） | `caimiamiao/*` 仓库的检查类 job（Go / pnpm）；部署 job 仍走 `ubuntu-latest` | `cypressoai` / `konghai-friends-lab` 仓库；`services:` 容器（macOS 不支持） |
@@ -34,26 +34,26 @@
 | `lemon-imac-qingfan-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`qingfan-frontend`**（**无** `qingfan-ci`）。仓库级，workFolder `~/gha/qf1`，2026-10-30 起 LaunchDaemon |
 | `caimiamiao-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`caimiaomiao-ci`**；org `caimiamiao`，workFolder `~/gha/cmm1`，2026-10-21 起 LaunchDaemon |
 | `mac-mini-acquilang-ci-1` … `5` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**, **`acquilang-build`**。`ci-1` 自 2026-09-15；`ci-2` … `5` 自 2026-10-10。2026-10-10 01:23 起 `ci-4`、`ci-5` disabled，不接 job |
-| `mas-go-dev-acquilang-ci-1` | mas-sit | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
+| `mas-sit-acquilang-ci-1` | mas-sit | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
 | `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**（**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 11:37 起为 LaunchDaemon |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
-| `mas-go-dev` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, `mas-go-dev`（**无** quality/tests 标签）；组 `mas-go-dev` |
-| `mas-go-dev-ci-1/2` | mas-sit | **`self-hosted`**, `mas-go-dev-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`）；组 `mas-go-dev` |
-| `shared-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, **`shared-sit`**（**无** quality/tests / `mas-go-dev` 标签）；组 `shared-sit`，selected repo 目前仅 `cypressoai/evp` |
+| `mas-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, `mas-sit`（**无** quality/tests 标签）；组 `mas-sit` |
+| `mas-sit-ci-1/2` | mas-sit | **`self-hosted`**, `mas-sit-ci`, `frontend-quality-ci`, `backend-ci`, （ci-1 另有 `docker`）；组 `mas-sit` |
+| `shared-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, **`shared-sit`**（**无** quality/tests / `mas-sit` 标签）；组 `shared-sit`，selected repo 目前仅 `cypressoai/evp` |
 | `ip-172-31-42-99.ec2.internal` | dev-cypresso | `dev-cypresso-ci`（**仅**部署） |
 | `ip-172-31-42-99.ec2.internal-2` | dev-cypresso | 默认 Linux labels，不进专用池 |
 | `icare-2-uat-runner` | UAT VM `icare-2-uat-ci-runner`（`ssh icare-uat-runner-1`，兼容 `icare-uat-runner`） | `azure`, `uat` |
 | `icare-2-uat-runner-2` | UAT burst VM `icare-2-uat-ci-runner-2`（`ssh icare-uat-runner-2`，CYP-2263 D8s_v5） | `azure`, `uat`；**必须**预建 `/var/cache/buildx` 属主 `icareadmin` |
 | `icare-2-uat-wait` | 原 UAT VM `icare-uat-runner-1` 上的 wait slot（`/opt/actions-runner-uat-wait`） | `uat-wait`（**不要**进 group `icare-2-uat`；Default pool） |
 
-`mas-sit`（原 `mas-go-dev` 主机）2026-10-31 起是 Debian 13，runner 名称和组没变。原来 4 个 runner（`mas-go-dev`、`mas-go-dev-ci-1/2`、`shared-sit`）带的 `al2023` 标签已于 2026-10-31 17:00 删除（复查过组 3 / 6 的 10 个仓库的默认分支、`develop`、`main`，没有引用）。新 workflow 不要再写 `al2023`，否则 job 会一直排队。
+`mas-sit` 2026-10-31 起是 Debian 13。同日它上面的 5 个 runner 重新注册改了名（GitHub runner ID 随之变化），部署 label 是 `mas-sit`、CI 池 label 是 `mas-sit-ci`，runner 组 id 3 名为 `mas-sit`；`al2023` 标签已删除。新 workflow 不要再写 `al2023`，否则 job 会一直排队。
 
 **调度硬匹配提醒**：workflow 写 `runs-on: [self-hosted, backend-ci]` 时，runner **必须同时**有 `self-hosted` 与 `backend-ci`。注册时若用了 `--no-default-labels` 会丢掉 `self-hosted`，表现为「有 `backend-ci` 却永远接不到 job」。2026-08-05 已给 mac-mini 四 slot 补回 `self-hosted`（见 `docs/operations/mac-mini.md`）。
 
 `runs-on: [self-hosted, mac-mini]` 会命中 iCare 的 `mac-mini-mobile-1`（它带 `mac-mini` 标签）。
 
-**组 visibility 同样硬匹配**：label 对上但仓库不在该 runner group 的 selected 名单里，job 会一直 `queued`、runner 空闲。`mas-go-dev` 组（id 3）里是 `mas-go-dev` 部署 runner + `mas-go-dev-ci-1/2`。2026-09-09 已把 `cypressoai/evp` 加进该组，否则 EVP 的 `Linux + docker + backend-ci` job 永远没人接（唯一匹配者是 `mas-go-dev-ci-1`）。2026-10-05 已把 `cypressoai/moo-ticket` 加进该组，原因相同。SIT 部署仍走 `shared-sit` 组。EVP / moo-ticket workflow **不要**写裸 `docker` / 不要贴 `mas-go-dev` label，避免抢部署 runner。
+**组 visibility 同样硬匹配**：label 对上但仓库不在该 runner group 的 selected 名单里，job 会一直 `queued`、runner 空闲。`mas-sit` 组（id 3）里是 `mas-sit` 部署 runner + `mas-sit-ci-1/2`。2026-09-09 已把 `cypressoai/evp` 加进该组，否则 EVP 的 `Linux + docker + backend-ci` job 永远没人接（唯一匹配者是 `mas-sit-ci-1`）。2026-10-05 已把 `cypressoai/moo-ticket` 加进该组，原因相同。SIT 部署仍走 `shared-sit` 组。EVP / moo-ticket workflow **不要**写裸 `docker` / 不要贴 `mas-sit` label，避免抢部署 runner。
 
 ## 仓库 workflow 对照
 
@@ -70,7 +70,7 @@
 | Deploy quality-gate | `mac-mini-sonar` + `macos` + `arm64` |
 | Verify MAS UAT static bundle | `mac-mini-sonar` + `macos` + `arm64` |
 | set-vars / build-push / Deploy to Server | `dev-cypresso-ci` |
-| Deploy to mas-go-dev | `mas-go-dev` |
+| Deploy to mas-sit | `mas-sit` |
 | Deploy MAS to Azure UAT | wait：`uat-wait`；deploy：runner group `icare-2-uat` |
 
 ### `iCare-backend`
@@ -79,7 +79,7 @@
 |-----|-------|
 | Lint / SonarQube / Build and Test | `backend-ci` |
 | set-vars / build-push / Deploy to Server | `dev-cypresso-ci` |
-| Deploy to mas-go-dev | `mas-go-dev` |
+| Deploy to mas-sit | `mas-sit` |
 | Build Azure UAT Images / Migrate then roll | runner group `icare-2-uat` |
 
 ### `evp`
@@ -87,12 +87,12 @@
 | Job | Label / group |
 |-----|----------------|
 | Checks frontend lint/build | `[self-hosted, frontend-quality-ci]` |
-| Checks backend 测试（含临时 Postgres） | `[self-hosted, Linux, docker, backend-ci]`（当前只有 `mas-go-dev-ci-1`；不要占宿主机 5432） |
-| Checks 镜像构建 | 同上；串行四镜像，不要用 `shared-sit` / `mas-go-dev` 部署 runner |
+| Checks backend 测试（含临时 Postgres） | `[self-hosted, Linux, docker, backend-ci]`（当前只有 `mas-sit-ci-1`；不要占宿主机 5432） |
+| Checks 镜像构建 | 同上；串行四镜像，不要用 `shared-sit` / `mas-sit` 部署 runner |
 | SonarQube Scan（backend） | `[self-hosted, backend-ci]`（可达 `http://mac-mini:9000`） |
 | SonarQube Scan（frontend） | `[self-hosted, frontend-quality-ci]`（PR 快扫，不含覆盖率） |
-| Deploy SIT | runner group `shared-sit` + labels `self-hosted, Linux, X64, shared-sit`（`mas-go-dev` 上的 `shared-sit`） |
-| Deploy production | **仅** `workflow_dispatch`；`[self-hosted, Linux, X64, dev-cypresso-ci]`（dev-cypresso 本机）。不要用 `shared-sit` / `mas-go-dev` |
+| Deploy SIT | runner group `shared-sit` + labels `self-hosted, Linux, X64, shared-sit`（`mas-sit` 上的 `shared-sit`） |
+| Deploy production | **仅** `workflow_dispatch`；`[self-hosted, Linux, X64, dev-cypresso-ci]`（dev-cypresso 本机）。不要用 `shared-sit` / `mas-sit` |
 
 ### `qingfan`（`IAmKongHai/qingfan`，个人仓库，只能用仓库级 runner）
 
@@ -109,13 +109,13 @@
 
 | Job | Label / group |
 |-----|----------------|
-| CI backend（临时 Postgres、`go test -race`、CLI） | `[self-hosted, Linux, docker, backend-ci]`（当前只有 `mas-go-dev-ci-1`；`docker run -p 127.0.0.1::5432`，不要占宿主机 5432） |
+| CI backend（临时 Postgres、`go test -race`、CLI） | `[self-hosted, Linux, docker, backend-ci]`（当前只有 `mas-sit-ci-1`；`docker run -p 127.0.0.1::5432`，不要占宿主机 5432） |
 | CI frontend（npm lint / test / tsc / build） | `[self-hosted, frontend-quality-ci]` |
 | CI image（`docker build`） | 与 backend 相同的 Linux + docker 标签 |
 | CI 汇总（分支保护要求的 `CI` check） | `[self-hosted, backend-ci]` |
 | Deploy to dev-cypresso | `[self-hosted, Linux, X64, dev-cypresso-ci]` |
 
-仓库需在 runner group `mas-go-dev`（id 3）的 selected 名单里，backend / image 才会有人接。Deploy 走 Default 组的 `dev-cypresso-ci`，不进 `mas-go-dev` 部署 runner。
+仓库需在 runner group `mas-sit`（id 3）的 selected 名单里，backend / image 才会有人接。Deploy 走 Default 组的 `dev-cypresso-ci`，不进 `mas-sit` 部署 runner。
 
 ## 容量注意
 
@@ -154,7 +154,7 @@ ps eww -p "$pid" | tr ' ' '\n' | grep '^PATH='
 相关历史：
 
 - mac-mini PATH / 短 workFolder：`docs/solutions/mac-mini/integration-issues/sonarqube-scanner-cli-cache-never-hits-4part-version-2026-06-09.md`
-- mas-go-dev `gnupg2-minimal` 缺 dirmngr：`docs/solutions/mas-go-dev/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
+- mas-sit `gnupg2-minimal` 缺 dirmngr：`docs/solutions/mas-sit/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
 - 2026-07-20 lemon / umacbook 补齐 gnupg + `.path`：见各机 `docs/operations/*.md`
 
 ### golangci-lint（backend-ci）
@@ -165,7 +165,7 @@ self-hosted **不要**依赖 `golangci/golangci-lint-action` 的默认行为：
 - 默认 `verify: true` 会访问 `golangci-lint.run` 拉 jsonschema，网络抖即硬失败
 
 推荐与 `iCare-backend` 一致：`go install` 固定版本 + `golangci-lint run`；本机 `~/.cache/golangci-lint` 已跨 job 持久。  
-取证与修复：`docs/solutions/mas-go-dev/workflow-issues/golangci-lint-action-cache-timeout-selfhosted-2026-08-04.md`；`iCare-public-backend` PR #62。
+取证与修复：`docs/solutions/mas-sit/workflow-issues/golangci-lint-action-cache-timeout-selfhosted-2026-08-04.md`；`iCare-public-backend` PR #62。
 
 ### 缓存基线（减公网流量 / 防 CYP-322）
 
@@ -195,10 +195,10 @@ grep -E 'GOCACHE|GOMODCACHE|PNPM_STORE' ~/actions-runner/<slot>/.env
 ./scripts/prune-gocache.sh ~/actions-runner/<slot>/cache/go-build
 # 删迁移前 orphan（runner 已改 per-slot 后）：
 rm -rf ~/Library/Caches/go-build
-# mas-sit（原 mas-go-dev 主机）：
-sudo -u actions-runner bash -lc './scripts/prune-gocache.sh /opt/actions-runner/mas-go-dev-ci-N/cache/go-build'
+# mas-sit：
+sudo -u actions-runner bash -lc './scripts/prune-gocache.sh /opt/actions-runner/mas-sit-ci-N/cache/go-build'
 # Linux：确认 Listener 进程环境（systemd EnvironmentFile 后）
-pid=$(pgrep -f 'mas-go-dev-ci-1/bin/Runner.Listener' | head -1)
+pid=$(pgrep -f 'mas-sit-ci-1/bin/Runner.Listener' | head -1)
 sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 ```
 
@@ -212,8 +212,8 @@ sudo strings /proc/$pid/environ | grep -E 'GOCACHE|GOMODCACHE|PNPM'
 | mac-mini `caimiamiao-1` / `khmini` | `~/gha/cache/go-build-cmm1` / `go-build-khm1` | 同上 | 同上 |
 | lemon-imac slot N | `~/actions-runner/lemon-imac-N/cache/go-build` | `~/go/pkg/mod` | `~/gha/cache/pnpm-store` |
 | umacbook-pro slot N | `~/actions-runner/umacbook-pro-N/cache/go-build` | `~/go/pkg/mod` | `~/gha/cache/pnpm-store` |
-| mas-go-dev-ci-N | `/opt/actions-runner/<name>/cache/go-build` | `/home/actions-runner/go/pkg/mod` | `/var/cache/gha/pnpm-store` |
-| mas-go-dev（部署） | `/opt/actions-runner/mas-go-dev/cache/go-build` | 同上 | **不设**（避免与质量门混用） |
+| mas-sit-ci-N | `/opt/actions-runner/<name>/cache/go-build` | `/home/actions-runner/go/pkg/mod` | `/var/cache/gha/pnpm-store` |
+| mas-sit（部署） | `/opt/actions-runner/mas-sit/cache/go-build` | 同上 | **不设**（避免与质量门混用） |
 | dev-cypresso（部署） | — | — | **不设**；只清 `_work`，保留 `/var/cache/buildx` |
 
 ### 定时维护（2026-08-03）

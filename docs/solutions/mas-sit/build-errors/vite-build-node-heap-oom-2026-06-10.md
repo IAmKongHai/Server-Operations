@@ -1,14 +1,14 @@
 ---
 title: frontend-mas docker build 阶段 vite build 撞 Node 默认 ~2GB 堆上限 OOM
 date: 2026-06-10
-category: docs/solutions/mas-go-dev/build-errors
-server: mas-go-dev
-module: mas-go-dev / iCare-frontend-mas CI 部署
+category: docs/solutions/mas-sit/build-errors
+server: mas-sit
+module: mas-sit / iCare-frontend-mas CI 部署
 problem_type: build_error
 component: development_workflow
 severity: medium
 symptoms:
-  - "GitHub Actions `Deploy to mas-go-dev` job 在 `Build local Docker image` 步骤失败，exit code 1"
+  - "GitHub Actions `Deploy to mas-sit` job 在 `Build local Docker image` 步骤失败，exit code 1"
   - "`RUN npm run build`（tsc -b && vite build）报 FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory"
   - "进程以 exit code 134（Aborted, core dumped）结束"
 root_cause: config_error
@@ -18,14 +18,14 @@ related_components:
   - node-24-alpine
   - docker-build
   - github-actions-self-hosted-runner
-tags: [vite-build, node-heap, oom, max-old-space-size, docker-build, mas-go-dev, frontend-mas]
+tags: [vite-build, node-heap, oom, max-old-space-size, docker-build, mas-sit, frontend-mas]
 ---
 
 # frontend-mas docker build 阶段 vite build 撞 Node 默认 ~2GB 堆上限 OOM
 
 ## Problem
 
-`iCare-frontend-mas` 的 `Deploy to mas-go-dev` job（self-hosted runner，跑在 `mas-go-dev` VM 上）在 `Build local Docker image` 步骤失败。Dockerfile build stage 的 `RUN npm run build`（`tsc -b && vite build`）触发 Node.js OOM，docker build 以 exit code 134 中断，部署未发生。
+`iCare-frontend-mas` 的 `Deploy to mas-sit` job（self-hosted runner，跑在 `mas-sit` VM 上）在 `Build local Docker image` 步骤失败。Dockerfile build stage 的 `RUN npm run build`（`tsc -b && vite build`）触发 Node.js OOM，docker build 以 exit code 134 中断，部署未发生。
 
 失败示例：run `27260917984`（CYP-882 add approve billing invoice frontend, #658）。
 
@@ -54,7 +54,7 @@ ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit co
 ```dockerfile
 ENV VITE_USE_MOCK=${VITE_USE_MOCK}
 
-# vite build 内存峰值超过 Node 默认 ~2GB 堆上限，会在 mas-go-dev 上 OOM（exit 134）
+# vite build 内存峰值超过 Node 默认 ~2GB 堆上限，会在 mas-sit 上 OOM（exit 134）
 ENV NODE_OPTIONS=--max-old-space-size=4096
 
 RUN npm run build
@@ -63,7 +63,7 @@ RUN npm run build
 容量判断（2026-06-10）：
 
 - 崩溃点 ~2046 MB，实际需求只是略超 2GB，4096 已是两倍余量
-- `mas-go-dev` VM：7.7 GiB 总内存 / 4.6 GiB available / 无 swap，4096 装得下，无需动 PVE
+- `mas-sit` VM：7.7 GiB 总内存 / 4.6 GiB available / 无 swap，4096 装得下，无需动 PVE
 - `ENV NODE_OPTIONS` 只作用于 build stage，最终 nginx 镜像不携带
 
 ## Why This Works
@@ -73,5 +73,5 @@ Node.js 默认的 V8 old-space 上限约 2GB（在该容器环境下未按宿主
 ## Prevention
 
 - 前端 build 在 CI 上以 exit 134 + "JavaScript heap out of memory" 失败时，先看崩溃堆大小是否贴着 ~2GB（或当前设定值），再决定是调 `NODE_OPTIONS` 还是真的加机器内存
-- 若日后 build 峰值逼近 4GB，再到 PVE 给 `mas-go-dev` VM 扩内存，并同步把 `--max-old-space-size` 提到 6144；不要提前预留
+- 若日后 build 峰值逼近 4GB，再到 PVE 给 `mas-sit` VM 扩内存，并同步把 `--max-old-space-size` 提到 6144；不要提前预留
 - VM 无 swap，给 Node 的堆上限要留出系统与其它容器（api/worker/azurite/redis/runner）的余量，不要设到接近物理内存总量

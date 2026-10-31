@@ -33,7 +33,7 @@ server/
 | `nas`          | 本地 / 数据       | 家用 NAS，跑 SQL Server（`mas-old-sql2022-fts-nas` 等）及历史业务数据库                          |
 | `pve`          | 本地 / 测试       | Proxmox VE 虚拟化宿主，计划承载开发测试 VM                                                       |
 | `mssql-ref`    | 本地 / 数据       | PVE 上的 Ubuntu VM，运行 MAS 老系统 MSSQL 参考数据库（`192.168.2.20`）                            |
-| `mas-sit`（原 `mas-go-dev`） | 本地 / 测试 | PVE 上的 Debian 13 VM 160（`192.168.2.22` / Tailscale `100.109.223.53`），内网 SIT 合部署机与 GH Actions runner；2026-10-31 由 AL2023 VM 130 迁来 |
+| `mas-sit` | 本地 / 测试 | PVE 上的 Debian 13 VM 160（`192.168.2.22` / Tailscale `100.109.223.53`），内网 SIT 合部署机与 GH Actions runner；2026-10-31 由 AL2023 VM 130 迁来 |
 | `fnos-nas`     | 本地 / 存储       | PVE 上的飞牛 fnOS VM（VMID 140，`192.168.2.9`），存放可重新下载的影视资源，不承诺数据可恢复       |
 | `km-landui`    | 本地              | 内网设备，纳入例行安全扫描清单                                                                    |
 | `home-router`  | 本地 / 网络       | 家里路由器，Web 管理端口经 `mac-mini` SSH 跳板访问                                                |

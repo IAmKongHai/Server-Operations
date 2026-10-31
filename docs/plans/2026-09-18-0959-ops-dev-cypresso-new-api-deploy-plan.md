@@ -101,7 +101,7 @@ new-api 是 Go 编写的 AI API 网关，官方只给出"单机 compose + Postgr
 - new-api 源码（本机 `~/Code/Project/new-api`，HEAD `7209b6d`，tag `v1.0.0-rc.37` 之后 26 个提交）：`common/redis.go`、`common/trusted_proxies.go`、`common/session_cookie.go`、`common/init.go`、`model/main.go`、`controller/setup.go`、`Dockerfile`、`.env.example`、`docs/authentication.md`。
 - 同机先例：`docs/operations/dev-cypresso.md` 2026-09-03 moo-ticket 部署、2026-09-09 EVP 生产部署与只读盘点、2026-09-10 域名切换。
 - 复盘：`docs/solutions/dev-cypresso/integration-issues/docker-compose-env-file-edit-triggers-recreate-2026-05-28.md`、`docs/solutions/dev-cypresso/runtime-errors/nginx-fail-on-boot-dns-not-ready-2026-05-13.md`、`docs/solutions/dev-cypresso/integration-issues/docker-image-buildup-fills-disk-2026-05-14.md`。
-- 样板：`mas-go-dev/shared-sit/redis/docker-compose.yml`（带密码 Redis）、`mas-go-dev/shared-sit/bootstrap.sh`（建库建角色 SQL）、`docs/plans/2026-08-16-001-ops-mac-mini-sub2api-deploy-plan.md`（同类 AI 网关 SSE 反代要点）。
+- 样板：`mas-sit/shared-sit/redis/docker-compose.yml`（带密码 Redis）、`mas-sit/shared-sit/bootstrap.sh`（建库建角色 SQL）、`docs/plans/2026-08-16-001-ops-mac-mini-sub2api-deploy-plan.md`（同类 AI 网关 SSE 反代要点）。
 
 ---
 
@@ -109,8 +109,8 @@ new-api 是 Go 编写的 AI API 网关，官方只给出"单机 compose + Postgr
 
 ### Key Technical Decisions
 
-- KTD1. **复用 `shared-postgres`，为 new-api 建独立库 `new_api` 与同名角色。** (session-settled: user-approved — chosen over 为 new-api 单独起 `postgres:18` 容器: 与同机 moo-ticket / EVP 惯例一致，少占 2 GB 内存，且现有容器已是 PG 18.3 并正确挂载 `/var/lib/postgresql`。) 角色为 `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 30`，库 `REVOKE CONNECT FROM PUBLIC`，SQL 范式照 `mas-go-dev/shared-sit/bootstrap.sh`。`max_connections=100`，当前用 12。实现 R5、R8。
-- KTD2. **new-api 专用 Redis 容器 `new-api-redis`，只在 compose 默认网络，不发布端口。** (session-settled: user-approved — chosen over 复用 `shared-redis`: 共享实例 2026-05-28 起无密码且 `allkeys-lru` 淘汰，iCare 在用 db0。) 参数照 `mas-go-dev/shared-sit/redis/docker-compose.yml`：`--requirepass`、`--appendonly yes`、`--maxmemory 128mb --maxmemory-policy allkeys-lru`，`mem_limit 256m`。实现 R6。
+- KTD1. **复用 `shared-postgres`，为 new-api 建独立库 `new_api` 与同名角色。** (session-settled: user-approved — chosen over 为 new-api 单独起 `postgres:18` 容器: 与同机 moo-ticket / EVP 惯例一致，少占 2 GB 内存，且现有容器已是 PG 18.3 并正确挂载 `/var/lib/postgresql`。) 角色为 `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 30`，库 `REVOKE CONNECT FROM PUBLIC`，SQL 范式照 `mas-sit/shared-sit/bootstrap.sh`。`max_connections=100`，当前用 12。实现 R5、R8。
+- KTD2. **new-api 专用 Redis 容器 `new-api-redis`，只在 compose 默认网络，不发布端口。** (session-settled: user-approved — chosen over 复用 `shared-redis`: 共享实例 2026-05-28 起无密码且 `allkeys-lru` 淘汰，iCare 在用 db0。) 参数照 `mas-sit/shared-sit/redis/docker-compose.yml`：`--requirepass`、`--appendonly yes`、`--maxmemory 128mb --maxmemory-policy allkeys-lru`，`mem_limit 256m`。实现 R6。
 - KTD3. **new-api 加入两个网络：compose 默认网络（连 Redis）与 external `shared-services`（连 `shared-postgres:5432`）。** 同机 moo-ticket、EVP 都以 external 网络连共享库；`host-gateway` 方式无先例。Redis 不加入 `shared-services`，避免在共享网络注册 `redis` 别名。
 - KTD4. **new-api 绑 `127.0.0.1:3000`，Nginx `proxy_pass http://127.0.0.1:3000`。** 端口 3000 经 `ss` 核实空闲。upstream 写纯 IP，规避 nginx 开机 DNS 未就绪失败的既有故障。实现 R3、R4。
 - KTD5. **镜像钉 `calciumion/new-api:v1.0.0-rc.37`（2026-09-11，amd64）。** Docker Hub 有该 tag，与当前 `latest` 相同。升级流程为改 tag、pull、`up -d`、删旧 tag 镜像。实现 R7。
@@ -187,7 +187,7 @@ flowchart TB
   2. `.env.example` 列出并注释：`SQL_DSN=postgresql://new_api:<generated>@shared-postgres:5432/new_api`、`REDIS_PASSWORD`、`REDIS_CONN_STRING=redis://:<generated>@new-api-redis:6379/0`、`SESSION_SECRET`、`CRYPTO_SECRET`、`SESSION_COOKIE_SECURE=true`、`SESSION_COOKIE_TRUSTED_URL=https://zzz.konghai.me`、`TRUSTED_PROXIES=172.16.0.0/12`、`NODE_NAME=new-api-dev-cypresso-1`、`TZ=Asia/Shanghai`、`ERROR_LOG_ENABLED=true`、`BATCH_UPDATE_ENABLED=true`、`STREAMING_TIMEOUT=300`、`SQL_MAX_OPEN_CONNS=20`、`SQL_MAX_IDLE_CONNS=5`。生成方式注明 `openssl rand -hex 32`。
   3. vhost 模板照 `t.moospark.com.conf` 的 location 块，叠加 KTD11 参数；`server_name zzz.konghai.me`，只写 `listen 80`。
   4. systemd 单元按 KTD8：service 为 oneshot，以 `ec2-user` 运行 `docker exec shared-postgres pg_dump -U new_api -Fc -d new_api` 输出到带日期文件名，再删除 14 天前的文件；timer `OnCalendar=*-*-* 04:10:00 UTC`，`Persistent=true`。
-- **Patterns to follow:** `mas-go-dev/cmm-sit/`（模板入库与 README 声明写法）、`mas-go-dev/shared-sit/redis/docker-compose.yml`（Redis 参数）、`mas-go-dev/evp-sit/.env.example`。
+- **Patterns to follow:** `mas-sit/cmm-sit/`（模板入库与 README 声明写法）、`mas-sit/shared-sit/redis/docker-compose.yml`（Redis 参数）、`mas-sit/evp-sit/.env.example`。
 - **Test scenarios:**
   - 在临时目录复制 `docker-compose.yml` 并把 `.env.example` 复制为 `.env`，执行 `docker compose config` 渲染成功，`new-api-redis` 不出现 `ports`，`new-api` 的 `ports` 只有 `127.0.0.1:3000:3000`。compose 中 `env_file: .env` 保持必需（不加 `required: false`），以免服务器漏放 `.env` 时 new-api 静默退回 SQLite。
   - `git status` 显示 `.env.example` 可入库、`secrets.local.md` 未被跟踪。
@@ -215,13 +215,13 @@ flowchart TB
 - **Goal:** 为 new-api 准备独立的 `new_api` 库与角色，不触碰 infra 栈。
 - **Requirements:** R5、R8、R9
 - **Dependencies:** U2（快照已留）
-- **Files:** 无仓库文件；SQL 参考 `mas-go-dev/shared-sit/bootstrap.sh`。
+- **Files:** 无仓库文件；SQL 参考 `mas-sit/shared-sit/bootstrap.sh`。
 - **Approach:**
   1. 本地 `openssl rand -hex 32` 生成角色密码，先写入 `dev-cypresso/secrets.local.md`。
   2. 向用户确认后，`docker exec -i shared-postgres psql -U postgres` 执行：建角色（KTD1 属性）、`CREATE DATABASE new_api OWNER new_api`、`REVOKE CONNECT ON DATABASE new_api FROM PUBLIC`、连接到 `new_api` 后 `REVOKE ALL ON SCHEMA public FROM PUBLIC; ALTER SCHEMA public OWNER TO new_api`。
   3. 不进入 `/home/ec2-user/stacks/infra/`，不改其 `.env` / `docker-compose.yml`。
 - **Execution note:** 每条 SQL 单独执行并回显结果，出错即停；不要用脚本一次灌入。
-- **Patterns to follow:** 2026-09-03 moo-ticket、2026-09-09 EVP 建库记录；`mas-go-dev/README.md` "新项目怎么接入"。
+- **Patterns to follow:** 2026-09-03 moo-ticket、2026-09-09 EVP 建库记录；`mas-sit/README.md` "新项目怎么接入"。
 - **Test scenarios:**
   - `\du new_api` 显示非超级用户、不可建库建角色、`CONNECTION LIMIT 30`。
   - 用 `new_api` 角色从宿主 `psql -h 127.0.0.1 -U new_api -d new_api` 登录成功，`SELECT 1` 返回。

@@ -1,21 +1,21 @@
 ---
-title: dev-cypresso 上线 iCare worker + shared-azurite，对齐 mas-go-dev 模式
+title: dev-cypresso 上线 iCare worker + shared-azurite，对齐 mas-sit 模式
 type: feat
 status: completed
 date: 2026-05-28
 ---
 
-# dev-cypresso 上线 iCare worker + shared-azurite，对齐 mas-go-dev 模式
+# dev-cypresso 上线 iCare worker + shared-azurite，对齐 mas-sit 模式
 
 ## Summary
 
-把 dev-cypresso（AWS EC2，多项目共享 dev 环境）上的 iCare backend 部署对齐到 mas-go-dev 已经验证的形态：worker 容器随 api 一起滚动、新增 `shared-azurite` 容器作为 iCare 项目专属（但放在 infra 共享栈里方便未来其他项目复用）Blob 模拟器、worker 用现成的 `shared-redis` 作为 asynq 队列后端。**附带**做一次小幅安全权衡：移除 `shared-redis` 的 `--requirepass`（验证后实际 redis 消费者只有未来的 worker，简化运维风险可接受）。GHCR pull 模式保留，不改本地 build。
+把 dev-cypresso（AWS EC2，多项目共享 dev 环境）上的 iCare backend 部署对齐到 mas-sit 已经验证的形态：worker 容器随 api 一起滚动、新增 `shared-azurite` 容器作为 iCare 项目专属（但放在 infra 共享栈里方便未来其他项目复用）Blob 模拟器、worker 用现成的 `shared-redis` 作为 asynq 队列后端。**附带**做一次小幅安全权衡：移除 `shared-redis` 的 `--requirepass`（验证后实际 redis 消费者只有未来的 worker，简化运维风险可接受）。GHCR pull 模式保留，不改本地 build。
 
 ---
 
 ## Problem Frame
 
-iCare 后端在 mas-go-dev 上已经跑通 `api + worker` 双容器 + Azurite/Redis infra 的完整链路。dev-cypresso 上目前只有 api 在跑——同一个 PR sha（`952d29ce`）部署落地后，因为 `deploy` job 没改、`.env` 里没补 queue/redis/azurite 字段、azurite 容器也不存在，worker 始终没起来，asynq 队列功能在这台机器上空缺。dev-cypresso 是团队日常验证的服务器，需要尽快补齐到与 mas-go-dev 行为一致，避免出现"PR 在 mas-go-dev 上能验，在 dev-cypresso 上不能验"的两套行为差。
+iCare 后端在 mas-sit 上已经跑通 `api + worker` 双容器 + Azurite/Redis infra 的完整链路。dev-cypresso 上目前只有 api 在跑——同一个 PR sha（`952d29ce`）部署落地后，因为 `deploy` job 没改、`.env` 里没补 queue/redis/azurite 字段、azurite 容器也不存在，worker 始终没起来，asynq 队列功能在这台机器上空缺。dev-cypresso 是团队日常验证的服务器，需要尽快补齐到与 mas-sit 行为一致，避免出现"PR 在 mas-sit 上能验，在 dev-cypresso 上不能验"的两套行为差。
 
 ---
 
@@ -33,7 +33,7 @@ iCare 后端在 mas-go-dev 上已经跑通 `api + worker` 双容器 + Azurite/Re
 
 ## Scope Boundaries
 
-- 不改 deploy.yml 里 `deploy-mas-go-dev` job（已经在另一个 PR 改完落地）。
+- 不改 deploy.yml 里 `deploy-mas-sit` job（已经在另一个 PR 改完落地）。
 - 不改 iCare backend 的 `Dockerfile` / `compose.dev.yaml` / `backend.compose.yaml` 本身——它们对 dev-cypresso 已经足够（worker service 已经定义好）。
 - 不改 GHCR pull → 本地 build 模式（已确认 AWS ingress 免费，本地 build 不省钱反而引入风险）。
 - 不动 dev-cypresso 上其他项目栈（cypresso-ai、telegram-bot、cypresso-ui 等）。
@@ -44,18 +44,18 @@ iCare 后端在 mas-go-dev 上已经跑通 `api + worker` 双容器 + Azurite/Re
 
 - 在 `docs/operations/dev-cypresso.md` 补充上线记录条目（部署结束后单独 commit）。
 - 在 `docs/operations/dev-cypresso.md` 同步登记 shared-redis 取消密码的变更（同上）。
-- 是否给 dev-cypresso 的 docker build cache 也加一个 systemd timer（参考 mas-go-dev 14:55 那条记录），由独立任务评估。
+- 是否给 dev-cypresso 的 docker build cache 也加一个 systemd timer（参考 mas-sit 14:55 那条记录），由独立任务评估。
 
 ---
 
 ## Key Technical Decisions
 
 - **shared-azurite 加进 `/home/ec2-user/stacks/infra/docker-compose.yml`**（不是新建独立 compose project）。与 shared-postgres / shared-redis / shared-sqlserver 同位，复用 infra/.env 与 shared-services 网络，未来其他项目要用 azurite 也能直接复用。
-- **restart 用 `unless-stopped`**，对齐 infra 内现有 shared-* 风格，而非 mas-go-dev 上的 `always`。dev-cypresso 是 EC2 实例，宿主重启时 unless-stopped 容器会被拉起，对"基础设施常驻"的语义足够。
+- **restart 用 `unless-stopped`**，对齐 infra 内现有 shared-* 风格，而非 mas-sit 上的 `always`。dev-cypresso 是 EC2 实例，宿主重启时 unless-stopped 容器会被拉起，对"基础设施常驻"的语义足够。
 - **shared-redis 拿掉 `--requirepass`**。事前清单：实际消费 redis 的服务只有未来的 iCare worker，telegram-bot / mas-icare-portal / shared-postgres / shared-sqlserver 经过验证不连 redis；redis 端口仅绑 `127.0.0.1`，本身已经只接受本机访问，撤掉密码不显著扩大攻击面。
-- **worker 连 redis 用 service name `shared-redis:6379`**（不是 `redis:6379`）。dev-cypresso 上 infra 栈里 redis 的 service name 是 `redis`，但 container_name 是 `shared-redis`，跨 compose project 的 DNS 只能解析 container_name；mas-go-dev 上叫 `redis` 是因为它独立 project 内部 service name = container name = `redis`。
-- **env 同 mas-go-dev 手法手动追加**，不走 deploy.yml 自动注入。env 是机密敏感文件、本地维护，CI 不该读写它。
-- **deploy.yml 改 `deploy` job 的 SSH 脚本**（不新建独立 job），追加 worker 的 stop/rm/up 和 RestartCount 校验逻辑，与 `deploy-mas-go-dev` 同形。这样 `develop` 分支的 dev-cypresso 部署与 mas-go-dev 部署在脚本结构上对称，未来维护成本低。
+- **worker 连 redis 用 service name `shared-redis:6379`**（不是 `redis:6379`）。dev-cypresso 上 infra 栈里 redis 的 service name 是 `redis`，但 container_name 是 `shared-redis`，跨 compose project 的 DNS 只能解析 container_name；mas-sit 上叫 `redis` 是因为它独立 project 内部 service name = container name = `redis`。
+- **env 同 mas-sit 手法手动追加**，不走 deploy.yml 自动注入。env 是机密敏感文件、本地维护，CI 不该读写它。
+- **deploy.yml 改 `deploy` job 的 SSH 脚本**（不新建独立 job），追加 worker 的 stop/rm/up 和 RestartCount 校验逻辑，与 `deploy-mas-sit` 同形。这样 `develop` 分支的 dev-cypresso 部署与 mas-sit 部署在脚本结构上对称，未来维护成本低。
 
 ---
 
@@ -147,7 +147,7 @@ iCare-backend repo
 - `cd /home/ec2-user/stacks/infra && docker compose up -d` —— 此命令会同时：重建 shared-redis（密码改了 yaml 变了，compose 检测到 config-hash 差异自动 recreate）+ 新建 shared-azurite + **不动** shared-postgres / shared-sqlserver（它们 yaml 没变）。
 - 不需要 `docker compose down`，避免对其他 shared-* 服务造成不必要的连锁停启。
 
-**Patterns to follow**：mas-go-dev 上 12:47 那次 infra 启动只用 `up -d`、不 `down`，行为对齐。
+**Patterns to follow**：mas-sit 上 12:47 那次 infra 启动只用 `up -d`、不 `down`，行为对齐。
 
 **Test scenarios**：
 - redis 重启后无密码可连：`docker exec shared-redis redis-cli ping` 返回 `PONG`，**且不带 `-a` 参数**。
@@ -175,13 +175,13 @@ iCare-backend repo
 
 **Approach**：
 - 备份：`cp .env .env.bak.20260528-claude-worker-rollout`，保持 `600` 权限。
-- 追加 13 个字段到 `.env` 末尾，**沿用 mas-go-dev 12:47 同款命名**，仅以下两处与 mas-go-dev 不同：
-  - `REDIS_ADDR=shared-redis:6379`（mas-go-dev 是 `redis:6379`）
-  - `AZURE_STORAGE_CONNECTION_STRING=...BlobEndpoint=http://shared-azurite:10000/devstoreaccount1;`（mas-go-dev 是 `http://azurite:10000`）
-- 其他 11 个字段照搬 mas-go-dev：`QUEUE_PROVIDER=redis_asynq` / `QUEUE_ENQUEUE_TIMEOUT=5s` / `REDIS_USERNAME=` / `REDIS_PASSWORD=`（空，因为 U2 已经拿掉密码）/ `REDIS_DB=0` / `REDIS_TLS_ENABLED=false` / `WORKER_QUEUES=default:1` / `WORKER_CONCURRENCY=1` / `WORKER_TASK_TIMEOUT=30m` / `WORKER_SHUTDOWN_TIMEOUT=30s` / `WORKER_LOCK_TTL=35m`。
+- 追加 13 个字段到 `.env` 末尾，**沿用 mas-sit 12:47 同款命名**，仅以下两处与 mas-sit 不同：
+  - `REDIS_ADDR=shared-redis:6379`（mas-sit 是 `redis:6379`）
+  - `AZURE_STORAGE_CONNECTION_STRING=...BlobEndpoint=http://shared-azurite:10000/devstoreaccount1;`（mas-sit 是 `http://azurite:10000`）
+- 其他 11 个字段照搬 mas-sit：`QUEUE_PROVIDER=redis_asynq` / `QUEUE_ENQUEUE_TIMEOUT=5s` / `REDIS_USERNAME=` / `REDIS_PASSWORD=`（空，因为 U2 已经拿掉密码）/ `REDIS_DB=0` / `REDIS_TLS_ENABLED=false` / `WORKER_QUEUES=default:1` / `WORKER_CONCURRENCY=1` / `WORKER_TASK_TIMEOUT=30m` / `WORKER_SHUTDOWN_TIMEOUT=30s` / `WORKER_LOCK_TTL=35m`。
 - `chmod 600 .env .env.bak.20260528-claude-worker-rollout` 双保险。
 
-**Patterns to follow**：`docs/operations/mas-go-dev.md` 2026-05-28 12:47 CST 那条的"追加 worker / queue / azurite 相关环境变量"段落，命令与 KEY 列表照搬。
+**Patterns to follow**：`docs/operations/mas-sit.md` 2026-05-28 12:47 CST 那条的"追加 worker / queue / azurite 相关环境变量"段落，命令与 KEY 列表照搬。
 
 **Test scenarios**：
 - 字段新增：`grep -E '^(QUEUE_|REDIS_|AZURE_|WORKER_)' /home/ec2-user/stacks/icare/.env | wc -l` 返回 13。
@@ -196,7 +196,7 @@ iCare-backend repo
 
 ### U4. 改 `deploy.yml` 的 `deploy` job：滚动部署改为 api + worker 联合，加 worker 存活校验
 
-**Goal**：让所有 develop 分支的 PR 部署到 dev-cypresso 时，同时滚动 api 和 worker；与 `deploy-mas-go-dev` job 同形。
+**Goal**：让所有 develop 分支的 PR 部署到 dev-cypresso 时，同时滚动 api 和 worker；与 `deploy-mas-sit` job 同形。
 
 **Requirements**：R4, R6
 
@@ -212,15 +212,15 @@ iCare-backend repo
   - `up -d --no-deps api` 改为 `up -d --no-deps api worker`。
   - api healthz 循环里 `exit 0` 改为 `break`，循环外加 `if ! curl ...; then dump api + worker logs; exit 1; fi`。
   - 追加 worker RestartCount 校验：`docker compose ps -q worker` → `docker inspect -f '{{.RestartCount}}'` 取 BEFORE → `sleep 15` → 取 AFTER → 比较 + 比较 `{{.State.Status}}` 是否 `running`；不稳定则 dump worker 日志并 exit 1。
-- 完全照搬 mas-go-dev job 的措辞与逻辑（包括中文注释），减少未来认知负担。
+- 完全照搬 mas-sit job 的措辞与逻辑（包括中文注释），减少未来认知负担。
 
-**Patterns to follow**：`.github/workflows/deploy.yml` 的 `deploy-mas-go-dev` job `Deploy local backend container` step（commit `01eb485` 之前由本次 plan 作者改过的同形结构）。
+**Patterns to follow**：`.github/workflows/deploy.yml` 的 `deploy-mas-sit` job `Deploy local backend container` step（commit `01eb485` 之前由本次 plan 作者改过的同形结构）。
 
 **Test scenarios** ——以下都属于 PR 触发后的 GH Actions runner 行为，不是单元测试：
 - Covers R4. workflow 静态校验：`yamllint .github/workflows/deploy.yml` 或 GitHub Actions 编辑器侧的 lint 通过。
 - Covers R4. 部署成功路径：合并到 develop 后，`deploy` job 跑完，api healthz 200 + worker RestartCount 0；job 整体 success。
 - Covers R5. 部署失败路径（手工模拟，不在本计划必跑）：worker env 故意写错 REDIS_ADDR=不存在的主机 → worker 进入崩溃循环 → job 在 15 秒窗口检出 RestartCount 上涨 → dump worker logs → exit 1。
-- 与 mas-go-dev job 的措辞一致性：grep `RestartCount`、`--no-deps`、`Verifying worker container is alive` 两个 job 都出现一次。
+- 与 mas-sit job 的措辞一致性：grep `RestartCount`、`--no-deps`、`Verifying worker container is alive` 两个 job 都出现一次。
 
 **Verification**：PR 合并后 GH Actions 的 `deploy` job 通过，且日志里包含"Worker is running stably."这一行。
 
@@ -228,7 +228,7 @@ iCare-backend repo
 
 ### U5. 落地后健康校验
 
-**Goal**：用与 mas-go-dev 12:47 同款的清单确认 dev-cypresso 上整套链路工作正常。
+**Goal**：用与 mas-sit 12:47 同款的清单确认 dev-cypresso 上整套链路工作正常。
 
 **Requirements**：R5, R7
 
@@ -260,7 +260,7 @@ iCare-backend repo
 | 拿掉 redis 密码后未来误操作风险（如某个 dev 直接 curl/redis-cli 进去清库） | 低-中 | redis 端口仅绑 127.0.0.1，只有 ssh 上机的人能访问；ssh 已经是身份认证边界 |
 | `docker compose up -d` 在改动 yaml 后意外重建了别的 service | 低 | compose 通过 config-hash 检测，只重建 hash 变了的容器（即 redis 和 azurite）；postgres / sqlserver / mongodb 等 hash 未变不会动 |
 | worker 启动后吃 redis 内存，挤压 shared-redis 的 `maxmemory 480mb` 上限 | 低 | asynq 队列消息体很小（KB 级），480MB 远超 worker 队列实际需求 |
-| 仓库内 deploy.yml 改动产生 conflict（另一个 PR 正在改同一文件） | 低 | 上一个 mas-go-dev 改动已合并到 develop，本次 PR rebase 后 conflict 风险小；如冲突手工解 |
+| 仓库内 deploy.yml 改动产生 conflict（另一个 PR 正在改同一文件） | 低 | 上一个 mas-sit 改动已合并到 develop，本次 PR rebase 后 conflict 风险小；如冲突手工解 |
 | dev-cypresso 磁盘累积新镜像（azurite ~200MB + worker 复用 backend 镜像无新增） | 极低 | deploy.yml 现有 `Cleaning up old icare-backend images` step 兜底；shared-azurite 镜像只占一次 |
 
 ---
@@ -278,9 +278,9 @@ iCare-backend repo
 
 ## Sources & References
 
-- `docs/operations/mas-go-dev.md`（2026-05-28 12:47 / 14:55 两条记录，本计划的主要参照范本）
+- `docs/operations/mas-sit.md`（2026-05-28 12:47 / 14:55 两条记录，本计划的主要参照范本）
 - `docs/solutions/dev-cypresso/integration-issues/docker-image-buildup-fills-disk-2026-05-14.md`（dev-cypresso 磁盘累积历史教训，启发 Risks 表里的磁盘条目）
 - `docs/operations/dev-cypresso.md`（dev-cypresso 既往运维记录，含 2026-05-19 已停容器列表，确认 telegram-bot-bot-1 是当前唯一活跃的非 iCare 共享容器）
-- iCare 仓库 `.github/workflows/deploy.yml`（`deploy` job + `deploy-mas-go-dev` job，本次主要修改对象）
+- iCare 仓库 `.github/workflows/deploy.yml`（`deploy` job + `deploy-mas-sit` job，本次主要修改对象）
 - iCare 仓库 `backend.compose.yaml`（worker service 已定义，本次无需改动）
 - dev-cypresso 远程：`/home/ec2-user/stacks/infra/docker-compose.yml`、`/home/ec2-user/stacks/infra/.env`、`/home/ec2-user/stacks/icare/.env`（本次三个主要远程编辑目标）

@@ -1,16 +1,16 @@
 # AcquiLangAI CI
 
-2026-10-10 在 mas-go-dev 增加一个仓库级 runner，分担 mac-mini 上的 AcquiLang 日常检查。
+2026-10-10 在 mas-sit 增加一个仓库级 runner，分担 mac-mini 上的 AcquiLang 日常检查。
 
 ## Runner
 
 | 项目 | 配置 |
 | --- | --- |
-| 名称 / GitHub ID | `mas-go-dev-acquilang-ci-1` / `27` |
+| 名称 / GitHub ID | `mas-sit-acquilang-ci-1` / `27` |
 | 范围 | 私有仓库 `IAmKongHai/AcquiLangAI` |
 | Labels | `self-hosted`, `Linux`, `X64`, `acquilang-build` |
 | 系统用户 | `acquilang-ci`；无 sudo / Docker 组权限 |
-| systemd | `actions.runner.IAmKongHai-AcquiLangAI.mas-go-dev-acquilang-ci-1.service` |
+| systemd | `actions.runner.IAmKongHai-AcquiLangAI.mas-sit-acquilang-ci-1.service` |
 | 程序 / 工作区 | `/opt/acquilang-ci/runner` / `/opt/acquilang-ci/work` |
 | 缓存 | `/opt/acquilang-ci/cache/pnpm-store`、`/opt/acquilang-ci/cache/npm` |
 | 资源 | CPUQuota 200%，MemoryHigh 1536M，MemoryMax 2G，TasksMax 512 |
@@ -25,8 +25,8 @@
 ## 只读检查
 
 ```bash
-gh api repos/IAmKongHai/AcquiLangAI/actions/runners --jq '.runners[] | select(.name|startswith("mas-go-dev-acquilang"))'
-ssh mas-go-dev 'systemctl status actions.runner.IAmKongHai-AcquiLangAI.mas-go-dev-acquilang-ci-1.service --no-pager'
+gh api repos/IAmKongHai/AcquiLangAI/actions/runners --jq '.runners[] | select(.name|startswith("mas-sit-acquilang"))'
+ssh mas-sit 'systemctl status actions.runner.IAmKongHai-AcquiLangAI.mas-sit-acquilang-ci-1.service --no-pager'
 ```
 
 ## 回滚

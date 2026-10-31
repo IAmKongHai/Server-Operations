@@ -104,7 +104,7 @@ Community Build has no LTA. 26.3 left support on 2026-04-10. iCare and evp PR/br
 - AE3. Covers R4 / F3. After a rollback drill or a real rollback, version is again `26.3.0.120487` and users, TRK projects, issues, `user_tokens`, and non-built-in profiles/`active_rules` match the post-stop sidecar.
 - AE4. Covers R5. 26.5 login page and a project Branches/PR page load without hashed 26.3 asset 404s.
 - AE5. Covers R6. Upgrade dump path is not `~/backups/sonarqube/sonarqube-YYYYMMDD.dump` and is not deleted by the next `backup.sh` prune.
-- AE6. Covers R8. lemon-imac / mas-go-dev-ci / mac-mini-sonar slots remain `online` during the window. Failed Sonar jobs are rerun after the verification check is green, not treated as rollback.
+- AE6. Covers R8. lemon-imac / mas-sit-ci / mac-mini-sonar slots remain `online` during the window. Failed Sonar jobs are rerun after the verification check is green, not treated as rollback.
 - AE7. Covers R8 / U4. The verification GitHub check named `SonarQube Scan` on `iCare-backend` is `success`. Quality-gate timeout is rerun until that check is green; it is not F3.
 
 ### Success Criteria

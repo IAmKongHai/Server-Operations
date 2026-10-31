@@ -50,7 +50,7 @@
 - 操作人：Claude（用户确认创建文件并重跑 CI）
 - 原因：iCare-backend CYP-2890（PR #1993，2026-09-14 合入 develop）在 `backend.compose.yaml` 的 `external-api` profile 下新增 `accredited-api`，`env_file: ${ACCREDITED_ENV_FILE:-.env.accredited}`。`scripts/deploy_external_api.sh` 以 `--profile external-api` 调 compose，本机没有该文件，于是 `Deploy to Server` 每次都在部署 ecom-api 这一步 exit 14。
 - 影响：api / worker 不受影响；ecom-api / sup-api 自 9-14 起停在 `e77093c1`，没有随 develop 更新。本次重部署 ecom-api / sup-api，各中断几秒。
-- 做了什么：以 `ec2-user` 在 `/home/ec2-user/stacks/icare/` 新建 `.env.accredited`（`set -C`，`umask 077`，经 stdin 写入）。文件只有注释、没有任何变量，内容与 mas-go-dev 上的相同。属主 / 权限 `ec2-user:ec2-user 600`，与 `.env.ecom` 一致。未改 compose、脚本、workflow。
+- 做了什么：以 `ec2-user` 在 `/home/ec2-user/stacks/icare/` 新建 `.env.accredited`（`set -C`，`umask 077`，经 stdin 写入）。文件只有注释、没有任何变量，内容与 mas-sit 上的相同。属主 / 权限 `ec2-user:ec2-user 600`，与 `.env.ecom` 一致。未改 compose、脚本、workflow。
 - **警告：完成 Deferred 各步前，不得跑 `profile=accredited` 的 Partner API Deploy。** 本机就是 `deploy-sup.yml` 的 `SERVER_HOST_DEV` 目标（run 的 `Deploy to Server` 写入的就是本机容器，已验证）。占位文件存在后，该 workflow 唯一的前置检查 `test -f ".env.$profile"` 会通过，跑了会建出一个缺配置、`restart: unless-stopped` 反复崩溃的 accredited-api。
 - 备份：新增文件，无既有文件被改动。回滚点为补文件前运行的镜像：ecom-api `sha256:a7e24c7f45c0`（`ghcr.io/cypressoai/icare-backend-ecom:e77093c1…`）、sup-api `sha256:9e8e873fdc5a`（`ghcr.io/cypressoai/icare-backend-sup:e77093c1…`）。
 - 回滚方式：
@@ -701,7 +701,7 @@
 
 - 服务器：`dev-cypresso`
 - 操作人：`Claude`
-- 触发：iCare-public-backend `Deploy public-backend` workflow 的 `Deploy to dev-cypresso` job 连续失败（run `31350189741`，已是第 4 次 attempt）。同一 run 的 `Deploy to mas-go-dev` job 成功。
+- 触发：iCare-public-backend `Deploy public-backend` workflow 的 `Deploy to dev-cypresso` job 连续失败（run `31350189741`，已是第 4 次 attempt）。同一 run 的 `Deploy to mas-sit` job 成功。
 - 原因：
   - 2026-08-09 重装 `tizi-cyp` 系统后重新登录 Tailscale，其 Tailscale IP 由 `100.88.178.78` 变为 `100.116.91.14`。
   - `tizi-cyp` 是 dev-cypresso 访问 `mssql-ref` MSSQL 的 socat 转发跳板（直连 mssql-ref 太慢，必须走代理）。
@@ -735,7 +735,7 @@
   - 容器日志近 5 分钟内无 `i/o timeout` / `failed to initialize database` / 旧 IP 记录
   - 观察 45s：三个容器 `RestartCount=0`、状态由 `health: starting` 转为 `Up About a minute (healthy)`，崩溃循环终止
 - 结论：本次 CI 失败属 runner 侧环境配置问题，与提交代码无关。
-- 待办：~~在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。改动落在 `cypressoai/iCare-public-backend` 仓库（本机未克隆），交接文档见 `docs/handoffs/icare-public-backend-deploy-preflight-2026-08-10.md`。~~ **已完成**（2026-08-10）：CYP-2006 / [iCare-public-backend#120](https://github.com/cypressoai/iCare-public-backend/pull/120)，`scripts/preflight-db-reachable.sh`，已接入 `deploy-dev-cypresso` 与 `deploy-mas-go-dev` 两个 job。首次真实部署（run `31355448734`）三条 `preflight ok`，耗时约 250ms。**失败路径尚未在真机验证过。** 注：该仓其实已克隆在本机 `iCare/public-backend/`，交接文档中"本机未克隆"的判断有误。
+- 待办：~~在部署脚本中增加 pre-flight —— `docker-compose up` 前先探测 `WEBKIT_DB_HOST:WEBKIT_DB_PORT` 连通性，不通则立即失败并打印明确原因，替代当前「等 60s 健康检查超时再倒日志」的排查方式。改动落在 `cypressoai/iCare-public-backend` 仓库（本机未克隆），交接文档见 `docs/handoffs/icare-public-backend-deploy-preflight-2026-08-10.md`。~~ **已完成**（2026-08-10）：CYP-2006 / [iCare-public-backend#120](https://github.com/cypressoai/iCare-public-backend/pull/120)，`scripts/preflight-db-reachable.sh`，已接入 `deploy-dev-cypresso` 与 `deploy-mas-sit` 两个 job。首次真实部署（run `31355448734`）三条 `preflight ok`，耗时约 250ms。**失败路径尚未在真机验证过。** 注：该仓其实已克隆在本机 `iCare/public-backend/`，交接文档中"本机未克隆"的判断有误。
 - 备注：经确认 `tizi-cyp` 后续不会再重装，`WEBKIT_DB_HOST` 保持裸 IP，不改用 MagicDNS 名（会引入其他问题）。
 
 ## 2026-08-07 13:21 CST - 只读扫描 Mini Shai-Hulud / keyv 供应链蠕虫 IoC
@@ -795,7 +795,7 @@
 
 - 服务器：`dev-cypresso`
 - 操作人：`Grok`
-- 原因：同 mas-go-dev——Deploy 推送了 `ghcr.io/cypressoai/icare-public-backend:c2ddf907…` 后容器因旧路径 `/internal/mobile/health` 校验失败而 Restarting。
+- 原因：同 mas-sit——Deploy 推送了 `ghcr.io/cypressoai/icare-public-backend:c2ddf907…` 后容器因旧路径 `/internal/mobile/health` 校验失败而 Restarting。
 - 影响：
   - 更新 `/home/ec2-user/stacks/icare/public-backend/.env.{app,hr,map}` 的 `MAS_INTERNAL_API_HEALTH_PATH` → `/internal/public/v1/health`
   - `docker-compose -f public-backend.compose.yaml up -d --force-recreate public-app public-hr public-map`
@@ -997,12 +997,12 @@
      - `dev-cypresso` 在 AWS（公网 `32.192.186.193`），Nearest DERP **Ashburn**（~2ms），到 `km` ~227ms。
      - `mssql-ref` 在家宽（出口 `112.117.237.237`），Nearest DERP **Kunming**（~4.5ms）；且 `MappingVariesByDestIP: true`，不利于 UDP 打洞。
   4. 复测 ping `100.124.140.78`：~249–253ms，0% loss；ping LAN `192.168.2.20` 从本机不可达（预期，未 accept subnet routes）。
-  5. 对照：同家网 `mas-go-dev` → `mssql-ref` TS ~1–23ms、LAN ~0.4ms（直连正常）。
+  5. 对照：同家网 `mas-sit` → `mssql-ref` TS ~1–23ms、LAN ~0.4ms（直连正常）。
 - 备份：无变更。
 - 回滚：无变更。
 - 可选后续（未做，需确认）：
   - 排查/放行两端 UDP（含 AWS SG 入站 ephemeral + 家宽 NAT），争取 direct。
-  - 业务侧优先经家网节点（`mas-go-dev` / `pve`）访问 `192.168.2.20`，避免跨洋 DERP。
+  - 业务侧优先经家网节点（`mas-sit` / `pve`）访问 `192.168.2.20`，避免跨洋 DERP。
   - 评估 exit node / subnet router 路径是否更优（当前 health：`--accept-routes is false`）。
 
 ## 2026-07-20 13:45 CST - CI 池：dev-cypresso 仅保留部署标签
@@ -1162,14 +1162,14 @@
   - Redis：`asynq:{reports}:pending=0`、`active=0`、`archived=0`；`default:pending=0`；无堆积。
   - `docker ps`：`icare-backend-worker-1  Up`（重建后），api / 其它容器不受影响。
 - 后续 / 待办：
-  - **强烈建议核查 `mas-go-dev` 上的 worker 是否同样漏配 `WORKER_QUEUES`**——两台环境的 worker 部署形态是对齐的（同一 PR #391 形态），很可能同样只监听 default，Report Center 报表在 mas-go-dev 上会一样卡住。属独立任务，本次未做。
+  - **强烈建议核查 `mas-sit` 上的 worker 是否同样漏配 `WORKER_QUEUES`**——两台环境的 worker 部署形态是对齐的（同一 PR #391 形态），很可能同样只监听 default，Report Center 报表在 mas-sit 上会一样卡住。属独立任务，本次未做。
   - 上游隐患：`.env` 手写 `WORKER_QUEUES=default:1` 的来源未追溯（可能是 5-28 上线时抄模板带进来的）。如未来重新走 CI 部署或从模板重刷 env，注意别再把这行带回来；根治可考虑在部署脚本 / env 模板层显式设 `WORKER_QUEUES=default:1,reports:1` 或干脆不设（依赖代码默认）。
 
 ## 2026-05-28 15:55 CST - iCare backend 上线 worker 容器（PR #391 部署落地）
 
 - 服务器：`dev-cypresso`
 - 操作人：`Claude`
-- 原因：mas-go-dev 已先行验证 api + worker + Azurite + Redis 全链路（参见 `docs/operations/mas-go-dev.md` 2026-05-28 12:47），现按计划 `docs/plans/2026-05-28-001-feat-dev-cypresso-icare-worker-rollout-plan.md` 把同形态推到 dev-cypresso，让 iCare 集成测试环境完整覆盖 worker 路径。
+- 原因：mas-sit 已先行验证 api + worker + Azurite + Redis 全链路（参见 `docs/operations/mas-sit.md` 2026-05-28 12:47），现按计划 `docs/plans/2026-05-28-001-feat-dev-cypresso-icare-worker-rollout-plan.md` 把同形态推到 dev-cypresso，让 iCare 集成测试环境完整覆盖 worker 路径。
 - 影响：
   - `/home/ec2-user/stacks/icare/.env` 追加 13 个 worker / queue / azurite 相关 KEY（文件 624B → 1405B），保持 `600` 权限。
   - iCare 仓库 PR #391 (`feat(CYP-707): dev-cypresso 部署联合滚动 api + worker`) 合并到 `develop` 后，self-hosted runner 在 dev-cypresso 上把 `icare-backend-api-1` + 新的 `icare-backend-worker-1` 两个容器一起滚到 sha `7aa85456a9ec87f2ca99eccd2f514264f30c53d5`。
@@ -1178,7 +1178,7 @@
   - env：`cp /home/ec2-user/stacks/icare/.env.bak.20260528-claude-worker-rollout /home/ec2-user/stacks/icare/.env && chmod 600 /home/ec2-user/stacks/icare/.env`，然后 ssh 上去 `cd /home/ec2-user/stacks/icare && docker-compose -f backend.compose.yaml stop worker && docker-compose -f backend.compose.yaml rm -f worker`。
   - deploy.yml：revert iCare 仓库 PR #391，下一次 develop 部署会回到只滚 api 的旧形态。
 - 变更：
-  - `/home/ec2-user/stacks/icare/.env` 备份到 `.env.bak.20260528-claude-worker-rollout`，追加 13 个 KEY；其中 `REDIS_ADDR=shared-redis:6379`、`REDIS_PASSWORD=` 空、`REDIS_TLS_ENABLED=false`、`AZURE_STORAGE_CONNECTION_STRING=...BlobEndpoint=http://shared-azurite:10000/devstoreaccount1;`，其余字段与 mas-go-dev 一致。
+  - `/home/ec2-user/stacks/icare/.env` 备份到 `.env.bak.20260528-claude-worker-rollout`，追加 13 个 KEY；其中 `REDIS_ADDR=shared-redis:6379`、`REDIS_PASSWORD=` 空、`REDIS_TLS_ENABLED=false`、`AZURE_STORAGE_CONNECTION_STRING=...BlobEndpoint=http://shared-azurite:10000/devstoreaccount1;`，其余字段与 mas-sit 一致。
   - 注意：`.env.docker` 是符号链接 → `.env`，所以编辑落到 `.env`；deploy.yml 第 215-219 行优先用 `.env`。
   - iCare 仓库 `.github/workflows/deploy.yml` 的 `deploy` job `Deploy via SSH` step 改造（PR #391 #commit `7aa8545`）：`pull`/`stop`/`rm`/`up` 都纳入 worker；`up -d --no-deps api worker` 防止 seed 二次触发；api healthz 改成 break + 后置统一判断；新增 worker 存活校验段（`docker inspect` 看 15 秒窗口 RestartCount + State.Status）；失败时同时 dump api 与 worker 日志。
 - 验证（PR #391 部署完成后立刻校验）：
@@ -1189,7 +1189,7 @@
   - `shared-services` 网络含 8 个成员，新增 `icare-backend-worker-1=172.19.0.2`。
   - api `/healthz` 返回 200，响应 1.5ms。
 - 副作用观察：
-  - **worker 连的数据库是 `medicalassistance_preprod`**（不是 mas-go-dev 上的 `medicalassistance`）—— 这是 dev-cypresso 现有 `.env` 里 `DB_NAME` 的既定配置，与本次上线无关，但记录在案以备未来对比 `dev-cypresso` 与 `mas-go-dev` 行为差异时参考。
+  - **worker 连的数据库是 `medicalassistance_preprod`**（不是 mas-sit 上的 `medicalassistance`）—— 这是 dev-cypresso 现有 `.env` 里 `DB_NAME` 的既定配置，与本次上线无关，但记录在案以备未来对比 `dev-cypresso` 与 `mas-sit` 行为差异时参考。
   - `mas-icare-portal` 容器 StartedAt 在部署窗口内更新（2026-05-28T07:55:54）—— 不是本次 iCare backend 部署造成（不同 compose project），可能是 frontend-mas 同期跑了它自己的部署，未跟进。
 - 后续：
   - 长期监控 worker：当前没有针对 worker 的健康告警，依赖 deploy.yml 部署期 RestartCount 校验做最低兜底；如未来 worker 在两次部署之间崩溃循环（restart policy 拉起但 RestartCount 累加），需要靠人肉巡检 `docker inspect icare-backend-worker-1` 发现。监控告警机制另议。
@@ -1199,7 +1199,7 @@
 
 - 服务器：`dev-cypresso`
 - 操作人：`Claude`
-- 原因：为支持 iCare worker（CYP-699 / CYP-707）接入 dev-cypresso 集成测试环境，需要 Azure Blob 模拟器（Azurite）+ Redis Asynq 后端。Redis 现成可用（shared-redis）但启用了 `--requirepass`，与 mas-go-dev 简化方案对齐计划移除密码；Azurite 缺失，新增 `shared-azurite` service。事前清单显示实际消费 redis 的服务只有未来的 iCare worker（telegram-bot / mas-icare-portal / shared-postgres / shared-sqlserver 经 env 验证均不连 redis），端口 127.0.0.1 本身已经只接受本机访问，撤掉密码不显著扩大攻击面。
+- 原因：为支持 iCare worker（CYP-699 / CYP-707）接入 dev-cypresso 集成测试环境，需要 Azure Blob 模拟器（Azurite）+ Redis Asynq 后端。Redis 现成可用（shared-redis）但启用了 `--requirepass`，与 mas-sit 简化方案对齐计划移除密码；Azurite 缺失，新增 `shared-azurite` service。事前清单显示实际消费 redis 的服务只有未来的 iCare worker（telegram-bot / mas-icare-portal / shared-postgres / shared-sqlserver 经 env 验证均不连 redis），端口 127.0.0.1 本身已经只接受本机访问，撤掉密码不显著扩大攻击面。
 - 影响：
   - `/home/ec2-user/stacks/infra/docker-compose.yml`：新增 `azurite` service（container_name `shared-azurite`、image `mcr.microsoft.com/azure-storage/azurite:latest`、端口 `127.0.0.1:10000`、卷 `shared_azurite_data`、`restart: unless-stopped`，对齐 infra 内现有 shared-* 风格）；redis service `command` 去掉 `--requirepass "$REDIS_PASSWORD"`、healthcheck 去掉 `-a` 参数、`environment` 段删 `REDIS_PASSWORD: ${REDIS_PASSWORD}`。
   - `/home/ec2-user/stacks/infra/.env`：删除 `REDIS_PASSWORD=...` 一行。

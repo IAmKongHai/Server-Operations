@@ -50,7 +50,7 @@ Docker / Azure login / Buildx setup 都已成功，镜像还没开始 build。�
 
 ## 解决
 
-在 burst 机上按原机对齐预建（runner 用户是 `icareadmin`，不要抄 mas-go-dev 的 `actions-runner`）：
+在 burst 机上按原机对齐预建（runner 用户是 `icareadmin`，不要抄 mas-sit 的 `actions-runner`）：
 
 ```bash
 ssh icare-uat-runner-2

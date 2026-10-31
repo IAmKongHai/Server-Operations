@@ -16,7 +16,7 @@ date: 2026-06-12
 
 `pve` 当前节点级 RRD 文件 `/var/lib/rrdcached/db/pve-node-9.0/pve` 为 0 字节，`pmxcfs` 每 10 秒报 `mmaping file ... Invalid argument`。`pvesh get /nodes/pve/rrddata --timeframe hour` 失败，PVE Web UI 节点 overview 图表可能不显示；VM 级与 storage 级 RRD 数据正常。
 
-本仓库此前只把该问题作为 `docs/operations/mas-go-dev.md` 的附带发现记录，尚未修复。用户已确认执行策略：先做最小修复，再升级 PVE 9.2。
+本仓库此前只把该问题作为 `docs/operations/mas-sit.md` 的附带发现记录，尚未修复。用户已确认执行策略：先做最小修复，再升级 PVE 9.2。
 
 ---
 
@@ -244,7 +244,7 @@ flowchart TB
 - Happy path: PVE 9.2 升级完成后，节点/VM/storage RRD 全部返回数据。
 - Edge case: 升级完成但运行 kernel 仍是旧版本，记录“待维护窗口重启”而不立即处理。
 - Error path: 管理面异常或 RRD 错误复现时，停止收尾并进入排查，不删除任何备份。
-- Integration: `mssql-ref`、`mas-win`、`mas-go-dev` 状态与升级前一致。
+- Integration: `mssql-ref`、`mas-win`、`mas-sit` 状态与升级前一致。
 
 **Verification:** 运维记录完整；如有 follow-up 重启窗口或 solution 文档，记录清晰且可追踪。
 
@@ -271,7 +271,7 @@ flowchart TB
 ## Operational Notes
 
 - 执行前必须再次说明动作、预期影响和可回滚性。
-- 对 `pve` 虽标注为开发测试虚拟化宿主，仍按生产式谨慎处理；它承载 `mssql-ref`、`mas-win`、`mas-go-dev` 等关键参考/开发环境。
+- 对 `pve` 虽标注为开发测试虚拟化宿主，仍按生产式谨慎处理；它承载 `mssql-ref`、`mas-win`、`mas-sit` 等关键参考/开发环境。
 - 任何重启服务、升级包、重启宿主机、删除备份的动作都必须先获得用户确认。
 - 操作完成后如果工作区有文档变更，按仓库约定提交中文目的明确的 commit。
 
@@ -279,7 +279,7 @@ flowchart TB
 
 ## Sources & Research
 
-- `docs/operations/mas-go-dev.md`：2026-06-10 记录过 PVE 节点级 RRD 损坏的附带发现。
+- `docs/operations/mas-sit.md`：2026-06-10 记录过 PVE 节点级 RRD 损坏的附带发现。
 - `docs/operations/pve.md` 与 `docs/operations/README.md`：提供 PVE 运维时间线格式和既有记录风格。
 - Proxmox forum: [Proxmox 9 no data in the overview](https://forum.proxmox.com/threads/proxmox-9-no-data-in-the-overview.170239/)，同类症状为 `pve-node-9.0/<hostname>` mmap 失败，重建 RRD cache 后恢复。
 - Proxmox pve-devel mailing list: [Expand and migrate RRD data and add/change summary graphs](https://lore.proxmox.com/pve-devel/DBOJ7YLX5AL1.3M8J791J4K9J4%40proxmox.com/)，记录 PVE 9 RRD 数据格式与聚合窗口变更、升级迁移工具和 live RRD 文件交互注意事项。

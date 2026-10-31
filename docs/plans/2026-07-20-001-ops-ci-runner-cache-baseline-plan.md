@@ -17,7 +17,7 @@ origin: session-audit-2026-07-20-runner-cache
 
 **Authority:** 2026-07-20 缓存审计结论 + 用户确认「全量」范围；生产/准生产机操作仍遵守 `AGENTS.md`（危险动作先确认、时间线自动记录）。
 
-**Stop when:** 四机缓存策略与 checklist 一致；mas-go-dev go-build 回到健康水位；lemon/umac npm 明显变热或有明确预热步骤；文档已 commit；可选 workflow PR 合并或明确延期。
+**Stop when:** 四机缓存策略与 checklist 一致；mas-sit go-build 回到健康水位；lemon/umac npm 明显变热或有明确预热步骤；文档已 commit；可选 workflow PR 合并或明确延期。
 
 **Out of this goal:** 不改 Sonar/质量门逻辑；不引入 GitHub Actions remote cache；不重做 runner 注册；不迁部署机 `dev-cypresso-ci` 的 Docker 流量优化（仅文档可提及 frontend `/tmp` buildx 已知债）。
 
@@ -27,7 +27,7 @@ origin: session-audit-2026-07-20-runner-cache
 
 ### Summary
 
-self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-go-dev-ci，但 **Go 编译缓存隔离只在 mac-mini 落地**；lemon/umac/mas 多 slot 共享默认 `GOCACHE`，存在 CYP-322 同类竞态；mas-go-dev `go-build` 已膨胀到约 **125GB**；lemon/umac 的 `~/.npm` 偏冷，前端 `prefer-offline` 收益差。目标是 runner 层根治，而不是 workflow 层打开远程 cache 或关掉校验。
+self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-sit-ci，但 **Go 编译缓存隔离只在 mac-mini 落地**；lemon/umac/mas 多 slot 共享默认 `GOCACHE`，存在 CYP-322 同类竞态；mas-sit `go-build` 已膨胀到约 **125GB**；lemon/umac 的 `~/.npm` 偏冷，前端 `prefer-offline` 收益差。目标是 runner 层根治，而不是 workflow 层打开远程 cache 或关掉校验。
 
 ### Requirements
 
@@ -36,7 +36,7 @@ self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-go-dev-ci，
 | R1 | 任意同一主机上 **≥2 个** 承接 Go job 的 runner slot，必须使用 **互不重叠的 `GOCACHE` 目录**。 |
 | R2 | 同一主机上 **`GOMODCACHE` 默认共享一份**（减重复 `go mod download` 流量与磁盘）；若实现中发现竞态，可退回 per-slot 并记文档。 |
 | R3 | `npm` 继续用 **主机级 `~/.npm`** + workflow `npm ci --prefer-offline`；**不**启用 `setup-node`/`setup-go` 的 GitHub remote cache。 |
-| R4 | mas-go-dev 上 `actions-runner` 用户的 go-build 从 ~125GB **瘦身到可维护水位**（目标个位数～十几 GB 量级，或至少释放数十 GB 并建立复膨胀门槛）。 |
+| R4 | mas-sit 上 `actions-runner` 用户的 go-build 从 ~125GB **瘦身到可维护水位**（目标个位数～十几 GB 量级，或至少释放数十 GB 并建立复膨胀门槛）。 |
 | R5 | mac-mini 既有 per-slot `GOCACHE` 保留；可选将 **4 份 `GOMODCACHE` 收敛为全机共享**；对过大 go-build 有修剪策略。 |
 | R6 | lemon/umac 的 npm cache 对 **当前 `frontend-mas` package-lock** 预热完整：`npm ci --offline` 可装齐 899 packages。说明：npm 11 对该 lock 的完整 `_cacache` 实测约 **140–160MB**（~866 content files）；mac-mini `~/.npm` 9.5G 为历史多项目堆积，**不是**单 lock 达标尺。 |
 | R7 | 清理各 slot `_tool` 中 **明确过期** 的 Go/Node 次要版本（确认当前 job 使用版本后）。 |
@@ -57,7 +57,7 @@ self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-go-dev-ci，
 | ID | Flow |
 |----|------|
 | F1 | 改 `.env` → 确认无 `Runner.Worker` → 重启该 slot → 用 Listener 真实 PATH/env 验证 `GOCACHE` |
-| F2 | 后端 Sonar/Lint 落到 lemon 或 umac 或 mas-go-dev-ci → 写各自 GOCACHE、读共享 GOMODCACHE → 无 race fail |
+| F2 | 后端 Sonar/Lint 落到 lemon 或 umac 或 mas-sit-ci → 写各自 GOCACHE、读共享 GOMODCACHE → 无 race fail |
 | F3 | 前端 job 落到 lemon/umac → `npm ci --prefer-offline` 主要命中 `~/.npm` |
 
 ### Acceptance Examples
@@ -65,7 +65,7 @@ self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-go-dev-ci，
 | ID | Example |
 |----|---------|
 | AE1 | lemon-imac-1 与 lemon-imac-2 的 `.env` 中 `GOCACHE` 路径不同；两 slot 同时空闲时各触发含 `go test` 的 job 不出现 go cache 竞态类失败。 |
-| AE2 | mas-go-dev `du -sh ~actions-runner/.cache/go-build`（或 per-slot 新路径合计）远低于 125GB，且磁盘 avail 明显上升。 |
+| AE2 | mas-sit `du -sh ~actions-runner/.cache/go-build`（或 per-slot 新路径合计）远低于 125GB，且磁盘 avail 明显上升。 |
 | AE3 | 任意 backend-ci slot：`printenv GOCACHE`（job 内）指向该 slot 目录；`go env GOMODCACHE` 为约定共享路径。 |
 | AE4 | runbook 含「贴 backend-ci 前」的 gpg **与** 缓存检查项；operations 时间线已记。 |
 
@@ -73,9 +73,9 @@ self-hosted 池已扩到 mac-mini / lemon-imac / umacbook-pro / mas-go-dev-ci，
 
 **In scope**
 
-- Hosts: `mac-mini`, `lemon-imac`, `umacbook-pro`, `mas-go-dev`（ci-1/ci-2；部署 runner `mas-go-dev` 仅在共享 HOME 缓存策略时顺带对齐，不强制 per-slot 若单实例）
+- Hosts: `mac-mini`, `lemon-imac`, `umacbook-pro`, `mas-sit`（ci-1/ci-2；部署 runner `mas-sit` 仅在共享 HOME 缓存策略时顺带对齐，不强制 per-slot 若单实例）
 - Runner labels 池：`backend-ci`、`frontend-tests-ci`、`frontend-quality-ci`（缓存对它们生效）
-- Docs: `docs/runbooks/ci-runner-pools.md`, `docs/operations/{mac-mini,lemon-imac,umacbook-pro,mas-go-dev}.md`
+- Docs: `docs/runbooks/ci-runner-pools.md`, `docs/operations/{mac-mini,lemon-imac,umacbook-pro,mas-sit}.md`
 - Optional PRs: `cypressoai/iCare-backend`, 文档向说明可写在 Server 仓
 
 **Out of scope / Deferred**
@@ -151,14 +151,14 @@ GOMODCACHE=<host-shared>/go-mod
 
 ### Assumptions
 
-- 各机 SSH 别名 `mac-mini` / `lemon-imac` / `umacbook-pro` / `mas-go-dev` 可用；lemon/umac 用户 `for-konghai`，mas 用户 `actions-runner`（sudo -u）。
+- 各机 SSH 别名 `mac-mini` / `lemon-imac` / `umacbook-pro` / `mas-sit` 可用；lemon/umac 用户 `for-konghai`，mas 用户 `actions-runner`（sudo -u）。
 - 业务仓 workflow 继续 `cache: false`；本地 env 注入会被 setup-go 尊重（不覆盖已有 GOCACHE）。
 - 共享 `GOMODCACHE` 在并发 `go mod download` 下可接受；若出现损坏再 per-slot 回退。
 
 ### Sequencing
 
 1. **文档先写 checklist 草稿**（可与 U1 并行）→ 执行中以实测为准更新  
-2. **mas-go-dev 先瘦身再隔离**（避免复制巨石缓存）  
+2. **mas-sit 先瘦身再隔离**（避免复制巨石缓存）  
 3. **lemon → umac → mac-mini GOMOD 收敛**（可并行，但每机串行 slot）  
 4. **npm 预热**（可在隔离完成后）  
 5. **tool 清理**（低风险，可靠后）  
@@ -188,7 +188,7 @@ GOMODCACHE=<host-shared>/go-mod
 
 ## Implementation Units
 
-### U1. mas-go-dev：瘦身 go-build + per-slot GOCACHE
+### U1. mas-sit：瘦身 go-build + per-slot GOCACHE
 
 **Goal:** 消除 ~125GB 共享 go-build 风险，并为 ci-1/ci-2 建立独立 GOCACHE。
 
@@ -198,9 +198,9 @@ GOMODCACHE=<host-shared>/go-mod
 
 **Files:**
 
-- 主机：`/opt/actions-runner/mas-go-dev-ci-1/.env`、`mas-go-dev-ci-2/.env`（及可选 `mas-go-dev/.env`）
-- 新建目录：如 `/opt/actions-runner/mas-go-dev-ci-N/cache/go-build`；共享 `GOMODCACHE` 可用 `/home/actions-runner/go/pkg/mod`
-- 文档：`docs/operations/mas-go-dev.md`
+- 主机：`/opt/actions-runner/mas-sit-ci-1/.env`、`mas-sit-ci-2/.env`（及可选 `mas-sit/.env`）
+- 新建目录：如 `/opt/actions-runner/mas-sit-ci-N/cache/go-build`；共享 `GOMODCACHE` 可用 `/home/actions-runner/go/pkg/mod`
+- 文档：`docs/operations/mas-sit.md`
 
 **Approach:**
 
@@ -221,7 +221,7 @@ GOMODCACHE=<host-shared>/go-mod
 - Edge: 清理时有 Worker → 中止清理并记录，不强制 kill。  
 - Failure: service 起不来 → 还原 `.env.bak` 并重启。
 
-**Verification:** AE2 + AE3 on mas-go-dev-ci；operations 时间线已写。
+**Verification:** AE2 + AE3 on mas-sit-ci；operations 时间线已写。
 
 ---
 
@@ -382,7 +382,7 @@ GOMODCACHE=<host-shared>/go-mod
 
 1. 分支自 `develop`。  
 2. Install 步骤：检测 `golangci-lint version` 是否匹配 pin 版本，匹配则 skip install。  
-3. 更新 GOCACHE 注释：列出四机策略，删除「仅 mas-go-dev-ci-1 单实例」。  
+3. 更新 GOCACHE 注释：列出四机策略，删除「仅 mas-sit-ci-1 单实例」。  
 4. PR → CI 绿 → merge（用户曾授权合并类 PR 时可直接合）。
 
 **Patterns to follow:** 现有 Conventional Commits / PR 习惯。
@@ -409,7 +409,7 @@ GOMODCACHE=<host-shared>/go-mod
 **Files:**
 
 - `docs/runbooks/ci-runner-pools.md`（缓存 checklist 段）
-- `docs/operations/mac-mini.md`、`lemon-imac.md`、`umacbook-pro.md`、`mas-go-dev.md`
+- `docs/operations/mac-mini.md`、`lemon-imac.md`、`umacbook-pro.md`、`mas-sit.md`
 - 本计划可更新状态注记（可选）
 
 **Approach:**
@@ -451,7 +451,7 @@ GOMODCACHE=<host-shared>/go-mod
 - [x] 无未还原的失败中断状态（service online、`.env` 有效）  
 
 **执行完成注记（2026-07-20）：**  
-U1–U4/U8 主机与文档已落地；U5 以 offline `npm ci` 证明 lock 完整缓存（lemon ~143M / umac ~149M，见 R6 修订）；U6 已清 mas-go-dev 部署 runner `_tool/go/1.25.0` 与 ci 上旧版本；U7 = iCare-backend#1094。
+U1–U4/U8 主机与文档已落地；U5 以 offline `npm ci` 证明 lock 完整缓存（lemon ~143M / umac ~149M，见 R6 修订）；U6 已清 mas-sit 部署 runner `_tool/go/1.25.0` 与 ci 上旧版本；U7 = iCare-backend#1094。
 
 ---
 

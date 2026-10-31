@@ -22,7 +22,7 @@ date: 2026-06-18
 
 ## Requirements
 
-- R1. 新增 fnOS VM 不影响现有 `mssql-ref`、`mas-win`、`mas-go-dev` 三台 VM。
+- R1. 新增 fnOS VM 不影响现有 `mssql-ref`、`mas-win`、`mas-sit` 三台 VM。
 - R2. fnOS 安装镜像必须从本地仓库上传到 PVE 的 `local` ISO 存储，且不纳入 Git 提交。
 - R3. VM 磁盘必须放在 `local-lvm`，使用独立系统盘和独立数据盘。
 - R4. 初始数据盘容量按影视资源不超过 300G 规划，不为不可用数据做额外备份链路。
@@ -166,7 +166,7 @@ flowchart TB
 - Happy path: PVE VM 清单出现 `140 fnos-nas`，两块磁盘均位于 `local-lvm`。
 - Edge case: fnOS 安装器不识别 VirtIO 磁盘或网卡时，调整控制器或网卡模型后重试，并记录最终配置。
 - Error path: 创建 VM 后发现磁盘落到错误 storage 时，安装前删除错误磁盘并重新创建。
-- Integration: `mssql-ref`、`mas-win`、`mas-go-dev` 仍保持 running，`nvme-data` 没有新增 fnOS 卷。
+- Integration: `mssql-ref`、`mas-win`、`mas-sit` 仍保持 running，`nvme-data` 没有新增 fnOS 卷。
 
 **Verification:** VM 配置显示 ISO、系统盘、数据盘、网络桥接和 `onboot=0` 均符合计划。
 

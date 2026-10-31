@@ -1,16 +1,16 @@
 # tk-flywheel CI
 
-2026-09-16 按用户确认，在 mas-go-dev 新增仓库级 runner 和固定 CI 数据库。配置 PR：[IAmKongHai/tk-flywheel#3](https://github.com/IAmKongHai/tk-flywheel/pull/3)。
+2026-09-16 按用户确认，在 mas-sit 新增仓库级 runner 和固定 CI 数据库。配置 PR：[IAmKongHai/tk-flywheel#3](https://github.com/IAmKongHai/tk-flywheel/pull/3)。
 
 ## Runner
 
 | 项目 | 配置 |
 | --- | --- |
-| 名称 / GitHub ID | `mas-go-dev-tk-flywheel-ci-1` / `2` |
+| 名称 / GitHub ID | `mas-sit-tk-flywheel-ci-1` / `2` |
 | 范围 | 私有仓库 `IAmKongHai/tk-flywheel` |
 | Labels | `self-hosted`, `Linux`, `X64`, `tk-flywheel-ci` |
 | 系统用户 | `tk-flywheel-ci`；无 sudo / Docker 组权限 |
-| systemd | `actions.runner.IAmKongHai-tk-flywheel.mas-go-dev-tk-flywheel-ci-1.service` |
+| systemd | `actions.runner.IAmKongHai-tk-flywheel.mas-sit-tk-flywheel-ci-1.service` |
 | 程序 | `/opt/tk-flywheel-ci/runner`，初装 2.337.0，官方包 SHA-256 已校验 |
 | 工作区 / 缓存 | `/opt/tk-flywheel-ci/work` / `/opt/tk-flywheel-ci/cache` |
 | 资源 | CPUQuota 200%，MemoryHigh 2560M，MemoryMax 3G，TasksMax 512 |
@@ -34,8 +34,8 @@
 
 ```bash
 gh api repos/IAmKongHai/tk-flywheel/actions/runners --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
-ssh mas-go-dev 'sudo systemctl status actions.runner.IAmKongHai-tk-flywheel.mas-go-dev-tk-flywheel-ci-1.service --no-pager'
-ssh mas-go-dev 'sudo du -sh /opt/tk-flywheel-ci/cache; free -h'
+ssh mas-sit 'sudo systemctl status actions.runner.IAmKongHai-tk-flywheel.mas-sit-tk-flywheel-ci-1.service --no-pager'
+ssh mas-sit 'sudo du -sh /opt/tk-flywheel-ci/cache; free -h'
 ```
 
 ## 首轮验证

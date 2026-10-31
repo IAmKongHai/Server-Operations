@@ -1,9 +1,9 @@
 ---
-title: SIT 合部署 VM 从 Amazon Linux 2023 迁到 Debian 13（mas-go-dev → mas-sit）
+title: SIT 合部署 VM mas-sit 从 Amazon Linux 2023 迁到 Debian 13
 date: 2026-10-31
-category: docs/solutions/mas-go-dev/best-practices
-server: mas-go-dev
-module: pve / mas-go-dev
+category: docs/solutions/mas-sit/best-practices
+server: mas-sit
+module: pve / mas-sit
 problem_type: best_practice
 component: infrastructure
 severity: medium
@@ -15,11 +15,11 @@ applies_when:
 tags: [pve, debian-13, al2023, migration, docker, tailscale, nsswitch, github-actions-runner]
 ---
 
-# SIT 合部署 VM 从 Amazon Linux 2023 迁到 Debian 13（mas-go-dev → mas-sit）
+# SIT 合部署 VM mas-sit 从 Amazon Linux 2023 迁到 Debian 13
 
 ## Context
 
-`mas-go-dev`（PVE VM 130，AL2023）承载 iCare / EVP SIT、共享 PostgreSQL / Garage / Redis 和 6 个 self-hosted runner。shared-sit 租户的连接串、EVP 的 `PUBLIC_ORIGIN`、nyh-prod 反代都写死了它的 Tailscale IP，所以换系统必须做到地址、数据和 runner 都不变。2026-10-31 迁到 Debian 13 的 VM 160，并按用户要求改名 `mas-sit`。计划：`docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md`；完整时序：`docs/operations/mas-go-dev.md` 同日条目。
+`mas-sit`（PVE VM 130，AL2023）承载 iCare / EVP SIT、共享 PostgreSQL / Garage / Redis 和 6 个 self-hosted runner。shared-sit 租户的连接串、EVP 的 `PUBLIC_ORIGIN`、nyh-prod 反代都写死了它的 Tailscale IP，所以换系统必须做到地址、数据和 runner 都不变。2026-10-31 迁到 Debian 13 的 VM 160，并按用户要求改名 `mas-sit`。计划：`docs/plans/2026-10-31-1418-ops-mas-sit-debian13-migration-plan.md`；完整时序：`docs/operations/mas-sit.md` 同日条目。
 
 下面这些坑在计划阶段都没预料到，换任何一台类似 VM 都会再遇到。
 
@@ -110,7 +110,7 @@ TimeoutStartSec=180
 
 ### 8. 盘点宿主工具，而不只是 workflow 里的 `dnf`
 
-workflow 里 grep `dnf` / `yum` 只抓到了带 `apt-get` 兜底的安装步骤。真正的隐性依赖是宿主上的 AWS CLI v2：AL2023 预装了 `awscli-2`，`mas-go-dev-ci-1` 上的 prod 部署 job 直接调用 `aws ecr` / `aws eks`。另外 AcquiLang runner 的 `.env` 里写着 `LANG=en_US.UTF-8`，Debian cloud 镜像默认没生成这个 locale。新机要装 AWS CLI v2 官方包、`locales`，以及 `build-essential`、`zip`、`dirmngr` 等。
+workflow 里 grep `dnf` / `yum` 只抓到了带 `apt-get` 兜底的安装步骤。真正的隐性依赖是宿主上的 AWS CLI v2：AL2023 预装了 `awscli-2`，`mas-sit-ci-1` 上的 prod 部署 job 直接调用 `aws ecr` / `aws eks`。另外 AcquiLang runner 的 `.env` 里写着 `LANG=en_US.UTF-8`，Debian cloud 镜像默认没生成这个 locale。新机要装 AWS CLI v2 官方包、`locales`，以及 `build-essential`、`zip`、`dirmngr` 等。
 
 ### 9. dirmngr 不走 glibc：quad-100 的 SERVFAIL 会让 keyserver 全部失败
 
@@ -132,11 +132,11 @@ workflow 里 grep `dnf` / `yum` 只抓到了带 `apt-get` 兜底的安装步骤�
 
 ## Examples
 
-数据核对用 `scripts/mas-go-dev-data-baseline.sh`：在旧机停应用层、数据层还在跑时采一次，新机只起数据层时再采一次，两次结果 `diff` 必须为空（每张表的精确行数、Garage 对象数、Redis 各 DB 的 key 数、azurite 容器 / blob 数）。
+数据核对用 `scripts/mas-sit-data-baseline.sh`：在旧机停应用层、数据层还在跑时采一次，新机只起数据层时再采一次，两次结果 `diff` 必须为空（每张表的精确行数、Garage 对象数、Redis 各 DB 的 key 数、azurite 容器 / blob 数）。
 
 ## Related
 
-- `docs/operations/mas-go-dev.md`、`docs/operations/pve.md`（2026-10-31 条目）
-- `docs/solutions/pve/best-practices/mas-go-dev-deployment-2026-05-17.md`（这台 VM 最初的建机过程）
-- `docs/solutions/mas-go-dev/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
+- `docs/operations/mas-sit.md`、`docs/operations/pve.md`（2026-10-31 条目）
+- `docs/solutions/pve/best-practices/mas-sit-deployment-2026-05-17.md`（这台 VM 最初的建机过程）
+- `docs/solutions/mas-sit/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`
 - Tailscale state 迁移先例：`docs/operations/tizi-kh.md`

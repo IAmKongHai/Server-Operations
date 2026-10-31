@@ -1,8 +1,8 @@
-# mas-sit（原 mas-go-dev）
+# mas-sit
 
-PVE VM `160`，Debian 13（2026-10-31 由 AL2023 的 VM `130` 迁来，主机名从 `mas-go-dev` 改为 `mas-sit`）。Tailscale `100.109.223.53` / MagicDNS `mas-sit`，内网 `192.168.2.22`。
+PVE VM `160`，Debian 13（2026-10-31 由 AL2023 的 VM `130` 迁来）。Tailscale `100.109.223.53` / MagicDNS `mas-sit`，内网 `192.168.2.22`。
 
-`ssh mas-sit`（兼容 `ssh mas-go-dev`，用户 `ec2-user`）。开发测试机，改 Docker / runner 前仍需备份。
+`ssh mas-sit`（用户 `ec2-user`）。开发测试机，改 Docker / runner 前仍需备份。
 
 ## 系统约定（Debian 13，2026-10-31 起）
 
@@ -11,15 +11,15 @@ PVE VM `160`，Debian 13（2026-10-31 由 AL2023 的 VM `130` 迁来，主机名
 - DNS：`/etc/resolv.conf` → `/run/systemd/resolve/resolv.conf`，`/etc/systemd/resolved.conf.d/tailscale-magicdns.conf` 把 `~taila93443.ts.net` 交给 `100.100.100.100`。已卸载 `libnss-resolve`，`/etc/nsswitch.conf` 是 `files myhostname dns`：走 nss-resolve 时短名 `mac-mini` 解析不了（resolved 不拿路由域补全单标签名）。
 - Docker 29（download.docker.com），`/etc/docker/daemon.json`：`log-driver: local`、关闭 containerd snapshotter、`nofile 32768:65536`。drop-in `docker.service.d/10-after-tailscale.conf` + `/usr/local/sbin/wait-tailscale-ip.sh`：开机时等 `tailscale0` 拿到 `100.109.223.53` 再起 Docker（最多 90 秒），否则绑 TS IP 的容器会 bind 失败。
 - cloud-init 只管首次开机：`/etc/cloud/cloud.cfg.d/99-mas-sit-preserve.cfg` 关掉了重建 SSH 主机密钥、改主机名、改 `/etc/hosts`。SSH 主机密钥沿用旧机（ED25519 `SHA256:dBJKYVoD6PHKGWlXR7HqMNoQqeokLC/N9/7nVTRzrAQ`）。
-- 宿主工具：AWS CLI v2 在 `/usr/local/bin/aws`（`mas-go-dev-ci-1` 上的 prod 部署 job 要用）；`sqlcmd`、`btm` 在 `/usr/local/bin`；`build-essential`、`git`、`jq`、`zip`、`dirmngr` 等走 apt。locale 生成了 `en_US.UTF-8`（AcquiLang runner `.env` 用到）。
+- 宿主工具：AWS CLI v2 在 `/usr/local/bin/aws`（`mas-sit-ci-1` 上的 prod 部署 job 要用）；`sqlcmd`、`btm` 在 `/usr/local/bin`；`build-essential`、`git`、`jq`、`zip`、`dirmngr` 等走 apt。locale 生成了 `en_US.UTF-8`（AcquiLang runner `.env` 用到）。
 - Tailscale state 沿用旧机节点（`accept-dns=false`），机器名 `mas-sit`。
 - `/etc/gnupg/dirmngr.conf` 写了 `standard-resolver`：dirmngr 自带解析器遇到 quad-100 对公网名回的 SERVFAIL 就放弃，Sonar action 拉 SonarSource 公钥会失败。
 
-当前定位：内网 **SIT 合部署 VM**。iCare MAS Go 继续跑在 `/opt/mas-go-dev/`；其它项目的 SIT 也放到这台机，共用一套 PostgreSQL / Garage / Redis，不再为每个项目单独开 VM。
+当前定位：内网 **SIT 合部署 VM**。iCare MAS Go 继续跑在 `/opt/mas-sit/`；其它项目的 SIT 也放到这台机，共用一套 PostgreSQL / Garage / Redis，不再为每个项目单独开 VM。
 
 ## 共享 SIT 基础设施
 
-位置：`/opt/shared-sit/`（属主 `ec2-user`，**不要**放进 `/opt/mas-go-dev`，runner 不管这里）。
+位置：`/opt/shared-sit/`（属主 `ec2-user`，**不要**放进 `/opt/mas-sit`，runner 不管这里）。
 
 | 服务 | 容器 | 镜像 | 入口（仅 Tailscale + 回环） | 限额 |
 | --- | --- | --- | --- | ---: |
@@ -35,16 +35,16 @@ PVE VM `160`，Debian 13（2026-10-31 由 AL2023 的 VM `130` 迁来，主机名
 - 单节点、无定时备份。回滚：`docker compose stop`，保留 named volume；不要 `down -v`。
 - 凭据：服务器上 600 文件；本机副本 [`secrets.local.md`](./secrets.local.md)（gitignore）。
 
-Compose 副本在本仓库 `mas-go-dev/shared-sit/`，以服务器 `/opt/shared-sit/` 为准。
+Compose 副本在本仓库 `mas-sit/shared-sit/`，以服务器 `/opt/shared-sit/` 为准。
 
 ```bash
 # 状态
-ssh mas-go-dev 'docker compose ls; docker ps --filter name=shared-sit'
+ssh mas-sit 'docker compose ls; docker ps --filter name=shared-sit'
 
 # 起停（不影响 iCare）
-ssh mas-go-dev 'docker compose -f /opt/shared-sit/postgres/docker-compose.yml --project-directory /opt/shared-sit/postgres up -d'
-ssh mas-go-dev 'docker compose -f /opt/shared-sit/s3/docker-compose.yml --project-directory /opt/shared-sit/s3 up -d'
-ssh mas-go-dev 'docker compose -f /opt/shared-sit/redis/docker-compose.yml --project-directory /opt/shared-sit/redis up -d'
+ssh mas-sit 'docker compose -f /opt/shared-sit/postgres/docker-compose.yml --project-directory /opt/shared-sit/postgres up -d'
+ssh mas-sit 'docker compose -f /opt/shared-sit/s3/docker-compose.yml --project-directory /opt/shared-sit/s3 up -d'
+ssh mas-sit 'docker compose -f /opt/shared-sit/redis/docker-compose.yml --project-directory /opt/shared-sit/redis up -d'
 ```
 
 ### 新项目怎么接入
@@ -66,7 +66,7 @@ tk-flywheel CI 已建：常驻库 / 角色 `tk_flywheel_ci`（各限 12 连接�
 
 ## EVP SIT
 
-位置：`/opt/evp-sit/`（属主 `actions-runner`，供 `shared-sit` runner 部署）。SIT compose 源文件在 `cypressoai/evp` 的 `deploy/sit/`；本仓库 `mas-go-dev/evp-sit/` 仅作对照。`main` 推送走 [Deploy SIT](https://github.com/cypressoai/evp/actions/workflows/deploy-sit.yml)。
+位置：`/opt/evp-sit/`（属主 `actions-runner`，供 `shared-sit` runner 部署）。SIT compose 源文件在 `cypressoai/evp` 的 `deploy/sit/`；本仓库 `mas-sit/evp-sit/` 仅作对照。`main` 推送走 [Deploy SIT](https://github.com/cypressoai/evp/actions/workflows/deploy-sit.yml)。
 
 | 入口 | 地址 |
 | --- | --- |
@@ -81,7 +81,7 @@ tk-flywheel CI 已建：常驻库 / 角色 `tk_flywheel_ci`（各限 12 连接�
 
 > 2026-10-31 盘点：`/opt/cmm-sit`、容器和 shared-sit 里的 `cmm` 库都已不在本机，仓库里没有下线记录。以下为历史配置。
 
-位置：`/opt/cmm-sit/`（属主 `ec2-user`）。compose 源文件在 `caimiaomiao` 的 `backend-cmm-api/deploy/sit/`；本仓库 `mas-go-dev/cmm-sit/` 仅作对照。不要用 `cypressoai` runner 组 `shared-sit`。
+位置：`/opt/cmm-sit/`（属主 `ec2-user`）。compose 源文件在 `caimiaomiao` 的 `backend-cmm-api/deploy/sit/`；本仓库 `mas-sit/cmm-sit/` 仅作对照。不要用 `cypressoai` runner 组 `shared-sit`。
 
 | 入口 | 地址 |
 | --- | --- |
@@ -93,13 +93,13 @@ tk-flywheel CI 已建：常驻库 / 角色 `tk_flywheel_ci`（各限 12 连接�
 员工 Cookie 只挂在 `sit-admin-cmm.nanyahui.cn`（`Secure`、host-only）。Tailscale HTTP 只做 health/smoke，不能证明登录态。seed 管理员 `sit-admin`，密码见 `secrets.local.md`；首次登录必须改密。COS 桶 `cmm-sit-uploads-1469943699`，不是生产 `cmm-prod-uploads`。
 
 ```bash
-ssh mas-go-dev 'docker compose --env-file /opt/cmm-sit/.deploy.env -f /opt/cmm-sit/compose.yml --project-directory /opt/cmm-sit ps'
+ssh mas-sit 'docker compose --env-file /opt/cmm-sit/.deploy.env -f /opt/cmm-sit/compose.yml --project-directory /opt/cmm-sit ps'
 ```
 
 回滚：对该目录 `docker compose stop`，不要 `down -v`，也不要 `--remove-orphans`。公网侧把 nyh-prod 两个 vhost 从备份 `/www/backup/nginx-vhost/cmm-sit-20260912-1719/` 拷回后 `nginx -t && nginx -s reload`。
 
 ```bash
-ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-directory /opt/evp-sit ps'
+ssh mas-sit 'docker compose -f /opt/evp-sit/docker-compose.yml --project-directory /opt/evp-sit ps'
 ```
 
 回滚：对该目录 `docker compose stop`，不要 `down -v`，也不要 `--remove-orphans`（会扫到别的项目）。
@@ -110,17 +110,19 @@ ssh mas-go-dev 'docker compose -f /opt/evp-sit/docker-compose.yml --project-dire
 
 | 名字 | 组 | 目录 | 用途 |
 | --- | --- | --- | --- |
-| `mas-go-dev` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev` | iCare 本机部署 |
-| `mas-go-dev-ci-1/2` | `mas-go-dev` | `/opt/actions-runner/mas-go-dev-ci-{1,2}` | 组内仓库的质量门禁；`ci-1` 带 `docker`，还跑 Telegram-bot / moo-ticket / EVP 的 prod 部署（用宿主 `aws` CLI） |
+| `mas-sit` | `mas-sit` | `/opt/actions-runner/mas-sit` | iCare 本机部署 |
+| `mas-sit-ci-1/2` | `mas-sit` | `/opt/actions-runner/mas-sit-ci-{1,2}` | 组内仓库的质量门禁；`ci-1` 带 `docker`，还跑 Telegram-bot / moo-ticket / EVP 的 prod 部署（用宿主 `aws` CLI） |
 | `shared-sit` | `shared-sit`（id 6，selected：目前仅 `cypressoai/evp`） | `/opt/actions-runner/shared-sit` | 非 iCare SIT 部署 |
-| `mas-go-dev-acquilang-ci-1` | 仓库级：`IAmKongHai/AcquiLangAI` | `/opt/acquilang-ci/runner` | AcquiLang 日常检查，label `acquilang-build`，见 [档案](acquilang-ci/README.md) |
-| `mas-go-dev-tk-flywheel-ci-1` | 仓库级：`IAmKongHai/tk-flywheel` | `/opt/tk-flywheel-ci/runner` | tk-flywheel 四个 CI job，专用 label `tk-flywheel-ci` |
+| `mas-sit-acquilang-ci-1` | 仓库级：`IAmKongHai/AcquiLangAI` | `/opt/acquilang-ci/runner` | AcquiLang 日常检查，label `acquilang-build`，见 [档案](acquilang-ci/README.md) |
+| `mas-sit-tk-flywheel-ci-1` | 仓库级：`IAmKongHai/tk-flywheel` | `/opt/tk-flywheel-ci/runner` | tk-flywheel 四个 CI job，专用 label `tk-flywheel-ci` |
 
-组 `mas-go-dev`（id 3）的仓库名单见 `docs/operations/mas-go-dev.md`；3 组 timer：`docker-builder-prune`、`gha-runner-maintenance`、`gha-runner-maintenance-weekly`。
+GitHub runner ID（2026-10-31 重新注册后）：`mas-sit` 45、`mas-sit-ci-1` 44、`mas-sit-ci-2` 43、`shared-sit` 41；仓库级 `mas-sit-acquilang-ci-1` 29、`mas-sit-tk-flywheel-ci-1` 22。systemd unit 是 `actions.runner.<scope>.<名字>.service`，目录里的 `bin` / `externals` 是相对符号链接（挪目录不会断）。
+
+组 `mas-sit`（id 3）的仓库名单见 `docs/operations/mas-sit.md`；3 组 timer：`docker-builder-prune`、`gha-runner-maintenance`、`gha-runner-maintenance-weekly`。
 
 tk-flywheel runner 使用独立用户 `tk-flywheel-ci`，不在 Docker / sudo 组；最多 2 核 / 3 GiB，工作区与缓存位于 `/opt/tk-flywheel-ci/`。服务和维护方式见 [tk-flywheel CI 档案](tk-flywheel-ci/README.md)。
 
-`shared-sit` labels：`self-hosted`, `Linux`, `X64`, `docker`, `shared-sit`（`al2023` 已于 2026-10-31 迁 Debian 后删除）。不要贴 `mas-go-dev` / `backend-ci` / `frontend-quality-ci`。EVP Checks 仍走 GitHub-hosted `ubuntu-latest`。
+`shared-sit` labels：`self-hosted`, `Linux`, `X64`, `docker`, `shared-sit`（`al2023` 已于 2026-10-31 迁 Debian 后删除）。不要贴 `mas-sit` / `backend-ci` / `frontend-quality-ci`。EVP Checks 仍走 GitHub-hosted `ubuntu-latest`。
 
 部署 job 应写：
 
@@ -136,16 +138,16 @@ runs-on:
 
 | 目录 | compose 项目 | 端口 |
 | --- | --- | --- |
-| `/opt/mas-go-dev/infra/` | `icare-backend-infra`（azurite + redis，网络 `shared-services`） | `:10000`、`:6379` |
-| `/opt/mas-go-dev/backend/` | `icare-backend`（api、worker、gotenberg；profile `external-api` 的 ecom / sup） | api `127.0.0.1:8080`；ecom `:8081`、sup `:8082` |
-| `/opt/mas-go-dev/public-backend/` | `icare-public-backend`（app / hr / map） | `:8090`–`:8092` |
-| `/opt/mas-go-dev/frontend-mas/` | `frontend-mas` | `0.0.0.0:5174` |
-| `/opt/mas-go-dev/public-frontend/` | `public-frontend`（hr / member portal） | `0.0.0.0:5173`、`0.0.0.0:5175` |
+| `/opt/mas-sit/infra/` | `icare-backend-infra`（azurite + redis，网络 `shared-services`） | `:10000`、`:6379` |
+| `/opt/mas-sit/backend/` | `icare-backend`（api、worker、gotenberg；profile `external-api` 的 ecom / sup） | api `127.0.0.1:8080`；ecom `:8081`、sup `:8082` |
+| `/opt/mas-sit/public-backend/` | `icare-public-backend`（app / hr / map） | `:8090`–`:8092` |
+| `/opt/mas-sit/frontend-mas/` | `frontend-mas` | `0.0.0.0:5174` |
+| `/opt/mas-sit/public-frontend/` | `public-frontend`（hr / member portal） | `0.0.0.0:5173`、`0.0.0.0:5175` |
 
 除特别注明外，端口都是 `127.0.0.1` + `100.109.223.53` 双绑定。iCare 主库在 `mssql-ref`（`192.168.2.20:1433`），不在本机。镜像 tag 由部署 workflow 传入；ecom / sup 的 Tailscale 端口由 `backend/deploy_external_api.sh` 临时生成 override 追加，手工 `docker compose up` 会丢掉这两个绑定。
 
 ## 其它
 
-- `/opt/vps-traffic-monitor/`：compose 项目 `vps-traffic-monitor`（`app/docker-compose.yml`），只绑 `100.109.223.53:18080`，由 `cypressoai/vps-traffic-monitor` 的 `deploy-mas-go-dev.yml` 部署。
+- `/opt/vps-traffic-monitor/`：compose 项目 `vps-traffic-monitor`（`app/docker-compose.yml`），只绑 `100.109.223.53:18080`，由 `cypressoai/vps-traffic-monitor` 的 `deploy-mas-sit.yml` 部署。
 
 不要对整机 `docker compose --remove-orphans` 或随意 `docker system prune`。

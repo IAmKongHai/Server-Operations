@@ -4,7 +4,7 @@ date: 2026-05-17
 last_updated: 2026-05-18
 category: docs/solutions/pve/best-practices
 server: pve
-module: pve / mas-go-dev
+module: pve / mas-sit
 problem_type: best_practice
 component: development_workflow
 severity: low
@@ -13,7 +13,7 @@ applies_when:
   - GitHub Actions self-hosted runner 需要限制到指定私有仓库
   - 部署目标网络访问外网流量受限，需要避免 registry push/pull 业务镜像
   - 后端 schema 与 seed 需要随部署自动收敛
-tags: [pve, mas, mas-go-dev, go, react, github-actions, self-hosted-runner, runner-group, docker, docker-compose, migration, seed, tailscale, internal-deployment]
+tags: [pve, mas, mas-sit, go, react, github-actions, self-hosted-runner, runner-group, docker, docker-compose, migration, seed, tailscale, internal-deployment]
 ---
 
 # 在 PVE 上新增 MAS Go + React 内网自动部署环境
@@ -22,7 +22,7 @@ tags: [pve, mas, mas-go-dev, go, react, github-actions, self-hosted-runner, runn
 
 MAS 正在用 Go + React 重构。原有 `dev-cypresso` 部署在公网测试机上，必须继续保留，但它没有完整参考数据库，调试 MAS 旧业务行为不方便。
 
-这次新增的是并行的内网部署目标：在 PVE 上创建独立 VM `mas-go-dev`，让 MAS Go 后端和 React 前端靠近 `mssql-ref` 参考数据库运行。PVE 既有 MAS 参考环境已经包括 `mssql-ref` 和 `mas-win`，早期 PVE session 已经验证过固定 VM/IP、Tailscale subnet router、凭据只留服务器本地、写入 `docs/solutions/` 的运维模式是可复用的（session history）。
+这次新增的是并行的内网部署目标：在 PVE 上创建独立 VM `mas-sit`，让 MAS Go 后端和 React 前端靠近 `mssql-ref` 参考数据库运行。PVE 既有 MAS 参考环境已经包括 `mssql-ref` 和 `mas-win`，早期 PVE session 已经验证过固定 VM/IP、Tailscale subnet router、凭据只留服务器本地、写入 `docs/solutions/` 的运维模式是可复用的（session history）。
 
 最终目标不是替换 `dev-cypresso`，而是新增一套可通过 GitHub Actions 自动部署、可访问完整 SQL Server 参考库、且降低外网镜像流量消耗的开发测试环境。
 
@@ -30,17 +30,17 @@ MAS 正在用 Go + React 重构。原有 `dev-cypresso` 部署在公网测试机
 | ---: | --- | --- | --- |
 | `110` | `mssql-ref` | `192.168.2.20` | MAS 参考 SQL Server |
 | `120` | `mas-win` | `192.168.2.21` | MAS 老 C# / IIS 参考应用 |
-| `130` | `mas-go-dev` | `192.168.2.22` | MAS Go 后端 + React 前端内网自动部署 |
+| `130` | `mas-sit` | `192.168.2.22` | MAS Go 后端 + React 前端内网自动部署 |
 
 ## Guidance
 
 在 PVE 上承载这类开发测试部署时，应用和 runner 放进独立 VM，不直接部署到 PVE 宿主机。PVE 宿主只负责虚拟化、网络和 Tailscale subnet router。
 
-`mas-go-dev` 的部署路径与 `dev-cypresso` 明确分离：
+`mas-sit` 的部署路径与 `dev-cypresso` 明确分离：
 
 - `dev-cypresso` 原有 build/push/SSH deploy workflow 不删除、不降级；
-- `mas-go-dev` 使用独立 GitHub Actions runner group；
-- feature branch 通过 `workflow_dispatch` 实测时，只跑 `mas-go-dev` 部署，不触发 GHCR build/push 和 `dev-cypresso` deploy；
+- `mas-sit` 使用独立 GitHub Actions runner group；
+- feature branch 通过 `workflow_dispatch` 实测时，只跑 `mas-sit` 部署，不触发 GHCR build/push 和 `dev-cypresso` deploy；
 - 后端和前端都在 VM 本地 checkout 后 Docker build，再 `docker compose up`，避免业务镜像 push 到 registry 再 pull 回内网；
 - 后端每次部署自动用临时容器跑 migrate + seed，避免新增 migration 或 seed 后靠人工记得执行。
 
@@ -48,7 +48,7 @@ MAS 正在用 Go + React 重构。原有 `dev-cypresso` 部署在公网测试机
 
 ### VM 与运行时
 
-`mas-go-dev` 最终配置：
+`mas-sit` 最终配置：
 
 | 项目 | 值 |
 | --- | --- |
@@ -57,12 +57,12 @@ MAS 正在用 Go + React 重构。原有 `dev-cypresso` 部署在公网测试机
 | OS | Amazon Linux 2023 x86_64 |
 | CPU / Memory | 4 vCPU / 16 GiB |
 | Disk | `nvme-data`，120G thin-provisioned |
-| Runtime root | `/opt/mas-go-dev` |
+| Runtime root | `/opt/mas-sit` |
 | Runtime owner | `actions-runner` |
 | Docker | `25.0.14` |
 | Docker Compose | `v2.24.5` |
 | Docker network | `shared-services` |
-| Backend env | `/opt/mas-go-dev/backend/.env.docker`，mode `600` |
+| Backend env | `/opt/mas-sit/backend/.env.docker`，mode `600` |
 
 AL2023 首次 UEFI 启动曾卡在 `Access Denied`。处理方式是重建 EFI disk 并关闭 pre-enrolled Secure Boot keys，之后 VM 正常启动。
 
@@ -82,12 +82,12 @@ tailscale set --advertise-routes=192.168.2.16/28
 
 | 项目 | 值 |
 | --- | --- |
-| Runner group | `mas-go-dev` |
+| Runner group | `mas-sit` |
 | Group ID | `3` |
 | Visibility | selected repositories |
 | Selected repos | `cypressoai/iCare-backend`、`cypressoai/iCare-frontend-mas` |
-| Runner name | `mas-go-dev` |
-| Labels | `self-hosted`, `Linux`, `X64`, `docker`, `mas-go-dev`, `al2023` |
+| Runner name | `mas-sit` |
+| Labels | `self-hosted`, `Linux`, `X64`, `docker`, `mas-sit`, `al2023` |
 
 runner 只用于 MAS 后端和前端两个私有仓库，避免 organization-level runner 被其它仓库误用。
 
@@ -95,11 +95,11 @@ runner 只用于 MAS 后端和前端两个私有仓库，避免 organization-lev
 
 后端 PR：[cypressoai/iCare-backend#267](https://github.com/cypressoai/iCare-backend/pull/267)
 
-新增 `deploy-mas-go-dev` job：
+新增 `deploy-mas-sit` job：
 
-- `runs-on: [self-hosted, Linux, X64, mas-go-dev]`
-- 本地构建镜像：`icare/backend:mas-go-dev-${{ github.sha }}`
-- 使用 VM 本地 env：`/opt/mas-go-dev/backend/.env.docker`
+- `runs-on: [self-hosted, Linux, X64, mas-sit]`
+- 本地构建镜像：`icare/backend:mas-sit-${{ github.sha }}`
+- 使用 VM 本地 env：`/opt/mas-sit/backend/.env.docker`
 - 部署前执行：
 
 ```bash
@@ -114,10 +114,10 @@ docker compose -f "$COMPOSE_FILE" run --rm seed
 
 前端 PR：[cypressoai/iCare-frontend-mas#265](https://github.com/cypressoai/iCare-frontend-mas/pull/265)
 
-新增 `deploy-mas-go-dev` job：
+新增 `deploy-mas-sit` job：
 
-- `runs-on: [self-hosted, Linux, X64, mas-go-dev]`
-- 本地构建镜像：`icare/mas-portal:mas-go-dev-${{ github.sha }}`
+- `runs-on: [self-hosted, Linux, X64, mas-sit]`
+- 本地构建镜像：`icare/mas-portal:mas-sit-${{ github.sha }}`
 - Docker build 使用 Node 24，匹配前端项目 runtime 要求；
 - `MAS_PORT_BIND=0.0.0.0:5174`；
 - compose 加入 external Docker network `shared-services`；
@@ -135,14 +135,14 @@ location /api/ {
 
 ## Workflow Pitfalls
 
-### `set-vars` 不能阻塞 mas-go-dev 手动部署
+### `set-vars` 不能阻塞 mas-sit 手动部署
 
 第一次 GitHub Actions 实测时，两个 repo 都卡在 `Set Environment Variables` job。原因是原 workflow 的 `set-vars` 固定跑在 `dev-cypresso-ci` self-hosted runner，而这组 runner 当前离线。
 
 修复方式不是恢复旧 runner，而是拆开依赖：
 
 - `set-vars` 只在原 `main/master/develop` 的 GHCR build/push 和 `dev-cypresso` 部署路径需要时运行；
-- `mas-go-dev` 的 `workflow_dispatch` 不依赖 `set-vars`；
+- `mas-sit` 的 `workflow_dispatch` 不依赖 `set-vars`；
 - feature branch 手动部署时，旧 GHCR build/push 和 `dev-cypresso` deploy 按条件 skipped。
 
 ### 合并 `origin/develop` 后保留两套语义
@@ -151,10 +151,10 @@ location /api/ {
 
 最终规则：
 
-- `workflow_dispatch`：跑 lint/test/typecheck，再部署 `mas-go-dev`；
+- `workflow_dispatch`：跑 lint/test/typecheck，再部署 `mas-sit`；
 - `develop` 自动部署：可接受质量门禁 skipped，但只有明确 skipped/success 才允许进入部署；
 - `failure` 或 `cancelled` 不允许部署；
-- `deploy-mas-go-dev` 使用 `always()` 时必须搭配 `needs.<job>.result` 显式判断，不能只靠默认 dependency 行为。
+- `deploy-mas-sit` 使用 `always()` 时必须搭配 `needs.<job>.result` 显式判断，不能只靠默认 dependency 行为。
 
 ## Verification
 
@@ -182,8 +182,8 @@ curl -fsS http://192.168.2.22:5174/api/v1/health
 最终运行容器：
 
 ```text
-mas-icare-portal icare/mas-portal:mas-go-dev-905bfa9e9899167ca78186982ef553af3ee43719 Up 0.0.0.0:5174->80/tcp
-icare-backend-api-1 icare/backend:mas-go-dev-83d5311614d618e3e844c372b4c22bdde5967659 Up (healthy) 127.0.0.1:8080->8080/tcp
+mas-icare-portal icare/mas-portal:mas-sit-905bfa9e9899167ca78186982ef553af3ee43719 Up 0.0.0.0:5174->80/tcp
+icare-backend-api-1 icare/backend:mas-sit-83d5311614d618e3e844c372b4c22bdde5967659 Up (healthy) 127.0.0.1:8080->8080/tcp
 ```
 
 后端 `/api/v1/health` 返回版本：
@@ -201,14 +201,14 @@ icare-backend-api-1 icare/backend:mas-go-dev-83d5311614d618e3e844c372b4c22bdde59
 | Type | Location |
 | --- | --- |
 | PVE snapshot | VM `110` snapshot `before-mas-go-migrate-20260517` |
-| SQL backup | `/restore/backups/mas-go-dev-before-migrate-20260517-2334/medicalassistance.bak` |
-| SQL backup | `/restore/backups/mas-go-dev-before-migrate-20260517-2334/maswebkit.bak` |
-| SQL backup | `/restore/backups/mas-go-dev-before-migrate-20260517-2334/authprovidermasweb.bak` |
+| SQL backup | `/restore/backups/mas-sit-before-migrate-20260517-2334/medicalassistance.bak` |
+| SQL backup | `/restore/backups/mas-sit-before-migrate-20260517-2334/maswebkit.bak` |
+| SQL backup | `/restore/backups/mas-sit-before-migrate-20260517-2334/authprovidermasweb.bak` |
 
 首次执行：
 
 ```bash
-docker compose -f /opt/mas-go-dev/backend/backend.compose.yaml run --rm seed
+docker compose -f /opt/mas-sit/backend/backend.compose.yaml run --rm seed
 ```
 
 结果：
@@ -218,7 +218,7 @@ docker compose -f /opt/mas-go-dev/backend/backend.compose.yaml run --rm seed
 - seed apply completed；
 - backend health healthy。
 
-后续部署自动执行同一条 seed pipeline。`mas-go-dev` 是开发集成环境，自动 migrate+seed 的收益高于手动 gate：减少忘跑 migration/seed 的概率，让代码、schema、参考数据同步演进。
+后续部署自动执行同一条 seed pipeline。`mas-sit` 是开发集成环境，自动 migrate+seed 的收益高于手动 gate：减少忘跑 migration/seed 的概率，让代码、schema、参考数据同步演进。
 
 ## Why This Matters
 
@@ -252,15 +252,15 @@ docker compose -f /opt/mas-go-dev/backend/backend.compose.yaml run --rm seed
 
 - PVE 宿主机仍按运维守则处理：网络、VM、Tailscale、数据库等改动先说明影响和回滚方式。
 - runner token、数据库密码、GitHub token 不写入仓库。
-- `mas-go-dev` 后端 `.env.docker` 只保存在 VM 内，权限为 `600`。
+- `mas-sit` 后端 `.env.docker` 只保存在 VM 内，权限为 `600`。
 - 本地 SHA-tag image 仍要保留 prune 逻辑，避免 self-hosted runner 磁盘累积；相关事故经验见 [docker-image-buildup-fills-disk-2026-05-14.md](../../dev-cypresso/integration-issues/docker-image-buildup-fills-disk-2026-05-14.md)。
 - PVE thin pool 和 VM 快照不能无限保留；历史 PVE session 已经遇到过 thin pool 逻辑超配风险（session history）。
-- 旧 MAS 参考环境经验显示 preprod/UAT 形态要看环境开关和内部 secret，不要只看缓存参数；`mas-go-dev` 的 env 文件也应按实际运行语义维护（session history）。
+- 旧 MAS 参考环境经验显示 preprod/UAT 形态要看环境开关和内部 secret，不要只看缓存参数；`mas-sit` 的 env 文件也应按实际运行语义维护（session history）。
 
 ## Remaining Cleanup
 
 - VM config 里仍有首次失败 EFI disk 留下的 `unused0: nvme-data:vm-130-disk-0`，约 4 MiB；后续可在明确确认后清理。
-- `mssql-ref` 和 `mas-go-dev` 的 QEMU guest agent 配置/运行状态还需要单独整理；当前 PVE 快照按在线 crash-consistent 理解。
+- `mssql-ref` 和 `mas-sit` 的 QEMU guest agent 配置/运行状态还需要单独整理；当前 PVE 快照按在线 crash-consistent 理解。
 - Tailscale Admin Console 的 key expiry 状态如后续确认已 disable，可回写到 subnet router 文档。
 
 ## Related

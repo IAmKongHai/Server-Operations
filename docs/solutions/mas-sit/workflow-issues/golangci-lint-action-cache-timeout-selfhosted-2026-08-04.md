@@ -1,8 +1,8 @@
 ---
 title: "self-hosted 上不要用 golangci-lint-action 默认 cache/verify"
 date: 2026-08-04
-category: docs/solutions/mas-go-dev/workflow-issues
-server: mas-go-dev
+category: docs/solutions/mas-sit/workflow-issues
+server: mas-sit
 module: backend-ci / iCare-public-backend CI
 problem_type: workflow_issue
 component: tooling
@@ -17,7 +17,7 @@ tags:
   - self-hosted-runner
   - golangci-lint
   - backend-ci
-  - mas-go-dev
+  - mas-sit
   - cache
 ---
 
@@ -29,7 +29,7 @@ tags:
 
 [actions/runs/30898768407/attempts/1](https://github.com/cypressoai/iCare-public-backend/actions/runs/30898768407/attempts/1)
 
-上由 **`mas-go-dev-ci-1`** 执行，结论 **cancelled**。Annotation：
+上由 **`mas-sit-ci-1`** 执行，结论 **cancelled**。Annotation：
 
 > The job has exceeded the maximum execution time of 20m0s
 
@@ -45,7 +45,7 @@ tags:
 | Cache restore | Cache hit 后 ~16MB 以 **0.1 MB/s** 卡住 → `Failed to restore: The operation cannot be completed in timeout`；prepare env **~113s** |
 | 日志空档 | Lint endgroup（10:03:58Z）到 Build 起步（10:19:17Z）约 **15 分钟无日志** |
 | Post Lint | 仍 `Saved cache` ~16MB，**~63s** |
-| 其它失败形态 | `config verify` → `https://golangci-lint.run/jsonschema/golangci.v2.4.jsonschema.json` → `context deadline exceeded`（lemon / mas-go-dev / umac 均见） |
+| 其它失败形态 | `config verify` → `https://golangci-lint.run/jsonschema/golangci.v2.4.jsonschema.json` → `context deadline exceeded`（lemon / mas-sit / umac 均见） |
 
 对照：同仓库成功 run 的 `test-lint-build` 通常 **2–4 分钟**（如 umac / lemon）。
 
@@ -111,11 +111,11 @@ tags:
 | 项 | 状态 |
 |----|------|
 | Workflow 修复 PR | [iCare-public-backend#62](https://github.com/cypressoai/iCare-public-backend/pull/62) |
-| 取证 run | `30898768407` attempt 1（`mas-go-dev-ci-1`） |
+| 取证 run | `30898768407` attempt 1（`mas-sit-ci-1`） |
 | attempt 2 | quality gate 约 2min 成功（`lemon-imac-1`）；Sonar **Quality Gate FAILED** 属规则门禁，非 runner 基础设施 |
 
 ## Related
 
 - Runner 池与缓存基线：[`docs/runbooks/ci-runner-pools.md`](../../../runbooks/ci-runner-pools.md)
-- 主机时间线：[`docs/operations/mas-go-dev.md`](../../../operations/mas-go-dev.md)
+- 主机时间线：[`docs/operations/mas-sit.md`](../../../operations/mas-sit.md)
 - 对照实现：`cypressoai/iCare-backend` `.github/workflows/sonar.yml`（Install + `golangci-lint run`，无 action）

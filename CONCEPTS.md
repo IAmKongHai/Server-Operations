@@ -33,7 +33,7 @@ It is not a `cypressoai` pool member and must not carry iCare CI labels. Workflo
 
 `mac-mini` 上为 `IAmKongHai/AcquiLangAI` 注册的日常 CI runner：`mac-mini-acquilang-ci-1` 到 `mac-mini-acquilang-ci-5`。工作目录分别是 `~/gha/alc1` 到 `~/gha/alc5`，label 都是 `acquilang-ci`。
 
-五个 slot 共用 label `acquilang-ci`，另外带 `acquilang-build`。2026-10-10 起 `ci-4` 和 `ci-5` 停用，同时在这台机器上跑的 AcquiLang job 不超过 3 个。`acquilang-build` 也可以由 mas-sit（原 mas-go-dev）的 `mas-go-dev-acquilang-ci-1` 和 lemon-imac 的 `lemon-imac-acquilang-ci-1` 接。lemon-imac 这一台带 `macos` 和 `arm64`，native 的 Jest 可以落到它或 mac-mini 的在线 slot；它不带 `acquilang-ci`，Sonar 仍只走 mac-mini。这些实例不带 cypressoai 池标签。在线 slot 与 mac-mini 上其它 runner 共享 CPU、内存与磁盘。lemon-imac 只有一个 slot，避免和已有的 org runner 把 8GB 内存占满。
+五个 slot 共用 label `acquilang-ci`，另外带 `acquilang-build`。2026-10-10 起 `ci-4` 和 `ci-5` 停用，同时在这台机器上跑的 AcquiLang job 不超过 3 个。`acquilang-build` 也可以由 mas-sit的 `mas-sit-acquilang-ci-1` 和 lemon-imac 的 `lemon-imac-acquilang-ci-1` 接。lemon-imac 这一台带 `macos` 和 `arm64`，native 的 Jest 可以落到它或 mac-mini 的在线 slot；它不带 `acquilang-ci`，Sonar 仍只走 mac-mini。这些实例不带 cypressoai 池标签。在线 slot 与 mac-mini 上其它 runner 共享 CPU、内存与磁盘。lemon-imac 只有一个 slot，避免和已有的 org runner 把 8GB 内存占满。
 
 ## 代理服务器流量监控
 
@@ -91,10 +91,10 @@ Antigravity 上游认的是带 thinking 档位的模型实体名，不是营销�
 ## 菜苗苗 SIT
 
 ### sit-api-cmm / sit-admin-cmm
-菜苗苗系统集成测试的公网 HTTPS 主机名（`sit-api-cmm.nanyahui.cn` / `sit-admin-cmm.nanyahui.cn`）。TLS 在 `nyh-prod` 终结，应用和 PostgreSQL 18 在 `mas-go-dev`。不是生产域名 `api.caimiaomiao.com` / `admin.caimiaomiao.com`。
+菜苗苗系统集成测试的公网 HTTPS 主机名（`sit-api-cmm.nanyahui.cn` / `sit-admin-cmm.nanyahui.cn`）。TLS 在 `nyh-prod` 终结，应用和 PostgreSQL 18 在 `mas-sit`。不是生产域名 `api.caimiaomiao.com` / `admin.caimiaomiao.com`。
 
 ### shared-sit 租户
-`mas-sit`（原 `mas-go-dev`）上合部署 SIT 的隔离单位：独立 PostgreSQL 库和角色、独立 Redis DB 号、可选独立 Garage bucket。应用 compose 加入 Docker 网络 `shared-sit`，目录不放进 `/opt/mas-go-dev/`。菜苗苗 SIT 用库/角色 `cmm`、Redis DB `2`（EVP 已用 `1`），文件仍走腾讯云 COS，不用 Garage。
+`mas-sit`上合部署 SIT 的隔离单位：独立 PostgreSQL 库和角色、独立 Redis DB 号、可选独立 Garage bucket。应用 compose 加入 Docker 网络 `shared-sit`，目录不放进 `/opt/mas-sit/`。菜苗苗 SIT 用库/角色 `cmm`、Redis DB `2`（EVP 已用 `1`），文件仍走腾讯云 COS，不用 Garage。
 
 ## 宝塔面板证书
 

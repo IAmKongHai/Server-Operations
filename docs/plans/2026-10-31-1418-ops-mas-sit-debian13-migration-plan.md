@@ -1,26 +1,26 @@
 ---
-title: mas-go-dev 从 AL2023 迁到 Debian 13 - Plan
+title: mas-sit 从 AL2023 迁到 Debian 13 - Plan
 type: ops
 date: 2026-10-31
-server: [mas-go-dev, pve]
+server: [mas-sit, pve]
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-plan-bootstrap
 execution: code
 ---
 
-# mas-go-dev 从 AL2023 迁到 Debian 13 - Plan
+# mas-sit 从 AL2023 迁到 Debian 13 - Plan
 
 ## Goal Capsule
 
-- **Objective:** 团队和 CI 照常使用 mas-go-dev：同样的地址、同样的 SIT 数据、同样的 6 个 runner，什么都不用改。底下的系统换成 Debian 13，安全补丁能及时打上，运维方式和其它 Debian 13 机器一致。
+- **Objective:** 团队和 CI 照常使用 mas-sit：同样的地址、同样的 SIT 数据、同样的 6 个 runner，什么都不用改。底下的系统换成 Debian 13，安全补丁能及时打上，运维方式和其它 Debian 13 机器一致。
 - **Means:** 在 PVE 上并行新建 VM，迁移数据和配置，在一个停机窗口内接管原 LAN IP、Tailscale 身份和 MagicDNS 名，旧 VM 关机保留作回滚（KTD2、KTD3、KTD4）。
 - **Authority:** 用户在本次会话中确认的范围（R1–R10）> 本计划 KTD > 单元内细节。`AGENTS.md` 的「生产服务器操作守则」始终有效：切换窗口、关停旧 VM、销毁旧盘之前，都要用户逐次确认。
 - **Stop conditions:**
   - U5 窗口内，只起数据层时做的数据核对不通过（标准见 Verification Contract 的数据基准行），立即按「回滚」恢复旧 VM，不在新机上修补。
-  - 新 VM 拿不到原 Tailscale IP，或 MagicDNS 名不是 `mas-go-dev`，停在 U5 并回滚。
+  - 新 VM 拿不到原 Tailscale IP，或 MagicDNS 名不是 `mas-sit`，停在 U5 并回滚。
   - U1 发现业务仓 workflow 的 step 依赖 AL2023（`dnf`、`yum`、写死 `python3.12` 路径等），先停下来找用户，不进入 U5。`runs-on` 里引用 `al2023` label 不算，那是保留 label 的预期用法。
 - **Execution profile:** U1–U4 不停机，旧机照常服务；U5 是唯一的停机窗口；U6 在窗口内完成主验证，重启测试可以在窗口后补做；U7 在观察期结束后做。每个单元结束都在 `docs/operations/` 追加记录并提交。
-- **Who finishes:** Claude 经 `ssh pve`、`ssh mas-go-dev`（旧机，切换后指向新机）和临时地址执行。GitHub runner / workflow 查询用 `gh`。窗口时间由用户定。
+- **Who finishes:** Claude 经 `ssh pve`、`ssh mas-sit`（旧机，切换后指向新机）和临时地址执行。GitHub runner / workflow 查询用 `gh`。窗口时间由用户定。
 
 ---
 
@@ -28,13 +28,13 @@ execution: code
 
 ### Summary
 
-新建 Debian 13 VM 160，先在临时地址上把系统、工具链、用户和目录准备好，并预拷贝数据与镜像。然后在一个停机窗口内：停旧机服务，做最终同步，旧 VM 关机，新 VM 接管 `192.168.2.22`、`100.109.223.53` 和 `mas-go-dev`，启动全部 SIT 服务和 runner。旧 VM 130 关机保留 7 天作回滚，之后经用户确认销毁。
+新建 Debian 13 VM 160，先在临时地址上把系统、工具链、用户和目录准备好，并预拷贝数据与镜像。然后在一个停机窗口内：停旧机服务，做最终同步，旧 VM 关机，新 VM 接管 `192.168.2.22`、`100.109.223.53` 和 `mas-sit`，启动全部 SIT 服务和 runner。旧 VM 130 关机保留 7 天作回滚，之后经用户确认销毁。
 
 ### Problem Frame
 
-mas-go-dev 当初选 Amazon Linux 2023，是为了和线上 `dev-cypresso` 保持一致；`dev-cypresso` 已于 2026-10-31 永久删除，这个理由不存在了。
+mas-sit 当初选 Amazon Linux 2023，是为了和线上 `dev-cypresso` 保持一致；`dev-cypresso` 已于 2026-10-31 永久删除，这个理由不存在了。
 
-AL2023 在这台机器上还带来两个实际问题。一是 CVE-2026-98432：AL2023 默认 `kernel`（6.1）的修复到 10-31 仍是 pending，而 Debian 13 在 10-16 就发布了 `6.12.113`（`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`）。二是 AL2023 官方仓库没有 `qemu-guest-agent`，PVE 的正常关机和快照冻结一直用不上（`docs/operations/mas-go-dev.md` 2026-06-12）。
+AL2023 在这台机器上还带来两个实际问题。一是 CVE-2026-98432：AL2023 默认 `kernel`（6.1）的修复到 10-31 仍是 pending，而 Debian 13 在 10-16 就发布了 `6.12.113`（`docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`）。二是 AL2023 官方仓库没有 `qemu-guest-agent`，PVE 的正常关机和快照冻结一直用不上（`docs/operations/mas-sit.md` 2026-06-12）。
 
 另外，其它服务器（PVE 宿主、`nyh-prod`、`cmm-prod`、`tizi-*`）都已是 Debian 13，只有这台还在用 dnf，补丁节奏也不一样。
 
@@ -44,7 +44,7 @@ AL2023 在这台机器上还带来两个实际问题。一是 CVE-2026-98432：A
 
 **服务连续性**
 
-- R1. 切换后，切换前在运行的所有 SIT 入口在原地址上可用（LAN `192.168.2.22`、Tailscale `100.109.223.53`、MagicDNS `mas-go-dev`），端口和绑定方式与旧机相同。
+- R1. 切换后，切换前在运行的所有 SIT 入口在原地址上可用（LAN `192.168.2.22`、Tailscale `100.109.223.53`、MagicDNS `mas-sit`），端口和绑定方式与旧机相同。
 - R2. SIT 数据原样迁移：每个库的表数和行数、Garage 各 bucket 对象数、各 Redis DB 的 key 数、azurite 数据和 CORS 规则，都与切换前一致。
 - R3. 6 个 runner 以原名称、原 runner group、原 labels（包括 `al2023`）上线，每个池至少有一次真实 job 在新机上成功。
 - R4. 出站依赖可用：`mssql-ref` `192.168.2.20:1433`、短名 `mac-mini:9000`（SonarQube）、GitHub、GHCR、公网 DNS，宿主和容器内都能访问。
@@ -87,7 +87,7 @@ AL2023 在这台机器上还带来两个实际问题。一是 CVE-2026-98432：A
 
 - 给新机的 Tailscale 分配独立 UDP 端口，改善家宽打洞（`docs/operations/pve.md` 里有建议，与本次迁移无关）。
 - 统一 runner 版本（现在混着 2.335.1 到 2.337.0）。
-- `mas-go-dev/README.md` 以外的历史计划和文档里提到 AL2023 的地方保持原样，它们是历史记录。
+- `mas-sit/README.md` 以外的历史计划和文档里提到 AL2023 的地方保持原样，它们是历史记录。
 
 #### Considered and not built
 
@@ -102,8 +102,8 @@ AL2023 在这台机器上还带来两个实际问题。一是 CVE-2026-98432：A
 ### Key Technical Decisions
 
 - KTD1. **新 VM 用 Debian 13 genericcloud 镜像 + cloud-init，按 team-svc 的建机做法。** 用户 `ec2-user`，静态 IP、网关和 DNS 都是 `192.168.2.1`，盘放 `nvme-data`（discard、iothread、ssd），`--cpu host`，`--balloon 0`。UEFI 和 Secure Boot 的老坑不再沿用（AL2023 专属）。Governs R8。
-- KTD2. **并行新建 VMID 160，旧 VM 130 关机保留作回滚。** (session-settled: user-approved — chosen over 在原 VM 原地重装: 原地重装停机长且没有回滚余地) VMID 160 是永久编号，PVE 里的名字切换后改成 `mas-go-dev`，旧 VM 改名 `mas-go-dev-al2023` 并设 `onboot: 0`。Governs R5, R6。
-- KTD3. **Tailscale 用「先放回 state 再首次启动」接管身份。** 新机装好 tailscale 包，但在 U5 之前不启动 `tailscaled`，`/var/lib/tailscale` 保持为空。切换时，先在旧机停掉并禁用 `tailscaled`，再把旧的 `/var/lib/tailscale` 整个拷到新机，最后首次启动。这是 2026-10-31 tizi-kh 在 Debian 13 上验证过的做法（`docs/operations/tizi-kh.md`）。OS hostname 设为 `mas-go-dev`，切换后核对 MagicDNS 名，不对就去 admin console 改回。Governs R1, R5。
+- KTD2. **并行新建 VMID 160，旧 VM 130 关机保留作回滚。** (session-settled: user-approved — chosen over 在原 VM 原地重装: 原地重装停机长且没有回滚余地) VMID 160 是永久编号，PVE 里的名字切换后改成 `mas-sit`，旧 VM 改名 `mas-sit-al2023` 并设 `onboot: 0`。Governs R5, R6。
+- KTD3. **Tailscale 用「先放回 state 再首次启动」接管身份。** 新机装好 tailscale 包，但在 U5 之前不启动 `tailscaled`，`/var/lib/tailscale` 保持为空。切换时，先在旧机停掉并禁用 `tailscaled`，再把旧的 `/var/lib/tailscale` 整个拷到新机，最后首次启动。这是 2026-10-31 tizi-kh 在 Debian 13 上验证过的做法（`docs/operations/tizi-kh.md`）。OS hostname 设为 `mas-sit`，切换后核对 MagicDNS 名，不对就去 admin console 改回。Governs R1, R5。
 - KTD4. **SSH 主机密钥一起迁过去。** 切换时把旧机 `/etc/ssh/ssh_host_*` 放到新机，本机、mac-mini、同事的 known_hosts 都不用清（tizi-kh 先例）。密钥在 U5 的冷启动之后再放入，并核对指纹（KTD13）。Governs R1。
 - KTD5. **用户和组的 UID/GID 与旧机完全一致，在装 Docker 之前预建。** `ec2-user` 1000:1000，`actions-runner` 993:992，`acquilang-ci` 991:990，`tk-flywheel-ci` 992:991，`docker` 组 gid 993（成员 `ec2-user`、`actions-runner`）。全新 Debian 13 镜像里，systemd-sysusers 和 `groupadd -r` 会从 999 往下给发行版账户分配号，990–999 可能已被占，所以 U3 先实测占用，再显式指定号建用户和组；Docker CE 安装时会自己建 `docker` 组，所以必须在装 Docker 之前建好。所有拷贝都保留数字属主（rsync `--numeric-ids` / tar `--numeric-owner`），容器 UID（如 FCM 凭据的 `10001:999`）也就原样保留。Governs R2, R3。
 - KTD6. **数据卷「停服务后整卷拷贝」，PostgreSQL 另留逻辑导出。** 同架构、同镜像，卷拷贝是最忠实的方式；Garage 拷完节点 ID 不变（mac-mini → team-svc 先例）。PostgreSQL 停容器前每个库做一份 `pg_dump -Fc`，放在旧机和本机 `_backups/` 作保险，不用于正常恢复。迁移范围只包括 U1 盘点出的长期 compose 项目的命名卷，不迁 CI 临时卷。Governs R2。
@@ -158,12 +158,12 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 
 ### Sources
 
-- 现网清单与地址依赖：`mas-go-dev/README.md`、`docs/operations/mas-go-dev.md`、`docs/operations/nyh-prod.md`（CMM 反代）、`mas-go-dev/shared-sit/bootstrap.sh`、`mas-go-dev/evp-sit/docker-compose.yml`、`mas-go-dev/cmm-sit/compose.yml`。
-- 建机做法：`docs/operations/pve.md`、`team-svc/README.md`、`docs/plans/2026-05-17-001-feat-mas-go-dev-deployment-plan.md`、`docs/solutions/pve/best-practices/mas-go-dev-deployment-2026-05-17.md`。
+- 现网清单与地址依赖：`mas-sit/README.md`、`docs/operations/mas-sit.md`、`docs/operations/nyh-prod.md`（CMM 反代）、`mas-sit/shared-sit/bootstrap.sh`、`mas-sit/evp-sit/docker-compose.yml`、`mas-sit/cmm-sit/compose.yml`。
+- 建机做法：`docs/operations/pve.md`、`team-svc/README.md`、`docs/plans/2026-05-17-001-feat-mas-sit-deployment-plan.md`、`docs/solutions/pve/best-practices/mas-sit-deployment-2026-05-17.md`。
 - Tailscale 身份接管与 SSH 主机密钥：`docs/operations/tizi-kh.md`、`docs/runbooks/proxy-node-reinstall-upgrade.md`、`scripts/backup-proxy-node-pre-reinstall.sh`。
 - runner 整目录迁移、卷拷贝、save/load：`docs/plans/2026-10-22-1645-ops-mac-mini-team-assets-to-hon-plan.md`（KTD2、KTD7、KTD11）、`docs/operations/team-svc.md`。
-- DNS 方案：`docs/operations/mas-go-dev.md` 2026-09-17 条目。
-- runner 主机准备：`docs/solutions/icare-uat-runner-2/workflow-issues/buildx-cache-dir-missing-on-new-uat-runner-2026-08-23.md`、`docs/solutions/mas-go-dev/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`、`docs/runbooks/ci-runner-pools.md`。
+- DNS 方案：`docs/operations/mas-sit.md` 2026-09-17 条目。
+- runner 主机准备：`docs/solutions/icare-uat-runner-2/workflow-issues/buildx-cache-dir-missing-on-new-uat-runner-2026-08-23.md`、`docs/solutions/mas-sit/integration-issues/sonar-scan-fails-no-dirmngr-on-x86-runner-2026-06-10.md`、`docs/runbooks/ci-runner-pools.md`。
 - 内存约束：`docs/plans/2026-10-31-0010-ops-mac-mini-vms-to-pve-plan.md`、`docs/operations/pve.md`。
 
 ---
@@ -179,10 +179,10 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Dependencies:** 无
 
 **Files:**
-- `docs/operations/mas-go-dev.md`（盘点结果，不含密钥）
+- `docs/operations/mas-sit.md`（盘点结果，不含密钥）
 - `docs/operations/pve.md`（容量核对）
-- `mas-go-dev/README.md`（补全文档漂移：6 个 runner、`public-backend`、`public-frontend`、`vps-traffic-monitor`）
-- `_backups/mas-go-dev-2026-11/`（gitignored，本机离机备份）
+- `mas-sit/README.md`（补全文档漂移：6 个 runner、`public-backend`、`public-frontend`、`vps-traffic-monitor`）
+- `_backups/mas-sit-2026-11/`（gitignored，本机离机备份）
 
 **Approach:**
 1. 逐个 compose 项目列出目录、命名卷、bind mount、端口绑定、env 文件和镜像（tag 与 ID），重点补齐 `vps-traffic-monitor`、`public-frontend`、`uploads` 卷的归属。CMM SIT（`/opt/cmm-sit`、端口 25880/25881）10-31 已不在本机，仓库里没有下线记录，只迁它留在 shared-sit 里的库 `cmm` 和 Redis DB 2。
@@ -201,7 +201,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 - 本机 `_backups/` 里的 tailscale state 和 SSH 主机密钥可以列出、大小非零。
 - 基准文件里每个长期 compose 项目都有对应条目，没有「未知归属」的命名卷。
 
-**Verification:** 盘点记录写进 `docs/operations/mas-go-dev.md` 并提交；离机备份存在；没有阻断条件。
+**Verification:** 盘点记录写进 `docs/operations/mas-sit.md` 并提交；离机备份存在；没有阻断条件。
 
 ---
 
@@ -241,11 +241,11 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Dependencies:** U2
 
 **Files:**
-- `docs/operations/mas-go-dev.md`（新机条目）
-- `mas-go-dev/README.md`（新机系统说明）
+- `docs/operations/mas-sit.md`（新机条目）
+- `mas-sit/README.md`（新机系统说明）
 
 **Approach:**
-1. 主机名设为 `mas-go-dev`，时区 `Asia/Shanghai`，写入 KTD13 的 cloud-init 配置。
+1. 主机名设为 `mas-sit`，时区 `Asia/Shanghai`，写入 KTD13 的 cloud-init 配置。
 2. 用 `getent` 列出 990–999 和 1000 的占用；被发行版系统账户占用的号，先挪到 990 以下的空闲号并修正对应文件属主。然后按 KTD5 显式指定号预建用户和组（含 docker 组），`ec2-user` 加入 `sudo` 组。
 3. `apt full-upgrade`，保证内核是已修 CVE-2026-98432 的版本；配置并启用 `unattended-upgrades` 的自动安全更新。安装 `qemu-guest-agent`、`systemd-resolved`（KTD10）、`unattended-upgrades`、`gnupg` 和 `dirmngr`、`build-essential`、`git`、`jq`、`rsync`、`zstd`、`unzip`、`python3`、`libatomic1`、`sysstat`，以及 `btm`、`sqlcmd`（旧机 `/usr/local/bin` 里有）。
 4. 先写好 `daemon.json`（`log-driver: local`、关闭 `containerd-snapshotter`，KTD11），再安装 Docker CE、compose 插件和 buildx。按 U1 找到的机制，复刻 Docker 与 `tailscaled` 的开机顺序。
@@ -268,7 +268,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 - 重启后 `systemctl --failed` 为空，`qm agent 160 ping` 成功。
 - `mac-mini` 短名在这个阶段还解析不了（tailscaled 没启动），这是预期结果，留到 U6 验证。
 
-**Verification:** 以上检查都在重启后通过，并记录在 `docs/operations/mas-go-dev.md`。
+**Verification:** 以上检查都在重启后通过，并记录在 `docs/operations/mas-sit.md`。
 
 ---
 
@@ -281,10 +281,10 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Dependencies:** U3
 
 **Files:**
-- `docs/operations/mas-go-dev.md`
+- `docs/operations/mas-sit.md`
 
 **Approach:**
-1. 用 rsync（保留数字属主、权限和 ACL）从旧机拷贝 `/opt` 下的长期目录（`mas-go-dev`、`shared-sit`、`evp-sit`、`vps-traffic-monitor`、`gha-scripts`、`acquilang-ci`、`tk-flywheel-ci`）和 `/opt/actions-runner`。排除 `_work`、`cache/go-build` 等 CI 临时内容。
+1. 用 rsync（保留数字属主、权限和 ACL）从旧机拷贝 `/opt` 下的长期目录（`mas-sit`、`shared-sit`、`evp-sit`、`vps-traffic-monitor`、`gha-scripts`、`acquilang-ci`、`tk-flywheel-ci`）和 `/opt/actions-runner`。排除 `_work`、`cache/go-build` 等 CI 临时内容。
 2. 拷贝 runner 的 systemd unit 和 drop-in、3 组 timer unit，只 `daemon-reload`，不 enable、不 start（KTD8）。
 3. 检查每个 runner 的 `.path` 和 `.env`，把只在 AL2023 上存在的路径改成 Debian 对应路径，并记录改了什么。
 4. 用 `docker save` / `load` 把 U1 列出的长期服务镜像迁过来（KTD7），核对镜像 ID 一致。
@@ -299,7 +299,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 - 每个长期服务的镜像 ID 在两台机器上相同。
 - 临时 PG 容器能读预拷贝卷的副本并正常启动，`\l` 列出的库与 U1 一致；副本和临时容器已删除。
 
-**Verification:** 预同步完成，旧机服务没有中断；记录写进 `docs/operations/mas-go-dev.md`。
+**Verification:** 预同步完成，旧机服务没有中断；记录写进 `docs/operations/mas-sit.md`。
 
 ---
 
@@ -312,7 +312,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Dependencies:** U4，以及用户确认窗口时间、窗口已通知团队
 
 **Files:**
-- `docs/operations/mas-go-dev.md`
+- `docs/operations/mas-sit.md`
 - `docs/operations/pve.md`
 
 **Approach:**
@@ -320,9 +320,9 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 2. 在旧机上先停应用层 compose（数据层以外的全部项目），在数据层仍运行时采最终数据基准（R2），给每个库做 `pg_dump -Fc` 并拷到本机 `_backups/`（KTD6），然后再停数据层。
 3. 用 rsync 同步到新机，保留数字属主：命名卷带 `--delete`，与停服后的源端逐文件一致；`/opt` 增量同步时排除每个 runner 目录的 `.path` 和 `.env`，保留 U4 改好的 Debian 版本。
 4. 在旧机上 stop + disable `tailscaled`，把 `/var/lib/tailscale` 拷到新机，此时不要启动（KTD3）。旧机的 `/etc/ssh/ssh_host_*` 先拷到新机的暂存目录。
-5. 旧机关机，在 PVE 上设 `onboot: 0`，改名为 `mas-go-dev-al2023`（KTD2、KTD12）。
-6. 新机关机，在 PVE 上改 `ipconfig0` 为 `192.168.2.22`、内存 8G、balloon 0（KTD9）、`onboot: 1`、名字 `mas-go-dev`，然后冷启动。
-7. 把暂存的 SSH 主机密钥放到 `/etc/ssh/` 并重启 ssh，核对指纹与 U1 备份一致（KTD4、KTD13）。然后 enable 并启动 `tailscaled`，核对 `tailscale ip -4` 是 `100.109.223.53`，MagicDNS 名是 `mas-go-dev`。任一不一致就回滚。
+5. 旧机关机，在 PVE 上设 `onboot: 0`，改名为 `mas-sit-al2023`（KTD2、KTD12）。
+6. 新机关机，在 PVE 上改 `ipconfig0` 为 `192.168.2.22`、内存 8G、balloon 0（KTD9）、`onboot: 1`、名字 `mas-sit`，然后冷启动。
+7. 把暂存的 SSH 主机密钥放到 `/etc/ssh/` 并重启 ssh，核对指纹与 U1 备份一致（KTD4、KTD13）。然后 enable 并启动 `tailscaled`，核对 `tailscale ip -4` 是 `100.109.223.53`，MagicDNS 名是 `mas-sit`。任一不一致就回滚。
 8. 先只起数据层，按 Verification Contract 的数据基准行核对，不通过就回滚。通过后按「High-Level Technical Design」里的顺序起应用层；有服务起不来且短时间修不好，就回滚。
 9. 确认每个 runner 的 `.path` 和 `.env` 仍是 U4 记录的版本，然后 enable 并启动 6 个 runner 服务和 3 组 timer。
 
@@ -333,7 +333,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Test scenarios:**
 - 第 1 步后，GitHub API 显示 6 个 runner 都是 offline，且没有被中断的 job。
 - 第 5 步后，`qm config 130` 显示 `onboot: 0`，`ping 192.168.2.22` 不通，直到第 6 步新机开机。
-- 第 7 步：新机 `ssh_host_ed25519_key.pub` 的指纹与 U1 备份一致；`tailscale status --self` 显示 `100.109.223.53` 和 `mas-go-dev`；本机 `ssh mas-go-dev` 不报 host key 变化。
+- 第 7 步：新机 `ssh_host_ed25519_key.pub` 的指纹与 U1 备份一致；`tailscale status --self` 显示 `100.109.223.53` 和 `mas-sit`；本机 `ssh mas-sit` 不报 host key 变化。
 - 第 8 步：只起数据层时，按 Verification Contract 的数据基准行比对，全部通过后才起应用层。
 - 第 8 步：icare `/healthz` 返回 200 后再检查前端，不把启动期的 502 误判为失败。
 - 回滚演练路径（只在需要时执行）：关新机 → 新机 `onboot: 0` → 开旧机 → 旧机 enable 并启动 `tailscaled`、compose、runner → 旧机上 R1 检查通过。
@@ -351,7 +351,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Dependencies:** U5
 
 **Files:**
-- `docs/operations/mas-go-dev.md`
+- `docs/operations/mas-sit.md`
 
 **Approach:**
 1. 按「Verification Contract」逐项检查 R1–R4。
@@ -362,11 +362,11 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Test scenarios:**
 - `curl http://mac-mini:9000/api/system/status` 在宿主和 `--network host` 的容器内都返回 `UP`。
 - 从新机 `sqlcmd` 连 `192.168.2.20:1433` 成功。
-- 从 tailnet 另一台机器分别经 `100.109.223.53`、`mas-go-dev` 短名、`192.168.2.22`（经 PVE subnet route）访问 `:5174`，都返回 200。
+- 从 tailnet 另一台机器分别经 `100.109.223.53`、`mas-sit` 短名、`192.168.2.22`（经 PVE subnet route）访问 `:5174`，都返回 200。
 - 每个池的首个 job 都成功，`backend-ci` 的 Sonar 步骤能拉到 gpg key。
 - 重启后不做任何手动操作，以上检查全部再次通过，`systemctl --failed` 为空，SSH 主机密钥指纹没有变化。
 
-**Verification:** 所有检查在重启前后都通过，记录写进 `docs/operations/mas-go-dev.md` 并提交。
+**Verification:** 所有检查在重启前后都通过，记录写进 `docs/operations/mas-sit.md` 并提交。
 
 ---
 
@@ -379,22 +379,22 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 **Dependencies:** U6；清理部分还依赖 7 天观察期和用户确认
 
 **Files:**
-- `AGENTS.md`（服务器表 `mas-go-dev` 行和 mas-go-dev 目录约定）
+- `AGENTS.md`（服务器表 `mas-sit` 行和 mas-sit 目录约定）
 - `README.md`
 - `pve/README.md`
-- `mas-go-dev/README.md`
+- `mas-sit/README.md`
 - `docs/runbooks/ci-runner-pools.md`
-- `docs/operations/mas-go-dev.md`、`docs/operations/pve.md`
-- `docs/solutions/mas-go-dev/best-practices/al2023-to-debian13-migration-2026-11-XX.md`（新增，日期按实际完成日）
+- `docs/operations/mas-sit.md`、`docs/operations/pve.md`
+- `docs/solutions/mas-sit/best-practices/al2023-to-debian13-migration-2026-11-XX.md`（新增，日期按实际完成日）
 
 **Approach:**
 1. 切换完成后立即更新文档：系统改为 Debian 13，VMID 改为 160，用 `apt` 的做法替换 `dnf` 的做法，补上 resolved / Tailscale / UID 约定。
 2. 写经验总结（`/ce:compound` lightweight 模式）。
 3. 观察期满 7 天且用户确认后，销毁 VM 130 及其 `unused0` 盘；如有快照，手动删除。
-4. 按 U1 第 4 步的方法（逐仓库、逐活跃分支拉取 workflow）重新确认没有 `runs-on` 引用 `al2023`。经用户确认后，从 U1 基准里带这个 label 的 runner 上删掉它（按仓库记录是 `mas-go-dev`、`mas-go-dev-ci-1`、`mas-go-dev-ci-2`、`shared-sit` 这 4 个，以 U1 实查为准），并更新 `docs/runbooks/ci-runner-pools.md`。
+4. 按 U1 第 4 步的方法（逐仓库、逐活跃分支拉取 workflow）重新确认没有 `runs-on` 引用 `al2023`。经用户确认后，从 U1 基准里带这个 label 的 runner 上删掉它（按仓库记录是 `mas-sit`、`mas-sit-ci-1`、`mas-sit-ci-2`、`shared-sit` 这 4 个，以 U1 实查为准），并更新 `docs/runbooks/ci-runner-pools.md`。
 
 **Test scenarios:**
-- `grep -rn "AL2023\|al2023\|Amazon Linux" AGENTS.md README.md pve/README.md mas-go-dev/README.md docs/runbooks/` 只剩下历史说明，没有描述现状的条目。
+- `grep -rn "AL2023\|al2023\|Amazon Linux" AGENTS.md README.md pve/README.md mas-sit/README.md docs/runbooks/` 只剩下历史说明，没有描述现状的条目。
 - 删除 label 后，各 runner 池仍能接到 job（触发一次即可）。
 
 **Verification:** 文档已提交；旧 VM 已销毁或仍在观察期内且明确记录了到期日；label 状态和文档一致。
@@ -408,7 +408,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 | 检查 | 对应 | 时机 | 通过标准 |
 | --- | --- | --- | --- |
 | 数据基准对比（表行数、Garage 对象数、Redis key 数、azurite 容器） | R2 | U5 第 8 步，只起数据层时 | 与 U5 第 2 步的最终基准相比：每张表的精确行数、Garage 各 bucket 对象数、azurite 容器列表完全一致；Redis 各 DB 的 `keys − expires`（不带 TTL 的 key 数）完全一致，总 key 数不大于基准（带 TTL 的 key 在窗口内可能过期） |
-| Tailscale 身份 | R1, R5 | U5 第 7 步、U6 重启后 | `100.109.223.53`，MagicDNS `mas-go-dev`，console 里只有一个节点 |
+| Tailscale 身份 | R1, R5 | U5 第 7 步、U6 重启后 | `100.109.223.53`，MagicDNS `mas-sit`，console 里只有一个节点 |
 | SIT 入口（5173/5174/5175、8090–8092、25173/25174/28081/28082、5432/3900/6380/10000/6379，以 U1 盘点为准） | R1 | U6，重启前后 | 都在原绑定地址监听，HTTP 入口返回 200 |
 | runner 状态和 labels | R3 | U5 第 9 步、U6 | 与 U1 的 GitHub API 基准一致，6 个都 online |
 | 每个 runner 池的真实 job | R3 | U6 | 各成功一次 |
@@ -419,7 +419,7 @@ compose 启动顺序（U5）：数据层 `shared-sit-postgres` / `shared-sit-s3`
 
 ## Definition of Done
 
-- U1–U6 完成，Verification Contract 全部通过，并记录在 `docs/operations/mas-go-dev.md` 和 `docs/operations/pve.md`。
+- U1–U6 完成，Verification Contract 全部通过，并记录在 `docs/operations/mas-sit.md` 和 `docs/operations/pve.md`。
 - 文档已按 U7 第 1、2 步更新并提交，没有描述 AL2023 现状的残留条目。
 - 旧 VM 130 处于关机且 `onboot: 0` 的状态，到期日已写进 `docs/operations/pve.md`；或者已在用户确认后销毁。
 - `_backups/` 里的离机备份保留到旧 VM 销毁之后，再由用户决定是否删除。

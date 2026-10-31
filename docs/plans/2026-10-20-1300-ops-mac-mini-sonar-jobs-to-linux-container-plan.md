@@ -32,15 +32,15 @@ server: [mac-mini]
 结论：**sonar runner 上没有任何 job 真正依赖 macOS**。只要 macOS 的 iOS / EAS 构建在 `mac-mini-mobile-1`、`mac-mini-acquilang-native-1`，不在本计划范围内。
 
 佐证：
-- backend 测试只用进程内依赖（`glebarez/sqlite`、`miniredis`），已经在 Linux 的 `mas-go-dev-ci` 上跑过（workflow 注释说那里 coverage 最差 13 分钟，慢是因为那台是 2 核 x86 VM，不是 Linux 的问题）。SQL Server 相关测试需要显式环境变量才会跑。
-- `frontend-quality-ci` 池本来就包含 Linux 的 `mas-go-dev-ci-1/2`，mobile CI、frontend lint / typecheck / PR Sonar 已经在 Linux 上跑通过。
+- backend 测试只用进程内依赖（`glebarez/sqlite`、`miniredis`），已经在 Linux 的 `mas-sit-ci` 上跑过（workflow 注释说那里 coverage 最差 13 分钟，慢是因为那台是 2 核 x86 VM，不是 Linux 的问题）。SQL Server 相关测试需要显式环境变量才会跑。
+- `frontend-quality-ci` 池本来就包含 Linux 的 `mas-sit-ci-1/2`，mobile CI、frontend lint / typecheck / PR Sonar 已经在 Linux 上跑通过。
 - Vitest 用 jsdom，没有 Playwright / 浏览器 / 原生 canvas 依赖。
 
 ## 关键判断
 
 1. **两类迁移方式不同。**
    - runs-on **不要求 macos** 的 job（`frontend-quality-ci` 一类）：只改 runner 侧 label，不用改 workflow。给容器 runner 贴上 label，再从 `mac-mini-sonar-*` 上摘掉这个 label 即可。
-   - runs-on **写死了 `macos, arm64`** 的 job（backend Sonar / Lint、UAT Cut Tag、Frontend Tests 分片、Coverage、全量 Sonar、Verify bundle）：要改各仓库 workflow，PR base 到 `develop`。建议写成 `[self-hosted, Linux, ARM64, <池 label>]`，用 `ARM64` 排除 x86 的 `mas-go-dev-ci`。
+   - runs-on **写死了 `macos, arm64`** 的 job（backend Sonar / Lint、UAT Cut Tag、Frontend Tests 分片、Coverage、全量 Sonar、Verify bundle）：要改各仓库 workflow，PR base 到 `develop`。建议写成 `[self-hosted, Linux, ARM64, <池 label>]`，用 `ARM64` 排除 x86 的 `mas-sit-ci`。
 2. **单独开一个 colima profile `ci`**，不要塞进 `konghai` 现有的 `colima`（6C/12G，已经跑着 sonarqube、多套 postgres、redis、s3、sub2api）。
 3. **runner 工作目录必须在 VM 自己的盘上**（容器内路径或 docker volume），**不能**用 virtiofs 挂宿主目录，否则文件事件又回到宿主。
 4. **内存是硬约束**。VM 内存是固定预留，宿主上 runner 是用多少占多少。迁一部分进 VM，就要同步减少宿主 sonar slot，不能两边都满配：

@@ -21,7 +21,7 @@ Cursor Cloud Agent 沙箱。容器内 hostname 是 `cursor`，Tailscale 节点�
   - 无 `docker` 二进制、无 `/var/run/docker.sock`；`:2375` 在听但不是可用的 CI Docker。
   - 根盘是 overlay，无已装 `actions-runner`。
   - 规格 8c / 16G / 128G 对 Linux job 够用，但生命周期与安全不满足自管 runner 要求。
-- 结论：协议上能装（runner 只出站），**不要装**。需要 Linux 容量时扩 `mas-go-dev-ci` 或 `dev-cypresso`，不要用 Cursor 沙箱。
+- 结论：协议上能装（runner 只出站），**不要装**。需要 Linux 容量时扩 `mas-sit-ci` 或 `dev-cypresso`，不要用 Cursor 沙箱。
 
 ## 2026-08-15 12:24 CST - 确认无独立公网 IP
 

@@ -903,7 +903,7 @@ done
 ## 2026-09-16 00:49 CST - 盘点 PostgreSQL 实例与数据库（只读）
 
 - 操作人：`Codex`。
-- 原因：用户要求核对 mac-mini 与 mas-go-dev 分别运行哪些 PostgreSQL 数据库。
+- 原因：用户要求核对 mac-mini 与 mas-sit 分别运行哪些 PostgreSQL 数据库。
 - 影响：通过 SSH 查询 Docker 状态和 PostgreSQL 系统目录；未修改服务、配置、schema 或业务数据。
 - 备份：只读查询，无需备份；现状保存如下。
 - 回滚方式：无服务器变更，无需回滚。
@@ -1030,7 +1030,7 @@ done
 - 操作人：`Grok`（用户要求把 5433 留给 AcquiLangAI TimescaleDB）
 - 原因：恢复 AcquiLang 时 5433 已被 `cmm-postgres` 占用，临时挂在 5435。用户要求把 5433 还给 AcquiLang。
 - 影响：
-  - `cmm-postgres` 宿主端口 **5433 → 5436**（`0.0.0.0:5436`）。菜苗苗本机开发 `DATABASE_URL` 需改端口；SIT（`mas-go-dev` / `shared-sit:5432`）和生产 TencentDB **不受影响**。
+  - `cmm-postgres` 宿主端口 **5433 → 5436**（`0.0.0.0:5436`）。菜苗苗本机开发 `DATABASE_URL` 需改端口；SIT（`mas-sit` / `shared-sit:5432`）和生产 TencentDB **不受影响**。
   - `acquilang-postgres` 宿主端口 **5435 → 5433**（与项目 `docker-compose.yml` 一致）。
   - 短暂停库各数秒（`docker-compose up -d --force-recreate`）。未改数据卷、密码、其它容器。
 - 选型：5432 richer、5433 AcquiLang、5434 shared-dev，故 cmm 用下一个空闲 **5436**（不复用刚腾出的 5435，避免和短暂的 AcquiLang 端口混淆）。
@@ -1051,7 +1051,7 @@ done
   ```
   回滚前须先停掉占用 5433 的 AcquiLang，否则 cmm 绑不回去。
 - 做了什么：
-  1. 确认 cmm 无外部客户端、`5436` 空闲；SIT 走 `mas-go-dev`，不连这台。
+  1. 确认 cmm 无外部客户端、`5436` 空闲；SIT 走 `mas-sit`，不连这台。
   2. 改 `~/stacks/cmm-postgres` 的 `HOST_PORT` 与 compose 注释后 recreate。
   3. 改 `~/stacks/acquilang-postgres` 的 `HOST_PORT` 为 5433 后 recreate。
   4. 更新本机 `caimiaomiao/backend-cmm-api` 的 `.env` / 示例 / README / Makefile / `deploy/mac-mini`。
@@ -1294,7 +1294,7 @@ done
   - sidecar：users 5、TRK 4808、issues 15226、user_tokens 10、四套 Cypresso profile/`active_rules` 未漂。`rules` 13174 → 13269（分析器增量，允许）。
   - 日志：`Deploy Community Branch Plugin / 26.5.0`。GitHub OAuth 登录回到 `http://mac-mini:9000/projects`；登录页布局正常，未补 CSS。分支下拉可见 main/develop/PR。Issues `facets=authors` 为 400（已知噪声，非回滚条件）。
   - GitHub check 名 **`SonarQube Scan`** 变绿：[iCare-backend run 34324332710](https://github.com/cypressoai/iCare-backend/actions/runs/34324332710)。CE `REPORT SUCCESS`；`snapshots` 7582 → 7584。
-  - 窗口内失败的 frontend `SonarQube Scan` 已 `gh run rerun --failed`（34325174427）。lemon-imac / mas-go-dev-ci / mac-mini-sonar 仍 online。
+  - 窗口内失败的 frontend `SonarQube Scan` 已 `gh run rerun --failed`（34325174427）。lemon-imac / mas-sit-ci / mac-mini-sonar 仍 online。
 - 关联：计划 `docs/plans/2026-09-09-1406-ops-sonarqube-26-5-upgrade-plan.md`；runbook `docs/runbooks/sonarqube-upgrade.md`。
 
 ## 2026-09-09 13:35 CST - 为 cypressoai/evp 新建 SonarQube 项目并接入 Checks
@@ -2712,21 +2712,21 @@ done
   - **底层泄漏源暂不能唯一定位**：故障前 SkyLight 持续报 `CGXRegisterForPortNotification: mach_port_request_notification: invalid argument`，临近退出又每秒报 `_CGXPackagesSetWindowConstraints: Invalid window`，说明 WindowServer 的 port / window bookkeeping 已异常；但保留日志未携带具体客户端身份。`konghai` / `coding` / `ziyi` 三个长期 Fast User Switching session 会扩大图形状态面，只能视为风险放大因素，不能据此认定某个用户或 App 是泄漏源。
 - 验证结果：
   - 新 `WindowServer` PID 29298 当前约 **2,349 ports**，已从异常的 305,834 回到正常低位。
-  - `sonar-postgres`、`sonarqube` 均为 `healthy`；本机 `http://127.0.0.1:9000/api/system/status` 与 `mas-go-dev` 经 `http://mac-mini:9000/api/system/status` 均返回 HTTP 200、`status=UP`。
+  - `sonar-postgres`、`sonarqube` 均为 `healthy`；本机 `http://127.0.0.1:9000/api/system/status` 与 `mas-sit` 经 `http://mac-mini:9000/api/system/status` 均返回 HTTP 200、`status=UP`。
   - `mac-mini-sonar-1..4` 的 `Runner.Listener` 均于 `01:25:54–01:25:55` 拉起。
   - 本次未重跑失败的 GitHub Actions Job，避免在诊断之外改变 PR check 状态。
 - 后续建议（未执行）：定期采样 WindowServer port 数；若持续增长，保留增长窗口内的进程 / WindowServer 连接快照以定位泄漏客户端；尽量减少长期并存的 Fast User Switching session。由于 Docker Desktop 和 runner 均绑定 GUI session，还应另行评估登录会话退出后的自动恢复与告警，避免 Sonar 静默下线。
 
 ## 2026-08-13 01:21 CST - 只读确认 SonarQube 因 Docker Desktop 未运行而不可达
 
-- 服务器：`mac-mini`（SonarQube 宿主；对照 `mas-go-dev-ci-2`、`umacbook-pro-2`）
+- 服务器：`mac-mini`（SonarQube 宿主；对照 `mas-sit-ci-2`、`umacbook-pro-2`）
 - 操作人：`Codex`
 - 原因：排查 [iCare-backend Job 94190148086](https://github.com/cypressoai/iCare-backend/actions/runs/31617573433/job/94190148086) 的 SonarScanner server version 查询失败。
 - 影响：只读检查 Docker API、相关进程、TCP 9000、SonarQube HTTP 状态、宿主机 uptime 与 Actions 对照日志；未启动 Docker Desktop、未启动或重启容器、未改 runner / Sonar / workflow / 代码，未重跑 Job。
 - 备份：无（只读）。
 - 回滚方式：无变更。
 - 做了什么：
-  1. 从 `mas-go-dev` 验证 `mac-mini` MagicDNS 解析正常，但 `http://mac-mini:9000/api/system/status` connection refused。
+  1. 从 `mas-sit` 验证 `mac-mini` MagicDNS 解析正常，但 `http://mac-mini:9000/api/system/status` connection refused。
   2. 在本机检查 Docker CLI socket、Docker / SonarQube 进程、TCP 9000 listener 与最近 reboot 记录。
   3. 对照 `umacbook-pro-2` 上 run `31617651468`：另一台 runner 同样在测试与 coverage 成功后无法查询 SonarQube server version。
 - 验证结果：
@@ -2783,9 +2783,9 @@ done
 
 - 服务器：`mac-mini`（org runner `mac-mini-sonar-1..4`，id 22–25）
 - 操作人：`Grok`
-- 原因：backend CI workflow 使用 `runs-on: [self-hosted, backend-ci]`；`mac-mini-sonar-*` 虽有 `backend-ci` 但缺默认 label `self-hosted`，GitHub 调度硬匹配两边都要满足，导致 4 台闲置也永远进不了 backend 池。任务只能在 `mas-go-dev-ci` + `lemon-imac` + `umacbook-pro` 之间轮转，经常看起来都堆在 `mas-go-dev-ci-1`。
+- 原因：backend CI workflow 使用 `runs-on: [self-hosted, backend-ci]`；`mac-mini-sonar-*` 虽有 `backend-ci` 但缺默认 label `self-hosted`，GitHub 调度硬匹配两边都要满足，导致 4 台闲置也永远进不了 backend 池。任务只能在 `mas-sit-ci` + `lemon-imac` + `umacbook-pro` 之间轮转，经常看起来都堆在 `mas-sit-ci-1`。
 - 影响：`mac-mini-sonar-1..4` 重新进入 `[self-hosted, backend-ci]` 调度池；不动任何 workflow；前端 `mac-mini-sonar` / `frontend-*-ci` 匹配不受影响。
-- 选型：方案 A（推荐）——只修 runner label，与 lemon / umac / mas-go-dev-ci 一致；不改业务仓 workflow。
+- 选型：方案 A（推荐）——只修 runner label，与 lemon / umac / mas-sit-ci 一致；不改业务仓 workflow。
 - 备份：操作前 API 快照（4 台均无 `self-hosted`）：
   - id 22–25 labels：`mac-mini-sonar, macos, arm64, backend-ci, frontend-sonar-ci, frontend-tests-ci, frontend-quality-ci`
 - 回滚方式：
@@ -2802,7 +2802,7 @@ done
   ```
 - 验证结果：
   - `mac-mini-sonar-1..4` labels 均含 `self-hosted` + `backend-ci`，status=`online`
-  - 全 org `backend-ci` 池（10 slot：mac-mini×4 + lemon×2 + umac×2 + mas-go-dev-ci×2）`has_self_hosted=true`
+  - 全 org `backend-ci` 池（10 slot：mac-mini×4 + lemon×2 + umac×2 + mas-sit-ci×2）`has_self_hosted=true`
 - 补完后注意：
   1. **同机并发**：4 slot 若同时接 Go 全量 coverage + 前端 Vitest，会抢 CPU/磁盘；可接受，但别期望 4 路 backend 全开还很快。
   2. **能力**：本机已是重活机（gpg/dirmngr、CGO、per-slot GOCACHE 等见 `docs/runbooks/ci-runner-pools.md`）；建议观察接下来 1～2 个落到 mac-mini 的 Sonar job。
@@ -2848,7 +2848,7 @@ done
 - 服务器：`mac-mini`
 - 操作人：`Grok`
 - 原因：用户需要本机桌面使用，要求暂停 org runner。
-- 影响：`mac-mini-sonar-1..4` 离线，不再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job；匹配任务会落到 lemon-imac / umacbook-pro / mas-go-dev（按 label）。**未** disable LaunchAgent，仅 `svc.sh stop`。
+- 影响：`mac-mini-sonar-1..4` 离线，不再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job；匹配任务会落到 lemon-imac / umacbook-pro / mas-sit（按 label）。**未** disable LaunchAgent，仅 `svc.sh stop`。
 - 备份：无配置改动；plist 与 runner 目录完整保留。
 - 回滚 / 手动恢复：
   ```bash
@@ -2905,7 +2905,7 @@ done
 - 服务器：`mac-mini`
 - 操作人：`Grok`
 - 原因：用户需要本机桌面使用，要求暂停 org runner 约 3 小时。
-- 影响：`mac-mini-sonar-1..4` 离线，不再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job；匹配任务会落到 lemon-imac / umacbook-pro / mas-go-dev（按 label）。**未** disable LaunchAgent，仅 `svc.sh stop`。
+- 影响：`mac-mini-sonar-1..4` 离线，不再领取 `mac-mini-sonar` / `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` 等 job；匹配任务会落到 lemon-imac / umacbook-pro / mas-sit（按 label）。**未** disable LaunchAgent，仅 `svc.sh stop`。
 - 备份：无配置改动；plist 与 runner 目录完整保留。
 - 回滚 / 手动提前恢复：
   ```bash
@@ -2945,7 +2945,7 @@ done
 - 服务器：`mac-mini`
 - 操作人：`Grok`
 - 原因：排查 lemon-imac / umacbook-pro 上是否同样有 Spotlight/`fseventsd` 问题；需让用户重跑的 Frontend Tests 落到那两台，避免继续被 mac-mini 抢走。
-- 影响：本机 4 个 org runner 离线，不再领取 `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` / `mac-mini-sonar` 等 job；队列会落到 lemon-imac / umacbook-pro / mas-go-dev（按 label 匹配）。**未** `disable` LaunchAgent（仍为 enabled），仅 `svc.sh stop`。
+- 影响：本机 4 个 org runner 离线，不再领取 `frontend-tests-ci` / `frontend-quality-ci` / `backend-ci` / `mac-mini-sonar` 等 job；队列会落到 lemon-imac / umacbook-pro / mas-sit（按 label 匹配）。**未** `disable` LaunchAgent（仍为 enabled），仅 `svc.sh stop`。
 - 备份：无配置改动；plist 与 runner 目录完整保留。
 - 回滚方式：四 slot 分别 `cd ~/actions-runner/mac-mini-sonar-N && ./svc.sh start`（N=1..4），或登录会话内 `launchctl bootstrap gui/501 ~/Library/LaunchAgents/actions.runner.cypressoai.mac-mini-sonar-N.plist`。
 - 做了什么：
@@ -3083,7 +3083,7 @@ done
 - 影响：
   - `mac-mini` 仅保留 `mac-mini-sonar-1`、`mac-mini-sonar-2` 两个 GitHub Actions runner 在线。
   - `mac-mini-sonar-3`、`mac-mini-sonar-4` 的 LaunchAgent 已 `disable` 并 `bootout`，不删除 runner 目录、不移除 GitHub runner 注册、不改 token。
-  - `frontend-mas` 分支 `feature/CYP-1241-test-ci-maxworkers-6` 保留 PR frontend test 4 片，但让 shard 只匹配 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，在两个在线 mac-mini runner 上分批执行，避免继续落到 `lemon-imac`；汇总 `Frontend Tests` job 改到 `mas-go-dev`，避免空 echo job 排队占 Mac runner。
+  - `frontend-mas` 分支 `feature/CYP-1241-test-ci-maxworkers-6` 保留 PR frontend test 4 片，但让 shard 只匹配 `[mac-mini-sonar, frontend-tests-ci, macos, arm64]`，在两个在线 mac-mini runner 上分批执行，避免继续落到 `lemon-imac`；汇总 `Frontend Tests` job 改到 `mas-sit`，避免空 echo job 排队占 Mac runner。
 - 备份：
   - 操作前 `launchctl print gui/501/actions.runner.cypressoai.mac-mini-sonar-{1,2,3,4}` 已读出当前 plist 路径、工作目录、stdout/stderr 路径和运行状态。
   - 操作前 GitHub API 显示 `mac-mini-sonar-1..4` 均为 `online` 且 `busy=false`，标签均包含 `mac-mini-sonar,macos,arm64,backend-ci,frontend-sonar-ci,frontend-tests-ci`。

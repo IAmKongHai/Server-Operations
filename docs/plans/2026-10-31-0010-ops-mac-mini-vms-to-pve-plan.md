@@ -36,7 +36,7 @@ mac-mini 要腾出内存跑 AI 模型。把 `hon` 下三个常驻 colima VM（`t
 | 项 | 值 |
 | --- | --- |
 | CPU | i5-9600，6 核无超线程 |
-| 内存 | 32G；运行中 `110 mssql-ref` 10G、`130 mas-go-dev` 8G；available 约 18.2G |
+| 内存 | 32G；运行中 `110 mssql-ref` 10G、`130 mas-sit` 8G；available 约 18.2G |
 | 存储 | `nvme-data` 剩约 354G，`local-lvm` 剩约 355G |
 | 已停 | `120 mas-win` 6G（`onboot: 0`）、`140 fnos-nas` 2G |
 
@@ -62,8 +62,8 @@ mac-mini 要腾出内存跑 AI 模型。把 `hon` 下三个常驻 colima VM（`t
 
 ## 关键决定
 
-- **K1. 新建一台 VM，不塞进 `mas-go-dev`。** `mas-go-dev` 是 iCare SIT + runner，混进去会互相拖累。新 VM 暂定 VMID `150`、名称 `team-svc`、`192.168.2.23`，Ubuntu 24.04 cloud image，4 vCPU / 12G / 200G（`nvme-data`），装 Docker CE + Tailscale。
-- **K2. 内存账：** 10（mssql-ref）+ 8（mas-go-dev）+ 12（team-svc）= 30G，在 32G 宿主上很紧。缓解：Kafka、SonarQube 的 ES 设显式堆上限；`fnos-nas` 保持关机；如果仍紧张，`mas-go-dev` 8G → 6G（实际只用约 2.3G）。
+- **K1. 新建一台 VM，不塞进 `mas-sit`。** `mas-sit` 是 iCare SIT + runner，混进去会互相拖累。新 VM 暂定 VMID `150`、名称 `team-svc`、`192.168.2.23`，Ubuntu 24.04 cloud image，4 vCPU / 12G / 200G（`nvme-data`），装 Docker CE + Tailscale。
+- **K2. 内存账：** 10（mssql-ref）+ 8（mas-sit）+ 12（team-svc）= 30G，在 32G 宿主上很紧。缓解：Kafka、SonarQube 的 ES 设显式堆上限；`fnos-nas` 保持关机；如果仍紧张，`mas-sit` 8G → 6G（实际只用约 2.3G）。
 - **K3. 数据迁移用逻辑导出，不拷数据卷。** 架构从 aarch64 变成 x86_64：Postgres 用 `pg_dumpall` / `pg_dump` 导出再导入；Redis RDB、Grafana sqlite、Kafka 日志目录、SeaweedFS 数据与架构无关，可以直接拷；Garage 先试直接拷 `meta` + `data`，不行就用 S3 同步。本地构建的镜像（`moo-dev-postgres`、`multica-backend:dev`）在 VM 上重新构建。
 - **K4. CI Docker 改走远程。** runner 的 `DOCKER_HOST` 改成 `ssh://<user>@team-svc`。docker CLI、compose、build 都能用，但有两点要注意：
   - 端口发布在 VM 上，`127.0.0.1` 访问不到。`caimiamiao`、`qingfan` 的 workflow 要改成绑定 VM 地址、并用该地址连库（各开一个 PR）。

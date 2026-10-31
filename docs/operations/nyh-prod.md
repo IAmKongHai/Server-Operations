@@ -63,11 +63,11 @@
 
 结论：从 `nyh-prod` 打开会快一个数量级（边缘在香港，回源新加坡只有几十到一百多毫秒）。家里慢主要是 Akamai 选到美西，不是 MDEC 源站本身只服务马来西亚。
 
-## 2026-09-12 18:04 CST - 菜苗苗 SIT 公网 HTTPS 反代到 mas-go-dev
+## 2026-09-12 18:04 CST - 菜苗苗 SIT 公网 HTTPS 反代到 mas-sit
 
 - 服务器：`nyh-prod`（公网 `47.239.167.8`，Tailscale `100.78.12.107`）
 - 操作人：`Grok`（用户确认 Nginx reload；未改防火墙 / 未 `restart all`）
-- 原因：测试要用 `https://sit-api-cmm.nanyahui.cn` 和 `https://sit-admin-cmm.nanyahui.cn`。应用在 `mas-go-dev`，本机只做 TLS 终结 + Tailscale 反代。
+- 原因：测试要用 `https://sit-api-cmm.nanyahui.cn` 和 `https://sit-admin-cmm.nanyahui.cn`。应用在 `mas-sit`，本机只做 TLS 终结 + Tailscale 反代。
 - 影响：新增两个普通网站 vhost。现网 `load.nanyahui.com` 在两次 reload 后仍 200。未把 5432/6380/3900 接到公网。
 - 备份：`/www/backup/nginx-vhost/cmm-sit-20260912-1719/`（含 HTTP-only vhost、reload 前 `nginx -T`、crontab 原文）。
 - 回滚方式：把该目录里的 vhost 拷回 `/www/server/panel/vhost/nginx/`，删掉两个新站点 conf，`crontab` 恢复备份，`nginx -t && nginx -s reload`。不要点宝塔 Docker 反代「保存」。
@@ -78,7 +78,7 @@
 2. 用户确认后 `nginx -s reload`。`load.nanyahui.com` 200。
 3. `PYTHONPATH=/www/server/panel` 调 `acme_v2.py` HTTP-01，证书到期 `2026-12-11`。宝塔「部署到站点」没有改 conf，手工加上 443 + HTTP→HTTPS（跳过 `/.well-known/`）。
 4. 再 reload。443 上 SAN 与磁盘证书一致。
-5. 首次公网探测因 Tailscale 卡在昆明 DERP（`rx 0`）返回 504。从 `mas-go-dev` `tailscale ping` 打出直连后，本机到 `100.109.223.53:25880` 约 38ms、`/healthz` 200。
+5. 首次公网探测因 Tailscale 卡在昆明 DERP（`rx 0`）返回 504。从 `mas-sit` `tailscale ping` 打出直连后，本机到 `100.109.223.53:25880` 约 38ms、`/healthz` 200。
 6. 增加 crontab：每分钟跑 `/www/server/cron/custom/cmm-sit-healthz.sh`（`tailscale ping` + `/healthz`，30s 两次，flock）。
 
 ### 验证
@@ -89,11 +89,11 @@
 - `http://sit-api-cmm.nanyahui.cn/.well-known/acme-challenge/ping` 由本机 Nginx 出文件，不是 Go JSON。
 - `https://load.nanyahui.com` 200。EVP `:25173` / `:25174` 200。
 
-## 2026-09-12 16:12 CST - 评估 Nginx 反代到 mas-go-dev 做菜苗苗小程序入口（只读）
+## 2026-09-12 16:12 CST - 评估 Nginx 反代到 mas-sit 做菜苗苗小程序入口（只读）
 
-- 服务器：`nyh-prod`（`100.78.12.107`）→ `mas-go-dev`（`100.109.223.53`）
+- 服务器：`nyh-prod`（`100.78.12.107`）→ `mas-sit`（`100.109.223.53`）
 - 操作人：`Grok`（只读；未改 Nginx / Tailscale / 防火墙 / 未加站点）
-- 原因：用户提议 SIT 落 `mas-go-dev`，小程序 API 打到本机再 Tailscale 反代。
+- 原因：用户提议 SIT 落 `mas-sit`，小程序 API 打到本机再 Tailscale 反代。
 - 影响：无配置变更。
 - 回滚方式：无需回滚。
 
@@ -101,7 +101,7 @@
 
 | 项 | 结果 |
 | --- | --- |
-| 路径 | **直连 UDP**。本机 → `mas-go-dev` 经家宽 `112.117.55.212:16853`，约 38–39ms；反向经 `47.239.167.8:41641`，约 40ms |
+| 路径 | **直连 UDP**。本机 → `mas-sit` 经家宽 `112.117.55.212:16853`，约 38–39ms；反向经 `47.239.167.8:41641`，约 40ms |
 | 首包 | `tailscale ping` 第一次曾 timeout，随后打通（家宽 `MappingVariesByDestIP: true`） |
 | HTTP | `curl http://100.109.223.53:25173/`（现网 EVP）首包 124ms / connect 80ms，随后 5 次均 200、约 77–81ms |
 | 本机 DERP | 最近官方 `hkg` 2ms；自定义昆明 `km` **测不到**（与 2026-08-28 条目一致） |
@@ -109,7 +109,7 @@
 
 ### 结论（未部署）
 
-方案可行：本机只做 TLS 终结 + 反代，应用和 PG18 留在 `mas-go-dev`。直连时多约 80ms，微信 `wx.request` 可接受。
+方案可行：本机只做 TLS 终结 + 反代，应用和 PG18 留在 `mas-sit`。直连时多约 80ms，微信 `wx.request` 可接受。
 
 风险：直连掉了以后双方没有共同的好 DERP（家宽近 `km` 5.6ms、官方 `hkg` 约 500ms；本机到 `km` 不通）。需要 upstream keepalive / 定期探活保直连。只反代 API（可选 admin），不要把 5432/6379/3900 接到公网 Nginx。
 

@@ -14,7 +14,7 @@ tags: [pve, snapshot, backup, vzdump, prune-backups, disaster-recovery, retentio
 
 ## Context
 
-`pve` 宿主机上跑着几台测试/参考 VM（`110/mssql-ref`、`120/mas-csharp`、`130/mas-go-dev`）。
+`pve` 宿主机上跑着几台测试/参考 VM（`110/mssql-ref`、`120/mas-csharp`、`130/mas-sit`）。
 2026-06-14 清理掉一批长期堆积的搭建期快照后，引出一个问题：是否应该给这些 VM 配「自动备份、N 天后删除」？
 
 本文记录两件事：
@@ -52,7 +52,7 @@ tags: [pve, snapshot, backup, vzdump, prune-backups, disaster-recovery, retentio
 - **数据基本可再生**：
   - 数据库是从生产 `.bak` restore 的参考数据，源 `.bak` 本机还有；
   - 应用代码在所有同事电脑 + GitHub；
-  - mas-go-dev 后端可重新 seed。
+  - mas-sit 后端可重新 seed。
   - 真正「不可再生」的只有这一个月搭好的环境配置（SQL Server 安装、账号权限、库收缩、IIS/ASP.NET 部署等），重搭费时但做得到。
 - **测试/参考环境**：RPO/RTO 要求低，没有「丢一小时数据就出事」的压力。
 

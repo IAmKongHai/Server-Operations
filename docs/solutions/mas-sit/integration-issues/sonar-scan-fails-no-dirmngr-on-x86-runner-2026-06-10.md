@@ -1,28 +1,28 @@
 ---
-title: backend SonarQube 扫描在 mas-go-dev-ci-1 上失败 —— gnupg2-minimal 缺 dirmngr 无法拉 SonarSource 公钥
+title: backend SonarQube 扫描在 mas-sit-ci-1 上失败 —— gnupg2-minimal 缺 dirmngr 无法拉 SonarSource 公钥
 date: 2026-06-10
 last_updated: 2026-06-10
-category: docs/solutions/mas-go-dev/integration-issues
-server: mas-go-dev
-module: iCare CI / GitHub Actions self-hosted runner (mas-go-dev-ci-1)
+category: docs/solutions/mas-sit/integration-issues
+server: mas-sit
+module: iCare CI / GitHub Actions self-hosted runner (mas-sit-ci-1)
 problem_type: integration_issue
 component: tooling
 symptoms:
-  - "develop 分支 backend 的 SonarQube Scan step 在 mas-go-dev-ci-1（x86 Linux）上失败，Go 测试本身全过"
+  - "develop 分支 backend 的 SonarQube Scan step 在 mas-sit-ci-1（x86 Linux）上失败，Go 测试本身全过"
   - "CI 日志：gpg: keyserver receive failed: No dirmngr"
   - "CI 日志：Action failed: Failed to import SonarSource public key from all keyservers"
   - "同一份 workflow 的 main 版本（Sonar action @v6）在同一台机器上从不报此错"
 root_cause: missing_dependency
 resolution_type: dependency_update
 severity: medium
-tags: [sonarqube, github-actions, self-hosted-runner, mas-go-dev, gpg, dirmngr, gnupg2-minimal, signature-verification, amazon-linux-2023]
+tags: [sonarqube, github-actions, self-hosted-runner, mas-sit, gpg, dirmngr, gnupg2-minimal, signature-verification, amazon-linux-2023]
 ---
 
-# backend SonarQube 扫描在 mas-go-dev-ci-1 上失败：缺 dirmngr 无法拉 SonarSource 公钥
+# backend SonarQube 扫描在 mas-sit-ci-1 上失败：缺 dirmngr 无法拉 SonarSource 公钥
 
 ## 现象
 
-把 iCare-backend 的 Go 测试 + SonarQube 扫描迁到 `backend-ci` 共享 runner 池后，PR（base=`develop`）触发的 `SonarQube Scan` job 落到 `mas-go-dev-ci-1`（PVE 上的 Amazon Linux 2023 VM，x86）时失败：
+把 iCare-backend 的 Go 测试 + SonarQube 扫描迁到 `backend-ci` 共享 runner 池后，PR（base=`develop`）触发的 `SonarQube Scan` job 落到 `mas-sit-ci-1`（PVE 上的 Amazon Linux 2023 VM，x86）时失败：
 
 - `Setup Go` / `Run Tests with Coverage` 等步骤全部成功
 - 挂在 `SonarQube Scan`（scanner 上报）这一步
@@ -66,9 +66,9 @@ gpg --homedir "$TMPHOME" --batch \
 rm -rf "$TMPHOME"
 ```
 
-前提：runner 所在 VM 要能出网访问 keyserver（`keyserver.ubuntu.com:443` / `keys.openpgp.org:443`）。mas-go-dev 实测可达（均 200）；若未来 runner 落在更严格的内网环境，需另想公钥分发方式（预置 keyring 或内网 keyserver 镜像）。
+前提：runner 所在 VM 要能出网访问 keyserver（`keyserver.ubuntu.com:443` / `keys.openpgp.org:443`）。mas-sit 实测可达（均 200）；若未来 runner 落在更严格的内网环境，需另想公钥分发方式（预置 keyring 或内网 keyserver 镜像）。
 
-修复后重跑原失败的 run，`SonarQube Scan` step 在同一台 mas-go-dev-ci-1 上成功通过，确认问题解决。
+修复后重跑原失败的 run，`SonarQube Scan` step 在同一台 mas-sit-ci-1 上成功通过，确认问题解决。
 
 ## 预防
 
@@ -78,4 +78,4 @@ rm -rf "$TMPHOME"
 ## 相关
 
 - mac-mini 同源的 Sonar GPG 坑（不同表现：PATH 缺 gpg + runner `_work/_temp` 路径过深导致 gpg-agent socket `File name too long`）：`docs/solutions/mac-mini/integration-issues/sonarqube-scanner-cli-cache-never-hits-4part-version-2026-06-09.md`
-- backend CI 共享 runner 池调度的来龙去脉：见 `docs/operations/mas-go-dev.md`（2026-06-10 19:10 / 19:35 / 19:50 三条）
+- backend CI 共享 runner 池调度的来龙去脉：见 `docs/operations/mas-sit.md`（2026-06-10 19:10 / 19:35 / 19:50 三条）

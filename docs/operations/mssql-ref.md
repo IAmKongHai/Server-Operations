@@ -31,22 +31,22 @@
   1. `sp_configure 'max server memory (MB)', 6144`；`sp_configure 'optimize for ad hoc workloads', 1`；`RECONFIGURE`
   2. `mssql-conf set memory.memorylimitmb 8192`
   3. PVE：`qm shutdown 110` → `qm set 110 --memory 10240` → `qm start 110`
-- 影响：停机约 3 分钟，连接中的 SIT / 开发客户端（`mas-go-dev` 容器、`gulhi.lan` 等）断开后需重连。常用数据缓存从约 8G 降到 6G 以内，冷查询读盘会多一些。
+- 影响：停机约 3 分钟，连接中的 SIT / 开发客户端（`mas-sit` 容器、`gulhi.lan` 等）断开后需重连。常用数据缓存从约 8G 降到 6G 以内，冷查询读盘会多一些。
 - 回滚方式：
   - `sp_configure 'max server memory (MB)', 14336`；`sp_configure 'optimize for ad hoc workloads', 0`；`RECONFIGURE`
   - 用 `mssql.conf.bak.20261030` 覆盖回 `mssql.conf`（或 `mssql-conf unset memory.memorylimitmb`）
   - PVE：`qm shutdown 110 && qm set 110 --memory 18432 && qm start 110`
 - 验证：VM `free` total 约 9.9G；`dm_os_sys_info.physical_memory_kb` = 8192 MB，`committed_target` = 6144 MB；`errorlog` 显示 `Recovery is complete`，17 个库全部 ONLINE。PVE 宿主机 available 升到约 18.2G。
 
-## 2026-08-24 23:18 CST - 为 mas-go-dev ecom/sup 在 authprovidermasuat_preprod 建最小权限用户
+## 2026-08-24 23:18 CST - 为 mas-sit ecom/sup 在 authprovidermasuat_preprod 建最小权限用户
 
 - 服务器：`mssql-ref` / 库 `authprovidermasuat_preprod`
 - 操作人：`Grok`
 - 原因：ecom/sup 切 `AUTH_DB_NAME` 后仍用既有 login `icare_sit_mas_ecom_auth` / `icare_sit_mas_sup_auth`，新库里没有对应 user。
 - 影响：在 `authprovidermasuat_preprod` 为两个 login 建 user，只授 `CONNECT` + `SELECT dbo.oauth_clients`。未改 login 密码、未动 `authprovidermasweb`。
 - 备份：变更前目标 user 不存在。
-- 回滚：待 mas-go-dev 改回 `AUTH_DB_NAME=authprovidermasweb` 后，在该库 `DROP USER` 两个主体（不要删 server login，旧库还在用）。
-- 验证：两个 user 权限仅 CONNECT + 该表 SELECT；`oauth_clients` 16 行。mas-go-dev ecom/sup 随后连上 `authprovidermasuat_preprod` 且 healthy。
+- 回滚：待 mas-sit 改回 `AUTH_DB_NAME=authprovidermasweb` 后，在该库 `DROP USER` 两个主体（不要删 server login，旧库还在用）。
+- 验证：两个 user 权限仅 CONNECT + 该表 SELECT；`oauth_clients` 16 行。mas-sit ecom/sup 随后连上 `authprovidermasuat_preprod` 且 healthy。
 
 ## 2026-08-24 23:14 CST - 恢复 ihc20260824 五库并切换主库 catalog
 
@@ -56,8 +56,8 @@
 - 影响：
   - 现网 `medicalassistance_preprod` 改名为 `[medicalassistance_v2026.02.19]`（含点，须括号引用）。
   - bak 恢复：`medicalassistance_preprod`（先还原到临时名再秒切）、`maswebkit_preprod`、`insularsalesportal_preprod`、`masprepaid_preprod`、`authprovidermasuat_preprod`。文件在 `/restore/data/ihc20260824/`。
-  - 未改 `maswebkit` / `insularsalesportal` / `masprepaid` / `authprovidermasweb`。未改 mas-go-dev / mas-win `.env`。
-  - 切主库时 `SINGLE_USER WITH ROLLBACK IMMEDIATE` 踢掉 mas-go-dev 连接，数秒后已重连 `medicalassistance_preprod`。
+  - 未改 `maswebkit` / `insularsalesportal` / `masprepaid` / `authprovidermasweb`。未改 mas-sit / mas-win `.env`。
+  - 切主库时 `SINGLE_USER WITH ROLLBACK IMMEDIATE` 踢掉 mas-sit 连接，数秒后已重连 `medicalassistance_preprod`。
   - 新主库 `casbin_rule` 从旧库拷了 6344 行（bak 内仅 14 行）；`schema_migrations` 两边都是 46/0。
   - `mas_ref_owner` 在五个新库 `db_owner`。auth/webkit 日志已 SHRINK（auth 22.7G→264MB）。
 - 备份：旧主库整库改名保留，即回滚点。bak 文件仍在 `/restore/backups/ihc20260824/`。
@@ -65,7 +65,7 @@
 - 验证：
   - 13 个用户 catalog 均 ONLINE / MULTI_USER。
   - `mas_ref_owner` 可读新 `medicalassistance_preprod`（casbin 6344、migrate 46）。
-  - mas-go-dev api/ecom/sup 容器仍 healthy，有会话回到新主库。
+  - mas-sit api/ecom/sup 容器仍 healthy，有会话回到新主库。
 - 相关：`mssql-ref/databases.md`
 
 ## 2026-08-24 22:52 CST - 落盘当前库清单（供新 bak 定名）
@@ -122,13 +122,13 @@
 - 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）；对照源 `ihc-db-uat` `10.100.0.4`；跳板 `icare-uat-runner-1`
 - 操作人：`Grok`
 - 原因：用户要把 `10.100.0.4` 上 `medicalassistance_preprod` / `maswebkit_preprod` / `insularsalesportal_preprod` / `authprovidermasuat` / `masprepaid_preprod` 同步到内网 DB。先只读调查，不出手恢复。
-- 影响：**只读**。查了本机库清单/磁盘/会话、mas-go-dev 连接名、runner 到源库连通性，以及源 VM 上 `F:\icare2bak` 与 `RESTORE FILELISTONLY`。未重启、未改库、未传文件、未建 blob。
+- 影响：**只读**。查了本机库清单/磁盘/会话、mas-sit 连接名、runner 到源库连通性，以及源 VM 上 `F:\icare2bak` 与 `RESTORE FILELISTONLY`。未重启、未改库、未传文件、未建 blob。
 - 备份：无（无变更）。
 - 回滚：无变更。
 - 本机：
   - SQL Server 2022 Developer `16.0.4252.3`，`/restore` 393G / 用 168G / 剩 206G。
   - 现网 catalog 是 `medicalassistance_preprod`、`maswebkit`、`insularsalesportal`、`masprepaid`、`authprovidermasweb`（不是源后缀那套）；另有 `medicalassistance_replicated` 不要动。
-  - `schema_migrations` version 46；活连接来自 mas-go-dev 容器。无 PVE 快照。
+  - `schema_migrations` version 46；活连接来自 mas-sit 容器。无 PVE 快照。
 - 源 bak（2026-08-21 COPY_ONLY，仍在 `F:\icare2bak`）：合计 17.3 GB；恢复预占约 131 GB（`authprovidermasuat` 日志元数据 12.8G、`maswebkit_preprod` 日志 8.6G）。
 - 传输：runner `10.30.6.4` 到源 1433/445 通、到本机 TS 不通；源 VM 到 `icare2uaticare2st` PE `10.30.5.9:443` 通，AzCopy 已装。该 storage 公网关闭，不能让 mssql-ref 直接拉。
 - 应用连接：iCare `backend/.env.preprod`（host `10.100.0.4`，账号 `mas_ref_owner`，`ENCRYPT=disable`）。从 runner 只读登录成功，实例 `ihc-db-uat` 14.0.3540.1，主库角色 `db_owner`。五库都在；env 无 `PREPAID_DB_*`（ecom 才用 `masprepaid_preprod`）。密码未写入仓库。
@@ -168,7 +168,7 @@
 
 - 服务器：`mssql-ref`
 - 操作人：`Codex`（用户授权使用本地 `.env.konghai` 中 SA 凭据）
-- 原因：`dev-cypresso` 与 `mas-go-dev` 的 ECOM 服务缺少访问 `authprovidermasweb.dbo.oauth_clients` 的专用身份，启动校验失败；不得复用主库或 SUP 身份。
+- 原因：`dev-cypresso` 与 `mas-sit` 的 ECOM 服务缺少访问 `authprovidermasweb.dbo.oauth_clients` 的专用身份，启动校验失败；不得复用主库或 SUP 身份。
 - 影响：在既有 `authprovidermasweb` 中创建两个按部署 VM 隔离的 ECOM SQL login / database user；各自只授予数据库 `CONNECT` 与对象 `SELECT dbo.oauth_clients`。未读 OAuth 行、未改业务数据、表结构、schema、迁移或现有登录。
 - 变更前检查：`authprovidermasweb` 与 `dbo.oauth_clients` 存在；两个目标 login/user 均不存在，故可安全新建且不覆盖任何现有主体。
 - 备份：安全主体的变更前状态为“目标 login/user 不存在”，由创建前 SQL 断言记录；两台 VM 的 `.env.ecom` 分别备份到其 `*.bak.20260812-1205-authdb` 文件。
@@ -190,7 +190,7 @@
 
 - 服务器：`mssql-ref`
 - 操作人：`Codex`
-- 原因：`dev-cypresso` 与 `mas-go-dev` 的新 ECOM 镜像均因缺少 `AUTH_DB_*` 在启动前退出；需确认参考 MSSQL 是否具备该认证库及能否在不改库的情况下取得部署配置。
+- 原因：`dev-cypresso` 与 `mas-sit` 的新 ECOM 镜像均因缺少 `AUTH_DB_*` 在启动前退出；需确认参考 MSSQL 是否具备该认证库及能否在不改库的情况下取得部署配置。
 - 影响：只读检查 SQL 工具与服务目录；尝试以当前 Linux 用户的集成认证查询数据库存在性。未读取业务数据、凭据或连接字符串，未改数据库、登录/用户/权限、配置或服务。
 - 备份：无（只读）。
 - 回滚：无变更。
@@ -260,7 +260,7 @@
 - 验证：
   - 本机 Nearest DERP：**Kunming**（~4.5ms）；`MappingVariesByDestIP: true`。
   - 到 `dev-cypresso`：`active; relay "iad"`，`CurAddr` 空（无 direct）。
-  - 到 `mas-go-dev`：`active; direct 192.168.2.22:41641`（同 LAN 正常）。
+  - 到 `mas-sit`：`active; direct 192.168.2.22:41641`（同 LAN 正常）。
 - 结论：跨洋 peer（美东 AWS ↔ 国内家宽）未打洞成功，流量经 DERP，RTT ~250ms+ 属预期；**已在 Tailscale 内**，不是公网裸连。
 - 回滚：无。
 - 详见：`docs/operations/dev-cypresso.md` 同日条目。
@@ -269,16 +269,16 @@
 
 - 服务器：`mssql-ref`（LAN `192.168.2.20` / TS `100.124.140.78`）
 - 操作人：`Grok`
-- 原因：配合排查 iCare-backend `Deploy to mas-go-dev` migrate applock 失败（run `29587500204`）。
+- 原因：配合排查 iCare-backend `Deploy to mas-sit` migrate applock 失败（run `29587500204`）。
 - 影响：**只读**。用 `mas_ref_owner` + `sqlcmd` 查 `medicalassistance_preprod`；未重启 `mssql-server`、未改数据。
 - 验证：
-  - 本机同时监听 LAN 与 Tailscale；SIT Server 的 `DB_HOST=100.124.140.78` 与 mas-go-dev 的 `192.168.2.20` 指向同一实例。
+  - 本机同时监听 LAN 与 Tailscale；SIT Server 的 `DB_HOST=100.124.140.78` 与 mas-sit 的 `192.168.2.20` 指向同一实例。
   - `dbo.schema_migrations`：`version=26`，`dirty=0`。
   - `mas_ref_owner` 无 `VIEW SERVER PERFORMANCE STATE`，`sys.dm_tran_locks` / sessions 查询被拒（不影响根因判断）。
   - SQL Server 服务自 2026-07-14 起持续 active。
-- 根因摘要：Deploy to Server 与 Deploy to mas-go-dev 并发 `migrate up` 争用 golang-migrate 的 Session applock。
+- 根因摘要：Deploy to Server 与 Deploy to mas-sit 并发 `migrate up` 争用 golang-migrate 的 Session applock。
 - 回滚：无。
-- 详见：`docs/solutions/mas-go-dev/workflow-issues/concurrent-migrate-applock-with-server-deploy-2026-07-18.md`
+- 详见：`docs/solutions/mas-sit/workflow-issues/concurrent-migrate-applock-with-server-deploy-2026-07-18.md`
 
 ## 2026-07-16 14:51 CST - 清空两张 oauth 历史/备份大表以省开发环境空间
 
@@ -370,7 +370,7 @@
 - 验证：
   - `timedatectl`：`Time zone: Asia/Manila (PST, +0800)`；本地约 `11:40`，UTC 约 `03:40`。
   - `/etc/localtime` → `/usr/share/zoneinfo/Asia/Manila`；`/etc/timezone` = `Asia/Manila`。
-  - 经 `mas-go-dev` 上 `sqlcmd` 连 `192.168.2.20:1433`：
+  - 经 `mas-sit` 上 `sqlcmd` 连 `192.168.2.20:1433`：
     - `CURRENT_TIMEZONE()` = `(UTC+08:00) Kuala Lumpur, Singapore`（Linux `Asia/Manila` 映射到 Windows 等价 UTC+8 时区名，与 ticket 所述 `Singapore Standard Time` 同偏移；菲律宾无夏令时）。
     - `GETDATE()` ≈ `2026-07-14 11:40`（PHT 墙钟）。
     - `GETUTCDATE()` ≈ `2026-07-14 03:40`（UTC）。
@@ -379,7 +379,7 @@
   ssh mssql-ref 'sudo timedatectl set-timezone Etc/UTC && sudo systemctl restart mssql-server'
   ```
   回滚后新写入的 `GETDATE()` 会再变回 UTC 墙钟；已写入的 PHT 行不会自动回退。
-- 备注：本条只完成 CYP-1302 运维侧第 1 项。后端容器 `TZ` 见 `dev-cypresso.md` / `mas-go-dev.md` 同日条目；代码口径（GORM `NowFunc`、读写 Format 等）仍待应用仓库改动。
+- 备注：本条只完成 CYP-1302 运维侧第 1 项。后端容器 `TZ` 见 `dev-cypresso.md` / `mas-sit.md` 同日条目；代码口径（GORM `NowFunc`、读写 Format 等）仍待应用仓库改动。
 
 ## 2026-07-11 15:32 CST - 协助排查 dev-cypresso 到 MSSQL 的短暂 Tailnet 单向断联（只读）
 
@@ -420,7 +420,7 @@
   ```
 - 后续可选：
   - 若仍需 `km-landui` 自定义 DERP：域名 + Let's Encrypt（不要 `derp.local` 自签），见 `docs/operations/km-landui.md`。
-  - 给 `mas-go-dev` 等家宽节点也分配互不冲突的 `PORT`，减少再踩坑。
+  - 给 `mas-sit` 等家宽节点也分配互不冲突的 `PORT`，减少再踩坑。
 
 ## 2026-07-10 10:48 CST - 客户端感觉库极慢：SQL 本体正常，问题在 Tailscale DERP
 
@@ -431,7 +431,7 @@
 - 验证（guest 侧正常）：
   - `mssql-server` active，进程 `sqlservr` RSS 约 13Gi，guest 内存 12/17Gi used、swap 0，load ~0。
   - 磁盘 `/` 12%、`/restore` 45%；无 guest memory/io pressure 异常。
-  - 活跃 1433 连接多数来自 Tailscale 客户端；局域网侧仅见 `mas-go-dev`（`192.168.2.22`）。
+  - 活跃 1433 连接多数来自 Tailscale 客户端；局域网侧仅见 `mas-sit`（`192.168.2.22`）。
 - 根因与完整证据链见 `docs/operations/pve.md` 与 `docs/operations/konghai-macbook-air.md` 同时间条目。
 - 回滚：无变更。
 
@@ -595,24 +595,24 @@
 
 - 服务器：`mssql-ref`（`192.168.2.20`）
 - 操作人：`Claude`
-- 原因：用户要求把参考库 `medicalassistance` 统一改名为 `medicalassistance_preprod`（带 preprod 后缀）。核查现状发现：当前库名是 `medicalassistance`，两个使用方（mas-win 老 C# 系统、mas-go-dev Go 后端）都硬编码连 `medicalassistance`、工作正常，没有任何使用方在连 `medicalassistance_preprod`。与用户最初「老系统硬编码了 preprod」的表述不符，已用 AskUserQuestion 澄清，确认意图是「改库名 + 同步改所有连接串」。
+- 原因：用户要求把参考库 `medicalassistance` 统一改名为 `medicalassistance_preprod`（带 preprod 后缀）。核查现状发现：当前库名是 `medicalassistance`，两个使用方（mas-win 老 C# 系统、mas-sit Go 后端）都硬编码连 `medicalassistance`、工作正常，没有任何使用方在连 `medicalassistance_preprod`。与用户最初「老系统硬编码了 preprod」的表述不符，已用 AskUserQuestion 澄清，确认意图是「改库名 + 同步改所有连接串」。
 - 影响：
   - `mssql-ref`：库逻辑名 `medicalassistance → medicalassistance_preprod`。仅改逻辑库名，逻辑文件名与物理文件（`/restore/data/medicalassistance_full/*.mdf|.ldf`，见 [[mssql-ref-db-files-on-restore-disk]]）、数据、权限、恢复模式（SIMPLE）均不动。
-  - 改名瞬间到两边使用方改完之间有几分钟连库不可用窗口（已先停 mas-go-dev 容器、mas-win 此刻无活动连接）。
-  - 同步改两个使用方（详见各自时间线）：mas-go-dev `.env.docker` 的 `DB_NAME`、mas-win `MAS-API\Web.config` 的 21 个 `initial catalog` + 1 个 `CATALOG_A`。
+  - 改名瞬间到两边使用方改完之间有几分钟连库不可用窗口（已先停 mas-sit 容器、mas-win 此刻无活动连接）。
+  - 同步改两个使用方（详见各自时间线）：mas-sit `.env.docker` 的 `DB_NAME`、mas-win `MAS-API\Web.config` 的 21 个 `initial catalog` + 1 个 `CATALOG_A`。
   - 未动其它库（`maswebkit`/`authprovidermasweb`/`insularsalesportal`/`masprepaid`），未重启 SQL Server。
-  - **额外发现**：改名前查 `sys.dm_exec_sessions`，除 mas-go-dev 容器（host `c11ebb8a7926`）外，还有来自 **`Mac.lan`** 的 `go-mssqldb` 连接——即某台 Mac（疑似开发者本地）也直连此库。`SINGLE_USER WITH ROLLBACK IMMEDIATE` 会一并强杀，本地那份后端需自行把库名改到 `medicalassistance_preprod` 才能重连（不在本仓三台服务器范围，未处理）。
+  - **额外发现**：改名前查 `sys.dm_exec_sessions`，除 mas-sit 容器（host `c11ebb8a7926`）外，还有来自 **`Mac.lan`** 的 `go-mssqldb` 连接——即某台 Mac（疑似开发者本地）也直连此库。`SINGLE_USER WITH ROLLBACK IMMEDIATE` 会一并强杀，本地那份后端需自行把库名改到 `medicalassistance_preprod` 才能重连（不在本仓三台服务器范围，未处理）。
 - 回滚：
   - 库名：`ALTER DATABASE [medicalassistance_preprod] MODIFY NAME = [medicalassistance];`
   - mas-win：用备份 `C:\MAS\Apps\MAS-API\Web.config.bak.20260619` 覆盖后回收 MAS-API 应用池。
-  - mas-go-dev：用备份 `/opt/mas-go-dev/backend/.env.docker.bak.20260619` 覆盖后重建 api/worker。
+  - mas-sit：用备份 `/opt/mas-sit/backend/.env.docker.bak.20260619` 覆盖后重建 api/worker。
 - 变更：
   1. 只读核查：`sys.databases`（`medicalassistance` ONLINE/SIMPLE，目标名不存在）、`sys.dm_exec_sessions`（8~9 个 go-mssqldb 活动会话）。
-  2. 先停 mas-go-dev `api`/`worker` 释放连接；仍有 `Mac.lan` 残连接挡住，普通 `MODIFY NAME` 报 `Msg 5030 could not be exclusively locked`。
+  2. 先停 mas-sit `api`/`worker` 释放连接；仍有 `Mac.lan` 残连接挡住，普通 `MODIFY NAME` 报 `Msg 5030 could not be exclusively locked`。
   3. 用 sa 执行：`ALTER DATABASE [medicalassistance] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;` → `MODIFY NAME = [medicalassistance_preprod];` → `SET MULTI_USER;`（sa 密码从 `/root/mssql-secrets.env` 读，仅 SSH 会话内用，不落盘不进 commit）。
 - 验证：
   - `sys.databases`：`medicalassistance_preprod` = `ONLINE` / `MULTI_USER`，旧名已不存在。
-  - mas-go-dev：api/worker 启动日志 `database connected ... database=medicalassistance_preprod` + `maswebkit`，无 login failed，api `healthy`。
+  - mas-sit：api/worker 启动日志 `database connected ... database=medicalassistance_preprod` + `maswebkit`，无 login failed，api `healthy`。
   - mas-win：ADO.NET 连库测试 `OK login=mas_ref_owner db=medicalassistance_preprod`，`http://192.168.2.21:9021/` 返回 HTTP 200。
 - 相关：[[mssql-ref-mas-ref-reader-is-db-owner]]（连库账号 `mas_ref_owner`）。本次延续 2026-06-15「改库账号前先全量 grep 所有连接串」的教训——改库名同理，先摸清所有硬编码使用方再动手。
 
@@ -715,7 +715,7 @@
 - 后续：
   - 若有应用/工具仍配 `mas_ref_reader` 连接，需改用 `mas_ref_owner`（密码不变）。AGENTS.md 未记录具体使用方，需用户侧确认。
   - 确认无遗留使用方且观察一段时间后，可考虑彻底 `DROP LOGIN [mas_ref_reader]` 及各库 `DROP USER`，并从 env 删除旧键。
-  - **已发现的遗留使用方**：`mas-go-dev` 后端 `icare-backend-api` / `worker` 用 `mas_ref_reader` 连 `medicalassistance` / `maswebkit`，禁用后即报 500。已于 21:25 改其 `.env.docker` 切到 `mas_ref_owner` 并重建容器恢复，详见 `docs/operations/mas-go-dev.md`。该 `.env.docker` 在 VM 上手工维护、CI 不覆盖（已核查 iCare 仓库，密码不在仓库/secrets），故修改持久生效、仓库侧无需改。
+  - **已发现的遗留使用方**：`mas-sit` 后端 `icare-backend-api` / `worker` 用 `mas_ref_reader` 连 `medicalassistance` / `maswebkit`，禁用后即报 500。已于 21:25 改其 `.env.docker` 切到 `mas_ref_owner` 并重建容器恢复，详见 `docs/operations/mas-sit.md`。该 `.env.docker` 在 VM 上手工维护、CI 不覆盖（已核查 iCare 仓库，密码不在仓库/secrets），故修改持久生效、仓库侧无需改。
 
 ## 2026-06-14 20:55 CST - 修正 mas_ref_reader 在 insularsalesportal 的权限为 db_owner
 
@@ -853,7 +853,7 @@
   - SQL Server 没有配置 `max server memory` 上限（未直接登入数据库确认，但从内存占用与 14GB 持续居高可推断）。SQL Server 在 Linux 上默认会贪婪占用，不显式封顶是潜在隐患。
   - CPU 与磁盘有富余：`load 0.09`、根分区 `/dev/sda1 194G / 13G used / 181G avail (7%)`。瓶颈仅在内存。
 - 结论 / 后续：
-  - **iCare 的 Azurite + Redis 不放 mssql-ref**。理由：需新装 Docker、内存只剩 4.8GB 且无 swap、SQL Server 是关键路径不宜与其他服务争内存、跨 VM 网络复杂度上升。改走 mas-go-dev 上的 `infra.compose.yaml` 方案。
+  - **iCare 的 Azurite + Redis 不放 mssql-ref**。理由：需新装 Docker、内存只剩 4.8GB 且无 swap、SQL Server 是关键路径不宜与其他服务争内存、跨 VM 网络复杂度上升。改走 mas-sit 上的 `infra.compose.yaml` 方案。
   - 待处理（独立任务，在其他 session 跟进）：给 SQL Server 显式配置 `max server memory`（建议 12 GB 左右，留 7 GB 给 OS）；评估是否需要加 swap 文件。
   - 待处理（文档维护）：把 `mas-legacy-reference-sql-vm-2026-05-16.md` 的"4 vCPU / 8 GiB"更新为现况 `6 vCPU / 19 GiB`，并补一句"SQL Server 当前裸跑、未限制 max server memory"。
 

@@ -20,7 +20,7 @@ tags: [pve, tailscale, subnet-router, vpn, mas, reference-environment]
 | --- | --- | --- |
 | `mssql-ref` | `192.168.2.20` | SQL Server 参考数据库 |
 | `mas-win` | `192.168.2.21` | Windows Server Core / IIS / MAS 老 C# 应用 |
-| `mas-go-dev` | `192.168.2.22` | MAS Go + React 内网自动部署环境 |
+| `mas-sit` | `192.168.2.22` | MAS Go + React 内网自动部署环境 |
 
 ## Decision
 
@@ -30,7 +30,7 @@ tags: [pve, tailscale, subnet-router, vpn, mas, reference-environment]
 tailscale up --advertise-routes=192.168.2.20/32,192.168.2.21/32
 ```
 
-2026-05-17 为 `mas-go-dev` 扩展为团队公共服务网段：
+2026-05-17 为 `mas-sit` 扩展为团队公共服务网段：
 
 ```bash
 tailscale set --advertise-routes=192.168.2.16/28

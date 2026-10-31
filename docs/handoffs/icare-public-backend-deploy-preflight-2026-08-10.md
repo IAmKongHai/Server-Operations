@@ -77,9 +77,9 @@ $COMPOSE_CMD -f "$COMPOSE_FILE" up -d public-app public-hr public-map
 1. **脚本在 checkout 出来的仓库根目录里**（`./scripts/...`），
    **不在** `$BASE_DIR`（`/home/ec2-user/stacks/icare/public-backend`）。
    我在服务器上确认过 `$BASE_DIR/scripts/` 不存在，别搞混。
-2. **同一 workflow 还有 `Deploy to mas-go-dev` job**（本次它是成功的）。
+2. **同一 workflow 还有 `Deploy to mas-sit` job**（本次它是成功的）。
    两个 job 的部署脚本是各自独立的，若希望两边都受益，需要**两处都加**。
-   mas-go-dev 的 env 指向地址是对的，加了不会破坏它 —— 但请确认它的
+   mas-sit 的 env 指向地址是对的，加了不会破坏它 —— 但请确认它的
    env 文件里同样有 `WEBKIT_DB_*` 变量名，否则脚本需容忍"变量缺失"的情况。
 
 ---

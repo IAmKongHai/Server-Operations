@@ -157,7 +157,7 @@
   - `actionlint -version` 返回 1.7.12。
   - 对 `frontend-mas/.github/workflows/sonar.yml` 执行 `actionlint -ignore 'label ".*" is unknown'` 通过。
 - 注意事项：
-  - 该仓库使用多个 self-hosted runner 自定义标签；裸跑 `actionlint` 会报 `mac-mini-sonar`、`lemon-imac`、`mas-go-dev`、`frontend-sonar-ci` 等 label unknown。若要把 actionlint 纳入常规检查，应在仓库内补 `actionlint.yaml` 声明自定义 runner labels，或在命令中忽略这类误报。
+  - 该仓库使用多个 self-hosted runner 自定义标签；裸跑 `actionlint` 会报 `mac-mini-sonar`、`lemon-imac`、`mas-sit`、`frontend-sonar-ci` 等 label unknown。若要把 actionlint 纳入常规检查，应在仓库内补 `actionlint.yaml` 声明自定义 runner labels，或在命令中忽略这类误报。
 
 ## 2026-07-04 15:40 CST - 定论：AFK auto-continue 触发条件是「终端失焦」而非「键盘空闲」，实测 180s 生效
 
@@ -272,7 +272,7 @@
 ## 2026-06-10 22:35 CST
 
 - 原因：本机注册 runner 后运行 CI job 时 CPU 满载发热，用户合盖使用，担心高温烫坏屏幕；且本机 label 已与 mac-mini 漂移（mac-mini 的 4 个 runner 第四 label 已是 `backend-ci`，本机仍是 `macbook` 且注册时用 `--no-default-labels` 去掉了 `self-hosted`，导致接不到改用 `runs-on: [self-hosted, backend-ci]` 的 backend CI job，分担队列的初衷已基本失效）。综合决定彻底下线本机 runner。
-- 影响：org `cypressoai` 移除 self-hosted runner `macbook-1`；本机不再承接任何 CI job，CI 全部回落到 mac-mini（`mac-mini-sonar-1~4`）/ EC2 / `mas-go-dev` 等 runner；本机不再因 CI 发热。
+- 影响：org `cypressoai` 移除 self-hosted runner `macbook-1`；本机不再承接任何 CI job，CI 全部回落到 mac-mini（`mac-mini-sonar-1~4`）/ EC2 / `mas-sit` 等 runner；本机不再因 CI 发热。
 - 回滚方式：如需重新上线，重新下载 runner 解压、`gh api -X POST orgs/cypressoai/actions/runners/registration-token` 取注册 token、`./config.sh` 注册到 org（**这次不要再用 `--no-default-labels`**，并把 label 对齐到 backend CI 共享池所需的 `self-hosted,backend-ci`，否则仍领不到 job）。
 - 做了什么：
   1. `cd ~/actions-runner/macbook-1 && ./svc.sh stop` 停服务（Stopped）。

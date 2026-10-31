@@ -211,7 +211,7 @@
 
 - 服务器：`lemon-imac`（`for-konghai`）；仓库 `IAmKongHai/AcquiLangAI`。
 - 操作人：`Grok`
-- 原因：mac-mini 上同时跑的 AcquiLang job 已经限制到 3 个，mas-go-dev 只有一个 Linux slot。这台 8 核 / 8GB 机器恢复后，加一个 macOS slot，让 backend / admin / web / native 可以再分出去。
+- 原因：mac-mini 上同时跑的 AcquiLang job 已经限制到 3 个，mas-sit 只有一个 Linux slot。这台 8 核 / 8GB 机器恢复后，加一个 macOS slot，让 backend / admin / web / native 可以再分出去。
 - 影响：新增仓库级 runner `lemon-imac-acquilang-ci-1`（GitHub id `28`），labels `self-hosted,macOS,ARM64,acquilang-build`。没有 `acquilang-ci`，Sonar 仍只落 mac-mini 上带 localhost 测试库的 slot。没有 `acquilang-native-ci`、`lemon-imac`、`frontend-*`、`backend-ci`，不接 org 池和原生打包。现有 `lemon-imac-1/2` 没改。
 - 选型：只注册一个 slot。当时负载约 1.7，内存 8GB，compressor 已经在用，空闲页很少。再加 slot 会和 org runner 抢内存。macOS 没有 cgroup，一台 runner 就是上限。
 - 备份：`~/gha/backups/acquilang-ci-20261010-1123/pre-state.txt`（600）。只记录安装前的目录和磁盘。注册 token 用完即删，没有写入备份或仓库。
@@ -345,7 +345,7 @@
 
 ## 2026-08-20 10:45 CST - 只读确认 iCare-backend Sonar 失败为 lemon-imac Tailscale 出站 TCP 不可用
 
-- 服务器：`lemon-imac`（runner `lemon-imac-1`）；对照 `mac-mini` SonarQube、`umacbook-pro`、`mas-go-dev`
+- 服务器：`lemon-imac`（runner `lemon-imac-1`）；对照 `mac-mini` SonarQube、`umacbook-pro`、`mas-sit`
 - 操作人：`Grok`
 - 原因：排查 [iCare-backend Job 96292948777](https://github.com/cypressoai/iCare-backend/actions/runs/32320380460/job/96292948777)（run `32320380460`，PR `bugfix/CYP-2204/announcement-notification`）是代码侧还是 runner 网络侧失败。
 - 影响：仅 `gh` 读 Actions 日志，并 SSH 只读检查 MagicDNS、Tailscale ping、TCP 连通性与 Sonar HTTP；未重启 `tailscaled`、未改 runner / LaunchDaemon / workflow / 业务代码，未重跑 Job。
@@ -354,7 +354,7 @@
 - 做了什么：
   1. 核对目标 Job 全部步骤及同一时段前后 `SonarQube Analysis` runs。
   2. 在 `lemon-imac` 解析 `mac-mini`、`curl`/`nc`/`python socket` 连 `100.108.64.126:9000` 与 `:22`，并 `tailscale ping` / `debug dial-types`。
-  3. 对照 `mac-mini` 本机 Sonar 健康、以及 `umacbook-pro` / `mas-go-dev` 访问 `http://mac-mini:9000/api/system/status`。
+  3. 对照 `mac-mini` 本机 Sonar 健康、以及 `umacbook-pro` / `mas-sit` 访问 `http://mac-mini:9000/api/system/status`。
 - 验证结果：
   - 目标 Job 的 checkout、Setup Go、C toolchain、依赖下载、全量测试与 coverage 合并全部成功。同 run 的 `Lint` 也成功。唯一失败是 `SonarSource/sonarqube-scan-action` 查询 `SONAR_HOST_URL` 的 `/api/v2/analysis/version`：
     ```
@@ -363,8 +363,8 @@
     Scanner CLI 8.1.0.6389，runner `lemon-imac-1`，约 10:34 CST。因此不是业务代码或测试失败。
   - `mac-mini` 上 Colima 容器 `sonarqube` `Up 19 hours (healthy)`；`curl http://127.0.0.1:9000/api/system/status` 与 `http://100.108.64.126:9000/...` 均为 `"status":"UP"`（26.3.0.120487）。
   - `umacbook-pro`：`curl http://mac-mini:9000/api/system/status` HTTP 200（~0.68s）；`nc 100.108.64.126:9000` 成功。
-  - `mas-go-dev`：同上 HTTP 200（~19ms），MagicDNS `100.108.64.126 mac-mini.taila93443.ts.net`。排除 2026-08-02 / 08-13 那类「Sonar 挂了」或 mas-go-dev DNS 问题。
-  - `lemon-imac`：MagicDNS 正常（`mac-mini` → `100.108.64.126`）；`tailscale ping mac-mini` 通；公网 `https://github.com` HTTP 200。但对任意 tailnet `100.x` TCP（`mac-mini:9000` / `:22`、`mas-go-dev:22`、`umacbook-pro:22`）一律 errno 49：
+  - `mas-sit`：同上 HTTP 200（~19ms），MagicDNS `100.108.64.126 mac-mini.taila93443.ts.net`。排除 2026-08-02 / 08-13 那类「Sonar 挂了」或 mas-sit DNS 问题。
+  - `lemon-imac`：MagicDNS 正常（`mac-mini` → `100.108.64.126`）；`tailscale ping mac-mini` 通；公网 `https://github.com` HTTP 200。但对任意 tailnet `100.x` TCP（`mac-mini:9000` / `:22`、`mas-sit:22`、`umacbook-pro:22`）一律 errno 49：
     ```
     Can't assign requested address
     ```
@@ -373,7 +373,7 @@
   - 结论：**基础设施 / lemon-imac Tailscale 出站 TCP 故障**（errno 49），不是 PR 代码、不是 Sonar 进程、也不是 `lemon-imac-1` 单 slot。时间上紧挨 2026-08-19 17:13 把 GUI Standalone 换成 brew `tailscaled` LaunchDaemon；当时只验了入站 `ssh lemon-imac` 与 ping，没验本机访问 `mac-mini:9000`。
 - 未做（需确认后再做）：
   - 重启 `system/homebrew.mxcl.tailscale` 或 `tailscale debug restun` / `rebind`
-  - 重跑该 Job（恢复连通后可 re-run；若落到 mac-mini / umac / mas-go-dev 也可先绿）
+  - 重跑该 Job（恢复连通后可 re-run；若落到 mac-mini / umac / mas-sit 也可先绿）
 - 备注：附近 run `32324180890` / `32325359725` 的红叉是 workflow 步骤 `Block while draft` exit 1，与本连通性问题不同。
 
 ## 2026-08-19 17:13 CST - Tailscale 已换成 brew LaunchDaemon，IP 仍是 100.81.246.93
@@ -575,7 +575,7 @@
 - 后续可选（需确认后再做）：
   1. 删 orphan：`rm -rf ~/Library/Caches/go-build`（+14G，无副作用）。
   2. 修剪 slot GOCACHE：`GOCACHE=... go clean -cache` 或 `rm -rf .../cache/go-build/*`（+73G；冷启动后首几次 backend job 变慢）。
-  3. 运维：按 runbook 定期检查单 slot >20GB；或 job-local `GOCACHE=${{ runner.temp }}/go-build` 让覆盖率产物随 temp 回收（mas-go-dev 已讨论过同类方案）。
+  3. 运维：按 runbook 定期检查单 slot >20GB；或 job-local `GOCACHE=${{ runner.temp }}/go-build` 让覆盖率产物随 temp 回收（mas-sit 已讨论过同类方案）。
 
 ## 2026-07-23 18:19 CST - 停止双 slot runner + 磁盘满排查
 

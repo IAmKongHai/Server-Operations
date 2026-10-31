@@ -33,7 +33,7 @@ tags:
 ## 目标终态
 
 `mssql-ref` 上有一份与 `10.100.0.4` **2026-08-24 20:52 CST** 一致的五库数据，
-可供 mas-go-dev / mas-win 对照 preprod。现网 SIT / mas-go-dev / mas-win **先不切**，
+可供 mas-sit / mas-win 对照 preprod。现网 SIT / mas-sit / mas-win **先不切**，
 等旁路库验证通过再决定是否改名替换。
 
 ## 为什么传 bak（传输量最小）
@@ -127,23 +127,23 @@ handoff 写「`mas_ref_owner` 不会在 10.100.0.4 上、老应用用 `mas_user`
 
 | 源 catalog | 本机现名 | 本机占用 | 现网谁在用 |
 | --- | --- | ---: | --- |
-| `medicalassistance_preprod` | **同名** `medicalassistance_preprod` | 100G+2G | mas-go-dev api/worker/ecom/sup；mas-win；SIT |
-| `maswebkit_preprod` | `maswebkit`（无 `_preprod`） | 5.9G | mas-go-dev `WEBKIT_DB_NAME`；mas-win Webkit |
-| `insularsalesportal_preprod` | `insularsalesportal` | 9MB+16MB | mas-go-dev / sup `SALESPORTAL_DB_NAME` |
-| `masprepaid_preprod` | `masprepaid` | 24MB | mas-go-dev ecom `PREPAID_DB_NAME` |
+| `medicalassistance_preprod` | **同名** `medicalassistance_preprod` | 100G+2G | mas-sit api/worker/ecom/sup；mas-win；SIT |
+| `maswebkit_preprod` | `maswebkit`（无 `_preprod`） | 5.9G | mas-sit `WEBKIT_DB_NAME`；mas-win Webkit |
+| `insularsalesportal_preprod` | `insularsalesportal` | 9MB+16MB | mas-sit / sup `SALESPORTAL_DB_NAME` |
+| `masprepaid_preprod` | `masprepaid` | 24MB | mas-sit ecom `PREPAID_DB_NAME` |
 | `authprovidermasuat` | **没有**。本机是 `authprovidermasweb`（来自 `authprovidermas_preprod` compact，10.7G） | 10.7G | ecom/sup `AUTH_DB_NAME=authprovidermasweb` |
 
 本机另有、**不要动**：`medicalassistance_replicated`（22G+10G）、`maswebkit-uat-old`、`operations`。
 
 Go 重构痕迹在旧 `medicalassistance_preprod` 上：`dbo.schema_migrations` version **46**（dirty=0）、`dbo.casbin_rule`。
-源 preprod 是老 C# 库，恢复后这两张表会消失或回到源状态。下一步 mas-go-dev deploy 若自动 `migrate up`，会从 0 打到现网 schema 上，有风险。
+源 preprod 是老 C# 库，恢复后这两张表会消失或回到源状态。下一步 mas-sit deploy 若自动 `migrate up`，会从 0 打到现网 schema 上，有风险。
 
 本机曾打过、**原地 REPLACE 会丢掉**的补丁：
 
 - 2026-06-19：三库 SP 里 `medicalassistance_replicated` → `medicalassistance_preprod`（源 live preprod 的 SP 本身就该写 `_preprod`，旁路恢复后先抽查，不必预假设还要再改）
 - 2026-08-20：`maswebkit.dbo.sp_getmaswebmemberdetailsv6` + `tblsubscriptionmembers` 两列（给 mas-win MemberPortal）。源库若没有，切回 `maswebkit` 前要重打
 
-活连接（调查时）：`mas_ref_owner` 来自 mas-go-dev 容器，连着 `medicalassistance_preprod` 与 `maswebkit`。
+活连接（调查时）：`mas_ref_owner` 来自 mas-sit 容器，连着 `medicalassistance_preprod` 与 `maswebkit`。
 api / worker / ecom / sup / public-hr / public-map 当时均为 healthy。
 
 ### 传输路径
@@ -233,11 +233,11 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 
 ## 切现网（第二阶段，必须再确认）
 
-旁路验证通过后才做。会中断 mas-go-dev / mas-win / 仍连着这台 SQL 的 SIT 容器。
+旁路验证通过后才做。会中断 mas-sit / mas-win / 仍连着这台 SQL 的 SIT 容器。
 
 建议切法：停应用连接 → 把旧 catalog 改名为 `*_old` → 把旁路库改成现网名字 → 重映射 login → 重打必要补丁 → 启动应用。
 
-现网名字保持现状，**不要**把 mas-go-dev 改成源后缀（除了主库本来就叫 `_preprod`）：
+现网名字保持现状，**不要**把 mas-sit 改成源后缀（除了主库本来就叫 `_preprod`）：
 
 | 旁路名 | 切成现网名 |
 | --- | --- |
@@ -259,7 +259,7 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 ## 空间与回滚
 
 - `/restore` 206G 空闲，旁路 148G 后约 58G。 bak 校验完可从 mssql-ref 删，源 `F:\` 仍保留。
-- 可选（需确认才删）：`/restore/backups/mas-go-dev-before-migrate-20260517-2334/` 20G 旧 bak，可多腾 20G。
+- 可选（需确认才删）：`/restore/backups/mas-sit-before-migrate-20260517-2334/` 20G 旧 bak，可多腾 20G。
 - 无 PVE 快照。旁路阶段不需要 VM 快照。切现网前再 `qm snapshot 110` 或对五套旧库 `BACKUP` 到 `/restore/backups/`。
 - 源 2017 → 目标 2022 升级不可逆，不能把 mssql-ref 的 bak 还原回 `10.100.0.4`。
 
@@ -275,6 +275,6 @@ ALTER DATABASE [maswebkit_preprod] SET RECOVERY SIMPLE;
 ## 执行前需要确认
 
 1. ~~用 2026-08-21 还是新备~~ **已决：2026-08-24 20:52 CST 的 COPY_ONLY，17.0 GB。**
-2. 第一阶段只旁路恢复、不切 mas-go-dev / mas-win，可以吗？（推荐：可以）
+2. 第一阶段只旁路恢复、不切 mas-sit / mas-win，可以吗？（推荐：可以）
 3. 传输走「AzCopy → `icare2uaticare2st` 临时 container → runner → 本机 → mssql-ref」，可以建短 TTL SAS 吗？
 4. `authprovidermasuat` 只作为新库并存，ecom/sup 暂不改 `AUTH_DB_NAME`，可以吗？

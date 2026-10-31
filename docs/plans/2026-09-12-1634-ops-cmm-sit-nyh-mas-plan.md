@@ -1,19 +1,19 @@
 ---
-title: 菜苗苗 SIT on mas-go-dev via nyh-prod - Plan
+title: 菜苗苗 SIT on mas-sit via nyh-prod - Plan
 type: ops
 date: 2026-09-12
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
-server: nyh-prod, mas-go-dev
+server: nyh-prod, mas-sit
 ---
 
-# 菜苗苗 SIT on mas-go-dev via nyh-prod - Plan
+# 菜苗苗 SIT on mas-sit via nyh-prod - Plan
 
 **Home repo:** this Server ops repo.
 **App repo:** local tree `caimiaomiao`; GitHub/GHCR org is `caimiamiao` (`backend-cmm-api`, `frontend-cmm-admin`, `frontend-cmm-xcx`).
-**Target hosts:** `mas-go-dev` (`100.109.223.53`), `nyh-prod` (`47.239.167.8` / `100.78.12.107`).
+**Target hosts:** `mas-sit` (`100.109.223.53`), `nyh-prod` (`47.239.167.8` / `100.78.12.107`).
 
 **Product Contract preservation:** new bootstrap. Session-settled choices from the invoking conversation are labeled on the owning Key Decisions.
 
@@ -21,13 +21,13 @@ server: nyh-prod, mas-go-dev
 
 **Objective:** Testers can use the 菜苗苗 WeChat mini program against `https://sit-api-cmm.nanyahui.cn` and the staff console at `https://sit-admin-cmm.nanyahui.cn`. SIT data, Redis, and processes stay off `nyh-prod` and off production `cmm-prod`. Staff cookies stay host-only on the admin hostname.
 
-**Means:** App containers and a `shared-sit` tenant on `mas-go-dev`. `nyh-prod` Nginx terminates TLS and reverse-proxies over Tailscale. (KTD1, KTD3, KTD4)
+**Means:** App containers and a `shared-sit` tenant on `mas-sit`. `nyh-prod` Nginx terminates TLS and reverse-proxies over Tailscale. (KTD1, KTD3, KTD4)
 
 **Authority:** User confirmed this scope on 2026-09-12, including a public admin hostname. Host danger actions still follow `AGENTS.md`: confirm before Nginx reload, firewall, and any restart.
 
 **Execution profile:** Smoke-first. Prove health, same-origin staff login, and one WeChat `wx.request` on the public names. This repo has no unit tests for those hosts.
 
-**Stop when:** both public hostnames serve HTTPS with valid certificates; API `/healthz` and `/readyz` are ok; admin origin `/v1/staff/accounts` is 401 without a cookie and a seeded staff session survives refresh; mini program built with the SIT API base can complete login against the chosen test or development AppID; iCare and EVP on `mas-go-dev` stay healthy; ops timelines are committed.
+**Stop when:** both public hostnames serve HTTPS with valid certificates; API `/healthz` and `/readyz` are ok; admin origin `/v1/staff/accounts` is 401 without a cookie and a seeded staff session survives refresh; mini program built with the SIT API base can complete login against the chosen test or development AppID; iCare and EVP on `mas-sit` stay healthy; ops timelines are committed.
 
 **Out of this goal:** production `cmm-prod` first launch; `km-landui` as a front; GitHub Actions SIT auto-deploy; `seed-demo` in the production image; Garage as object storage.
 
@@ -37,17 +37,17 @@ server: nyh-prod, mas-go-dev
 
 ### Summary
 
-菜苗苗 SIT runs on `mas-go-dev`. True-device mini program and staff browser hit `nanyahui.cn` names on `nyh-prod`, which reverse-proxies to Tailscale. The stack reuses production GHCR images with a SIT compose, not `deploy/prod/compose.yml` host-network.
+菜苗苗 SIT runs on `mas-sit`. True-device mini program and staff browser hit `nanyahui.cn` names on `nyh-prod`, which reverse-proxies to Tailscale. The stack reuses production GHCR images with a SIT compose, not `deploy/prod/compose.yml` host-network.
 
 ### Problem Frame
 
-Production CVM is not yet serving business API. Testers still need a public HTTPS API for WeChat and a staff console. `km-landui` has no reverse proxy and derper owns 443. Putting the app on `nyh-prod` would share a live NYH host and the wrong database engines. `mas-go-dev` already has PostgreSQL 18.6 and Redis on `shared-sit`. `nyh-prod` already speaks HTTPS.
+Production CVM is not yet serving business API. Testers still need a public HTTPS API for WeChat and a staff console. `km-landui` has no reverse proxy and derper owns 443. Putting the app on `nyh-prod` would share a live NYH host and the wrong database engines. `mas-sit` already has PostgreSQL 18.6 and Redis on `shared-sit`. `nyh-prod` already speaks HTTPS.
 
 ### Key Decisions
 
 - **Public front is `nyh-prod`, not `km-landui`.** (session-settled: user-directed — chosen over `km-landui`: derper owns 443, no Nginx, no Tailscale node, SIT does not care about extra latency) Governs R1, R8.
 - **API hostname is `sit-api-cmm.nanyahui.cn`.** (session-settled: user-directed — chosen over `sit-api.caimiaomiao.com`) Governs R2.
-- **App and database live on `mas-go-dev`.** (session-settled: user-directed — chosen over a full stack on `nyh-prod`) Governs R3.
+- **App and database live on `mas-sit`.** (session-settled: user-directed — chosen over a full stack on `nyh-prod`) Governs R3.
 - **Staff console is also public HTTPS.** (session-settled: user-directed — chosen over Tailscale-only admin) Governs R4.
 - **WeChat uses the existing test or development AppID.** (session-settled: user-approved — chosen over a new production AppID) Governs R5.
 
@@ -55,9 +55,9 @@ Production CVM is not yet serving business API. Testers still need a public HTTP
 
 **Public names**
 
-- R1. `nyh-prod` terminates TLS for the two SIT hostnames and reverse-proxies only application ports on `mas-go-dev`. It does not host PostgreSQL, Redis, or COS.
+- R1. `nyh-prod` terminates TLS for the two SIT hostnames and reverse-proxies only application ports on `mas-sit`. It does not host PostgreSQL, Redis, or COS.
 - R2. Mini-program traffic uses `https://sit-api-cmm.nanyahui.cn`.
-- R3. Application processes, PostgreSQL tenant, and Redis DB run on `mas-go-dev`.
+- R3. Application processes, PostgreSQL tenant, and Redis DB run on `mas-sit`.
 
 **Staff console**
 
@@ -70,8 +70,8 @@ Production CVM is not yet serving business API. Testers still need a public HTTP
 
 **Isolation and deploy**
 
-- R7. Images are `ghcr.io/caimiamiao/*@sha256:...`. Deploy is GitHub-hosted or laptop pull plus SSH to `mas-go-dev`. The `cypressoai` runner group `shared-sit` is not used.
-- R8. `nyh-prod` upstream is the Tailscale IPv4 of `mas-go-dev`, not MagicDNS. PostgreSQL, Redis, and Garage ports are not published on public Nginx.
+- R7. Images are `ghcr.io/caimiamiao/*@sha256:...`. Deploy is GitHub-hosted or laptop pull plus SSH to `mas-sit`. The `cypressoai` runner group `shared-sit` is not used.
+- R8. `nyh-prod` upstream is the Tailscale IPv4 of `mas-sit`, not MagicDNS. PostgreSQL, Redis, and Garage ports are not published on public Nginx.
 - R9. SIT uses `APP_ENV=sit` (not `local` / `development` / `test` / `production`). `COOKIE_SECURE=true`. Cookie `Domain` is unset.
 - R10. Shared-sit tenant is its own database and login role `cmm`, Redis DB `2`, `CONNECTION LIMIT` that leaves headroom under Postgres `max_connections=80` (EVP already uses 40).
 - R11. Published app ports bind `127.0.0.1` and `100.109.223.53` only. They are not `8080`/`8081` and not EVP `25173`/`25174`/`28081`/`28082`.
@@ -79,13 +79,13 @@ Production CVM is not yet serving business API. Testers still need a public HTTP
 **Operator safety**
 
 - R12. Nginx vhost files are backed up under `/www/backup/nginx-vhost/` before edit. Reload is confirmed. The 宝塔 Docker 反代「保存」button is not used on these sites after custom locations exist.
-- R13. Compose `down -v` and `--remove-orphans` are forbidden on `mas-go-dev`.
+- R13. Compose `down -v` and `--remove-orphans` are forbidden on `mas-sit`.
 
 ### Actors
 
 - A1. Buyer or merchant on the WeChat mini program (existing test or development AppID).
 - A2. Staff in a browser on the admin hostname.
-- A3. Ops implementer on `mas-go-dev`, `nyh-prod`, Tencent COS, and WeChat MP admin.
+- A3. Ops implementer on `mas-sit`, `nyh-prod`, Tencent COS, and WeChat MP admin.
 
 ### Key Flows
 
@@ -155,8 +155,8 @@ flowchart TB
   phone[A1 WeChat mini program]
   staff[A2 browser]
   nyh[nyh-prod Nginx TLS]
-  api[mas-go-dev API :25880]
-  admin[mas-go-dev admin :25881]
+  api[mas-sit API :25880]
+  admin[mas-sit admin :25881]
   pg[shared-sit Postgres 18.6]
   redis[shared-sit Redis DB 2]
   cos[Tencent COS sit]
@@ -177,14 +177,14 @@ flowchart TB
 ### Assumptions
 
 - A records for both hostnames can be created on `nanyahui.cn` pointing at `47.239.167.8`.
-- `mas-go-dev` can `docker pull ghcr.io/caimiamiao/*`. If pull fails, U4 falls back to `docker save`/`load` from a host that can pull.
+- `mas-sit` can `docker pull ghcr.io/caimiamiao/*`. If pull fails, U4 falls back to `docker save`/`load` from a host that can pull.
 - A3 has a test or development WeChat AppID and can edit 合法域名.
 - COS sit credentials exist or can be created in the existing Tencent account without using production `cmm-prod-api` keys.
 
 ### Implementation Constraints
 
 - Confirm Nginx reload and any listen-port bind on production-adjacent hosts.
-- `api.env` mode `600` on the server. Secrets stay in `mas-go-dev/secrets.local.md` (gitignore) plus the host files.
+- `api.env` mode `600` on the server. Secrets stay in `mas-sit/secrets.local.md` (gitignore) plus the host files.
 - Container memory limits: API 256m, worker 128m, admin 64m. `restart: always`.
 - Do not join iCare network `shared-services`. Do not create a new container named `redis`; use the shared-sit alias `redis` (container `shared-sit-redis`) in `REDIS_URL`.
 
@@ -202,16 +202,16 @@ U2 (compose files) may start in the app repo while U1 provisions the tenant. U3 
 - **Requirements:** R3, R10, R13
 - **Dependencies:** none
 - **Files:**
-  - `mas-go-dev/README.md` (tenant row)
-  - `mas-go-dev/shared-sit/bootstrap.sh` (parallel `cmm` block, no EVP reuse)
-  - `mas-go-dev/secrets.local.md` (gitignore; location only in git)
+  - `mas-sit/README.md` (tenant row)
+  - `mas-sit/shared-sit/bootstrap.sh` (parallel `cmm` block, no EVP reuse)
+  - `mas-sit/secrets.local.md` (gitignore; location only in git)
 - **Approach:**
-  1. Create login role and database `cmm` per `mas-go-dev/README.md` 「新项目怎么接入」.
+  1. Create login role and database `cmm` per `mas-sit/README.md` 「新项目怎么接入」.
   2. `CONNECTION LIMIT 20`, `REVOKE CONNECT ON DATABASE cmm FROM PUBLIC`.
   3. Leave Redis DB `2` empty; do not create a Garage bucket.
   4. Directory `/opt/cmm-sit` owned by `ec2-user`, mode `750`.
 - **Execution note:** This is host provisioning; prefer SQL and `redis-cli` smoke over unit tests.
-- **Patterns to follow:** `mas-go-dev/shared-sit/bootstrap.sh` EVP tenant; never copy EVP passwords.
+- **Patterns to follow:** `mas-sit/shared-sit/bootstrap.sh` EVP tenant; never copy EVP passwords.
 - **Test scenarios:**
   - Role `cmm` connects to database `cmm` and `SELECT current_user` returns `cmm`.
   - Same role connecting to `postgres` is rejected (AE3).
@@ -229,7 +229,7 @@ U2 (compose files) may start in the app repo while U1 provisions the tenant. U3 
   - `caimiaomiao` `backend-cmm-api/deploy/sit/nginx.conf`
   - `caimiaomiao` `backend-cmm-api/deploy/sit/api.env.example`
   - `caimiaomiao` `backend-cmm-api/deploy/sit/smoke.sh` (wrapper around `deploy/prod/smoke.sh`)
-  - this repo `mas-go-dev/cmm-sit/` (optional对照 copy; server `/opt/cmm-sit` wins)
+  - this repo `mas-sit/cmm-sit/` (optional对照 copy; server `/opt/cmm-sit` wins)
 - **Approach:**
   1. Services `api`, `worker`, `admin`; ops profile `migrate` / `seed` / `verify` from the same API image. Every service, including ops profile jobs, joins `networks: [shared-sit]` with `shared-sit` `external: true`. No leftover `network_mode: host`.
   2. Overlay nginx: `listen 0.0.0.0:8081`; proxy `/v1/`, `/healthz`, `/readyz` to `http://api:8080`; static as today. Copy proxy headers from `frontend-cmm-admin/deploy/nginx.conf` (`Host`, `X-Forwarded-Proto`, `X-Forwarded-For`) and prefer inbound `X-Real-IP` from `nyh-prod` when present.
@@ -237,9 +237,9 @@ U2 (compose files) may start in the app repo while U1 provisions the tenant. U3 
   4. `HTTP_ADDR=0.0.0.0:8080`, `COOKIE_SECURE=true`, `CORS_ORIGINS=https://sit-admin-cmm.nanyahui.cn`.
   5. Publish `127.0.0.1:25880:8080`, `100.109.223.53:25880:8080`, same pattern for `25881:8081`.
 - **Execution note:** Prefer install/runtime smoke over unit coverage.
-- **Patterns to follow:** `mas-go-dev/evp-sit/docker-compose.yml` bind and mem_limit; production `deploy/prod/compose.yml` image digest and read-only flags where they still apply.
+- **Patterns to follow:** `mas-sit/evp-sit/docker-compose.yml` bind and mem_limit; production `deploy/prod/compose.yml` image digest and read-only flags where they still apply.
 - **Test scenarios:**
-  - From `mas-go-dev`, `GET http://127.0.0.1:25880/healthz` is ok and `25881/` contains the admin root div.
+  - From `mas-sit`, `GET http://127.0.0.1:25880/healthz` is ok and `25881/` contains the admin root div.
   - `GET http://127.0.0.1:25881/v1/meta` returns cmm-api JSON (overlay proxy works).
   - `ss` shows 25880/25881 on 127.0.0.1 and 100.109.223.53, not `0.0.0.0`.
   - `192.168.2.22:25880` does not connect (Tailscale-only publish).
@@ -284,7 +284,7 @@ U2 (compose files) may start in the app repo while U1 provisions the tenant. U3 
   3. `docker pull` the same digests production already built.
   4. `compose --profile ops run --rm migrate` then `seed` then `verify`, then `up` api/worker/admin.
   5. Run SIT `smoke.sh` against loopback 25880/25881.
-- **Execution note:** Smoke-first on the host. If GHCR pull fails, save/load from a pulling machine rather than building on `mas-go-dev` under memory pressure.
+- **Execution note:** Smoke-first on the host. If GHCR pull fails, save/load from a pulling machine rather than building on `mas-sit` under memory pressure.
 - **Patterns to follow:** `backend-cmm-api/deploy/prod/deploy.sh` order migrate → seed → verify → up → smoke, without requiring Tencent `BACKUP_RECEIPT`.
 - **Test scenarios:**
   - `/readyz` reports db and redis ready.
@@ -316,13 +316,13 @@ U2 (compose files) may start in the app repo while U1 provisions the tenant. U3 
 
 ### U6. Ops documentation
 
-- **Goal:** The two host timelines and `mas-go-dev` README describe the live SIT.
+- **Goal:** The two host timelines and `mas-sit` README describe the live SIT.
 - **Requirements:** R12, R13
 - **Dependencies:** U3, U4, U5
 - **Files:**
-  - `docs/operations/mas-go-dev.md`
+  - `docs/operations/mas-sit.md`
   - `docs/operations/nyh-prod.md`
-  - `mas-go-dev/README.md`
+  - `mas-sit/README.md`
 - **Approach:** Time-desc entries: why, impact, backup, rollback, verification. README table for `cmm` tenant like EVP.
 - **Execution note:** Documentation only after the window.
 - **Patterns to follow:** existing operations entries from 2026-09-12.
@@ -354,7 +354,7 @@ U2 (compose files) may start in the app repo while U1 provisions the tenant. U3 
 - U1–U6 verification fields hold.
 - Abandoned compose experiments are not left as extra containers; `/opt/cmm-sit` is the only CMM app compose project.
 - Secrets are 600 on the hosts and absent from git.
-- `docs/operations/mas-go-dev.md` and `docs/operations/nyh-prod.md` record the window.
+- `docs/operations/mas-sit.md` and `docs/operations/nyh-prod.md` record the window.
 
 Per unit: the unit's **Verification** field.
 
@@ -369,16 +369,16 @@ Per unit: the unit's **Verification** field.
 
 - Tailscale direct drop between Hong Kong and home NAT. Mitigation: KTD7. Residual: slow or failed SIT while home is on DERP `hkg`.
 - 宝塔 UI rewrite of vhosts. Mitigation: R12, backups.
-- `mas-go-dev` 8G already runs iCare, EVP, runners. Mitigation: mem_limit. Residual: swap pressure during image pull.
-- GHCR pull from `mas-go-dev` unproven. Mitigation: U4 fallback save/load.
+- `mas-sit` 8G already runs iCare, EVP, runners. Mitigation: mem_limit. Residual: swap pressure during image pull.
+- GHCR pull from `mas-sit` unproven. Mitigation: U4 fallback save/load.
 - WeChat 合法域名 is a human console step. SIT mini program is blocked until U5.
 
 ## Sources / Research
 
-- `mas-go-dev/README.md` tenant rules; `mas-go-dev/evp-sit/docker-compose.yml`
+- `mas-sit/README.md` tenant rules; `mas-sit/evp-sit/docker-compose.yml`
 - `caimiaomiao` `backend-cmm-api/deploy/prod/compose.yml`, `api.env.example`, `cmd/api/main.go` (`isLocalEnvironment`, COS/WeChat required)
 - `caimiaomiao` `frontend-cmm-admin/deploy/nginx.conf` and `docs/deploy/runbooks/api-admin-deploy.md`
-- `docs/operations/nyh-prod.md` and `docs/operations/mas-go-dev.md` 2026-09-12 connectivity
+- `docs/operations/nyh-prod.md` and `docs/operations/mas-sit.md` 2026-09-12 connectivity
 - `docs/solutions/nyh-prod/integration-issues/baota-ssl-acme-challenge-routing-fix-2026-05-19.md`
 - `docs/solutions/nyh-prod/integration-issues/baota-domain-replace-wipes-custom-nginx-2026-09-11.md`
 - `docs/solutions/dev-cypresso/runtime-errors/nginx-fail-on-boot-dns-not-ready-2026-05-13.md`

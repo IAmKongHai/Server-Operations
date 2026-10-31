@@ -39,8 +39,8 @@ ssh pve
 | ---: | --- | --- | --- | --- |
 | `110` | `mssql-ref` | `1` | `order=10,up=60,down=180` | 先启动数据库，给 SQL Server 预留启动时间 |
 | `120` | `mas-win` | `1` | `order=20,up=90,down=180` | 后启动 IIS / C# 应用 |
-| `130` | `mas-go-dev-al2023` | `0` | `order=30,up=60,down=180` | 2026-10-31 起关机，仅作迁移回滚，到期 2026-11-07 |
-| `160` | `mas-sit` | `1` | `order=30,up=60,down=180` | 内网 SIT 合部署机（原 `mas-go-dev`） |
+| `130` | `mas-sit-al2023` | `0` | `order=30,up=60,down=180` | 2026-10-31 起关机，仅作迁移回滚，到期 2026-11-07 |
+| `160` | `mas-sit` | `1` | `order=30,up=60,down=180` | 内网 SIT 合部署机 |
 | `140` | `fnos-nas` | `0` | - | fnOS NAS，当前手动启动，避免宿主机重启后抢占资源 |
 
 `pve-guests.service` 已启用并处于 active。宿主机重启后，PVE 会按上面的顺序恢复 VM；手动启动时也建议先启动 `mssql-ref`，等 `192.168.2.20:1433` 可用后再启动或访问 `mas-win`。
@@ -48,7 +48,7 @@ ssh pve
 ## Tailscale
 
 2026-05-16 已将 PVE 加入 Tailscale，并作为 subnet router 开放 MAS 参考环境。
-2026-05-17 为 `mas-go-dev` 扩展 advertised route 到团队公共服务网段 `192.168.2.16/28`。
+2026-05-17 为 `mas-sit` 扩展 advertised route 到团队公共服务网段 `192.168.2.16/28`。
 
 | 项目 | 值 |
 | --- | --- |
@@ -135,7 +135,7 @@ no pools available
 - 当前 VM：
   - `110 / mssql-ref`：运行 MAS 老系统参考数据库
   - `120 / mas-win`：运行 MAS 老 C# / IIS 参考应用
-  - `130 / mas-go-dev`：运行 MAS Go + React 内网自动部署环境（2026-10-31 由 VM `160 / mas-sit` 接替）
+  - `130 / mas-sit-al2023`：原 SIT 合部署机（AL2023），2026-10-31 由 VM `160 / mas-sit` 接替，关机保留到 2026-11-07
   - `140 / fnos-nas`：运行飞牛 fnOS NAS，存放可重新下载的影视资源
 
 附带状态：
@@ -238,15 +238,15 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 
 相关计划：`docs/plans/2026-06-18-001-feat-fnos-nas-vm-deployment-plan.md`。
 
-### `mas-sit`（原 `mas-go-dev`）
+### `mas-sit`
 
-内网 **SIT 合部署机**：iCare MAS Go SIT、EVP SIT、共享 PostgreSQL / Garage / Redis（`/opt/shared-sit/`）和 6 个 self-hosted runner。档案见 `mas-go-dev/README.md`。
+内网 **SIT 合部署机**：iCare MAS Go SIT、EVP SIT、共享 PostgreSQL / Garage / Redis（`/opt/shared-sit/`）和 6 个 self-hosted runner。档案见 `mas-sit/README.md`。
 
-2026-10-31 从 VM `130`（Amazon Linux 2023）迁到 VM `160`（Debian 13），同时改名 `mas-sit`。LAN IP、Tailscale IP、SSH 主机密钥、runner 名称与 labels 都沿用旧机。迁移记录见 `docs/operations/mas-go-dev.md` 2026-10-31 条目，计划 `docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md`。
+2026-10-31 从 VM `130`（Amazon Linux 2023）迁到 VM `160`（Debian 13），LAN IP、Tailscale IP、SSH 主机密钥都沿用旧机。迁移记录见 `docs/operations/mas-sit.md` 2026-10-31 条目，计划 `docs/plans/2026-10-31-1418-ops-mas-sit-debian13-migration-plan.md`。
 
 | 项目 | 值 |
 | --- | --- |
-| VMID | `160`（旧 VM `130 / mas-go-dev-al2023` 关机保留到 2026-11-07，`onboot=0`） |
+| VMID | `160`（旧 VM `130 / mas-sit-al2023` 关机保留到 2026-11-07，`onboot=0`） |
 | IP | `192.168.2.22/24`；Tailscale `100.109.223.53` / MagicDNS `mas-sit` |
 | OS | Debian 13（trixie）genericcloud + cloud-init，用户 `ec2-user` |
 | Kernel | `6.12.113+deb13-cloud-amd64`（已修 CVE-2026-98432） |
@@ -257,10 +257,10 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 | Guest agent | `qemu-guest-agent`，`qm agent 160 ping` 正常 |
 | Docker | `29.9.2`（download.docker.com，overlay2，`log-driver: local`，containerd snapshotter 关闭） |
 | Docker Compose | `v5.6.1` |
-| GitHub runner | 6 个，见 `mas-go-dev/README.md` |
-| Runtime root | `/opt/mas-go-dev`、`/opt/shared-sit`、`/opt/evp-sit` |
+| GitHub runner | 6 个，见 `mas-sit/README.md` |
+| Runtime root | `/opt/mas-sit`、`/opt/shared-sit`、`/opt/evp-sit` |
 
-相关计划：`docs/plans/2026-05-17-001-feat-mas-go-dev-deployment-plan.md`。
+相关计划：`docs/plans/2026-05-17-001-feat-mas-sit-deployment-plan.md`。
 
 ### `mssql-ref`
 

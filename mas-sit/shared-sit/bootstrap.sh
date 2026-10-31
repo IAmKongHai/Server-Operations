@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotent bootstrap for mas-go-dev shared SIT PostgreSQL + Garage.
+# Idempotent bootstrap for mas-sit shared SIT PostgreSQL + Garage.
 # Secrets stay on the server; this script never prints them.
 set -euo pipefail
 

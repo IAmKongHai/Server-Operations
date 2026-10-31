@@ -13,17 +13,17 @@
 
 | catalog | 来源 | 数据 MB | 日志 MB | 谁在用 |
 | --- | --- | ---: | ---: | --- |
-| **`medicalassistance_preprod`** | ihc-db-uat bak 2026-08-24 | 101799 | 2110 | mas-go-dev api/worker/ecom/sup 主库 |
+| **`medicalassistance_preprod`** | ihc-db-uat bak 2026-08-24 | 101799 | 2110 | mas-sit api/worker/ecom/sup 主库 |
 | **`medicalassistance_v2026.02.19`** | 原现网主库改名（适配 MAS 2026.02.19） | 100284 | 2110 | 旧参考，应用不连 |
 | `medicalassistance_replicated` | 旧对照 | 21704 | 10056 | 不要动 |
 | `maswebkit` | 原现网 | 5911 | 68 | 旧参考（mas-win 已切走） |
-| **`maswebkit_preprod`** | ihc-db-uat bak | 5911 | 259 | mas-go-dev / public-app/hr/map / mas-win Webkit |
+| **`maswebkit_preprod`** | ihc-db-uat bak | 5911 | 259 | mas-sit / public-app/hr/map / mas-win Webkit |
 | `maswebkit-uat-old` | 遗留 | 24 | 379 | 无应用 |
-| `insularsalesportal` | 原现网 | 9 | 16 | 旧参考（mas-go-dev / mas-win 已切走） |
-| **`insularsalesportal_preprod`** | ihc-db-uat bak | 9 | 68 | mas-go-dev / sup / mas-win SalesPortal |
+| `insularsalesportal` | 原现网 | 9 | 16 | 旧参考（mas-sit / mas-win 已切走） |
+| **`insularsalesportal_preprod`** | ihc-db-uat bak | 9 | 68 | mas-sit / sup / mas-win SalesPortal |
 | `masprepaid` | 原现网 | 24 | 8 | 旧参考（ecom / mas-win 已切走） |
 | **`masprepaid_preprod`** | ihc-db-uat bak | 548 | 133 | ecom / mas-win CATALOG_D |
-| `authprovidermasweb` | 原现网 | 10733 | 65 | 旧参考（mas-go-dev / mas-win 已切走） |
+| `authprovidermasweb` | 原现网 | 10733 | 65 | 旧参考（mas-sit / mas-win 已切走） |
 | **`authprovidermasuat_preprod`** | ihc-db-uat `authprovidermasuat` bak | 245 | 264 | ecom/sup / mas-win Auth |
 | `operations` | 本机运维 | 8 | 8 | 与 MAS 无关 |
 
@@ -41,7 +41,7 @@
 
 切主库前把旧库 `casbin_rule` 6344 行拷进新库（源 bak 里只有 14 行）；`schema_migrations` 两边都是 version 46 / dirty=0，未改。`mas_ref_owner` 在五个新库都是 `db_owner`。
 
-2026-08-24 23:18 CST：mas-go-dev 已切到上表加粗 catalog（SIT 当时无人测试）。env 备份 `*.bak.20260824-ihc-cut`。ecom/sup 的 `icare_sit_mas_*_auth` 已在 `authprovidermasuat_preprod` 授 `SELECT dbo.oauth_clients`。mas-win 已于 2026-08-24 23:32 CST 切到同一套 preprod catalog。
+2026-08-24 23:18 CST：mas-sit 已切到上表加粗 catalog（SIT 当时无人测试）。env 备份 `*.bak.20260824-ihc-cut`。ecom/sup 的 `icare_sit_mas_*_auth` 已在 `authprovidermasuat_preprod` 授 `SELECT dbo.oauth_clients`。mas-win 已于 2026-08-24 23:32 CST 切到同一套 preprod catalog。
 
 ## 回滚主库
 

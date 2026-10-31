@@ -17,7 +17,7 @@ related_components:
   - sonar-scanner
   - npm-ci
   - docker-build-cache
-  - mas-go-dev
+  - mas-sit
 tags: [github-actions, self-hosted-runner, vpn-traffic, sonar, npm-cache, workflow-optimization]
 ---
 
@@ -109,7 +109,7 @@ jobs:
 
 ### Docker build cache 不等于 VPN 流量
 
-`mas-go-dev` 的排查显示，实际部署 runner 是 `ec2-user@192.168.2.22` 上的 `mas-go-dev`，不是 `mssql-ref` / `192.168.2.20`。该 runner 本地 Docker build cache 约 `59.13GB`，但这是本地磁盘缓存，通常会减少依赖、base image 和 build layer 的重复下载。
+`mas-sit` 的排查显示，实际部署 runner 是 `ec2-user@192.168.2.22` 上的 `mas-sit`，不是 `mssql-ref` / `192.168.2.20`。该 runner 本地 Docker build cache 约 `59.13GB`，但这是本地磁盘缓存，通常会减少依赖、base image 和 build layer 的重复下载。
 
 优化 VPN 流量时，不要为了“看起来缓存很大”就激进 prune Docker build cache。正确策略是：
 
@@ -165,14 +165,14 @@ du -sh ~/.npm ~/.sonar ~/actions-runner 2>/dev/null
 # mac-mini: 检查 git pack 是否足以解释大流量
 find ~/actions-runner -path '*/.git/objects/pack/*.pack' -print -exec du -h {} \;
 
-# mas-go-dev: Docker cache 先观察，不因 VPN 优化而立即清理
+# mas-sit: Docker cache 先观察，不因 VPN 优化而立即清理
 docker system df
 ```
 
 ## Related
 
 - [SonarQube 从 dev-cypresso 迁移到 mac-mini](../sonarqube-migrated-from-dev-cypresso-2026-05-13.md)
-- [在 PVE 上新增 MAS Go + React 内网自动部署环境](../../pve/best-practices/mas-go-dev-deployment-2026-05-17.md)
+- [在 PVE 上新增 MAS Go + React 内网自动部署环境](../../pve/best-practices/mas-sit-deployment-2026-05-17.md)
 - [GitHub Actions 部署失败，磁盘被 Docker 老镜像占满](../../dev-cypresso/integration-issues/docker-image-buildup-fills-disk-2026-05-14.md)
 - [PVE Tailscale subnet router](../../pve/best-practices/pve-tailscale-subnet-router-2026-05-16.md)
 

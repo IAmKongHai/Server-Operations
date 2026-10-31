@@ -1,21 +1,21 @@
-# mas-go-dev smoke test - 2026-05-17
+# mas-sit smoke test - 2026-05-17
 
 ## Scope
 
-Validate the new `mas-go-dev` VM, runner, local Docker build path, and current application runtime state without mutating the reference SQL Server schema/data.
+Validate the new `mas-sit` VM, runner, local Docker build path, and current application runtime state without mutating the reference SQL Server schema/data.
 
 ## Infrastructure
 
 | Check | Result |
 | --- | --- |
-| VM | `130 / mas-go-dev` running |
+| VM | `130 / mas-sit` running |
 | IP | `192.168.2.22/24` |
 | SSH | `ec2-user@192.168.2.22` works |
 | OS | Amazon Linux 2023.10.20260105 |
 | Docker | `25.0.14` |
 | Compose | `v2.24.5` |
-| Runner | GitHub Actions runner `mas-go-dev` online |
-| Runner group | `cypressoai` org runner group `mas-go-dev`, selected repos only |
+| Runner | GitHub Actions runner `mas-sit` online |
+| Runner group | `cypressoai` org runner group `mas-sit`, selected repos only |
 
 ## Network
 
@@ -31,8 +31,8 @@ Validate the new `mas-go-dev` VM, runner, local Docker build path, and current a
 
 | Component | Result |
 | --- | --- |
-| Backend Docker build | Succeeded as `icare/backend:mas-go-dev-test` |
-| Frontend Docker build | Succeeded as `icare/mas-portal:mas-go-dev-test` |
+| Backend Docker build | Succeeded as `icare/backend:mas-sit-test` |
+| Frontend Docker build | Succeeded as `icare/mas-portal:mas-sit-test` |
 | Frontend Node version | Docker build uses `node:24-alpine` |
 | SQL backup | Three DB backups created before migration |
 | Backend migrate + seed | Completed after user approval |
@@ -51,8 +51,8 @@ Validate the new `mas-go-dev` VM, runner, local Docker build path, and current a
 ## Rollback Points
 
 - VM `110` PVE snapshot: `before-mas-go-migrate-20260517`.
-- SQL backups: `/restore/backups/mas-go-dev-before-migrate-20260517-2334/`.
-- VM `130` deploy-ready snapshot: `mas-go-dev-deploy-ready-20260517`.
+- SQL backups: `/restore/backups/mas-sit-before-migrate-20260517-2334/`.
+- VM `130` deploy-ready snapshot: `mas-sit-deploy-ready-20260517`.
 
 ## Safety Notes
 

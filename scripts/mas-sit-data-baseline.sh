@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# mas-go-dev 数据基准采集（AL2023 → Debian 13 迁移用，见
-# docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md 的 Verification Contract）。
+# mas-sit 数据基准采集（AL2023 → Debian 13 迁移用，见
+# docs/plans/2026-10-31-1418-ops-mas-sit-debian13-migration-plan.md 的 Verification Contract）。
 #
 # 只读：在新旧机上各跑一次，输出可直接 diff 的纯文本。
-#   ssh mas-sit 'sudo bash -s' < scripts/mas-go-dev-data-baseline.sh > before.txt
+#   ssh mas-sit 'sudo bash -s' < scripts/mas-sit-data-baseline.sh > before.txt
 #
 # 覆盖：
 #   - shared-sit PostgreSQL：每张用户表的精确行数

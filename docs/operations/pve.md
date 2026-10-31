@@ -4,26 +4,26 @@
 
 - 服务器：`pve`
 - 操作人：`Claude`（用户已确认：先关旧机释放内存，周末直接切换）
-- 计划：`docs/plans/2026-10-31-1418-ops-mas-go-dev-debian13-migration-plan.md` U2 / U5
-- 原因：mas-go-dev 从 AL2023 迁到 Debian 13，并按用户要求改名 `mas-sit`。U1 时宿主 MemAvailable 只有约 5.6 GiB（低于计划的 6G 闸门；`mssql-ref` 刚随宿主重启，SQL Server 上限 8G 还会继续涨）。用户决定不并行，先关旧机再建新机。
+- 计划：`docs/plans/2026-10-31-1418-ops-mas-sit-debian13-migration-plan.md` U2 / U5
+- 原因：SIT 合部署 VM 从 AL2023 迁到 Debian 13，并按用户要求改名 `mas-sit`。U1 时宿主 MemAvailable 只有约 5.6 GiB（低于计划的 6G 闸门；`mssql-ref` 刚随宿主重启，SQL Server 上限 8G 还会继续涨）。用户决定不并行，先关旧机再建新机。
 - 备份：`/root/vm-130.conf.bak.20261031`
 - 做了什么：
-  1. 在旧机上停用 6 个 runner、全部 compose 和 `tailscaled` 后，`qm shutdown 130`（guest agent 没响应，退回 ACPI 正常关机），`qm set 130 --onboot 0 --name mas-go-dev-al2023`。
+  1. 在旧机上停用 6 个 runner、全部 compose 和 `tailscaled` 后，`qm shutdown 130`（guest agent 没响应，退回 ACPI 正常关机），`qm set 130 --onboot 0 --name mas-sit-al2023`。
   2. 下载 `debian-13-genericcloud-amd64.qcow2`（SHA512 校验通过，校验文件存为 `debian-13-genericcloud-amd64.SHA512SUMS`）。
   3. `qm create 160 --name mas-sit --memory 8192 --balloon 0 --cores 4 --cpu host --machine q35 --agent enabled=1 --onboot 1 --startup order=30,up=60,down=180`，系统盘 `import-from` 镜像后扩到 300G（`nvme-data:vm-160-disk-0`，discard、iothread、ssd），cloud-init 用户 `ec2-user`、`192.168.2.22/24`、网关和 DNS `192.168.2.1`、SSH 公钥与旧机相同。旧机已关，所以直接用原 IP 和最终内存，不再走临时地址。
   4. 数据源：`lvcreate -s -kn -n vm-160-disk-1 nvme-data/vm-130-disk-1`（旧盘 thin 快照），以 `ro=1` 挂到 VM 160 作 `scsi1`，VM 内 `ro,norecovery,nouuid` 挂载后 rsync。迁移完成后已 `qm set 160 --delete scsi1` + `qm disk unlink --force` 删掉快照；原盘 `vm-130-disk-1` 全程没动。
 - 影响：宿主 MemAvailable 从约 5.6 GiB 回到约 14 GiB（旧机关机），新机起来后静态内存配置与之前相同（10 + 12 + 8）。nvme-data 新盘实际占用约 8%。
-- 回滚方式：先在新机上停用 runner、timer 和 `tailscaled`，`qm shutdown 160 && qm set 160 --onboot 0`，然后 `qm start 130 && qm set 130 --onboot 1`。旧机上依次恢复 `tailscaled` → 容器（数据层、应用层）→ runner 和 timer，详细步骤见 `docs/operations/mas-go-dev.md` 2026-10-31 条目。新机期间写入的 SIT 数据会丢。
-- 验证：`qm config 130` 为 `onboot: 0`、`name: mas-go-dev-al2023`；VM 160 两次 `qm reboot` 后 `qm agent 160 ping` 都正常。
+- 回滚方式：先在新机上停用 runner、timer 和 `tailscaled`，`qm shutdown 160 && qm set 160 --onboot 0`，然后 `qm start 130 && qm set 130 --onboot 1`。旧机上依次恢复 `tailscaled` → 容器（数据层、应用层）→ runner 和 timer，详细步骤见 `docs/operations/mas-sit.md` 2026-10-31 条目。新机期间写入的 SIT 数据会丢。
+- 验证：`qm config 130` 为 `onboot: 0`、`name: mas-sit-al2023`；VM 160 两次 `qm reboot` 后 `qm agent 160 ping` 都正常。
 - 到期：VM 130 及其盘保留到 **2026-11-07**，之后经用户确认再销毁（含 `unused0` 4M 盘）。
 
 ## 2026-10-31 14:31 CST - VM 150 team-svc vCPU 4 → 6
 
 - 服务器：`pve`
 - 操作人：`Claude`（用户已确认）
-- 原因：需要 Docker 的 CI job（cmm-api `verify`、qingfan PostgreSQL 测试）和 moo-decision 的 SIT 构建都改到 team-svc 上跑。第一次 CI 时 team-svc 负载达到 5～6，而它只有 4 个 vCPU。宿主是 6 核 i5-9600；`mssql-ref` 6 核、`mas-go-dev` 4 核，三台 VM 之间超分没问题，内存不变。
+- 原因：需要 Docker 的 CI job（cmm-api `verify`、qingfan PostgreSQL 测试）和 moo-decision 的 SIT 构建都改到 team-svc 上跑。第一次 CI 时 team-svc 负载达到 5～6，而它只有 4 个 vCPU。宿主是 6 核 i5-9600；`mssql-ref` 6 核、`mas-sit` 4 核，三台 VM 之间超分没问题，内存不变。
 - 备份：`/root/150.conf.bak.20261031-cpu`
-- 做了什么：确认 mac-mini、lemon-imac、team-svc、mas-go-dev 上都没有运行中的 job 后，执行 `qm set 150 --cores 6`，再 `qm shutdown 150` 和 `qm start 150`。
+- 做了什么：确认 mac-mini、lemon-imac、team-svc、mas-sit 上都没有运行中的 job 后，执行 `qm set 150 --cores 6`，再 `qm shutdown 150` 和 `qm start 150`。
 - 影响：team-svc 上的 SonarQube、各开发库和 CDC 停了约 1.5 分钟。
 - 回滚方式：`qm set 150 --cores 4`，然后重启 VM。
 - 验证：VM 内 `nproc` 为 6；20 个容器全部拉起，SonarQube 返回 `UP`，3 个 runner 都是 active。
@@ -33,15 +33,15 @@
 - 服务器：`pve`（PVE 9.2.3，`pve-no-subscription` 源）
 - 操作人：`Claude`（用户已确认现在升级）
 - 原因：运行内核 `7.0.6-2-pve` 受 CVE-2026-98432 影响。`7.0.14-25` 起已修复：changelog 里源码基于 `Ubuntu-7.0.0-43.43`，与 Ubuntu 的修复目标版本一致；Proxmox 员工也在论坛确认了。复核见 `docs/reviews/2026-10-31-cve-2026-98432-kernel-exposure.md`。
-- 影响：宿主重启，在跑的三台 VM 跟着停机。VM 110 `mssql-ref` 约 3 分钟，VM 130 `mas-go-dev` 约 3 分钟，VM 150 `team-svc` 约 4 分钟。120 `mas-win`、140 `fnos-nas` 原本就是停着的，`onboot=0`，没动。
-- 备份：旧内核 `7.0.6-2-pve`、`6.17.13-13-pve` 还在 GRUB 里。重启前记录了现状：三台 VM 都是 `onboot=1`，没有正在跑的任务或 vzdump，mas-go-dev 上没有正在跑的 CI job，两台 Docker VM 里的容器都有 restart 策略。
+- 影响：宿主重启，在跑的三台 VM 跟着停机。VM 110 `mssql-ref` 约 3 分钟，VM 130 `mas-sit` 约 3 分钟，VM 150 `team-svc` 约 4 分钟。120 `mas-win`、140 `fnos-nas` 原本就是停着的，`onboot=0`，没动。
+- 备份：旧内核 `7.0.6-2-pve`、`6.17.13-13-pve` 还在 GRUB 里。重启前记录了现状：三台 VM 都是 `onboot=1`，没有正在跑的任务或 vzdump，mas-sit 上没有正在跑的 CI job，两台 Docker VM 里的容器都有 restart 策略。
 - 回滚方式：控制台开机时在 GRUB 的 Advanced options 里选 `7.0.6-2-pve`；要长期固定可以用 `proxmox-boot-tool kernel pin 7.0.6-2-pve`。
 - 做了什么：
   - `apt-get install -y proxmox-kernel-7.0`（`7.0.6-2` → `7.0.14-26`，只装了 `proxmox-kernel-7.0` 和 `proxmox-kernel-7.0.14-26-pve-signed` 两个包，没有做 dist-upgrade）。自动保留的内核从 `7.0.2-3` 换成了 `7.0.14-26`。
   - 13:37:13 `systemctl reboot`，13:39:08 SSH 恢复。之后 `pve-guests` 按 startup order 依次拉起 VM，每台间隔 60 秒：110 → 130 → 150（150 在 13:41:12 起来）。
 - 验证：
   - `uname -r` = `7.0.14-26-pve`，没有 failed 的单元。`qm list` 里 110 / 130 / 150 都是 running。
-  - 各 VM 内部的验证见 `mssql-ref`、`mas-go-dev`、`team-svc` 各自的时间线。
+  - 各 VM 内部的验证见 `mssql-ref`、`mas-sit`、`team-svc` 各自的时间线。
 
 ## 2026-10-31 09:24 CST - 只读：CVE-2026-98432 内核漏洞暴露面排查
 
@@ -92,7 +92,7 @@
 - 评估结论（未执行）：
   - 宿主机 i5-9600，6 核无超线程，32G 内存；`nvme-data` 剩约 354G、`local-lvm` 剩约 355G。KSM 当前合并约 2.8G。
   - `mssql-ref`：`max server memory` = 14336 MB，未设 `memory.memorylimitmb`；committed 约 12G，其中 buffer pool 约 8G（`medicalassistance_preprod` 约 5G、`_replicated` 约 1.2G、tempdb 约 0.9G），执行计划缓存约 1.8G。
-  - `mas-go-dev`：8G 里实际用约 2.3G。
+  - `mas-sit`：8G 里实际用约 2.3G。
 
 ## 2026-10-30 23:31 CST - 只读查看 VM 运行情况
 
@@ -103,7 +103,7 @@
 - 备份：无（只读）。
 - 回滚方式：无变更。
 - 验证结果：
-  - 运行中 3 台：`110 mssql-ref`（18432 MiB）、`120 mas-win`（6144 MiB）、`130 mas-go-dev`（8192 MiB）。
+  - 运行中 3 台：`110 mssql-ref`（18432 MiB）、`120 mas-win`（6144 MiB）、`130 mas-sit`（8192 MiB）。
   - 已停止 1 台：`140 fnos-nas`（2048 MiB）。
   - 无 LXC 容器。
 
@@ -111,12 +111,12 @@
 
 - 服务器：`pve`
 - 操作人：`Grok`
-- 原因：评估能否把 EVP SIT 放到 `100.109.223.53`（`mas-go-dev` / VM `130`），或在 PVE 上另开小 VM。
+- 原因：评估能否把 EVP SIT 放到 `100.109.223.53`（`mas-sit` / VM `130`），或在 PVE 上另开小 VM。
 - 影响：只读（`qm list` / `qm config 130` / `pvesm status` / 节点内存）；未改 VM、存储、网络。
 - 备份：无（只读）。
 - 回滚方式：无变更。
 - 验证结果：
-  - 运行中：`110 mssql-ref` 20Gi、`120 mas-win` 6Gi、`130 mas-go-dev` 8Gi；`140 fnos-nas` 已 stopped。
+  - 运行中：`110 mssql-ref` 20Gi、`120 mas-win` 6Gi、`130 mas-sit` 8Gi；`140 fnos-nas` 已 stopped。
   - VM 130：4 核 / 8192 MiB（balloon=8192，没有可再挤的 balloon 余量），盘 `nvme-data:vm-130-disk-1` 300G。
   - 宿主机 31.26Gi 已用约 29.4Gi，available 约 2Gi，swap 4.1/8Gi。`nvme-data` 约 53.5%（可用约 435G）。
   - 结论：盘够开新盘，**内存不够**再给 130 加配或稳定新增一台常驻 VM。
@@ -190,7 +190,7 @@
   - **两端 netcheck**：`UDP: true`，但 `MappingVariesByDestIP: true`、`PortMapping:` 空（无 UPnP/NAT-PMP），打洞困难，落 DERP。
   - **客户端 DERP 到昆明本身偏高**：本机 `Nearest DERP: Kunming` 延迟约 `113 ms`；PVE 侧到 km 仅约 `4.6 ms` → 总 RTT ≈ 客户端到 DERP + DERP 到家宽 叠加抖动。
   - **SQL 本体健康**：`mssql-ref` load ~0，`mssql-server` active，guest 内存约 12/17Gi 使用、swap 0，无 guest memory pressure；当前无 OOM/磁盘 SMART 异常。
-  - **连接画像**：1433 活跃连接大多来自 Tailscale `100.x`（如 `100.92.181.15` MacBook Air、`100.123.10.109` Gulhi Mac mini、`100.115.69.120` dev-cypresso），局域网仅见 `192.168.2.22`（`mas-go-dev`）。
+  - **连接画像**：1433 活跃连接大多来自 Tailscale `100.x`（如 `100.92.181.15` MacBook Air、`100.123.10.109` Gulhi Mac mini、`100.115.69.120` dev-cypresso），局域网仅见 `192.168.2.22`（`mas-sit`）。
 - 宿主机顺带观察（非本次主因，但偏紧）：
   - 物理内存 31Gi，三台在跑 VM 静态配置约 `18.4+6+8 ≈ 32.4 GiB`，宿主 available 仅约 `1.5 GiB`，swap 已用约 `772 MiB`；page cache 很薄。
   - 当前瞬时 load / memory pressure 不高；历史上 2026-06-19 曾因超卖导致 `mas-win` 换页变慢（已固定 6G 关 balloon）。
@@ -202,20 +202,20 @@
   3. 验证直连恢复：`tailscale ping mssql-ref` / `tailscale ping pve` 应出现 `via <公网IP:端口>` 而非 `via DERP(km)`，RTT 应降到几十毫秒以内（同城/同网更低）。
   4. 中长期：PVE 物理内存仍偏紧，加内存或继续控制 VM 常驻集合，避免再出现宿主换页。
 
-## 2026-07-05 00:16 CST - 在线扩容 mas-go-dev 系统盘到 300G
+## 2026-07-05 00:16 CST - 在线扩容 mas-sit 系统盘到 300G
 
-- 服务器：`pve`（VM `130/mas-go-dev`）
+- 服务器：`pve`（VM `130/mas-sit`）
 - 操作人：`Codex`
-- 原因：`mas-go-dev` 根盘 120G 已被 GitHub Actions runner 的 Go / Docker 缓存逼近打满；用户确认按上一条评估方案扩容到 300G，以保留 CI cache、避免频繁清理影响构建速度。
+- 原因：`mas-sit` 根盘 120G 已被 GitHub Actions runner 的 Go / Docker 缓存逼近打满；用户确认按上一条评估方案扩容到 300G，以保留 CI cache、避免频繁清理影响构建速度。
 - 影响：
-  - VM `130/mas-go-dev` 的 `scsi0` 从 `120G` 在线扩容到 `300G`。
+  - VM `130/mas-sit` 的 `scsi0` 从 `120G` 在线扩容到 `300G`。
   - 宿主机、VM、runner、Docker 容器均未重启。
   - `nvme-data` thin pool 实际 Data 使用率仍为 `34.19%`；`vm-130-disk-1` 逻辑大小变为 `300G`，该 thin volume Data 使用率约 `39.99%`。
 - 备份：
-  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/130.conf.before`
-  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/130.status.before`
-  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/pvesm.status.before`
-  - `/root/mas-go-dev-disk-resize-20260705-before-disk-resize/lvs.before`
+  - `/root/mas-sit-disk-resize-20260705-before-disk-resize/130.conf.before`
+  - `/root/mas-sit-disk-resize-20260705-before-disk-resize/130.status.before`
+  - `/root/mas-sit-disk-resize-20260705-before-disk-resize/pvesm.status.before`
+  - `/root/mas-sit-disk-resize-20260705-before-disk-resize/lvs.before`
 - 变更：
   1. 在 PVE 保存 VM 配置、状态、storage 与 LVM thin 状态到上述目录。
   2. 执行 `qm resize 130 scsi0 +180G`，PVE 将 `nvme-data/vm-130-disk-1` 从 `120.00 GiB` 扩到 `300.00 GiB`。
@@ -224,20 +224,20 @@
   - `qm config 130`：`scsi0: nvme-data:vm-130-disk-1,discard=on,iothread=1,size=300G`。
   - `pvesm status`：`nvme-data` active，Data 使用率 `34.19%`，Available 约 `644984330 KiB`。
   - `lvs`：`nvme-data/vm-130-disk-1` `300.00g`，Data 使用率 `39.99%`。
-  - guest 内已同步完成分区和 XFS 扩容，详见 `docs/operations/mas-go-dev.md` 同时间记录。
+  - guest 内已同步完成分区和 XFS 扩容，详见 `docs/operations/mas-sit.md` 同时间记录。
 - 回滚说明：磁盘与 XFS 已向前扩容，不能直接无损缩回。若后续出现问题，应基于备份配置与当前状态排查修复，不要尝试直接缩盘。
 
-## 2026-07-05 00:12 CST - 只读评估 mas-go-dev VM 系统盘扩容方案
+## 2026-07-05 00:12 CST - 只读评估 mas-sit VM 系统盘扩容方案
 
-- 服务器：`pve`（VM `130/mas-go-dev`）
+- 服务器：`pve`（VM `130/mas-sit`）
 - 操作人：`Codex`
-- 原因：`mas-go-dev` 根盘因 GitHub Actions runner 的 Go / Docker 缓存接近打满；用户要求从宿主机侧查看磁盘情况并决定扩容方案。
+- 原因：`mas-sit` 根盘因 GitHub Actions runner 的 Go / Docker 缓存接近打满；用户要求从宿主机侧查看磁盘情况并决定扩容方案。
 - 影响：本次仅做只读检查，未执行 `qm resize`、未改 VM 配置、未改 guest 分区 / 文件系统、未重启 VM 或宿主机。
 - 宿主机存储现状：
-  - `qm list`：VM `130/mas-go-dev` running，当前 `BOOTDISK=120G`。
+  - `qm list`：VM `130/mas-sit` running，当前 `BOOTDISK=120G`。
   - `pvesm status`：
     - `nvme-data` 为 `lvmthin`，总量约 `934.7GiB`，Data 使用率 `34.19%`，可用约 `615GiB`。
-    - `local-lvm` 为 `lvmthin`，总量约 `350.8GiB`，Data 使用率 `3.45%`，但 `mas-go-dev` 当前不在该池。
+    - `local-lvm` 为 `lvmthin`，总量约 `350.8GiB`，Data 使用率 `3.45%`，但 `mas-sit` 当前不在该池。
   - `qm config 130`：系统盘为 `scsi0: nvme-data:vm-130-disk-1,discard=on,iothread=1,size=120G`；`agent: enabled=1` 但 guest agent 不运行（AL2023 既有限制）。
   - `lvs`：`nvme-data/vm-130-disk-1` thin volume 逻辑大小 `120G`，Data 使用率 `99.99%`，与 guest 根盘已满吻合。
 - guest 只读确认：
@@ -265,7 +265,7 @@
   - `mas-win` 内存从被压的 2GiB 恢复到固定 6GiB，ballooning 彻底关闭，不再被宿主回收；Windows 停止换页。
   - `mssql-ref`(110) 内存上限从 20480 永久下调到 18432（实测 SQL Server `max server memory` 已设 14336MB，VM 内仍余约 4GiB，未挤压 SQL）。
   - `fnos-nas`(140) 优雅关机（用户决定），腾出 2GiB 给 `mas-win`；`onboot=0`，宿主重启不会自动拉起。
-  - `mas-win` 重启过程站点中断约 1~2 分钟；`mas-go-dev`(130) 全程未受影响。
+  - `mas-win` 重启过程站点中断约 1~2 分钟；`mas-sit`(130) 全程未受影响。
   - 重启后宿主空闲内存偏紧（约 292MiB，swap 用约 316MiB）；用户计划后续给 PVE 加物理内存，再重新开 `fnos-nas`。
 - 回滚：
   - 恢复内存超卖前状态：`ssh pve "qm set 120 --balloon 2048 --memory 4096 && qm set 110 --memory 20480"`。
@@ -317,7 +317,7 @@
   - 新增 VM `140/fnos-nas`，占用 2 vCPU / 2 GiB 内存。
   - 在 `local-lvm` 新增 3 个 thin volumes：4 MiB EFI 盘、32G 系统盘、300G 数据盘；`local-lvm` Data% 当前约 3.66%。
   - 上传 fnOS ISO 到 PVE `local` ISO 存储，`local` 使用率约 32.90%。
-  - 现有 VM `110/mssql-ref`、`120/mas-win`、`130/mas-go-dev` 全程保持 running；未重启宿主机，未改网络、防火墙、Tailscale route、数据库或现有 VM 配置。
+  - 现有 VM `110/mssql-ref`、`120/mas-win`、`130/mas-sit` 全程保持 running；未重启宿主机，未改网络、防火墙、Tailscale route、数据库或现有 VM 配置。
 - 回滚：
   - 如需删除该 NAS VM，先确认不需要保留影视数据，然后关闭 VM `140`，执行 `qm destroy 140 --destroy-unreferenced-disks 1 --purge` 删除 VM 配置和 `local-lvm` 磁盘。
   - 如需清理安装镜像，可删除 `/var/lib/vz/template/iso/fnos_Mainland-PE_x86_1.1.3107_1809.iso`。
@@ -341,14 +341,14 @@
 
 ## 2026-06-14 22:50 CST - 清理三台 VM 的 9 个搭建期快照
 
-- 服务器：`pve`（VM `110/mssql-ref`、`120/mas-csharp`、`130/mas-go-dev`）
+- 服务器：`pve`（VM `110/mssql-ref`、`120/mas-csharp`、`130/mas-sit`）
 - 操作人：`Claude`
 - 原因：排查 NVMe（`nvme-data` thin pool）占用时发现三台 VM 共留有 9 个快照，均为 2026-05-16~17 一次性搭建/迁移的里程碑检查点（装系统→装中间件→恢复库→迁移），距今约一个月。确认 PVE 无任何自动清理快照的机制（`jobs.cfg`/`vzdump.cron` 空、无 cron/timer/脚本），这些快照只会随原卷写入持续增长，故清理。
 - 影响：
   - 删除全部 9 个快照（删的仅是回滚能力，三台 VM 当前 `current` 运行状态与数据不受影响）：
     - VM110：`mssql-ready` / `mssql-full-ready` / `mssql-all-full-ready` / `before-mas-go-migrate-20260517`
     - VM120：`windows-core-ready` / `iis-aspnet-ready` / `mas-csharp-smoke-ready` / `mas-csharp-preprod-ready`
-    - VM130：`mas-go-dev-deploy-ready-20260517`
+    - VM130：`mas-sit-deploy-ready-20260517`
   - `nvme-data` thin pool 物理占用 42.79% → 40.98%（回收约 17G）。回收量不大，因快照创建后原卷写入有限、CoW 差异块本就不多；清理的主要价值是消除其持续增长隐患（尤其 VM110 数据库一直在写）。
   - 三台 VM 全程 `running`，未重启、未动数据。
 - 回滚：快照删除不可逆，无法回滚（如需还原点须重新 `qm snapshot` 创建）。但当前运行状态完好，无回滚需求。
@@ -363,25 +363,25 @@
 
 ## 2026-06-12 14:42 CST - 验证并补齐部分 VM 的 QEMU guest agent
 
-- 服务器：`pve`、`mssql-ref`、`mas-go-dev`
+- 服务器：`pve`、`mssql-ref`、`mas-sit`
 - 操作人：`Codex`
-- 原因：PVE 升级与重启后发现 VM `110/mssql-ref`、`130/mas-go-dev` 均配置了 `agent: enabled=1`，但 PVE 侧 `qm agent <vmid> ping` 返回 `QEMU guest agent is not running`。用户确认立即安装并记录。
-- 影响：在 `mssql-ref` guest 内新增 `qemu-guest-agent` 与依赖包 `liburing2`，启动 `qemu-guest-agent.service`；未重启 VM，未重启 SQL Server。`mas-go-dev` 因 Amazon Linux 2023 官方仓库不提供 `qemu-guest-agent`，未安装包、未启用服务、未引入第三方 RPM。
+- 原因：PVE 升级与重启后发现 VM `110/mssql-ref`、`130/mas-sit` 均配置了 `agent: enabled=1`，但 PVE 侧 `qm agent <vmid> ping` 返回 `QEMU guest agent is not running`。用户确认立即安装并记录。
+- 影响：在 `mssql-ref` guest 内新增 `qemu-guest-agent` 与依赖包 `liburing2`，启动 `qemu-guest-agent.service`；未重启 VM，未重启 SQL Server。`mas-sit` 因 Amazon Linux 2023 官方仓库不提供 `qemu-guest-agent`，未安装包、未启用服务、未引入第三方 RPM。
 - 回滚：
   - `mssql-ref`：`sudo systemctl stop qemu-guest-agent && sudo apt-get purge -y qemu-guest-agent liburing2`，如需保留依赖则只 purge `qemu-guest-agent`。
-  - `mas-go-dev`：无功能性变更需要回滚；仅保留安装尝试记录目录 `/home/ec2-user/qemu-guest-agent-install-20260612-064212`。
+  - `mas-sit`：无功能性变更需要回滚；仅保留安装尝试记录目录 `/home/ec2-user/qemu-guest-agent-install-20260612-064212`。
 - 变更：
   - `mssql-ref` 安装前状态保存到 `/home/ubuntu/qemu-guest-agent-install-20260612-064134/precheck.txt`，安装后状态保存到同目录 `postcheck.txt`。
   - 在 `mssql-ref` 执行 `sudo apt-get update && sudo apt-get install -y qemu-guest-agent`，随后 `sudo systemctl enable --now qemu-guest-agent`。该 unit 在 Ubuntu 22.04 中是 `static`，但已 active running。
-  - 在 `mas-go-dev` 执行 `sudo dnf install -y qemu-guest-agent`，返回 `No match for argument: qemu-guest-agent` / `Unable to find a match`；`dnf provides '*/qemu-ga' '*/qemu-guest-agent'` 也无结果。
+  - 在 `mas-sit` 执行 `sudo dnf install -y qemu-guest-agent`，返回 `No match for argument: qemu-guest-agent` / `Unable to find a match`；`dnf provides '*/qemu-ga' '*/qemu-guest-agent'` 也无结果。
   - 查阅 AWS 官方 AL2023 KVM 文档，确认 AL2023 当前不打包也不支持 KVM guest agent；因此未从非官方来源安装。
 - 验证：
   - PVE 侧 `qm agent 110 ping` 成功，`qm agent 110 get-osinfo` 返回 Ubuntu 22.04.5 LTS 与 kernel `5.15.0-181-generic`。
   - `mssql-ref` 内 `qemu-guest-agent` 为 `active`，SQL Server `mssql-server` 仍为 `active`，`1433` 端口仍在监听。
   - PVE 侧 `qm agent 130 ping` 仍返回 `QEMU guest agent is not running`，符合 AL2023 官方限制与当前仓库状态。
-  - `mas-go-dev` 内 Docker 与 GitHub Actions runner 均为 `active`，`icare-backend-api-1` 仍为 `healthy`，`http://127.0.0.1:5174/healthz` 返回 `ok`。
+  - `mas-sit` 内 Docker 与 GitHub Actions runner 均为 `active`，`icare-backend-api-1` 仍为 `healthy`，`http://127.0.0.1:5174/healthz` 返回 `ok`。
 - 后续：
-  - `mas-go-dev` 不建议为了 guest agent 引入第三方 QEMU RPM；如果强依赖 PVE guest agent 能力，应优先考虑换用官方支持 qemu guest agent 的发行版，或接受当前 AL2023 限制。
+  - `mas-sit` 不建议为了 guest agent 引入第三方 QEMU RPM；如果强依赖 PVE guest agent 能力，应优先考虑换用官方支持 qemu guest agent 的发行版，或接受当前 AL2023 限制。
 
 ## 2026-06-12 14:24 CST - 重启 PVE 宿主机使 9.2 新内核生效
 
@@ -394,14 +394,14 @@
   - 重启前保存状态到 `/root/pve-reboot-after-9.2-20260612-141818/pre-reboot.txt`。
   - 执行 `systemctl reboot`。
   - 宿主机约 14:20 恢复 SSH，并进入新内核 `7.0.6-2-pve`。
-  - `pve-guests` 按自启动顺序拉起 VM：14:20 启动 `110/mssql-ref`，14:21 启动 `120/mas-win`，14:22 启动 `130/mas-go-dev`，14:23 完成 `startall`。
+  - `pve-guests` 按自启动顺序拉起 VM：14:20 启动 `110/mssql-ref`，14:21 启动 `120/mas-win`，14:22 启动 `130/mas-sit`，14:23 完成 `startall`。
 - 验证：
   - `pveversion` 显示 `pve-manager/9.2.3`，running kernel 为 `7.0.6-2-pve`。
   - `pveproxy`、`pvedaemon`、`pvestatd`、`pve-cluster`、`rrdcached.service`、`ssh`、`pve-guests` 均为 `active`；`systemctl --failed` 无失败服务。
-  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-go-dev` 均为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
+  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-sit` 均为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
   - 节点 RRD、VM `110` RRD、storage `local` RRD API 均能返回 JSON 数据；14:20 之后 `journalctl -p warning` 无新日志。
   - 从 PVE 验证 `192.168.2.20:1433`、`192.168.2.21:9020`、`192.168.2.21:9021` 可达；`http://192.168.2.22:5174/healthz` 返回 `ok`。
-  - `mas-go-dev` 内 Docker 与 GitHub Actions runner 为 `active`，`icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动。
+  - `mas-sit` 内 Docker 与 GitHub Actions runner 为 `active`，`icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动。
 - 附带发现：
   - VM `110` 与 `130` 的 PVE 配置中有 `agent: enabled=1`，但 guest 内未安装 `qemu-guest-agent`，所以 `qm agent <vmid> ping` 返回 `QEMU guest agent is not running`。本次未修复该既有不一致；业务连通性验证正常。
 
@@ -424,7 +424,7 @@
   - 当前运行内核仍为 `7.0.2-3-pve`；`/boot/vmlinuz-7.0.6-2-pve` 已存在。
   - `dpkg --audit` 无输出；`apt-get check` 正常；`apt list --upgradable` 无待升级包。
   - `pveproxy`、`pvedaemon`、`pvestatd`、`pve-cluster`、`rrdcached.service`、`ssh` 均为 `active`；`systemctl --failed` 无失败服务。
-  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-go-dev` 仍为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
+  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-sit` 仍为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
   - 节点 RRD、VM `110` RRD、storage `local` RRD API 均能返回 JSON 数据；14:10 之后 `journalctl -p warning` 无新日志。
 - 后续：
   - 不在本次操作中重启宿主机。若要让新内核 `7.0.6-2-pve` 生效，需要另行确认维护窗口并安排宿主机重启。
@@ -450,14 +450,14 @@
   - `pvesh get /nodes/pve/rrddata --timeframe hour --cf AVERAGE --output-format json` 已能返回节点 RRD 数据，不再报 `rrd_fetch_r failed`。
   - VM `110`、`120`、`130` 的 RRD API 均能返回数据；`pve-storage-9.0/pve/local` RRD API 能返回数据。
   - 13:46 之后 `journalctl` 未再出现新的 `RRD/RRDC/rrdcached/pve-node` 错误。
-  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-go-dev` 仍为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
+  - `qm list` 显示 `mssql-ref`、`mas-win`、`mas-sit` 仍为 `running`；`pvesm status` 显示 `local`、`local-lvm`、`nvme-data` 均为 `active`。
 - 后续：
   - PVE 9.2 升级仍待用户另行确认；本次未升级 PVE，也未重启宿主机。
   - 已沉淀复用方案：`docs/solutions/pve/runtime-errors/pve-node-rrd-corruption-2026-06-12.md`。
 
-## 2026-05-28 09:45 CST - 添加同事 SSH 公钥到 mas-go-dev
+## 2026-05-28 09:45 CST - 添加同事 SSH 公钥到 mas-sit
 
-- 服务器：`mas-go-dev`（PVE VM `130`，`192.168.2.22`）
+- 服务器：`mas-sit`（PVE VM `130`，`192.168.2.22`）
 - 操作人：`Codex`
 - 原因：允许同事通过 SSH 登录 `ec2-user@192.168.2.22`，便于协作处理 MAS Go + React 内网自动部署环境。
 - 影响：`hon-2026` 对应私钥持有人可以登录 `ec2-user` 用户；未重启服务，未改动 Docker、GitHub Actions runner、数据库、网络或防火墙。
@@ -470,12 +470,12 @@
   - `authorized_keys` 中已能精确匹配 `hon-2026` 公钥。
   - `/home/ec2-user/.ssh/authorized_keys` 权限为 `600`，共 2 行。
 
-## 2026-05-20 16:03 CST - 修复 mas-go-dev 前端本地 Docker build OOM
+## 2026-05-20 16:03 CST - 修复 mas-sit 前端本地 Docker build OOM
 
 - 服务器：`pve`
 - 操作人：`Codex` + 用户手动重启 VM
-- 原因：`iCare-frontend-mas` 的 `Deploy to mas-go-dev` job 在 `docker build` 阶段执行 `npm run build`，Node 报 `JavaScript heap out of memory`。排查发现 VM `130/mas-go-dev` 配置为 `memory=8192`，但 `balloon=2048`，guest 实际只看到约 `2.1GiB` 内存，导致 Vite/TypeScript 构建堆空间不足。
-- 影响：将 `mas-go-dev` 的 balloon 下限提高到 8 GiB，并由用户重启 VM 使配置生效；重启期间 `mas-go-dev` 后端、前端和 GitHub Actions runner 短暂中断。未修改数据库、网络、防火墙或应用代码。
+- 原因：`iCare-frontend-mas` 的 `Deploy to mas-sit` job 在 `docker build` 阶段执行 `npm run build`，Node 报 `JavaScript heap out of memory`。排查发现 VM `130/mas-sit` 配置为 `memory=8192`，但 `balloon=2048`，guest 实际只看到约 `2.1GiB` 内存，导致 Vite/TypeScript 构建堆空间不足。
+- 影响：将 `mas-sit` 的 balloon 下限提高到 8 GiB，并由用户重启 VM 使配置生效；重启期间 `mas-sit` 后端、前端和 GitHub Actions runner 短暂中断。未修改数据库、网络、防火墙或应用代码。
 - 回滚：
   - 快速回滚：`qm set 130 --balloon 2048`，然后在维护窗口重启 VM 130。
   - 配置文件回滚：参考备份 `/etc/pve/qemu-server/130.conf.bak.20260520-oom`。
@@ -485,12 +485,12 @@
   - 尝试 QMP 热调整运行态 balloon，未能让 guest 立即释放到 8 GiB；随后用户手动重启 VM 130。
 - 验证：
   - PVE 运行态显示 `balloon=8589934592`、`balloon_min=8589934592`、`maxmem=8589934592`。
-  - `mas-go-dev` guest 可见内存约 `7.7GiB`，无 swap。
-  - `actions.runner.cypressoai.mas-go-dev.service` 为 `active running`，并已连接 GitHub。
+  - `mas-sit` guest 可见内存约 `7.7GiB`，无 swap。
+  - `actions.runner.cypressoai.mas-sit.service` 为 `active running`，并已连接 GitHub。
   - Docker 服务为 `active`，`icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动。
   - `http://127.0.0.1:5174/healthz` 返回 `ok`。
   - `http://127.0.0.1:5174/api/v1/health` 返回 `code=200`、database `up`。
-  - 重新运行 GitHub Actions failed job 后，`iCare-frontend-mas` run `26147661747` 变为 `success`，新的 `Deploy to mas-go-dev` job `76913376725` 成功完成。
+  - 重新运行 GitHub Actions failed job 后，`iCare-frontend-mas` run `26147661747` 变为 `success`，新的 `Deploy to mas-sit` job `76913376725` 成功完成。
 - 后续：
   - 暂不启用 swap；8 GiB 固定内存已解决本次 Node build OOM。若后续仍出现偶发 OOM，再考虑在 guest 内添加 4 GiB swap 作为兜底。
   - 观察 PVE 宿主机 available memory，避免多台 VM 高峰期同时吃满物理内存。
@@ -500,21 +500,21 @@
 - 服务器：`pve`
 - 操作人：`Codex`
 - 原因：用户已手动调整并重启 MAS 参考环境三台 VM，需要确认 PVE 配置、guest 可见内存和关键服务状态。
-- 影响：本次仅检查和记录；实际资源调整由用户已完成。当前配置提高了 `mssql-ref` 的数据库缓存空间，并压缩 `mas-win`、`mas-go-dev` 的内存上限。
-- 回滚：如调整后出现内存压力或应用异常，可在维护窗口内把 VM 内存恢复到调整前配置：`mssql-ref=8192 MiB`、`mas-win=8192 MiB`、`mas-go-dev=16384 MiB`，并按 `mssql-ref -> mas-win -> mas-go-dev` 顺序重启验证。
+- 影响：本次仅检查和记录；实际资源调整由用户已完成。当前配置提高了 `mssql-ref` 的数据库缓存空间，并压缩 `mas-win`、`mas-sit` 的内存上限。
+- 回滚：如调整后出现内存压力或应用异常，可在维护窗口内把 VM 内存恢复到调整前配置：`mssql-ref=8192 MiB`、`mas-win=8192 MiB`、`mas-sit=16384 MiB`，并按 `mssql-ref -> mas-win -> mas-sit` 顺序重启验证。
 - 变更：
   - `mssql-ref`：`memory=20480`，6 vCPU，无 balloon 配置。
   - `mas-win`：`memory=4096`，`balloon=2048`，4 vCPU。
-  - `mas-go-dev`：`memory=8192`，`balloon=2048`，4 vCPU。
+  - `mas-sit`：`memory=8192`，`balloon=2048`，4 vCPU。
   - 三台 VM 均处于 `running`，并保留原有 `onboot` 与 `startup` 顺序。
 - 验证：
   - PVE 宿主机内存：总计约 `31GiB`，available 约 `12GiB`，swap 使用 `0B`。
   - `mssql-ref` guest 可见内存约 `19GiB`，`mssql-server` 为 `active`，本地 SQL Server 查询返回版本 `16.0.4252.3`。
   - `mas-win` QEMU guest agent ping 正常，`192.168.2.21:9020` 和 `192.168.2.21:9021` 端口开放。
-  - `mas-go-dev` guest 当前可见内存约 `5.8GiB`，Docker 容器 `icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动；GitHub Actions runner 服务 `actions.runner.cypressoai.mas-go-dev.service` 为 `active running`。
+  - `mas-sit` guest 当前可见内存约 `5.8GiB`，Docker 容器 `icare-backend-api-1` 为 `healthy`，`mas-icare-portal` 已启动；GitHub Actions runner 服务 `actions.runner.cypressoai.mas-sit.service` 为 `active running`。
 - 后续：
   - 观察 SQL 查询高峰时 PVE 宿主机 available memory、swap、`mssql-ref` 内 `vmstat` 的 `wa/st` 是否下降。
-  - 如 `mas-go-dev` 后续 Docker build 内存不足，再考虑把其上限从 8 GiB 调回 10-12 GiB，或清理构建缓存。
+  - 如 `mas-sit` 后续 Docker build 内存不足，再考虑把其上限从 8 GiB 调回 10-12 GiB，或清理构建缓存。
 
 ## 2026-05-20 11:04 CST - 添加同事 SSH 公钥
 
