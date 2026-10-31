@@ -13,6 +13,7 @@ PVE VM `160`，Debian 13（2026-10-31 由 AL2023 的 VM `130` 迁来，主机名
 - cloud-init 只管首次开机：`/etc/cloud/cloud.cfg.d/99-mas-sit-preserve.cfg` 关掉了重建 SSH 主机密钥、改主机名、改 `/etc/hosts`。SSH 主机密钥沿用旧机（ED25519 `SHA256:dBJKYVoD6PHKGWlXR7HqMNoQqeokLC/N9/7nVTRzrAQ`）。
 - 宿主工具：AWS CLI v2 在 `/usr/local/bin/aws`（`mas-go-dev-ci-1` 上的 prod 部署 job 要用）；`sqlcmd`、`btm` 在 `/usr/local/bin`；`build-essential`、`git`、`jq`、`zip`、`dirmngr` 等走 apt。locale 生成了 `en_US.UTF-8`（AcquiLang runner `.env` 用到）。
 - Tailscale state 沿用旧机节点（`accept-dns=false`），机器名 `mas-sit`。
+- `/etc/gnupg/dirmngr.conf` 写了 `standard-resolver`：dirmngr 自带解析器遇到 quad-100 对公网名回的 SERVFAIL 就放弃，Sonar action 拉 SonarSource 公钥会失败。
 
 当前定位：内网 **SIT 合部署 VM**。iCare MAS Go 继续跑在 `/opt/mas-go-dev/`；其它项目的 SIT 也放到这台机，共用一套 PostgreSQL / Garage / Redis，不再为每个项目单独开 VM。
 

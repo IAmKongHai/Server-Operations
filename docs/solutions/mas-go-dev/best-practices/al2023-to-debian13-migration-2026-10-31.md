@@ -112,6 +112,14 @@ TimeoutStartSec=180
 
 workflow 里 grep `dnf` / `yum` 只抓到了带 `apt-get` 兜底的安装步骤。真正的隐性依赖是宿主上的 AWS CLI v2：AL2023 预装了 `awscli-2`，`mas-go-dev-ci-1` 上的 prod 部署 job 直接调用 `aws ecr` / `aws eks`。另外 AcquiLang runner 的 `.env` 里写着 `LANG=en_US.UTF-8`，Debian cloud 镜像默认没生成这个 locale。新机要装 AWS CLI v2 官方包、`locales`，以及 `build-essential`、`zip`、`dirmngr` 等。
 
+### 9. dirmngr 不走 glibc：quad-100 的 SERVFAIL 会让 keyserver 全部失败
+
+同样是 DNS：`gpg --recv-keys` 由 dirmngr 解析 keyserver 域名。Debian 的 dirmngr 默认用自带解析器读 `/etc/resolv.conf`，只问第一个 nameserver `100.100.100.100`。quad-100 在 `accept-dns=false` 下对公网名回 SERVFAIL，它不会再换 `192.168.2.1`，于是报 `keyserver receive failed: Server indicated a failure`，Sonar action 拉 SonarSource 公钥失败。搭建期测试时 tailscaled 还没启动，quad-100 不可达、超时后会换下一个 nameserver，所以那时测试是通过的。修复：系统级 `/etc/gnupg/dirmngr.conf` 写 `standard-resolver`，对 action 用的临时 GNUPGHOME 也生效。**验证要在 tailscaled 起来之后做。**
+
+### 10. 用重跑 CI 做验证时，避开带部署的 workflow
+
+`gh run rerun <run-id>` 会重跑整条 workflow，包括 `environment: production` 的部署 job。重跑旧 run 等于把旧提交重新部署一遍。本次 tk-flywheel 的生产部署 job 被一起重跑，只是因为生产机的 SSH 不通才没有部署成功。先看 workflow 的 job 列表；带部署的 run 用 `gh run rerun --job <job-id>`，只重跑 CI job。
+
 ## Why This Matters
 
 每一项对应一种「迁过去看起来正常、过后才出问题」的故障：GID 冲突会让 runner 用不了 Docker；短名解析失败会让 Sonar 步骤挂掉；compose 直接 up 会让 SIT 端口在 tailnet 上消失；开机顺序靠运气，某次重启后容器 bind 失败。先盘点、按旧配置重建、再逐项比对，切换才能一次通过。

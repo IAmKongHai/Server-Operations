@@ -41,7 +41,14 @@
   - 出站：`sqlcmd` 连 `192.168.2.20:1433` 成功；容器内可连 mssql-ref；GitHub API 200、GHCR 401（未认证，正常）；`actions-runner` 无需 sudo 可用 Docker；`gpg --recv-keys 679F1EE9…` 经 keyserver 成功（dirmngr 可用）。容器里 busybox `nslookup` 对公网名显示 SERVFAIL（quad-100 在 `accept-dns=false` 下不转发），实际解析会落到 `192.168.2.1`，容器内 HTTPS 访问 GitHub 成功；与旧机配置相同。
   - 第二次 `qm reboot 160`（R9），无人干预：`systemctl --failed` 为空；Tailscale `100.109.223.53` / `mas-sit`；24 个容器运行、0 unhealthy；6 个 runner active 且 GitHub online；SSH ED25519 指纹不变；`qm agent 160 ping` 正常；数据基准与切换前只差 iCare redis db0 的 2 个 TTL key（应用写入缓存）。
   - 平台：内核 `6.12.113+deb13-cloud-amd64`（CVE-2026-98432 已修），`apt-config dump` 显示 `Update-Package-Lists "1"`、`Unattended-Upgrade "1"`。
-  - 真实 CI：见下一条记录。
+  - 真实 CI（15:08–15:55，重跑近期成功的 run）：
+    - `mas-go-dev`：iCare-backend `sit-deploy.yml` run 40855198049 的「Deploy to mas-go-dev」success（按同一提交重新部署 SIT）。
+    - `shared-sit`：EVP `deploy-sit.yml` run 40905317376 success。
+    - `mas-go-dev-ci-1`：EVP Checks run 40901227029 的 `backend`（临时 Postgres）、`insurer-connector`、`images` success。
+    - `mas-go-dev-ci-2`：同一 run 的「SonarQube Scan (frontend)」**第一次失败**：`gpg: keyserver receive failed: Server indicated a failure`，主、备 keyserver 都失败。原因是 Debian 的 dirmngr 默认用自带 DNS 解析器，直接读 `/etc/resolv.conf` 的第一个 nameserver `100.100.100.100`；quad-100 在 `accept-dns=false` 下对公网名回 SERVFAIL，dirmngr 不会再问 `192.168.2.1`（U3 时测试成功，是因为当时 tailscaled 还没启动）。新增 `/etc/gnupg/dirmngr.conf`（`standard-resolver`，改走 glibc 解析）后，临时 GNUPGHOME 也能拉到公钥，重跑该 job success。
+    - `tk-flywheel-ci`：tk-flywheel `ci.yml` run 37940338536 的 Backend 和 3 个 JavaScript job success。
+    - `mas-go-dev-acquilang-ci-1`：AcquiLang run 39019088994 的 job 都落到了 mac-mini / lemon-imac，没有落到这台。lemon-imac 上的 admin / native 失败（pnpm 自安装 `Cannot find module '../lib/cli.js'`），与本次迁移无关。这个池等下一次自然调度时再确认。
+  - **意外：tk-flywheel 生产部署 job 被一起重跑。** 重跑 run 37940338536 时整条 workflow 都会重跑，其中包括 `Deploy production`（`environment: production`，会把 10-09 的提交 `2357d922` 推到 `tk.konghai.me`，等于一次回滚）。这个 job 在 `ssh root@137.184.127.196` 时连接超时（exit 255），**没有部署任何东西**；`tk.konghai.me/healthz` 仍是 200。该机的 22 端口从 mas-sit 和本机都不通、443 正常，说明是生产机自己限制了 SSH 入站，与迁移无关。教训：重跑前要看 workflow 里有没有部署 / `environment: production` 的 job，带部署的 run 只用 `gh run rerun --job <id>` 重跑 CI job。
 
 ## 2026-10-31 14:50 CST - 迁 Debian 13 U1：只读盘点、基准、离机备份
 
