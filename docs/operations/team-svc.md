@@ -1,5 +1,19 @@
 # team-svc 运维操作时间线
 
+## 2026-10-31 15:31 CST - 三个 PR 合并后的首轮流水线
+
+- 服务器：`team-svc`
+- 操作人：`Claude`（只读核对）
+- 原因：用户合并了 `caimiamiao/cmm-api#14`、`IAmKongHai/qingfan#59`、`cypressoai/moo-decision#84`。
+- 验证：
+  - moo-decision：合并触发的 `develop` 自动部署由 team-svc runner 完成。`/opt/moo-app/release-commit` 为 `a65a87f`，与 `origin/develop` 一致。三个 unit 都是 active，旧地址 `http://mac-mini.taila93443.ts.net:18188/healthz` 返回 200。
+  - qingfan：main 上的 CI 全部通过。
+  - cmm-api：main 上的 `verify` 在 team-svc 上通过。**生产部署 job 失败了，但和这次迁移无关：**
+    - 失败的 job 跑在 GitHub 托管的 `ubuntu-latest` 上，卡在 `Back up production PostgreSQL` 这一步。
+    - 腾讯云返回 `OperationDenied.InstanceStatusLimitError`：实例 `postgres-fifcu565` 的备份订单处于隔离状态，不允许获取备份下载链接。
+    - 后面的迁移、切换和冒烟测试都被跳过，生产仍在跑原来的镜像。
+    - 10-21 那次部署时这一步还正常。需要用户在腾讯云处理备份订单（多半是欠费或订单过期），之后在 Actions 手动重跑，或者用 `workflow_dispatch` 重新部署。
+
 ## 2026-10-31 14:40 CST - 装 CI runner（moo-decision / cmm-api / qingfan），moo-app（SIT）迁入，加到 6 vCPU
 
 - 服务器：`team-svc`

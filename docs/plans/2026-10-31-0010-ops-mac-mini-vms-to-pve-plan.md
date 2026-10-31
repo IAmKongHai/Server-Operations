@@ -19,15 +19,15 @@ mac-mini 要腾出内存跑 AI 模型。把 `hon` 下三个常驻 colima VM（`t
 - moo、multica 的本机进程跟着一起搬。
 - 夜间团队不用内网服务，可以停机。
 
-## 执行进度（2026-10-31 14:42）
+## 执行进度（2026-10-31 15:40）
 
 - [x] P0 建 VM：`team-svc` 已建好，Tailscale 已登录（`100.80.124.63`）
 - [x] P1 team 服务：已全部迁移，老地址由 ssh 转发保持可用（不用 socat 的原因见 `AGENTS.md`）；两个备份脚本已改为经 ssh 远程调用 VM 的 Docker
 - [x] P3 multica：用户确认不再使用，直接卸载（数据库导出留在 `~/backups/multica/`），不迁移
 - [x] P4 moo 基础设施：moo-dev-infra（含 CDC，offset 已续上）和 moo-ocr Kafka 已迁移，colima moo 已停
-- [x] P4 moo-app 进程：14:40 迁到 team-svc `/opt/moo-app`（systemd user unit），由 team-svc 上的 moo-decision runner 部署（`cypressoai/moo-decision#84`，待合并）；旧地址经 mac-mini 转发保留。私有模块 moo-ocr 暂靠手工放的模块缓存，见 `team-svc/README.md`
-- [~] P2 CI Docker：改为把需要 Docker 的 job 直接放到 team-svc 上跑（用户 10-31 决定，替代 K4 的远程 `DOCKER_HOST`）。runner 已注册；`caimiamiao/cmm-api#14`、`IAmKongHai/qingfan#59` 的 CI 已在 team-svc 上跑通，待合并。合并后用 root 停用 `com.cypressoai.colima-team`，再 `colima stop -p team`（其余 runner plist 里残留的 `DOCKER_HOST` 已无人用，可以不改）
-- [ ] P5 收尾：colima moo / team 的磁盘 7 天后经确认再删
+- [x] P4 moo-app 进程：14:40 迁到 team-svc `/opt/moo-app`（systemd user unit），由 team-svc 上的 moo-decision runner 部署（`cypressoai/moo-decision#84` 已合并，develop 合并后的自动部署也成功了）；旧地址经 mac-mini 转发保留。私有模块 moo-ocr 暂靠手工放的模块缓存，见 `team-svc/README.md`
+- [x] P2 CI Docker：需要 Docker 的 job 直接放到 team-svc 上跑（用户 10-31 决定，替代 K4 的远程 `DOCKER_HOST`）。`caimiamiao/cmm-api#14`、`IAmKongHai/qingfan#59` 已合并，main 上的 CI 在 team-svc 上通过。用户用 root 停掉了 `com.cypressoai.colima-team`，`colima stop -p team` 后 mac-mini 上已经没有 colima VM，空闲内存 90%
+- [ ] P5 收尾：colima moo / team 的磁盘、khmini runner 目录（449M）和 workFolder `khm1`（500M），7 天后经确认再删；两个维护任务 plist 里的 `WORK_DIRS` 要同时去掉 `khm1`（需 root）；moo 的 6 个转发端口等开发机都改连 team-svc 后再撤
 
 ## 现状
 

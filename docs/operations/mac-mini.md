@@ -1,5 +1,33 @@
 # mac-mini 运维时间线
 
+## 2026-10-31 15:31 CST - 停掉 colima team，删除 khmini runner，mac-mini 不再常驻 colima VM
+
+- 服务器：`mac-mini`
+- 操作人：用户执行 root 命令；`Claude` 负责核对和删除 GitHub 上的 runner
+- 原因：需要 Docker 的 CI 已迁到 team-svc（cmm-api#14、qingfan#59 于 15:26 合并），moo-decision#84 于 15:28 合并，khmini runner 不再使用
+- 做了什么：
+  - 用户执行：
+    - `sudo launchctl bootout` + `disable`：`system/actions.runner.cypressoai-moo-decision.khmini` 和 `system/com.cypressoai.colima-team`。
+    - `sudo -u hon -H colima stop -p team`。
+  - 用 GitHub API 删除 moo-decision 的离线 runner `khmini`（id 21），现在该仓库只剩 `team-svc`。
+- 影响：
+  - mac-mini 上的 15 个 runner 都不能再用 Docker。plist 里的 `DOCKER_HOST` 指向已不存在的 socket。
+  - 过去 30 天里用到 Docker 的只有 qingfan 和 cmm-api，这两处都已迁走。
+- 回滚方式：
+  1. `sudo launchctl enable system/com.cypressoai.colima-team`。
+  2. `sudo launchctl bootstrap system /Library/LaunchDaemons/com.cypressoai.colima-team.plist`。
+  3. 两个 workflow 的 `runs-on` 改回 mac-mini 的标签。
+- 验证：
+  - 两个 LaunchDaemon 都不在 system 域。
+  - 已经没有 Virtualization / colima 进程。
+  - `memory_pressure` 显示空闲 90%。参照：迁移前 55%，colima team 缩到 3G 后 78%。
+- 留待以后（P5，删除需确认）：
+  - colima team / moo 的磁盘。
+  - `~/actions-runner/khmini`（449M）和 `~/gha/khm1`（500M）。
+  - `/Library/LaunchDaemons` 下的两个 plist。
+  - 两个维护任务 plist 里 `WORK_DIRS` 中的 `khm1`（需 root）。
+  - moo 的 6 个转发端口，等开发机都改连 team-svc 后再撤。
+
 ## 2026-10-31 14:40 CST - moo-app 迁到 team-svc；khmini runner 摘标签；转发加上 18188
 
 - 服务器：`mac-mini`（hon）
