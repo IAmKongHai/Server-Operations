@@ -1,5 +1,13 @@
 # dev-cypresso 运维时间线
 
+## 2026-10-31 CST - 服务器已永久删除
+
+- 服务器：`dev-cypresso`
+- 操作人：用户本人（删除）；`Claude`（更新档案）
+- 原因：用户告知，这台服务器已永久删除。当天 09:24 做 CVE-2026-98432 批量排查时，SSH banner 超时。
+- 影响：已从 `AGENTS.md`、`README.md` 的服务器表里移除。本目录 `dev-cypresso/` 和这份时间线保留，作为历史档案。
+- 回滚方式：无。
+
 ## 2026-09-28 16:22 CST - 部署 Sub2API 到 https://sub2api.cypresso.ai
 
 - 服务器：`dev-cypresso`
