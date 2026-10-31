@@ -151,4 +151,4 @@ vless://...@ddy-tizi.skysms.xyz:443?flow=xtls-rprx-vision&security=reality&sni=a
 - 运维时间线：`docs/operations/tizi-ddy.md`
 - 参考部署计划（S-UI 节点）：`docs/plans/2026-07-09-001-ops-tizi-cyp-proxy-deploy-plan.md`
 - cyp 时间线：`docs/operations/tizi-cyp.md`（REALITY SNI/dest、面板绑 TS）
-- 主节点 External 域名：`docs/operations/tizi.md`（`tz.skysms.xyz`）
+- 主节点 External 域名：`docs/operations/tizi-kh.md`（`tz.skysms.xyz`）

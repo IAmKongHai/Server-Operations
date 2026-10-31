@@ -1,4 +1,48 @@
-# tizi 运维时间线
+# tizi-kh 运维时间线
+
+> 2026-10-31 起由 `tizi` 改名为 `tizi-kh`（同一台 VPS，公网 `74.211.103.83`）。以下 10-31 之前的条目里写的 `tizi` 都指这台机器的旧系统（Rocky 9.7 + S-UI）。
+
+## 2026-10-31 11:10 CST - 整装为 Debian 13 + 3x-ui，沿用旧 REALITY 身份，改名 tizi-kh
+
+- 服务器：`tizi-kh`（原 `tizi`，公网 `74.211.103.83`，Tailscale `100.90.28.83`）
+- 操作人：`Claude`（用户已在服务商控制台重装为 Debian 13，并要求改名为 `tizi-kh`、代理服务端改装 3x-ui）
+- 原因：从 Rocky 9.7 + S-UI 1.4.1 统一到其它节点的标准栈（Debian 13 + 3x-ui + Xray），见 `docs/runbooks/proxy-node-reinstall-upgrade.md`。
+- 选型（用户确认）：
+  - 沿用旧身份：REALITY 私钥、24 个 shortId、18 个客户端的 UUID / 额度 / 启用状态全部按重装前备份原样迁入，客户端不用改配置
+  - Tailscale 恢复旧 `/var/lib/tailscale`，节点身份和 `100.90.28.83` 不变
+  - 系统升级并重启、SSH 关密码登录、时区改为上海、装 fail2ban + vnstat
+  - **LLM 反代没有恢复**：用户选的是"恢复"，但核对后发现 `litellm-us.konghai.me` 已经 CNAME 到 `rao-tz.skysms.xyz`（`rao-tizi`），旧 tizi 上这张证书 2026-05-25 就过期了，这台机的反代早已不在用。nginx / certbot 不装，配置留在备份里，重装 `rao-tizi` 时在那边恢复
+- 备份：重装前全量备份见下方 10:18 条目（本机 `_backups/tizi-pre-reinstall-20261031/`）；机上另有 `/root/x-ui.db.fresh-install-20261031`（3x-ui 刚装完的空库）、`/root/vnstat.db.fresh-20261031`、`/etc/network/interfaces.bak.20261031`、`/etc/hosts.bak.20261031`
+- 回滚方式：
+  - 面板 / 入站：`systemctl stop x-ui`，用备份库覆盖 `/etc/x-ui/x-ui.db`，再 `systemctl start x-ui`
+  - SSH 密码登录：删除 `/etc/ssh/sshd_config.d/00-hardening.conf` 后 `systemctl reload ssh`
+  - 防火墙：`ufw disable`（不推荐）或 `ufw delete` 对应规则
+  - 回到 Rocky + S-UI：只能重装系统，再从本机备份恢复
+- 变更时序：
+  1. 本机 `~/.ssh/config` 改为 `Host tizi-kh tizi`（旧别名保留兼容，改前备份 `~/.ssh/config.bak.20261031`），清理 `74.211.103.83` / `100.90.28.83` 的旧 known_hosts
+  2. 控制台导入时把一把 **RSA 私钥** 写进了 `/root/.ssh/authorized_keys`，导致所有密钥都登录不上。先用控制台密码登录，把文件挪到 `/root/authorized_keys.contained-private-key-20261031`（600），换成本机 `id_ed25519.pub`（`konghai@konghai.me`）
+  3. `hostnamectl set-hostname tizi-kh`，`/etc/hosts` 同步（cloud-init 已禁用，重启后主机名不会被改回去）
+  4. 时区 `Asia/Shanghai`；locale `en_US.UTF-8`；`apt full-upgrade`（内核 `6.12.88` → `6.12.113`，修复 CVE-2026-98432）；装 `curl sqlite3 ufw fail2ban python3-systemd vnstat socat jq`
+  5. SSH：`/etc/ssh/sshd_config.d/00-hardening.conf` 设 `PasswordAuthentication no`、`KbdInteractiveAuthentication no`、`PermitRootLogin prohibit-password`；fail2ban `sshd` jail 用 systemd backend
+  6. 重启进新内核。`networking.service` 报 failed，原因是镜像的 `/etc/network/interfaces` 写了 `auto eth1`，但没有 eth1；改成 `allow-hotplug eth1`。eth0 的 DHCP 租约时长是无限期（`4294967295`），dhclient 不在也不影响
+  7. Tailscale 1.104.4（官方 apt 源）：首次启动前放回旧 state，IP 仍是 `100.90.28.83`；`tailscale set --hostname=tizi-kh`。MagicDNS 名仍是 `tizi.taila93443.ts.net`，要在 admin console 改机器名
+  8. ufw：default deny；放行 `22/tcp`、`443/tcp`、`tailscale0` 全通（先开防火墙再装面板，免得面板端口在公网暴露）
+  9. 3x-ui v3.11.0 + Xray 26.10.21：`XUI_NONINTERACTIVE=1 XUI_PANEL_PORT=2095 XUI_SSL_MODE=none` 安装；面板 `-listenIP 100.90.28.83 -port 2095`，`subListen=127.0.0.1`。安装脚本另外加了 fail2ban `3x-ipl` jail
+  10. 用 3x-ui API（`/panel/api/inbounds/add`，Bearer `XUI_API_TOKEN`）建入站：remark `tizi-kh`，VLESS + REALITY `:443`，target/SNI `assets-xbxweb.xbox.com`，flow `xtls-rprx-vision`，`minClientVer=1.0.0`，sockopt `UseIPv4`。payload 由 S-UI 备份的 `clients` / `tls` / `inbounds` 生成。之后停服务改库：`share_addr_strategy=custom`、`share_addr=tz.skysms.xyz`，并迁入本期已用流量
+  11. root crontab：`59 23 29 * * sqlite3 /etc/x-ui/x-ui.db "UPDATE client_traffics SET up = 0, down = 0;"`（对齐服务商每月 30 日重置；2 月没有 29 日，那个月不会自动清零）
+  12. vnstat 2.13：恢复旧库 `/var/lib/vnstat/vnstat.db`，7 月以来的月度流量接上了
+- 验证：
+  - `uname -r` = `6.12.113+deb13-amd64`；`systemctl --failed` 为空；`x-ui`、`tailscaled`、`fail2ban`、`vnstat`、`ufw`、`cron` 均 active
+  - `ss`：`*:443` xray；`100.90.28.83:2095` x-ui；`127.0.0.1:2096` 订阅；公网探测 2095 / 2096 都不通
+  - Xray 运行配置 `/usr/local/x-ui/bin/config.json`：16 个客户端（等于库里启用数）；24 个 shortId；`minClientVer=1.0.0`。启用 UUID + 私钥 + shortId 的哈希和备份一致
+  - 公网 TLS 探针：SNI `assets-xbxweb.xbox.com` 返回 `CN=*.xbox.com`
+  - 端到端：本机用 Xray 26.10.21，以 `konghai_Air` 身份连 `tz.skysms.xyz:443`，出口 IP `74.211.103.83`，Google 204、GitHub 200
+  - 密码登录被拒（`Permission denied (publickey)`）；公网和 Tailscale 两条 SSH 路径都能用密钥登录
+- 面板入口：`http://100.90.28.83:2095/<webBasePath>/`，账密和 webBasePath 在机上 `/etc/x-ui/install-result.env`（600），**不入库**
+- 遗留：
+  - `/root/authorized_keys.contained-private-key-20261031` 里是一把 RSA 私钥，等用户确认后删除；这把私钥应视为已泄露，不要再用
+  - Tailscale admin console 里把机器名改成 `tizi-kh`
+  - 客户端 `konghai家里路由器` 和 `景阳` 保持禁用（和重装前一致）；家里路由器从 10-11 起已经改走 `tizi-cyp`
 
 ## 2026-10-31 10:18 CST - 整装 Debian 13 前全量备份用户与配置到本机
 

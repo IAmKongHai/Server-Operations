@@ -93,8 +93,8 @@
 | 别名           | 用途                                                                                   | 是否按生产对待                    |
 | -------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
 | `nyh-prod`     | 南亚汇（NYH）生产、AcquilangAi 生产、DDRicher 测试 / 生产；宝塔面板端口 10463          | **是**                            |
-| `tizi`         | 主代理服务器                                                                           | **是**（挂了影响日常翻墙）        |
-| `rao-tizi`     | `tizi` 的备用代理                                                                      | 是                                |
+| `tizi-kh`      | 主代理服务器（`74.211.103.83`，2026-10-31 由 `tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.90.28.83`）；ssh 别名兼容旧名 `tizi` | **是**（挂了影响日常翻墙）        |
+| `rao-tizi`     | `tizi-kh` 的备用代理                                                                   | 是                                |
 | `tizi-cyp`     | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                        | **是**（代理节点，按生产对待）    |
 | `tizi-ddy`     | 代理节点（`80.251.215.131`，Debian 13，3x-ui）                                         | **是**（代理节点，按生产对待）    |
 | `mac-mini`     | 家里的 Mac mini。**2026-10-22/23 起团队资产全部归 `hon`**（runner、colima `team` 里的 SonarQube / 共享开发库等、备份与维护任务、签名凭据），`konghai` 只做私人用途；`ssh mac-mini-hon` 以 `hon` 登录（`colima-team` 属主；`colima-moo` 已停、`colima-multica` 已删，服务都在 `team-svc`）。`konghai` 免密 sudo（用户要求长期保留，供性能排查）：`/etc/sudoers.d/konghai-diag`（`fs_usage`/`lsof`/`log`/`killall fseventsd`）、`konghai-fsetest`（仅测试卷 `FSETest`）；迁移临时规则 `konghai-hon-migrate`（`/usr/local/sbin/hon-migrate.sh`、`hon-team-services.sh`）与已过期的 `konghai-ciwork` 在 U6 收回 | 否                                |
