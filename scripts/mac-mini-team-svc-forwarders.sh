@@ -8,9 +8,12 @@
 #             5433 acquilang-postgres、18080 sub2api
 #   127.0.0.1 5434 shared-dev-postgres、6379 shared-dev-redis、3900 shared-dev-s3
 #             （原来就只听回环，由 tailscale serve 转到 tailnet，保持暴露面不变）
-#   127.0.0.1 moo（原 colima moo，给 mac-mini 上的 moo-app / moo-ocr 用）：15432 postgres、16379 redis、
+#   127.0.0.1 moo（原 colima moo，给经 `ssh khmini` 建隧道的开发机用）：15432 postgres、16379 redis、
 #             19000 seaweedfs S3、9092 kafka、8083 kafka-connect、19094 moo-ocr kafka。
 #             两个 Kafka 都 advertise localhost:<同端口>，经本转发后客户端回连仍然可达
+#   tailnet IP 18188 moo-app 演示站（2026-10-31 迁到 team-svc），保持旧地址
+#             http://mac-mini.taila93443.ts.net:18188 可用；和原来 mac-mini 上的 caddy 一样只绑 tailnet IP，
+#             不进家里内网。tailscale serve 要 root，所以不用它
 #
 # 用 /usr/bin/ssh -L 而不是 socat：mac-mini 开着应用防火墙，Homebrew 的 socat 未签名，
 # 外部入站会被拦（只有本机回环能通），放行它需要 root；系统自带的 ssh 默认允许入站。
@@ -48,11 +51,16 @@ trap cleanup INT TERM
 
 # ssh 断开（VM 重启、网络抖动）后 10 秒重连
 while true; do
-  print -r -- "$(/bin/date -Iseconds) connecting $TARGET"
+  tailnet_ip="$(/opt/homebrew/bin/tailscale ip -4 2>/dev/null | /usr/bin/head -1)"
+  session_forwards=("${forwards[@]}")
+  [[ -n "$tailnet_ip" ]] && session_forwards+=(-L "$tailnet_ip:18188:127.0.0.1:18188")
+  print -r -- "$(/bin/date -Iseconds) connecting $TARGET (tailnet ${tailnet_ip:-down})"
   /usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes \
     -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=10 \
-    "${forwards[@]}" "$TARGET" &
+    "${session_forwards[@]}" "$TARGET" &
   ssh_pid=$!
+  # 开机时 Tailscale 可能还没起来：这一轮先不带 18188，60 秒后断开重连把它补上
+  [[ -z "$tailnet_ip" ]] && { /bin/sleep 60; /bin/kill "$ssh_pid" 2>/dev/null; } &!
   wait "$ssh_pid"
   print -r -- "$(/bin/date -Iseconds) ssh exited ($?), retry in 10s"
   ssh_pid=""

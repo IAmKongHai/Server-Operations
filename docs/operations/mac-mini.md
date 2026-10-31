@@ -1,5 +1,31 @@
 # mac-mini 运维时间线
 
+## 2026-10-31 14:40 CST - moo-app 迁到 team-svc；khmini runner 摘标签；转发加上 18188
+
+- 服务器：`mac-mini`（hon）
+- 操作人：`Claude`（用户已确认方案）
+- 原因：腾内存跑本地模型。用户的意见是部署都已经搬过去了，留个尾巴意义不大。迁移计划见 `docs/plans/2026-10-31-0010-ops-mac-mini-vms-to-pve-plan.md`
+- 做了什么：
+  - 14:32 停掉 moo-app：对三个服务执行 `launchctl bootout user/<uid>/ai.cypresso.moo-app.{server,worker,web}`，进程全部退出。plist 目录改名为 `~/moo-app/launchd.disabled-20261031`，避免被误 bootstrap 回来。
+  - 新环境的部署、数据迁移和验证见 `docs/operations/team-svc.md` 14:40 条目。
+  - 停服务前就发现一个问题：`~/moo-app/bin/pg-tool-docker.sh` 写死了 `docker --context colima-moo`，colima moo 停掉以后，moo-app 的 `pg_dump` / `pg_restore` 都用不了。迁到 team-svc 后改成本机 `docker exec`，问题随之解决。
+  - 用 GitHub API 删掉 moo-decision runner `khmini`（id 21）的 `khmini` 标签。在 PR #84 合并前，`develop` 的部署 job 会排队等待，不会在 mac-mini 上再部署出第二个 worker。runner 进程本身没动：停它的 LaunchDaemon 需要 root。
+  - `team-svc-forwarders` 增加 `<tailnet IP>:18188` → team-svc `127.0.0.1:18188`，让旧地址 `http://mac-mini.taila93443.ts.net:18188` 继续可用：
+    - 原来 mac-mini 上的 caddy 也只绑 tailnet IP，所以暴露面不变，家里内网访问不到。
+    - 本想用 `tailscale serve --tcp`，但它需要 root。
+    - 开机时如果 Tailscale 还没起来，这一轮转发先不带 18188，60 秒后自动重连补上。
+    - 源码 `scripts/mac-mini-team-svc-forwarders.sh`；旧版本备份为 `~/.local/bin/team-svc-forwarders.bak.20261031-18188`。
+  - moo 的 6 个回环转发（15432、16379、19000、9092、8083、19094）先保留：开发机还有经 `ssh khmini` 建的隧道要用。
+- 影响：moo-app 停了约 8 分钟（14:32～14:40）。转发器重启两次，每次各端口断开几秒。
+- 回滚方式：见 `docs/operations/team-svc.md` 14:40 条目。转发脚本用 `.bak.20261031-18188` 还原后，`kill` 掉 supervisor 再重新拉起。
+- 验证：
+  - `lsof` 显示 ssh 在监听 `100.108.64.126:18188` 和原有的全部端口。
+  - 本机经 tailnet 访问旧地址 `/` 和 `/healthz`，都返回 200。
+  - mac-mini 上已经没有 moo-app 进程。
+- 未完成（需用户）：
+  - 用 root 停用并删除 khmini runner 的 LaunchDaemon（`system/actions.runner.cypressoai-moo-decision.khmini`），并在 GitHub 上移除这个 runner。
+  - cmm-api#14、qingfan#59 合并后，用 root 停用 `com.cypressoai.colima-team`，再 `colima stop -p team`。
+
 ## 2026-10-31 01:00 CST - colima moo 迁走并停用；colima team 缩到 4C/3G 只给 CI 用
 
 - 服务器：`mac-mini`（hon）

@@ -1,5 +1,16 @@
 # pve 运维操作时间线
 
+## 2026-10-31 14:31 CST - VM 150 team-svc vCPU 4 → 6
+
+- 服务器：`pve`
+- 操作人：`Claude`（用户已确认）
+- 原因：需要 Docker 的 CI job（cmm-api `verify`、qingfan PostgreSQL 测试）和 moo-decision 的 SIT 构建都改到 team-svc 上跑。第一次 CI 时 team-svc 负载达到 5～6，而它只有 4 个 vCPU。宿主是 6 核 i5-9600；`mssql-ref` 6 核、`mas-go-dev` 4 核，三台 VM 之间超分没问题，内存不变。
+- 备份：`/root/150.conf.bak.20261031-cpu`
+- 做了什么：确认 mac-mini、lemon-imac、team-svc、mas-go-dev 上都没有运行中的 job 后，执行 `qm set 150 --cores 6`，再 `qm shutdown 150` 和 `qm start 150`。
+- 影响：team-svc 上的 SonarQube、各开发库和 CDC 停了约 1.5 分钟。
+- 回滚方式：`qm set 150 --cores 4`，然后重启 VM。
+- 验证：VM 内 `nproc` 为 6；20 个容器全部拉起，SonarQube 返回 `UP`，3 个 runner 都是 active。
+
 ## 2026-10-31 13:37 CST - 升级内核到 7.0.14-26-pve 修复 CVE-2026-98432
 
 - 服务器：`pve`（PVE 9.2.3，`pve-no-subscription` 源）
