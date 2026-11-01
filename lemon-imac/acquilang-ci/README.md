@@ -8,7 +8,7 @@
 | --- | --- |
 | 名称 / GitHub ID | `lemon-imac-acquilang-ci-1` / `28` |
 | 范围 | 私有仓库 `IAmKongHai/AcquiLangAI` |
-| Labels | `self-hosted`, `macOS`, `ARM64`, `acquilang-build` |
+| Labels | `self-hosted`, `macOS`, `ARM64`, `acquilang-build`, `kanova-build`（2026-11-01 加；仓库已改名 `IAmKongHai/Kanova`，`acquilang-build` 等 main 不再用后删） |
 | 系统用户 | `for-konghai` |
 | 服务 | LaunchDaemon `system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`（2026-10-10 11:37 CST 起） |
 | 程序 / 工作区 | `~/actions-runner/lemon-imac-acquilang-ci-1` / `~/gha/alci1` |

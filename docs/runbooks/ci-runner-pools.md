@@ -16,8 +16,8 @@
 | 非 iCare SIT 本机部署 | `shared-sit` / runner group `shared-sit` | **仅** mas-sit 上的 `shared-sit` runner | EVP 等非 iCare 项目部署到 `/opt/evp-sit` 等 | 质量门禁、iCare 仓库、`mas-sit` label |
 | Azure UAT | `azure` / runner group `icare-2-uat` | icare-2-uat-runner、**icare-2-uat-runner-2**（CYP-2263 burst） | Deploy MAS to Azure UAT、UAT 镜像构建 / mirror | 日常 PR CI |
 | 会员端 preview 本机构建 | `mobile-preview-ci` | **仅** `mac-mini-mobile-1` | iCare-mobile-app preview `eas build --local`（Android APK / iOS IPA，串行） | 质量门、backend CI、EAS 云构建、production、AcquiLang Native |
-| AcquiLang Sonar | `acquilang-ci`（+ `macos`,`arm64`） | **仅** mac-mini 上仍在线的 `mac-mini-acquilang-ci-1` … `3`（`ci-4`、`ci-5` 于 2026-10-10 停用，注册保留） | Sonar。后端测试库在 mac-mini localhost | 原生打包、其它仓库、mas-sit |
-| AcquiLang 可分散检查 | `acquilang-build` | mac-mini `ci-1` … `3`、`mas-sit-kanova-ci-1`、`lemon-imac-acquilang-ci-1` | backend / admin / web / CI 汇总。native 还要加 `macos` + `arm64`，落在 mac-mini `ci-1` … `3` 或 lemon-imac | Sonar、原生打包、iCare / tk-flywheel |
+| AcquiLang Sonar | `kanova-ci` / 旧 `acquilang-ci`（+ `macos`,`arm64`） | **仅** mac-mini 上仍在线的 `mac-mini-acquilang-ci-1` … `3`（`ci-4`、`ci-5` 于 2026-10-10 停用，注册保留） | Sonar。后端测试库在 mac-mini localhost | 原生打包、其它仓库、mas-sit |
+| AcquiLang 可分散检查 | `kanova-build` / 旧 `acquilang-build` | mac-mini `ci-1` … `3`、`mas-sit-kanova-ci-1`、`lemon-imac-acquilang-ci-1` | backend / admin / web / CI 汇总。native 还要加 `macos` + `arm64`，落在 mac-mini `ci-1` … `3` 或 lemon-imac | Sonar、原生打包、iCare / tk-flywheel |
 | qingfan 构建 / 测试 | `qingfan-ci`（+ `macos`,`arm64`） | **仅** mac-mini `mac-mini-qingfan-ci-1` … `3`（仓库级，`IAmKongHai/qingfan`） | go 测试（Colima 起一次性 PostgreSQL）、server 构建、dmg 签名公证 | 其它仓库；生产部署（`deploy` / `oss` / `publish` 仍走 `ubuntu-24.04`） |
 | qingfan 前端分片 | `qingfan-frontend`（+ `macos`,`arm64`） | mac-mini `mac-mini-qingfan-ci-1` … `3`、lemon-imac `lemon-imac-qingfan-ci-1` | vitest 三个分片、admin / claw 测试、两端构建 | Go、Docker、签名 |
 | 菜喵喵（org `caimiamiao`） | `caimiaomiao-ci` | **仅** mac-mini `caimiamiao-1`（org 级，Default group） | `caimiamiao/*` 仓库的检查类 job（Go / pnpm）；部署 job 仍走 `ubuntu-latest` | `cypressoai` / `konghai-friends-lab` 仓库；`services:` 容器（macOS 不支持） |
@@ -33,9 +33,9 @@
 | `mac-mini-qingfan-ci-1` … `3` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`qingfan-ci`**, **`qingfan-frontend`**。仓库级（`IAmKongHai/qingfan`），workFolder `~/gha/qf1..3`，2026-10-30 起 LaunchDaemon。原 `mac-mini-acquilang-native-1`（`acquilang-native-ci`）同日移除 |
 | `lemon-imac-qingfan-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`qingfan-frontend`**（**无** `qingfan-ci`）。仓库级，workFolder `~/gha/qf1`，2026-10-30 起 LaunchDaemon |
 | `caimiamiao-1` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`caimiaomiao-ci`**；org `caimiamiao`，workFolder `~/gha/cmm1`，2026-10-21 起 LaunchDaemon |
-| `mac-mini-acquilang-ci-1` … `5` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**, **`acquilang-build`**。`ci-1` 自 2026-09-15；`ci-2` … `5` 自 2026-10-10。2026-10-10 01:23 起 `ci-4`、`ci-5` disabled，不接 job |
-| `mas-sit-kanova-ci-1`（原 `mas-sit-acquilang-ci-1`，2026-11-01 改名） | mas-sit | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**（**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
-| `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**（**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 11:37 起为 LaunchDaemon |
+| `mac-mini-acquilang-ci-1` … `5` | mac-mini | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-ci`**, **`acquilang-build`**；`ci-1` … `3` 于 2026-11-01 加 **`kanova-ci`**、**`kanova-build`**（`ci-4`、`ci-5` 未注册在线，没加）。`ci-1` 自 2026-09-15；`ci-2` … `5` 自 2026-10-10。2026-10-10 01:23 起 `ci-4`、`ci-5` disabled，不接 job |
+| `mas-sit-kanova-ci-1`（原 `mas-sit-acquilang-ci-1`，2026-11-01 改名） | mas-sit | **`self-hosted`**, `Linux`, `X64`, **`acquilang-build`**, **`kanova-build`**（2026-11-01 加；**无** `acquilang-ci` / `macos`）。仓库级，用户 `acquilang-ci`，CPU 2 核 / 内存 2G。2026-10-10 |
+| `lemon-imac-acquilang-ci-1` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `macOS`, `ARM64`, **`acquilang-build`**, **`kanova-build`**（2026-11-01 加；**无** `acquilang-ci` / org 池标签）。仓库级，一个 slot。2026-10-10 11:37 起为 LaunchDaemon |
 | `lemon-imac-1/2` | lemon-imac（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `lemon-imac`, … |
 | `umacbook-pro-1/2` | umacbook-pro（8 核 / 8GB） | **`self-hosted`**, `frontend-tests-ci`, `frontend-quality-ci`, `backend-ci`, `umacbook-pro`, … |
 | `mas-sit` | mas-sit | **`self-hosted`**, `Linux`, `X64`, `docker`, `mas-sit`（**无** quality/tests 标签）；组 `mas-sit` |

@@ -1,5 +1,14 @@
 # lemon-imac 运维操作时间线
 
+## 2026-11-01 14:12 CST - `lemon-imac-acquilang-ci-1` 加 label `kanova-build`
+
+- 服务器：`lemon-imac`；GitHub `IAmKongHai/Kanova`（原 `AcquiLangAI`）
+- 操作人：`Claude`（用户确认）
+- 原因：Kanova PR #122 的 workflow 改用 `kanova-build`，job 排不上。
+- 影响：只改 GitHub 上的 label，没有登录机器、没有重启。旧 label `acquilang-build` 保留到 main 不再用。
+- 回滚方式：`DELETE repos/IAmKongHai/Kanova/actions/runners/28/labels/kanova-build`。
+- 验证：label 生效后立刻接到 run 41233570531 的 native job，但它在 `设置 pnpm` 失败：runner 2.338.0 自更新把 `externals/node*/bin/npm` 等符号链接变成了普通文件。详见 `docs/operations/mac-mini.md` 同日条目。
+
 ## 2026-10-30 08:55 CST - 新增 qingfan 前端分片 runner `lemon-imac-qingfan-ci-1`
 
 - 服务器：`lemon-imac`；仓库 `IAmKongHai/qingfan`。

@@ -2,6 +2,15 @@
 
 > 2026-10-31 起这台机器是 Debian 13 的 VM 160，主机名 / Tailscale 名 `mas-sit`（`ssh mas-sit`）。之前是 AL2023 的 VM 130。
 
+## 2026-11-01 14:12 CST - `mas-sit-kanova-ci-1` 加 label `kanova-build`
+
+- 服务器：`mas-sit`；GitHub `IAmKongHai/Kanova`
+- 操作人：`Claude`（用户确认）
+- 原因：Kanova PR #122 的 workflow 改用 `kanova-build`，job 排不上。
+- 影响：只改 GitHub 上的 label，不重启。旧 label `acquilang-build` 保留到 main 不再用。
+- 回滚方式：`DELETE repos/IAmKongHai/Kanova/actions/runners/30/labels/kanova-build`。
+- 验证：label 生效后立刻接到 run 41233570531 的 web job，但它在 `设置 pnpm` 失败：runner 2.338.0 自更新把 `externals/node*/bin/npm` 等符号链接变成了普通文件。详见 `docs/operations/mac-mini.md` 同日条目。
+
 ## 2026-11-01 11:25 CST - 仓库级 runner `mas-sit-acquilang-ci-1` 改名为 `mas-sit-kanova-ci-1`
 
 - 服务器：`mas-sit`；GitHub `IAmKongHai/Kanova`（原 `IAmKongHai/AcquiLangAI`，已由用户改名）

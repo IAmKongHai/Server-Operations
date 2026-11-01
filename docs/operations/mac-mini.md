@@ -1,5 +1,23 @@
 # mac-mini 运维时间线
 
+## 2026-11-01 14:10–14:30 CST - Kanova runner 加 `kanova-*` label，`.env` 补 `KANOVA_BACKEND_ENV`
+
+- 服务器：`mac-mini`（另有 `mas-sit`、`lemon-imac` 各一个 runner 只加了 label）；GitHub `IAmKongHai/Kanova`
+- 操作人：`Claude`（用户确认方案“照这个方案改”）
+- 原因：AcquiLang 改名 Kanova，PR #122（`chore/rename-to-kanova`）的 workflow 改用 `kanova-build` / `kanova-ci`，没有 runner 带这些 label，run 41233570531 的 5 个 self-hosted job 一直排队。sonar 改读 `KANOVA_BACKEND_ENV`，runner `.env` 只有 `ACQUILANG_BACKEND_ENV`。
+- 影响：mac-mini `ci-1..3` 各重启一次，离线几秒。重启 ci-2、ci-3 时 GitHub 恰好把 sonar、admin 派给它们，这两个 job 被取消。
+- 备份：`~/actions-runner/mac-mini-acquilang-ci-{1..5}/.env.bak.20261101`（hon）。
+- 回滚方式：GitHub API `DELETE repos/IAmKongHai/Kanova/actions/runners/<id>/labels/<label>` 删掉新 label；用 `.env.bak.20261101` 覆盖 `.env` 后重启 runner。
+- 做了什么：
+  1. GitHub API 加 label，不删旧的（main 的 workflow 还在用 `acquilang-*`）：ID 30 `mas-sit-kanova-ci-1`、28 `lemon-imac-acquilang-ci-1`、22/23/24 `mac-mini-acquilang-ci-1..3` 加 `kanova-build`；22/23/24 再加 `kanova-ci`。不用重启。
+  2. mac-mini 5 个 `.env` 追加 `KANOVA_BACKEND_ENV`，值同 `ACQUILANG_BACKEND_ENV`（`/Users/hon/.config/acquilang/backend-ci.env`）。`ci-4/5` 是 disabled 的，下次启用时生效。
+  3. hon 没有免密 sudo，不能 `launchctl kickstart`。改由 hon 给 `runsvc.sh` 发 SIGTERM，plist `KeepAlive true`，launchd 几秒内拉起。先重启 ci-1，再重启 ci-2、ci-3。
+- 验证：
+  - 3 个 slot 的 listener 都是新 PID，日志 `Listening for Jobs`。
+  - run 41233570531 的 job 加 label 后立刻被接走：backend（mac-mini ci-1）成功；sonar（ci-2）、admin（ci-3）被重启取消；web（mas-sit）、native（lemon-imac）失败。
+  - web / native 失败在 `设置 pnpm`：`Cannot find module '../lib/cli.js'`，栈在 `externals.2.338.0/node24/bin/npm`。原因是 10-22 runner 自更新到 2.338.0 时，`externals/node20|node24/bin` 下的 `npm`、`npx`、`corepack` 从符号链接变成了普通文件（内容是 `npm-cli.js` 等的拷贝），里面的相对 `require` 指不到文件。2.337.0 目录里还是符号链接。mac-mini、lemon-imac、mas-sit 的 2.338.0 都一样，和本次改 label 无关；Kanova 自 10-22 以后还没有跑过一次带 pnpm 的 CI。未修，待用户确认。
+- 教训：给排队的 job 补 label 会让它们立刻被派发。要先改完 `.env` 并重启，最后再加 label。
+
 ## 2026-10-31 15:31 CST - 停掉 colima team，删除 khmini runner，mac-mini 不再常驻 colima VM
 
 - 服务器：`mac-mini`

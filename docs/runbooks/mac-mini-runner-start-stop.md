@@ -169,7 +169,7 @@ gh api repos/IAmKongHai/qingfan/actions/runners \
 - plist：`/Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist`
 - 日志：`~/Library/Logs/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N/`
 - Python：`/opt/homebrew/opt/python@3.12/bin/python3.12`（接入时为 3.12.11）。CI 直接调用，不使用依赖 `/Users/runner` 的 `setup-python` macOS 安装包。
-- 各 slot 的 `.env` 把 `PNPM_STORE_PATH` 和 `npm_config_store_dir` 指到同一个 `/Users/hon/gha/cache/pnpm-store`。不复制 Native 的凭据。sonar job 读的后端测试配置是 `ACQUILANG_BACKEND_ENV=/Users/hon/.config/acquilang/backend-ci.env`（600，含密钥；workflow 默认读 `$HOME/Code/Project/AcquiLangAI/acquilang-backend/.env`，hon 下没有这份工作副本）。
+- 各 slot 的 `.env` 把 `PNPM_STORE_PATH` 和 `npm_config_store_dir` 指到同一个 `/Users/hon/gha/cache/pnpm-store`。不复制 Native 的凭据。sonar job 读的后端测试配置是 `ACQUILANG_BACKEND_ENV=/Users/hon/.config/acquilang/backend-ci.env`（600，含密钥；仓库改名 Kanova 后 workflow 读 `KANOVA_BACKEND_ENV`，2026-11-01 起 5 个 `.env` 两个变量都设、指向同一文件；workflow 默认读 `$HOME/Code/Project/AcquiLangAI/acquilang-backend/.env`，hon 下没有这份工作副本）。
 - `config.sh` 不生成根目录的 `runsvc.sh`。从 `bin/runsvc.sh` 复制。不要跑 `./svc.sh install`，那会再写一份用户域 LaunchAgent，并和系统服务抢同一个 runner。
 - 安装脚本只安装尚未存在的系统服务；已有 plist 或已加载的系统服务会跳过，不覆盖、不重启。
 
@@ -201,6 +201,15 @@ sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acq
 sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
 sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist
 ```
+
+改了 `.env` 要重启才生效（runner 只在 listener 启动时读 `.env`，`ps eww` 看不到这些变量，属正常）。hon 没有免密 sudo，不能 `launchctl kickstart`。可以由 hon 给自己的 `runsvc.sh` 发 SIGTERM：plist 是 `KeepAlive true`，launchd 几秒内会重新拉起。
+
+```bash
+# 正则以 ^/bin/bash 开头，避免匹配到 ssh 远端那条 zsh -c 命令自身
+ssh mac-mini-hon 'pgrep -fl "acquilang-ci-N/bin/Runner.Worker" || pkill -TERM -f "^/bin/bash /Users/hon/actions-runner/mac-mini-acquilang-ci-N/runsvc.sh"'
+```
+
+先确认没有排队等这台 runner 的 job。如果 job 恰好在发信号的那一刻分配过来，会被取消，只能重跑（2026-11-01 就这样取消了 sonar 和 admin）。改 label 让排队 job 能匹配时，先改完 `.env` 并重启，最后再加 label。
 
 恢复脚本和日/周清理的 `WORK_DIRS` 仍不包含 `alc1` … `alc5`。定时清理需另行确认后添加。
 
