@@ -2,6 +2,24 @@
 
 > 2026-10-31 起这台机器是 Debian 13 的 VM 160，主机名 / Tailscale 名 `mas-sit`（`ssh mas-sit`）。之前是 AL2023 的 VM 130。
 
+## 2026-11-01 11:25 CST - 仓库级 runner `mas-sit-acquilang-ci-1` 改名为 `mas-sit-kanova-ci-1`
+
+- 服务器：`mas-sit`；GitHub `IAmKongHai/Kanova`（原 `IAmKongHai/AcquiLangAI`，已由用户改名）
+- 操作人：`Claude`（用户要求；项目 workflow 由用户自己改）
+- 原因：AcquiLang 项目改名为 Kanova，runner 名跟着改。
+- 影响：runner 注销后重新注册，离线约 1 分钟，期间没有 job。GitHub runner ID 由 29 变为 30。labels 不变（`self-hosted`、`Linux`、`X64`、`acquilang-build`），所以现有 workflow 不受影响。系统用户 `acquilang-ci`、目录 `/opt/acquilang-ci`、缓存路径、资源限制都没动。
+- 备份：`/root/migrate/runner-rename-kanova-20261101/`（旧 unit、`.service.d`、`.runner`、`.service`、`.env`）。
+- 回滚方式：同样的方法用旧名重新注册即可。用 `/root/migrate/rename-runner.sh`，把 `NEW_NAME` / `NEW_UNIT` 填成旧值，`SCOPE_URL` 仍用 `https://github.com/IAmKongHai/Kanova`。
+- 做了什么：
+  1. 确认 runner 空闲，备份上述文件。
+  2. 用 IAmKongHai 的 token 取 remove / registration token，跑 `/root/migrate/rename-runner.sh`。参数：`OLD_DIR=NEW_DIR=/opt/acquilang-ci/runner`，`SCOPE_URL=https://github.com/IAmKongHai/Kanova`，`LABELS=acquilang-build`，`WORK_FOLDER=/opt/acquilang-ci/work`。
+  3. 第一次在 `config.sh remove` 失败，返回 `404 Not Found`（`POST https://api.github.com/actions/runner-registration`）。原因是 `.runner` 的 `gitHubUrl` 还是旧仓库地址 `https://github.com/IAmKongHai/AcquiLangAI`，runner 注册接口不跟随仓库改名的跳转。这时服务已停并 disable，GitHub 上的注册还在（显示离线）。
+  4. 把 `.runner` 里的 `gitHubUrl` 改成 `https://github.com/IAmKongHai/Kanova` 后重跑脚本，注销、注册、换 unit 都成功。新 unit 是 `actions.runner.IAmKongHai-Kanova.mas-sit-kanova-ci-1.service`，`override.conf` 一起挪过去。
+- 验证：
+  - GitHub 上 `mas-sit-kanova-ci-1`（ID 30）online，labels 与原来一致，旧名已不在列表里。
+  - unit active，日志 `Listening for Jobs`。`.runner` 的 `gitHubUrl` 是新地址。`bin` / `externals` 是相对链接。`/etc`、`/usr/local`、`/opt/shared-sit` 里没有旧 unit 名残留。
+- 注意：同一仓库的 mac-mini `mac-mini-acquilang-ci-1..3`、lemon-imac `lemon-imac-acquilang-ci-1` 也是按旧仓库地址注册的。平时运行没问题（runner 走 broker，不经过这个地址），但以后对它们执行 `config.sh remove` 也会 404，要先改 `.runner` 的 `gitHubUrl`，或者在 GitHub 上直接删掉注册。
+
 ## 2026-10-31 17:26–18:10 CST - 旧名从所有地方去掉：runner、label、部署目录、业务仓、本仓
 
 - 服务器：`mas-sit`、`pve`；GitHub `cypressoai` 组织和 10 个业务仓，`IAmKongHai/AcquiLangAI`、`IAmKongHai/tk-flywheel`

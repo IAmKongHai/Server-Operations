@@ -113,10 +113,10 @@ ssh mas-sit 'docker compose -f /opt/evp-sit/docker-compose.yml --project-directo
 | `mas-sit` | `mas-sit` | `/opt/actions-runner/mas-sit` | iCare 本机部署 |
 | `mas-sit-ci-1/2` | `mas-sit` | `/opt/actions-runner/mas-sit-ci-{1,2}` | 组内仓库的质量门禁；`ci-1` 带 `docker`，还跑 Telegram-bot / moo-ticket / EVP 的 prod 部署（用宿主 `aws` CLI） |
 | `shared-sit` | `shared-sit`（id 6，selected：目前仅 `cypressoai/evp`） | `/opt/actions-runner/shared-sit` | 非 iCare SIT 部署 |
-| `mas-sit-acquilang-ci-1` | 仓库级：`IAmKongHai/AcquiLangAI` | `/opt/acquilang-ci/runner` | AcquiLang 日常检查，label `acquilang-build`，见 [档案](acquilang-ci/README.md) |
+| `mas-sit-kanova-ci-1` | 仓库级：`IAmKongHai/Kanova`（原 AcquiLangAI） | `/opt/acquilang-ci/runner` | AcquiLang 日常检查，label `acquilang-build`，见 [档案](acquilang-ci/README.md) |
 | `mas-sit-tk-flywheel-ci-1` | 仓库级：`IAmKongHai/tk-flywheel` | `/opt/tk-flywheel-ci/runner` | tk-flywheel 四个 CI job，专用 label `tk-flywheel-ci` |
 
-GitHub runner ID（2026-10-31 重新注册后）：`mas-sit` 45、`mas-sit-ci-1` 44、`mas-sit-ci-2` 43、`shared-sit` 41；仓库级 `mas-sit-acquilang-ci-1` 29、`mas-sit-tk-flywheel-ci-1` 22。systemd unit 是 `actions.runner.<scope>.<名字>.service`，目录里的 `bin` / `externals` 是相对符号链接（挪目录不会断）。
+GitHub runner ID（2026-10-31 重新注册后）：`mas-sit` 45、`mas-sit-ci-1` 44、`mas-sit-ci-2` 43、`shared-sit` 41；仓库级 `mas-sit-kanova-ci-1` 30（2026-11-01 由 `mas-sit-acquilang-ci-1` 改名）、`mas-sit-tk-flywheel-ci-1` 22。systemd unit 是 `actions.runner.<scope>.<名字>.service`，目录里的 `bin` / `externals` 是相对符号链接（挪目录不会断）。
 
 组 `mas-sit`（id 3）的仓库名单见 `docs/operations/mas-sit.md`；3 组 timer：`docker-builder-prune`、`gha-runner-maintenance`、`gha-runner-maintenance-weekly`。
 
