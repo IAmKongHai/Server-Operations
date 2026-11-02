@@ -2,6 +2,16 @@
 
 > 2026-10-31 起这台机器是 Debian 13 的 VM 160，主机名 / Tailscale 名 `mas-sit`（`ssh mas-sit`）。之前是 AL2023 的 VM 130。
 
+## 2026-11-02 17:28 CST - `mas-sit-kanova-ci-1` 移除旧 label `acquilang-build`
+
+- 服务器：`mas-sit`（只改 GitHub API）；GitHub `IAmKongHai/Kanova`
+- 操作人：`Antigravity`（用户确认统一改名为 kanova）
+- 原因：Kanova PR #122 已合并进 `main`，所有 workflow 已切到 `kanova-build` / `kanova-ci`，不再使用 `acquilang-build`。
+- 影响：只改 GitHub 上的 runner label，不重启服务。
+- 回滚方式：`GH_TOKEN=$(gh auth token --user IAmKongHai) gh api -X POST repos/IAmKongHai/Kanova/actions/runners/30/labels -f 'labels[]=acquilang-build'`。
+- 做了什么：`DELETE repos/IAmKongHai/Kanova/actions/runners/30/labels/acquilang-build`。
+- 验证：GitHub API 显示 `mas-sit-kanova-ci-1`（ID 30）online，labels 为 `self-hosted, Linux, X64, kanova-build`。
+
 ## 2026-11-02 13:58 CST - 修复 runner `externals.2.338.0` 内置 Node 的 `npm` / `npx` / `corepack` 符号链接
 
 - 服务器：`mas-sit`

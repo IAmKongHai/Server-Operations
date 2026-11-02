@@ -6,9 +6,9 @@
 > org runner（konghai-friends-lab）：`konghai-friends-lab-1`（label `konghai-friends-lab`，workFolder `~/gha/kfl1`）  
 > org runner（caimiamiao）：`caimiamiao-1`（label `caimiaomiao-ci`，workFolder `~/gha/cmm1`）  
 > 仓库级 runner（`IAmKongHai/qingfan`）：`mac-mini-qingfan-ci-1` … `3`（label `qingfan-ci`、`qingfan-frontend`，workFolder `~/gha/qf1` … `qf3`）。原 `mac-mini-acquilang-native-1` 已于 2026-10-30 移除
-> 日常 CI 仓库级 runner：`mac-mini-acquilang-ci-1` … `5`（label `acquilang-ci`，workFolder `~/gha/alc1` … `alc5`）
+> 日常 CI 仓库级 runner：`mac-mini-kanova-ci-1` … `5`（原 `mac-mini-acquilang-ci-1..5`，label `kanova-ci`、`kanova-build`，workFolder `~/gha/alc1` … `alc5`）
 > 仓库级 runner（`cypressoai/moo-decision`）：`khmini`（label `khmini`，SIT 部署，workFolder `~/gha/khm1`）
-> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-qingfan-ci-{1..3}`、`~/actions-runner/mac-mini-acquilang-ci-{1..5}`、`~/actions-runner/khmini`  
+> 目录：`~/actions-runner/mac-mini-sonar-{1..4}`、`~/actions-runner/mac-mini-mobile-1`（workFolder `~/gha/m1`）、`~/actions-runner/konghai-friends-lab-1`、`~/actions-runner/caimiamiao-1`、`~/actions-runner/mac-mini-qingfan-ci-{1..3}`、`~/actions-runner/mac-mini-kanova-ci-{1..5}`、`~/actions-runner/khmini`  
 > 2026-08-15 起 sonar 槽改为 **LaunchDaemon**（`system/actions.runner.cypressoai.mac-mini-sonar-N`），注销图形用户后仍应在线。  
 > `mac-mini-mobile-1` 同样走 LaunchDaemon：`system/actions.runner.cypressoai.mac-mini-mobile-1`。  
 > 旧 LaunchAgent plist 停在 `/Users/konghai/Library/LaunchAgents.disabled-20260815/`（历史）。  
@@ -154,20 +154,20 @@ gh api repos/IAmKongHai/qingfan/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
-## AcquiLangAI 日常 CI `mac-mini-acquilang-ci-1` … `5`
+## Kanova（原 AcquiLangAI）日常 CI `mac-mini-kanova-ci-1` … `5`
 
-仓库级 runner，只注册到 `IAmKongHai/AcquiLangAI`。五个 slot 使用同一个 label `acquilang-ci`，GitHub 把 backend、admin、native、web、sonar 分到空闲 slot。原生打包的 `acquilang-native-ci` runner（`mac-mini-acquilang-native-1`）已于 2026-10-30 移除。这些实例共享 mac-mini 的 CPU、内存与磁盘，也不带 cypressoai 池标签。
+仓库级 runner，只注册到 `IAmKongHai/Kanova`（2026-11-02 由 `mac-mini-acquilang-ci-1..5` 改名）。`ci-1..3` 在线并带 `kanova-build`、`kanova-ci` 标签。原生打包的 `acquilang-native-ci` runner（`mac-mini-acquilang-native-1`）已于 2026-10-30 移除。这些实例共享 mac-mini 的 CPU、内存与磁盘，也不带 cypressoai 池标签。
 
 | slot | 程序 | 工作目录 | 服务 |
 | --- | --- | --- | --- |
-| 1–5 | `~/actions-runner/mac-mini-acquilang-ci-N` | `~/gha/alcN` | `system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N` |
+| 1–5 | `~/actions-runner/mac-mini-kanova-ci-N` | `~/gha/alcN` | `system/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N` |
 
 五个 slot 都是系统 LaunchDaemon，`RunAtLoad` / `KeepAlive`，2026-10-22 起以 `hon` 运行。`ci-2` … `5` 在 2026-10-10 00:53–01:03 曾短暂用用户域 LaunchAgent 拉起，01:03 已卸下并改成系统服务。`~/Library/LaunchAgents/` 里不再有这些 plist。
 
-2026-10-10 01:23 起，`ci-4` 和 `ci-5` 被 `launchctl disable`，用来把同时落在 mac-mini 上的 AcquiLang job 限制在 3 个。注册还在，GitHub 上显示 offline。恢复命令见 [mac-mini 运维记录](../operations/mac-mini.md) 同日条目。`lemon-imac` 当时 SSH 不可达，还没有接走这部分 job。
+2026-10-10 01:23 起，`ci-4` 和 `ci-5` 被 `launchctl disable`，用来把同时落在 mac-mini 上的 Kanova job 限制在 3 个。
 
-- plist：`/Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist`
-- 日志：`~/Library/Logs/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N/`
+- plist：`/Library/LaunchDaemons/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N.plist`
+- 日志：`~/Library/Logs/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N/`
 - Python：`/opt/homebrew/opt/python@3.12/bin/python3.12`（接入时为 3.12.11）。CI 直接调用，不使用依赖 `/Users/runner` 的 `setup-python` macOS 安装包。
 - 各 slot 的 `.env` 把 `PNPM_STORE_PATH` 和 `npm_config_store_dir` 指到同一个 `/Users/hon/gha/cache/pnpm-store`。不复制 Native 的凭据。sonar job 读的后端测试配置是 `ACQUILANG_BACKEND_ENV=/Users/hon/.config/acquilang/backend-ci.env`（600，含密钥；仓库改名 Kanova 后 workflow 读 `KANOVA_BACKEND_ENV`，2026-11-01 起 5 个 `.env` 两个变量都设、指向同一文件；workflow 默认读 `$HOME/Code/Project/AcquiLangAI/acquilang-backend/.env`，hon 下没有这份工作副本）。
 - `config.sh` 不生成根目录的 `runsvc.sh`。从 `bin/runsvc.sh` 复制。不要跑 `./svc.sh install`，那会再写一份用户域 LaunchAgent，并和系统服务抢同一个 runner。
@@ -184,9 +184,9 @@ sudo /Users/hon/gha/scripts/install-mac-mini-acquilang-ci-runner-daemon.sh 2 3 4
 ```bash
 for n in 1 2 3 4 5; do
   echo "=== ci-$n"
-  launchctl print "system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-$n"
+  launchctl print "system/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-$n"
 done
-gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
+GH_TOKEN=$(gh auth token --user IAmKongHai) gh api repos/IAmKongHai/Kanova/actions/runners \
   --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
 ```
 
@@ -194,19 +194,19 @@ gh api repos/IAmKongHai/AcquiLangAI/actions/runners \
 
 ```bash
 # 暂停并阻止重启后自动加载；保留注册、工作目录与 plist
-sudo launchctl disable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
-sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
+sudo launchctl disable system/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N
+sudo launchctl bootout system/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N
 
 # 恢复已卸载的服务
-sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N
-sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N.plist
+sudo launchctl enable system/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N
+sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-N.plist
 ```
 
 改了 `.env` 要重启才生效（runner 只在 listener 启动时读 `.env`，`ps eww` 看不到这些变量，属正常）。hon 没有免密 sudo，不能 `launchctl kickstart`。可以由 hon 给自己的 `runsvc.sh` 发 SIGTERM：plist 是 `KeepAlive true`，launchd 几秒内会重新拉起。
 
 ```bash
 # 正则以 ^/bin/bash 开头，避免匹配到 ssh 远端那条 zsh -c 命令自身
-ssh mac-mini-hon 'pgrep -fl "acquilang-ci-N/bin/Runner.Worker" || pkill -TERM -f "^/bin/bash /Users/hon/actions-runner/mac-mini-acquilang-ci-N/runsvc.sh"'
+ssh mac-mini-hon 'pgrep -fl "kanova-ci-N/bin/Runner.Worker" || pkill -TERM -f "^/bin/bash /Users/hon/actions-runner/mac-mini-kanova-ci-N/runsvc.sh"'
 ```
 
 先确认没有排队等这台 runner 的 job。如果 job 恰好在发信号的那一刻分配过来，会被取消，只能重跑（2026-11-01 就这样取消了 sonar 和 admin）。改 label 让排队 job 能匹配时，先改完 `.env` 并重启，最后再加 label。

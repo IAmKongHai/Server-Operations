@@ -28,10 +28,10 @@ LABEL=com.konghai.ciwork-mount
 PLIST=/Library/LaunchDaemons/$LABEL.plist
 MOUNT_SCRIPT=/usr/local/sbin/ciwork-mount.sh
 STAMP=$(date +%Y%m%d)
-ACQ_LABEL=actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
+ACQ_LABEL=actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1
 ACQ_PLISTS=(
   "/Library/LaunchDaemons/$ACQ_LABEL.plist"
-  "/Users/for-konghai/actions-runner/lemon-imac-acquilang-ci-1/$ACQ_LABEL.plist"
+  "/Users/for-konghai/actions-runner/lemon-imac-kanova-ci-1/$ACQ_LABEL.plist"
 )
 
 mp=$(diskutil info "$VOLUME_NAME" | awk -F': *' '/Mount Point/{print $2}')

@@ -21,8 +21,8 @@ install_slot() {
     exit 1
   fi
 
-  local runner_root="/Users/hon/actions-runner/mac-mini-acquilang-ci-${slot}"
-  local label="actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-${slot}"
+  local runner_root="/Users/hon/actions-runner/mac-mini-kanova-ci-${slot}"
+  local label="actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-${slot}"
   local plist="/Library/LaunchDaemons/${label}.plist"
   local source_plist="${runner_root}/${label}.plist"
   local log_dir="/Users/hon/Library/Logs/${label}"

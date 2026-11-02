@@ -1,5 +1,20 @@
 # lemon-imac 运维操作时间线
 
+## 2026-11-02 17:31 CST - 仓库级 runner `lemon-imac-acquilang-ci-1` 改名为 `lemon-imac-kanova-ci-1`（含目录与 LaunchDaemon）
+
+- 服务器：`lemon-imac`；GitHub `IAmKongHai/Kanova`
+- 操作人：`Antigravity` 编写脚本并下发短期 token；用户执行 `sudo /Users/for-konghai/gha/scripts/rename-lemon-imac-kanova-ci-runner.sh`
+- 原因：项目已由 AcquiLang 改名为 Kanova（PR #122 已合并），用户选择方案 B 将 runner 名称、本机目录和 LaunchDaemon 统一改为 `kanova`。
+- 影响：runner 注销后重注册，离线约 15 秒，期间无 job。GitHub runner ID 由 28 变为 31；labels 只带 `self-hosted, macOS, ARM64, kanova-build`（去掉已不再使用的 `acquilang-build`）。workFolder `~/gha/alci1` 和缓存目录 `~/gha/cache/acquilang-*` 保持不变。
+- 备份：`~/gha/backups/kanova-rename-20261102/`（含旧 LaunchDaemon plist、`.runner`、`.credentials*`、`.env`、`.path`、`.service`）。
+- 回滚方式：用备份的 plist 与配置还原，或再次调用 `config.sh` 以旧名重注册并恢复 `system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`。
+- 做了什么：
+  1. 新增 `scripts/rename-lemon-imac-kanova-ci-runner.sh`，同步更新 `scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh` 与 `scripts/install-lemon-imac-ciwork-automount.sh` 中的目录与 label。
+  2. 卸下并 disable 旧 LaunchDaemon `system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`，将 `bin` / `externals` 改为相对符号链接，修改 `.runner` 的 `gitHubUrl` 为 `https://github.com/IAmKongHai/Kanova` 后执行 `config.sh remove`。
+  3. 目录 `~/actions-runner/lemon-imac-acquilang-ci-1` 重命名为 `~/actions-runner/lemon-imac-kanova-ci-1`，以新名 `lemon-imac-kanova-ci-1` 重新注册，恢复 `.env` 并更新 `.path` 为 `/Users/for-konghai/actions-runner/lemon-imac-kanova-ci-1/shims:/usr/bin:/bin:/usr/sbin:/sbin`。
+  4. 安装并 bootstrap 新 LaunchDaemon `system/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1`，自动清理短期 `tokens.env`。
+- 验证：`system/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1` 状态 `running`（pid 82226）；GitHub API 显示 `lemon-imac-kanova-ci-1`（ID 31）`online`；`tokens.env` 已删除。
+
 ## 2026-11-02 13:57 CST - 修复 runner `externals.2.338.0` 内置 Node 的 `npm` / `npx` / `corepack` 符号链接
 
 - 服务器：`lemon-imac`

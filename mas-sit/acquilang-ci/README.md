@@ -8,7 +8,7 @@
 | --- | --- |
 | 名称 / GitHub ID | `mas-sit-kanova-ci-1` / `30`（2026-11-01 重新注册） |
 | 范围 | 私有仓库 `IAmKongHai/Kanova`（原 `AcquiLangAI`） |
-| Labels | `self-hosted`, `Linux`, `X64`, `acquilang-build`, `kanova-build`（2026-11-01 加；`acquilang-build` 等 Kanova main 不再用后删） |
+| Labels | `self-hosted`, `Linux`, `X64`, `kanova-build`（2026-11-01 加，2026-11-02 去掉旧 `acquilang-build`） |
 | 系统用户 | `acquilang-ci`；无 sudo / Docker 组权限 |
 | systemd | `actions.runner.IAmKongHai-Kanova.mas-sit-kanova-ci-1.service` |
 | 程序 / 工作区 | `/opt/acquilang-ci/runner` / `/opt/acquilang-ci/work` |

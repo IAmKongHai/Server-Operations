@@ -66,27 +66,27 @@ sudo rm /Library/LaunchDaemons/actions.runner.cypressoai.lemon-imac-{1,2}.plist
 # 然后不要在无 Aqua 会话时指望它们还活着
 ```
 
-## AcquiLang 仓库级 runner
+## Kanova（原 AcquiLang）仓库级 runner
 
-`lemon-imac-acquilang-ci-1` 不属于 cypressoai org 池。label 只有 `self-hosted`、`macOS`、`ARM64`、`acquilang-build`。目录是 `~/actions-runner/lemon-imac-acquilang-ci-1`，工作目录 `~/gha/alci1`。
+`lemon-imac-kanova-ci-1`（2026-11-02 由 `lemon-imac-acquilang-ci-1` 改名）不属于 cypressoai org 池。label 只有 `self-hosted`、`macOS`、`ARM64`、`kanova-build`。目录是 `~/actions-runner/lemon-imac-kanova-ci-1`，工作目录 `~/gha/alci1`。
 
-2026-10-10 11:37 起为 LaunchDaemon `system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1`。检查：
+LaunchDaemon 为 `system/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1`。检查：
 
 ```bash
-sudo launchctl print system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1 | grep -E 'state =|pid ='
+sudo launchctl print system/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1 | grep -E 'state =|pid ='
 ```
 
 停止这个服务，不碰 org runner：
 
 ```bash
-sudo launchctl bootout system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
+sudo launchctl bootout system/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1
 ```
 
 `bootout` 之后 plist 还在，再跑安装脚本会跳过，不会把它装回去。要重新拉起：
 
 ```bash
-sudo launchctl enable system/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1
-sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-AcquiLangAI.lemon-imac-acquilang-ci-1.plist
+sudo launchctl enable system/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1
+sudo launchctl bootstrap system /Library/LaunchDaemons/actions.runner.IAmKongHai-Kanova.lemon-imac-kanova-ci-1.plist
 ```
 
 仓库副本：`scripts/install-lemon-imac-acquilang-ci-runner-daemon.sh`。不要对这个目录运行 `./svc.sh install`。

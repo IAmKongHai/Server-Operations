@@ -1,5 +1,20 @@
 # mac-mini 运维时间线
 
+## 2026-11-02 17:32 CST - 仓库级 runner `mac-mini-acquilang-ci-1..5` 改名为 `mac-mini-kanova-ci-1..5`（含目录与 LaunchDaemon）
+
+- 服务器：`mac-mini`（hon）；GitHub `IAmKongHai/Kanova`
+- 操作人：`Antigravity` 编写脚本并下发短期 token；用户执行 `sudo /Users/hon/gha/scripts/rename-mac-mini-kanova-ci-runners.sh`
+- 原因：项目已由 AcquiLang 改名为 Kanova（PR #122 已合并），用户选择方案 B 将 runner 名称、本机目录和 LaunchDaemon 统一改为 `kanova`。
+- 影响：`ci-1..3` 依次注销重注册，每个离线约 15 秒，期间无 job。GitHub runner ID 由 22/23/24 变为 32/33/34；labels 为 `self-hosted, macOS, ARM64, kanova-build, kanova-ci`（去掉已不再使用的 `acquilang-*`）。`ci-4..5` 同步重命名目录与 plist，继续保持 disabled。workFolder `~/gha/alc1..5` 与 `.env` 保持不变。
+- 备份：`~/gha/backups/kanova-rename-20261102/slot-{1..5}/`（含旧 LaunchDaemon plist、`.runner`、`.credentials*`、`.env`、`.path`、`.service`）。
+- 回滚方式：用备份的 plist 与配置还原，或再次调用 `config.sh` 以旧名重注册并恢复 `system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-1..5`。
+- 做了什么：
+  1. 新增 `scripts/rename-mac-mini-kanova-ci-runners.sh`，同步更新 `scripts/install-mac-mini-acquilang-ci-runner-daemon.sh` 中的目录与 label。
+  2. 对 `slot 1..5` 卸下并 disable 旧 LaunchDaemon `system/actions.runner.IAmKongHai-AcquiLangAI.mac-mini-acquilang-ci-N`，将 `bin` / `externals` 改为相对符号链接；对在线的 `slot 1..3` 修改 `.runner` 的 `gitHubUrl` 后执行 `config.sh remove`。
+  3. 目录 `~/actions-runner/mac-mini-acquilang-ci-N` 重命名为 `~/actions-runner/mac-mini-kanova-ci-N`；`slot 1..3` 以新名 `mac-mini-kanova-ci-1..3` 重新注册，恢复 `.env` 与 `.path`。
+  4. 安装新 LaunchDaemon `system/actions.runner.IAmKongHai-Kanova.mac-mini-kanova-ci-1..5`，其中 `1..3` enable + bootstrap 启动，`4..5` 保持 disabled；自动清理短期 `tokens.env`。
+- 验证：`mac-mini-kanova-ci-1..3` 服务均为 `running`（pid 30335 / 30411 / 30487）；GitHub API 显示 ID 32/33/34 全部 `online`；`tokens.env` 已删除。
+
 ## 2026-11-02 13:58 CST - 修复 runner `externals.2.338.0` 内置 Node 的 `npm` / `npx` / `corepack` 符号链接
 
 - 服务器：`mac-mini`（hon）
