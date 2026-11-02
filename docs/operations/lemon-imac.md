@@ -1,5 +1,16 @@
 # lemon-imac 运维操作时间线
 
+## 2026-11-02 13:57 CST - 修复 runner `externals.2.338.0` 内置 Node 的 `npm` / `npx` / `corepack` 符号链接
+
+- 服务器：`lemon-imac`
+- 操作人：`Antigravity`（用户确认）
+- 原因：Kanova [run 41233570531](https://github.com/IAmKongHai/Kanova/actions/runs/41233570531/job/125110201259) 的 `admin` job 落在 `lemon-imac-acquilang-ci-1` 上，在 `设置 pnpm`（`pnpm/action-setup@v6`）步骤报 `Error: Cannot find module '../lib/cli.js' (Require stack: .../externals.2.338.0/node24/bin/npm)`。10-22 runner 自动升级到 `2.338.0` 时，自更新程序把 `externals.2.338.0/node{20,24}/bin/` 下的 `npm`、`npx`、`corepack` 从相对符号链接解引用复制成了普通文件，导致相对路径 `require('../lib/cli.js')` 解析失败。
+- 影响：修复 `lemon-imac-1`、`lemon-imac-2`、`lemon-imac-acquilang-ci-1` 共 3 个 runner 的 `externals.2.338.0/node{20,24}/bin/`（`lemon-imac-qingfan-ci-1` 为 2.338.0 全新解压安装，本就是符号链接）。无需重启 runner，立即生效。
+- 备份：各 `externals.2.338.0/node{20,24}/bin/{npm,npx,corepack}.bak.20261102`。
+- 回滚方式：在对应 `bin/` 目录下用 `.bak.20261102` 覆盖回 `npm`、`npx`、`corepack`。
+- 做了什么：备份原普通文件后，将 `npm`、`npx`、`corepack` 重新 `ln -sf` 为指向 `../lib/node_modules/npm/bin/npm-cli.js`、`../lib/node_modules/npm/bin/npx-cli.js`、`../lib/node_modules/corepack/dist/corepack.js` 的相对符号链接。
+- 验证：6 个 `bin/` 目录下 `ls -la` 确认为符号链接；以最小 `PATH="$d:/usr/bin:/bin"` 执行 `"$d/npm" --version`，`node20` 输出 `10.8.2`、`node24` 输出 `11.19.0`。
+
 ## 2026-11-01 14:12 CST - `lemon-imac-acquilang-ci-1` 加 label `kanova-build`
 
 - 服务器：`lemon-imac`；GitHub `IAmKongHai/Kanova`（原 `AcquiLangAI`）

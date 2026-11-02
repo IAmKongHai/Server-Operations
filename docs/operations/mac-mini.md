@@ -1,5 +1,16 @@
 # mac-mini 运维时间线
 
+## 2026-11-02 13:58 CST - 修复 runner `externals.2.338.0` 内置 Node 的 `npm` / `npx` / `corepack` 符号链接
+
+- 服务器：`mac-mini`（hon）
+- 操作人：`Antigravity`（用户确认）
+- 原因：10-22 runner 自动升级到 `2.338.0` 时，自更新程序把 `externals.2.338.0/node{20,24}/bin/` 下的 `npm`、`npx`、`corepack` 从相对符号链接变成了普通文件拷贝，导致调用内置 `npm` 时报 `Cannot find module '../lib/cli.js'`（见 2026-11-01 条目）。与 `lemon-imac`、`mas-sit` 一并修复。
+- 影响：修复 `caimiamiao-1`、`konghai-friends-lab-1`、`mac-mini-acquilang-ci-1..3`、`mac-mini-mobile-1`、`mac-mini-sonar-1..4` 共 10 个 runner 的 `externals.2.338.0/node{20,24}/bin/`（`mac-mini-qingfan-ci-1..3` 为 2.338.0 全新解压安装，`mac-mini-acquilang-ci-4..5` 仍为 2.337.0，均本就是符号链接）。无需重启 runner，立即生效。
+- 备份：各 `externals.2.338.0/node{20,24}/bin/{npm,npx,corepack}.bak.20261102`。
+- 回滚方式：在对应 `bin/` 目录下用 `.bak.20261102` 覆盖回 `npm`、`npx`、`corepack`。
+- 做了什么：备份原普通文件后，将 `npm`、`npx`、`corepack` 重新 `ln -sf` 为指向 `../lib/node_modules/npm/bin/npm-cli.js`、`../lib/node_modules/npm/bin/npx-cli.js`、`../lib/node_modules/corepack/dist/corepack.js` 的相对符号链接。
+- 验证：20 个 `bin/` 目录下 `ls -la` 确认为符号链接；以最小 `PATH="$d:/usr/bin:/bin"` 执行 `"$d/npm" --version`，`node20` 输出 `10.8.2`、`node24` 输出 `11.19.0`。
+
 ## 2026-11-01 14:10–14:30 CST - Kanova runner 加 `kanova-*` label，`.env` 补 `KANOVA_BACKEND_ENV`
 
 - 服务器：`mac-mini`（另有 `mas-sit`、`lemon-imac` 各一个 runner 只加了 label）；GitHub `IAmKongHai/Kanova`
