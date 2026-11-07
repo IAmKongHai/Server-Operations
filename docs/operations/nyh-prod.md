@@ -1,5 +1,50 @@
 # nyh-prod 运维时间线
 
+## 2026-11-07 17:00 CST - fa.nanyahui.com 改用本机 Docker MySQL（过渡，替代到期的 RDS）
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户确认采用方案 2「本机轻量 MySQL 过渡」，并选择 Docker 而不是宝塔原生安装）
+- 原因：MySQL RDS `rm-j6cb0v171f2al0h41` 将于 2026-11-08 00:00 CST 到期。`fa.nanyahui.com`（FastAdmin + weixin 插件）是公众号回调链路的下游：微信 → nyhAgent `load.nanyahui.com/notify/weixin/index` → `wq_url` → FastAdmin，负责关键词回复和默认回复，不能断。用户暂时不改代码，打算之后找一套现代系统替代 FastAdmin。背景见 `docs/operations/rds-mysql-newrds2024.md`。
+- 选型：用 Docker 的原因是只做过渡、能硬限内存（这台机器没有 swap）、只绑回环地址、删起来干净，而且机器上已经有十几个容器。镜像用 `mysql:8.0.36`，和原 RDS 版本相同。
+- 影响：只动了 `fa.nanyahui.com`，切换瞬间无感知。新增一个常驻容器，约 130MB / 上限 512MB。
+- 备份：`/www/wwwroot/fa.nanyahui.com/.env.bak.20261107`；切换前的 RDS 导出在 `/www/docker/fa-mysql/backup/fast_admin_db.from-rds.20261107.sql`；全库导出在 `/root/rds-final-dump-20261107/`。
+- 回滚方式：00:00 前执行 `cp -p .env.bak.20261107 .env` 就能切回 RDS。到期后如果要换掉本地 MySQL，用上面的导出导入别处即可。
+
+### 部署
+
+| 项 | 值 |
+| --- | --- |
+| 容器 | `fa-mysql`，`--restart=always`，`--memory=512m --memory-swap=512m`，日志 10m×3 |
+| 端口 | `127.0.0.1:3306`（只绑回环；FastAdmin 走宿主机 php-fpm-74 直连） |
+| 目录 | `/www/docker/fa-mysql/`（700）：`data/`、`conf/fa.cnf`、`backup/`、`.root_pw`、`.app_pw`（600） |
+| 账号 | `fast_admin_user@%` 只有 `fast_admin_db.*` 的权限（`mysql_native_password`）；root 只给运维用 |
+| 参数 | 对齐 RDS：`lower_case_table_names=1`、同样的 `sql_mode`、`+08:00`、`READ-COMMITTED`、`mysql_native_password`；压内存：`innodb_buffer_pool_size=128M`、`performance_schema=OFF`、`max_connections=50` |
+
+### 变更时序
+
+1. 读取 RDS 的 `@@version` / `sql_mode` / 时区 / `lower_case_table_names` / 认证插件 / 隔离级别，写进 `conf/fa.cnf`。
+2. `docker pull mysql:8.0.36`，`docker run`，等到 ready 后建库 `fast_admin_db`（utf8mb4）和账号。
+3. 用 FastAdmin 自己的账号从 RDS 执行 `mysqldump --single-transaction --no-tablespaces --triggers --routines`。注意 MariaDB 11.8 的 mysqldump 会写 `/*M!...*/` 指令（第一行是 sandbox mode），MySQL 8 不认识，导入前先 `sed '/^\/\*M!/d'` 删掉（共 3 行）。
+4. 导入后核对：30 张表的 `count(*)` 和 `CHECKSUM TABLE` 与 RDS **全部一致**（`fa_weixin_fans` 20033 行）。
+5. 备份 `.env`，把 `hostname` / `password` / `hostport` 改成本地。
+
+### 验证
+
+- 用 `wq_token` 计算签名，假 openid `oTEST_claude_20261107`，直接 POST 到 `load.nanyahui.com/notify/weixin/index`，走完整链路：
+  - 「客服」→ 客服二维码图片
+  - 「退款怎么办」→ 退款说明文字
+  - 「随便说一句」→ default 图片
+  - 「批量」→ VIP 网页版说明
+  - 全部 HTTP 200，耗时 < 0.1s。
+- 本地 MySQL `Questions` 在增长；FastAdmin 后台登录页 200，没有报错；代码、配置、`.env` 里已经没有任何 `rm-j6cb0v171f2al0h41`。
+
+### 待办
+
+- 每天备份 `fast_admin_db`（需要改 crontab，等用户确认）。
+- 用 nginx 把 FastAdmin 后台限制为只能从 Tailscale 访问，公网只放行 `/addons/weixin/index/wechat`（等用户确认）。
+- 00:00 RDS 到期后用真实公众号再测一次。
+- 之后选一套现代系统替代 FastAdmin，然后删掉 `fa-mysql`。
+
 ## 2026-10-31 10:20 CST - 升级内核到 6.12.113 修复 CVE-2026-98432
 
 - 服务器：`nyh-prod`
