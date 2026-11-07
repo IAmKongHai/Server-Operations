@@ -2,6 +2,43 @@
 
 阿里云香港 MySQL 8.0 RDS `rm-j6cb0v171f2al0h41`（控制台名 **NewRDS2024**，`mysql.n2e.medium.1`，包年包月）。内网 `172.31.138.204:3306`，公网 `rm-j6cb0v171f2al0h41bo.mysql.rds.aliyuncs.com`。应用从 `nyh-prod`（`172.31.138.210`）经 VPC 访问。
 
+## 2026-11-07 16:00 CST - 全库逻辑导出留底 + konghai.me 迁到 PostgreSQL 18
+
+- 服务器：`nyh-prod`、阿里云 RDS `rm-j6cb0v171f2al0h41`（MySQL）/ `pgm-j6cf5kaej216sx0z`（PG 18.0）
+- 操作人：`Claude`（用户确认做「全库导出」和「konghai.me 迁 PG」；`fa.nanyahui.com` 另议）
+- 原因：MySQL 实例 2026-11-08 00:00 CST 到期不续费。
+- 影响：php-fpm-82 平滑 reload 一次（服务 `konghai.me`、`numbers.konghai.me`、`nyh-2025.konghai.me`、`127.0.0.1`），无中断；`konghai.me` 切库瞬间无感知。
+- 备份：`/www/server/php/82/etc/php.ini.bak.20261107`、`/www/wwwroot/konghai.me/config.inc.php.bak.20261107`
+- 回滚方式：
+  - konghai.me：`cp -p config.inc.php.bak.20261107 config.inc.php`（仅在 MySQL 到期前有效；到期后需把 `/root/rds-final-dump-20261107/konghai_me_db.sql.gz` 导入别的 MySQL）。
+  - php82 扩展：`cp php.ini.bak.20261107 php.ini` 后 `/etc/init.d/php-fpm-82 reload`。
+
+### 1. 全库导出
+
+- 宝塔 `database_servers` 里存的 root 密码已失效（`Access denied`），于是用阿里云 CLI 临时建 RDS 账号 `tmp_dump_20261107`，对全部 29 个库授 `ReadOnly`，导出后已 `DeleteAccount`。
+- 导出脚本 `/root/rds-final-dump-20261107/dump.sh`：MariaDB 11.8 的 `mysqldump --skip-ssl --single-transaction --quick --routines --triggers --hex-blob --databases <db> | gzip`，逐库导出。注意 MariaDB 客户端**不认** `--set-gtid-purged`，连这台 RDS 也**必须**加 `--skip-ssl`。
+- 结果：29 个库全部成功，原始约 11.8GB，压缩后 **961MB**，在 `/root/rds-final-dump-20261107/*.sql.gz`（600，root）；`gzip -t` 全部通过，每个文件结尾都有 `Dump completed`；校验和在 `SHA256SUMS`。
+- 这份导出目前只在 nyh-prod 本机，尚未异地复制。
+
+### 2. konghai.me（Typecho 1.3.0）迁 PG
+
+1. PG 上用阿里云 CLI 建账号 `konghai_me_user`（Normal）和库 `konghai_me_db`（UTF8 / `en_US.utf8`），并授予 `DBOwner`。
+2. php82 用源码 `/www/server/php/82/src/ext/pdo_pgsql` 加系统 `libpq-dev` 17 phpize 编译出 `pdo_pgsql.so`，放进 extension_dir，在 `/www/server/php/82/etc/php.ini` 末尾加一行 `extension`，然后 `/etc/init.d/php-fpm-82 reload`。注意 php82 CLI 读的是 `php-cli.ini`，验证 FPM 要用 `php -c /www/server/php/82/etc/php.ini -m`。
+3. 迁移脚本 `/root/rds-final-dump-20261107/migrate_konghai_me.php`：先跑官方 `install/Pgsql.sql` 建表，再按 MySQL 实际列补齐——放宽 varchar（150→200，`metas.type` 16→32），加上 MySQL 独有的 `typecho_contents.views INT DEFAULT 0`；在单个事务里逐表复制，然后 `setval` 各 `*_seq` 到 max(id)。
+4. 7 张表行数一致（comments 124 / contents 53 / metas 29 / options 68 / relationships 57 / users 1 / fields 0）。切换前又核对了一次 MySQL，没有新写入。
+5. `config.inc.php` 改为 `Pdo_Pgsql`，host 用 `pgm-j6cf5kaej216sx0z.pg.cnhk.rds.aliyuncs.com:5432`，`charset=utf8`，去掉 `engine`。
+
+### 验证
+
+- 本机经 `--resolve` 访问 `/`、文章页、分类页、feed、搜索、`/admin/login.php`，全部 200，标题正确，页面里没有数据库错误。
+- PG `pg_stat_activity` 里能看到 `konghai_me_user` 的连接；配置里已经没有 MySQL 地址。
+- 其它 php82 站点 reload 后正常（`numbers.konghai.me` 首页 403 是历史上就有的）。
+
+### 待办
+
+- `fa.nanyahui.com`（公众号回调，用户说「非常重要」）仍连 MySQL，**00:00 前必须另行处理**。
+- 后台写入（发文、评论）还没有实测，建议用户登录后台发一条草稿验证。
+
 ## 2026-11-07 15:40 CST - 只读评估 fa.nanyahui.com / konghai.me 迁往 PostgreSQL 的可行性
 
 - 服务器：`nyh-prod`、阿里云 RDS `rm-j6cb0v171f2al0h41` / `pgm-j6cf5kaej216sx0z`
