@@ -1,5 +1,33 @@
 # nyh-prod 运维时间线
 
+## 2026-11-07 20:00 CST - 公众号回调切到 nyh-wechat-mp（wq_url 切换，plan U10）
+
+- 服务器：`nyh-prod`（改生产数据：PG `nyh_agent.load_config` id=57）
+- 操作人：`Claude`（用户确认「现在切换」）
+- 原因：接上一条，replay 47 条与 FastAdmin 不一致 0 条。
+- 影响：公众号的关键词回复、默认回复改由 `nyh-wechat-mp`（`127.0.0.1:9871`）产生；nyhAgent 自己处理的 TD/DY、myPoster、关注注册、扫码登录不变。
+- 备份：`/www/backup/wxmp_wq_url_20261107_2000.json`（root 600，原值 `https://fa.nanyahui.com/addons/weixin/index/wechat`，`update_time` 原为 1561011520）。
+- 回滚方式（立即生效，`ConfigModel::lists` 无缓存）：在 `/www/wwwroot/load.nanyahui.com` 执行
+  `sudo -u www php74 -r 'namespace think; $_SERVER["argv"][0]=getcwd()."/think"; require "thinkphp/base.php"; Container::get("app")->path(getcwd()."/application/")->initialize(); echo Db::name("config")->where("name","wq_url")->update(["value"=>"https://fa.nanyahui.com/addons/weixin/index/wechat","update_time"=>time()]);'`，输出应为 1。
+
+### 变更时序（同一脚本内）
+
+1. 备份原值；改为 `http://127.0.0.1:9871/wechat/callback`（影响 1 行）。
+2. 全链路冒烟（假 openid `oTEST_cutover_20261107`，经公网 `load.nanyahui.com/notify/weixin/index`）：「客服」→ image、「退款怎么办」→ 退款文字、「随便说一句」→ default image、CLICK「余额流量查询」→ 余额文字，14–30ms；FastAdmin 新增 0 次。
+3. 回滚演练：改回 FastAdmin 地址，冒烟 2 条，FastAdmin 访问日志新增 2 次，回复相同。
+4. 再切回新服务，冒烟 4 条全部正确，FastAdmin 新增 0 次。
+
+### 验证
+
+- `/healthz`：pg/redis 可达，rules=6，验签成功 55 次、失败 0 次。
+- 待用户手机实测：发「客服」、发一句随便的话、点「余额流量查询」。
+
+### 回滚窗口内的约定（R12）
+
+- 保留 FastAdmin、`fa-mysql`、FastAdmin 每天 01:30 刷新临时素材的宝塔定时任务，都不要动。
+- 两边后台都不改规则、不发布菜单；确实改了，就在这里记一笔「回滚前要手工同步」。菜单是公众号全局状态，改 `wq_url` 不会回滚菜单。
+- 观察 24–72 小时：`journalctl -u nyh-wechat-mp` 里有回调记录与耗时；php74 FPM 没有进程堆积；FastAdmin 不再收到回调（`/www/wwwlogs/fa.nanyahui.com.log`）。
+
 ## 2026-11-07 19:52–20:00 CST - nyh-wechat-mp 首次部署、导入 FastAdmin 数据与 replay 对比（plan U9、U10 前半）
 
 - 服务器：`nyh-prod`、阿里云 RDS `pgm-j6cf5kaej216sx0z`
