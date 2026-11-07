@@ -29,6 +29,10 @@
 - `nyhCenter` 里也有一个 `notify/WeixinController`，但生产上 `center.nanyahui.com` 没有回调流量，不在这条链路上。
 - 两个仓库都没有直接依赖 FastAdmin 的代码，唯一的耦合就是 `wq_url` 这个配置。
 - `transmit()` 的 `http_post` **没有设 curl 超时**：如果 FastAdmin 因为 MySQL 到期而卡住，nyhAgent 的回调会被一起拖住，超过微信的 5 秒限制。
+- 「微擎消息转发地址」这项配置（PG `nyh_agent.load_config`，`group=3`）：
+  - `id=57 wq_url`：值是 `https://fa.nanyahui.com/addons/weixin/index/wechat`，备注「用于微信公众号消息转发」。只有 `WeixinController::transmit()` 读它，可以在 nyhAgent 后台「系统配置」（`admin/ConfigController`）里修改。`update_time` 还停在 2019-06-20，看来改成 fa 地址时是直接改的库。
+  - `id=56 wq_token`：名字叫「微擎token」，但实际被 `ObjectFactory::WeChatInstance()` 当成公众号服务器配置里的 Token 用来校验签名，**和微擎、FastAdmin 都无关，不能删也不能改**。
+  - 生产上公众号的 AppID / AppSecret 来自 `load_config` 的 `wechat_appid` / `wechat_appsecret`，和 FastAdmin 里配的是同一套；仓库里 `config/wechat.php` 的 `official.app_secret` 和生产不一致，不是这条链路在用的。
 - 因此上一条「停用服务器配置，改用公众平台原生自动回复」的建议**作废**：停用会让扫码登录、注册与上下级绑定、专属海报、TD/DY 全部失效。
 
 ## 2026-11-07 16:15 CST - 只读梳理 fa.nanyahui.com 公众号功能（准备淘汰 FastAdmin）
