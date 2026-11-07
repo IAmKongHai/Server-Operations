@@ -1,5 +1,31 @@
 # nyh-prod 运维时间线
 
+## 2026-11-07 19:50 CST - 新建共享 Redis 容器 shared-redis（nyh-wechat-mp plan U11）
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户确认执行 nyh-wechat-mp 的生产部署）
+- 原因：新服务 `nyh-wechat-mp`（替代 FastAdmin 的公众号回复服务）需要 Redis 存 token 缓存与后台会话；用户要求起一个各项目共用的 Redis，而不是复用宝塔 Redis 或放 PG。
+- 影响：新增一个常驻容器（上限 256MB），只绑 `127.0.0.1:6379`；没有改动任何现有服务。新增宿主机系统用户 `shared-redis`（uid 997）。
+- 备份：无（新建，无既有状态）。
+- 回滚方式：`docker rm -f shared-redis && rm -rf /www/docker/shared-redis && userdel shared-redis`（目前只有可丢数据）。
+
+### 变更时序
+
+1. 只读核对：6379、9871 空闲；可用内存约 5.2GB；宝塔 Redis 在 `0.0.0.0:7480`。
+2. 脚本 `/root/shared-redis-setup.sh`：建 `/www/docker/shared-redis/`，随机生成 admin 与 `nyh_wechat_mp` 密码（root 600 文件，ACL 里只存 sha256），写 `redis.conf`（`maxmemory 200mb`、`volatile-lru`、RDB），`docker run redis:7.4.12`。
+3. 发现镜像默认 uid 999 在这台机器上是 `nyh-notify` 用户，`nyh-notify` 能读到 Redis 数据与 ACL 文件。改为新建系统用户 `shared-redis`，`chown` 目录后以 `--user 997:987` 重建容器（`/root/shared-redis-reown.sh`，重建时容器里没有数据）。
+4. 约定、ACL 模板与登记表写进 `nyh-prod/README.md`。
+
+### 验证（`/root/shared-redis-verify.sh`）
+
+- `nyh_wechat_mp`：`wxmp:*` 读写正常；`other:*` 读写、`FLUSHALL`、`CONFIG GET`、`KEYS`、`SCAN`、`RANDOMKEY` 全部 `NOPERM`。
+- 无密码访问返回 `NOAUTH`（default 用户已关闭）；admin 看到 `maxmemory 209715200`、`volatile-lru`；`BGSAVE` 产出 `dump.rdb`（属主 shared-redis，600）。
+- 容器 `restart=always`、`Memory=268435456`，进程以 uid 997 运行，端口只在 `127.0.0.1:6379`。
+
+### 顺带发现（未处理）
+
+- 宝塔自带 Redis（pid 1176）监听 `0.0.0.0:7480`，不是只绑回环；是否有安全组挡住、有没有密码，另行核对。
+
 ## 2026-11-07 17:05 CST - fa-mysql 每日备份 + fa.nanyahui.com 改为仅本机 / Tailscale / SSH 隧道可访问
 
 - 服务器：`nyh-prod`
