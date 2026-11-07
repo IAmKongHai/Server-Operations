@@ -1,5 +1,44 @@
 # nyh-prod 运维时间线
 
+## 2026-11-07 17:05 CST - fa-mysql 每日备份 + fa.nanyahui.com 改为仅本机 / Tailscale / SSH 隧道可访问
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户确认：先加备份，再改 nginx）
+- 原因：接上一条。过渡 MySQL 需要备份；FastAdmin 只能跑 php 7.4，后台不应该再暴露在公网。公网上唯一需要的回调由本机 nyhAgent 发起，所以整站都可以不对公网开放。
+- 影响：`fa.nanyahui.com` 对公网全部返回 403；公众号回复不受影响；其它站点不受影响（nginx 平滑 reload）。
+- 备份：`/www/server/panel/vhost/nginx/fa.nanyahui.com.conf.bak.20261107`（主 vhost 没有改动，只是留底）。
+- 回滚方式：
+  - nginx：`rm /www/server/panel/vhost/nginx/extension/fa.nanyahui.com/access_restrict.conf && nginx -t && nginx -s reload`
+  - 备份任务：`rm /etc/cron.d/fa-mysql-backup`
+
+### 1. 每日备份
+
+- 脚本 `/www/docker/fa-mysql/backup.sh`：`docker exec fa-mysql mysqldump --single-transaction --routines --triggers --databases fast_admin_db | gzip`，写到 `backup/fast_admin_db_<时间>.sql.gz`（600）。写完先 `gzip -t`，再检查结尾有 `Dump completed`，通过才改名为正式文件；保留 14 天；日志 `backup/backup.log`。
+- 定时：`/etc/cron.d/fa-mysql-backup`，每天 03:50，用户 root。放在 `cron.d` 而不是 root 的 crontab，是为了不和宝塔管理的任务混在一起；时间也错开了 02:00、03:30、03:35 的任务。
+- 试跑：`ok 1008K`。恢复演练：导入临时库 `fa_restore_test`，30 张表的 `CHECKSUM TABLE` 和线上一致，演练完已删掉临时库。
+- 坑：通过 `ssh host bash -s <<EOF` 执行脚本时，里面的 `docker exec -i` 会把 heredoc 剩下的脚本当成 stdin 读走，后面的命令就静默不执行了。要么先把脚本写成文件再跑，要么给不需要输入的 `docker exec` 加 `</dev/null`。
+
+### 2. nginx 白名单
+
+- 新文件 `/www/server/panel/vhost/nginx/extension/fa.nanyahui.com/access_restrict.conf`（server 级，宝塔会 include，在面板保存站点时不会被覆盖）：`allow 127.0.0.1 / ::1 / 47.239.167.8 / 172.31.138.210 / 100.64.0.0/10 / fd7a:115c:a1e0::/48; deny all;`
+- 依据：
+  - 回调来源只有 `47.239.167.8`，即 nyhAgent 从本机发起、经公网 IP 回环。
+  - nginx 没有启用 `real_ip`，`$remote_addr` 无法伪造。
+  - `.well-known` 证书验证在 rewrite 阶段就 `return 200` 了，比 access 阶段早，不受影响。
+- 后台访问方式：
+  - Tailscale：本机 hosts 加 `100.78.12.107 fa.nanyahui.com`。
+  - SSH 隧道（不依赖 Tailscale）：`ssh -N -L 8443:127.0.0.1:443 nyh-prod`，hosts 加 `127.0.0.1 fa.nanyahui.com`，然后访问 `https://fa.nanyahui.com:8443/<后台入口>`。后台入口文件名相当于第二道密码，不写进文档。
+
+### 验证
+
+- 公网（从本地 Mac 直连）：`/`、`/addons/weixin/index/wechat`、`/index/user/login.html`、静态资源全部 403；`http://` 先 301 跳转再 403。
+- 完整回调链路（不加 `--resolve`，和 nyhAgent 一样走公网 DNS）：「客服」「你好」都回复 image；fa 日志里能看到 `47.239.167.8 … 200`。
+- SSH 隧道访问后台登录页：200。
+
+### 顺带发现（未处理）
+
+- root crontab 里 02:00 的 `/www/wwwroot/python/backup-rds.sh`（用 `acquilang-backend` 容器里的 `pg_dump` 备份 PG 上的 `acquilangai_db`）**从 2026-09-15 起每天失败**，最后一次成功是 2026-09-14，已累计失败 87 次。报错 `server version: 18.4; pg_dump version: 17.11`，原因是 PG RDS 升到 18 之后容器里的客户端版本没跟上。
+
 ## 2026-11-07 17:00 CST - fa.nanyahui.com 改用本机 Docker MySQL（过渡，替代到期的 RDS）
 
 - 服务器：`nyh-prod`
@@ -40,8 +79,7 @@
 
 ### 待办
 
-- 每天备份 `fast_admin_db`（需要改 crontab，等用户确认）。
-- 用 nginx 把 FastAdmin 后台限制为只能从 Tailscale 访问，公网只放行 `/addons/weixin/index/wechat`（等用户确认）。
+- ~~每天备份 `fast_admin_db`~~、~~nginx 限制访问~~：已完成，见上一条。
 - 00:00 RDS 到期后用真实公众号再测一次。
 - 之后选一套现代系统替代 FastAdmin，然后删掉 `fa-mysql`。
 
