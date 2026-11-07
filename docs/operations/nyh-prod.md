@@ -1,5 +1,34 @@
 # nyh-prod 运维时间线
 
+## 2026-11-07 19:52–20:00 CST - nyh-wechat-mp 首次部署、导入 FastAdmin 数据与 replay 对比（plan U9、U10 前半）
+
+- 服务器：`nyh-prod`、阿里云 RDS `pgm-j6cf5kaej216sx0z`
+- 操作人：`Claude`（用户确认执行生产部署）
+- 原因：用自写的 `nyh-wechat-mp`（Go 单二进制）替代 FastAdmin weixin 插件，之后下线 FastAdmin 与 `fa-mysql`。代码：`IAmKongHai/nyhWechatMp` `847345c`。
+- 影响：新增系统用户 `nyh-wechat-mp`、systemd 服务与 watchdog timer，只监听 `127.0.0.1:9871`；RDS 新增账号和库 `nyh_wechat_mp`；往公众号上传了 2 张永久图片素材。**公众号回调还没切换**，`wq_url` 仍指向 FastAdmin，线上回复不受影响。
+- 备份：无（全部为新增）。
+- 回滚方式：`systemctl disable --now nyh-wechat-mp.service nyh-wechat-mp-watchdog.timer`，删除 `/etc/systemd/system/nyh-wechat-mp*` 与 `/www/server/nyh-wechat-mp`；RDS 账号和库可用阿里云 CLI 删除。
+
+### 变更时序
+
+1. RDS（本机阿里云 CLI）：`CreateAccount nyh_wechat_mp`（Normal）、`CreateDatabase nyh_wechat_mp`（UTF8 / en_US.utf8）、`GrantAccountPrivilege DBOwner`；密码在开发机钥匙串 `nyh-wechat-mp-pg`。从 nyh-prod 用临时 `postgres:18` 客户端容器执行 `ALTER DATABASE nyh_wechat_mp SET timezone TO 'Asia/Shanghai'`（密码经 stdin 传入）。实例备份策略：每天快照、保留 7 天、开启日志备份，已覆盖新库。
+2. 安装（`/root/wxmp-install.sh`，执行后已删除）：用户 `nyh-wechat-mp`（nologin）；`/www/server/nyh-wechat-mp/`（root 755）放二进制、`notify.sh`、`watchdog.sh`（root 755）、`notify.header`（root 600，取 nyh-notify 的共享密钥）、`config.json`（nyh-wechat-mp 600）和 `work/`（nyh-wechat-mp 700）。config 里的 AppID/AppSecret/Token 在服务器上从 nyhAgent `load_config` 读出直接写入，Redis 密码取 `shared-redis` 的密码文件，管理员密码在开发机钥匙串 `nyh-wechat-mp-admin`。`migrate` 执行 `0001_init`。
+3. 安装 4 个 unit（`systemd-analyze verify` 通过），`systemctl enable --now nyh-wechat-mp.service nyh-wechat-mp-watchdog.timer`。
+4. 用 config 里的凭据从 nyh-prod 调一次 `stable_token`（`force_refresh=false`）：errcode 0，出口 IP 在公众号白名单内。
+5. 告警演练：手动 `systemctl start nyh-wechat-mp-alert.service`，nyh-notify 入队（id=8）。`kill -STOP` 冻结主进程，watchdog 连续 3 次 1 秒探测超时后 `systemctl restart`，90 秒恢复并告警（id=9）。
+6. 导出 FastAdmin 规则与菜单到 `work/fastadmin-export.json`（只读）；`import-fastadmin -dry-run` 核对后正式导入：7 条规则（6 关键词 + default，排序值 = FastAdmin id）、2 张永久素材、菜单草稿；报告 `work/import-report.json`。重启本服务加载规则。
+7. `replay`：47 条签名样例（每个关键词、不命中文本、非 myPoster 的点击 key，假 openid `oTEST_replay_*`）分别请求 FastAdmin 与新服务，**不一致 0 条**；新服务命中分布覆盖全部 7 条规则。
+
+### 验证
+
+- `systemctl is-active` = active，进程以 `nyh-wechat-mp` 运行，RSS 约 17MB，`MemoryMax=128M`；`/healthz` 显示 pg/redis 均可达、rules=6、验签失败 0；启动日志里的密钥全部打码。
+- 经 SSH 隧道（`ssh -N -L 19872:127.0.0.1:9871 nyh-prod`）登录后台：规则、图片预览、菜单草稿（含 myPoster）、退出登录正常。
+
+### 待办
+
+- `mp.nanyahui.com` 还没有 DNS 解析（nanyahui.com 在 Cloudflare），vhost、证书、`access_restrict.conf` 等解析好再做；在此之前后台只走 SSH 隧道。
+- 切换 `wq_url`（待用户确认）。
+
 ## 2026-11-07 19:50 CST - 新建共享 Redis 容器 shared-redis（nyh-wechat-mp plan U11）
 
 - 服务器：`nyh-prod`
