@@ -2,6 +2,25 @@
 
 阿里云香港 MySQL 8.0 RDS `rm-j6cb0v171f2al0h41`（控制台名 **NewRDS2024**，`mysql.n2e.medium.1`，包年包月）。内网 `172.31.138.204:3306`，公网 `rm-j6cb0v171f2al0h41bo.mysql.rds.aliyuncs.com`。应用从 `nyh-prod`（`172.31.138.210`）经 VPC 访问。
 
+## 2026-11-07 16:15 CST - 只读梳理 fa.nanyahui.com 公众号功能（准备淘汰 FastAdmin）
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`
+- 原因：用户只需要公众号的回调、消息回复和菜单管理，想借这次 MySQL 到期淘汰 FastAdmin（只能跑 php 7.4）。
+- 影响：无变更，只读。
+- 回滚方式：无需回滚。
+
+### 发现
+
+- 公众号「南亚汇 在菲生活服务」（`gh_d93e814c8432`），回调地址是 `/addons/weixin/index/wechat`，走 FastAdmin 的 `weixin` 插件 3.0.6，代码没改过，消息是明文模式（`encode=0`）。
+- 实际在用的功能只有：
+  - 7 条回复规则：6 条半匹配关键词规则（批量、客服、支付宝、余额流量、新卡激活、退款），外加 `default`（客服二维码图片）。
+  - 1 套菜单：3 个一级菜单、共 9 项，其中 click 类型的 key 也按关键词规则匹配，view 类型跳 `load.nanyahui.com`。
+- 关注事件和菜单项 `myPoster` 都没有对应规则，最后都回落到 `default` 图片。扫码登录（`fa_user` 0 行）、模板消息都没在用；`fa_weixin_fans`（18216 行）只是粉丝同步数据，回调用不到。
+- 同一个 AppID 还配在 `load.nanyahui.com`、`yysg`、`tiancheng`、`ax`、`test-agent` 的 `config/wechat.php` 里（网页授权 / JSSDK 等主动调用的 API），这些不依赖回调。
+- php 7.4 上还有 7 个站点：`center`、`load.nanyahui.com/.cn`、`test-agent`、`vip.nanyahui.com/.cn`、`yysg`。淘汰 FastAdmin **并不能**让 php 7.4 下线。
+- 回复规则和图片已经导出到本机 scratchpad，供在公众平台后台手工重建。
+
 ## 2026-11-07 16:00 CST - 全库逻辑导出留底 + konghai.me 迁到 PostgreSQL 18
 
 - 服务器：`nyh-prod`、阿里云 RDS `rm-j6cb0v171f2al0h41`（MySQL）/ `pgm-j6cf5kaej216sx0z`（PG 18.0）
