@@ -2,6 +2,35 @@
 
 阿里云香港 MySQL 8.0 RDS `rm-j6cb0v171f2al0h41`（控制台名 **NewRDS2024**，`mysql.n2e.medium.1`，包年包月）。内网 `172.31.138.204:3306`，公网 `rm-j6cb0v171f2al0h41bo.mysql.rds.aliyuncs.com`。应用从 `nyh-prod`（`172.31.138.210`）经 VPC 访问。
 
+## 2026-11-07 16:40 CST - 修正：公众号回调真正的入口是 nyhAgent，FastAdmin 只是被转发的下游
+
+- 服务器：`nyh-prod`；本机代码 `~/Code/Project/nyh/nyhAgent`、`nyhCenter`
+- 操作人：`Claude`
+- 原因：用户想知道 nyhAgent / nyhCenter 对 FastAdmin 的依赖，以及能不能完全移除 FastAdmin。
+- 影响：无变更，只读。
+- 回滚方式：无需回滚。
+
+### 调用链（以生产日志和配置为准）
+
+```text
+微信服务器（81.69.103.x / 175.24.214.x）
+  → POST https://load.nanyahui.com/notify/weixin/index   （nyhAgent，php74，库已在 PG nyh_agent）
+      ├─ 文本 TD / DY：退订 / 打开返佣通知，直接回复并 exit
+      ├─ 菜单 myPoster：UserPosterModel::sendPoster 发专属海报，exit
+      ├─ subscribe：按 scene（custom_ / user_ / web_）建用户、记上级、二维码计数
+      ├─ unsubscribe：标记取关
+      ├─ SCAN web_：VIP 网页扫码登录，回复「登陆成功！」
+      └─ transmit()：把原始报文原样 POST 给 load_config.wq_url，并把返回内容 echo 给微信
+             wq_url = https://fa.nanyahui.com/addons/weixin/index/wechat （FastAdmin weixin 插件：关键词回复 / 默认回复）
+```
+
+- 今天 `load.nanyahui.com` 日志里 `/notify/weixin` 有 25 次；`fa.nanyahui.com` 收到的 24 次回调全部来自本机公网 IP `47.239.167.8`，说明都是 nyhAgent 转发过来的。
+- 代码里注释掉的旧地址 `https://wx.nanyahui.com/api.php?id=2` 是更早的第三方转发目标。
+- `nyhCenter` 里也有一个 `notify/WeixinController`，但生产上 `center.nanyahui.com` 没有回调流量，不在这条链路上。
+- 两个仓库都没有直接依赖 FastAdmin 的代码，唯一的耦合就是 `wq_url` 这个配置。
+- `transmit()` 的 `http_post` **没有设 curl 超时**：如果 FastAdmin 因为 MySQL 到期而卡住，nyhAgent 的回调会被一起拖住，超过微信的 5 秒限制。
+- 因此上一条「停用服务器配置，改用公众平台原生自动回复」的建议**作废**：停用会让扫码登录、注册与上下级绑定、专属海报、TD/DY 全部失效。
+
 ## 2026-11-07 16:15 CST - 只读梳理 fa.nanyahui.com 公众号功能（准备淘汰 FastAdmin）
 
 - 服务器：`nyh-prod`
