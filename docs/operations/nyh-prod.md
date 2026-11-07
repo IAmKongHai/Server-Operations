@@ -1,5 +1,16 @@
 # nyh-prod 运维时间线
 
+## 2026-11-07 20:18 CST - nyh-wechat-mp 发布 370da91：短视频、位置、链接消息改回默认回复
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户确认手机实测正常，并要求这三类消息回默认回复；AppSecret 不轮换）
+- 原因：FastAdmin 对 shortvideo/location/link 没有处理方法、原本不回复；用户决定按 plan R3 改为回默认回复。
+- 影响：`systemctl restart nyh-wechat-mp` 约 1 秒，期间转发过来的消息拿不到回复（nyhAgent 只会得到空响应）。
+- 备份：旧二进制 `/www/server/nyh-wechat-mp/nyh-wechat-mp.prev`（847345c）。
+- 回滚方式：`cd /www/server/nyh-wechat-mp && cp -p nyh-wechat-mp.prev nyh-wechat-mp && systemctl restart nyh-wechat-mp`。
+- 做了什么：本地 `bash nyhWechatMp/deploy.sh`（核对架构、上传 `.new`、备份 `.prev`、原子替换、重启、探测 `/healthz`）。
+- 验证：`/healthz` 版本 `370da91-202611072017`、rules=6；经公网向 `load.nanyahui.com/notify/weixin/index` 发假 openid 的位置、链接消息，都回默认图片（日志 `decision=default`）。
+
 ## 2026-11-07 20:00 CST - 公众号回调切到 nyh-wechat-mp（wq_url 切换，plan U10）
 
 - 服务器：`nyh-prod`（改生产数据：PG `nyh_agent.load_config` id=57）
