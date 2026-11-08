@@ -1,5 +1,13 @@
 # nyh-prod 运维时间线
 
+## 2026-11-08 CST - 只读：sms-admin / test-agent.nanyahui.cn / tiancheng.nanyahui.com 相关服务排查
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户说明这三个站点都不要了：sms-admin、tiancheng 没有部署只有文件，test-agent 用户已停用）
+- 影响：无变更，只读。
+- 结果：三者都没有 supervisor 程序、宝塔计划任务、系统 cron、Docker 容器或运行中的进程；test-agent 站点 root 已是 `/www/server/stop`，sms-admin、tiancheng 没有 nginx 站点配置。无需停服务。
+- 旧 MySQL RDS（`172.31.138.204:3306`）上剩下的连接只有 php74 fpm 子进程 14943、1247 的长连接（父进程 1212 = php74 master）；php82 没有连接。
+
 ## 2026-11-08 CST - 停用 yysg.nanyahui.com 的队列 worker YysgCreateOrder
 
 - 服务器：`nyh-prod`
