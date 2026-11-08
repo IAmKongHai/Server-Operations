@@ -1,5 +1,22 @@
 # nyh-prod 运维时间线
 
+## 2026-11-08 CST - 停用 yysg.nanyahui.com 的队列 worker YysgCreateOrder
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户已在宝塔停用 yysg 站点，要求停掉与它相关的服务）
+- 原因：yysg 站点不再使用。
+- 影响：supervisor 程序 `YysgCreateOrder`（`think queue:work --queue createOrderJobQueue`，连旧 MySQL RDS 库 `nyh_agent_yysg`）停止并移出 supervisor；其它 20 个 supervisor 程序未动（停前 21 个 RUNNING，停后 20 个）。
+- 排查范围：宝塔计划任务、`/etc/cron*`、root crontab、Docker 里都没有 yysg 相关项；只有这一个 supervisor 程序。
+- 停之前只读核对（经 PDO 直连，框架查询层在 php74 下报弃用错误）：`createOrderJobQueue` 积压 0；表里只有 7 条 `fareJobQueue` 旧任务（2024-07 至 2025-05，该队列本来就没有 worker）；最近一笔订单 2025-10-30。
+- 备份：`/root/yysg-shutdown-20261108/YysgCreateOrder.ini`。
+- 回滚方式：`mv /home/supervisor/profile/YysgCreateOrder.ini.disabled /home/supervisor/profile/YysgCreateOrder.ini && supervisorctl reread && supervisorctl update YysgCreateOrder`。
+- 做了什么：`supervisorctl stop "YysgCreateOrder:*"`；ini 改名为 `.ini.disabled`（supervisor 只 include `*.ini`）；`supervisorctl reread && supervisorctl update YysgCreateOrder`。
+- 验证：yysg 进程数 0，所有剩余程序均 RUNNING。
+
+### 顺带发现（未处理）
+
+- 仍有站点配置指向旧 MySQL RDS（`rm-j6cb0v171f2al0h41`，原定 11-08 到期）：`sms-admin/.env`、`test-agent.nanyahui.cn/.env`、`tiancheng.nanyahui.com/config/database.php`（以及已停用的 yysg）。php74 fpm 子进程 14943 仍有一个到 `172.31.138.204:3306` 的长连接，无法确定属于哪个站点，未处理（fpm 池 8 站共用，不为此重启）。
+
 ## 2026-11-08 CST - 停用 FastAdmin 残留：fa-mysql 容器、每日备份、01:30 刷新素材任务
 
 - 服务器：`nyh-prod`
