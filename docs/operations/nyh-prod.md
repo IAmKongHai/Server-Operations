@@ -1,5 +1,27 @@
 # nyh-prod 运维时间线
 
+## 2026-11-08 11:26 CST - mp.nanyahui.com 后台站点：反代与访问白名单（nyh-wechat-mp plan U9 第 5 步）
+
+- 服务器：`nyh-prod`
+- 操作人：用户在宝塔面板建站点 `mp.nanyahui.com`（纯静态）、申请 Let's Encrypt 证书（到 2027-02-06，面板自动续期）、开启强制 HTTPS；`Claude` 放入 extension 配置并 reload。
+- 原因：给 nyh-wechat-mp 管理后台一个固定域名，只允许本机（SSH 隧道）与 Tailscale 访问。
+- 影响：nginx 平滑 reload 一次，其它站点无中断。
+- 备份：`/www/server/panel/vhost/nginx/mp.nanyahui.com.conf.bak.20261108`（主 vhost 未改，只是留底）。
+- 回滚方式：`rm /www/server/panel/vhost/nginx/extension/mp.nanyahui.com/{proxy.conf,access_restrict.conf} && nginx -t && nginx -s reload`。
+
+### 做了什么
+
+- `extension/mp.nanyahui.com/proxy.conf`（来自 `nyhWechatMp/deploy/nginx-mp.nanyahui.com.conf`）：`^~ /admin/` 反代到 `127.0.0.1:9871`（`proxy_set_header Host $host`，`client_max_body_size 12m`）；`/wechat/`、`/healthz` 直接 404；`/` 302 到 `/admin/`。
+- `extension/mp.nanyahui.com/access_restrict.conf`：`allow 127.0.0.1 / ::1 / 100.64.0.0/10 / fd7a:115c:a1e0::/48; deny all;`。在证书签发后才加，避免挡住 HTTP-01 验证。
+
+### 验证
+
+- 本机（`--resolve` 到 127.0.0.1）：`/admin/login`、`/admin/static/admin.css` 200；`/wechat/callback`（GET/POST）、`/healthz` 404；`/` 302 → `/admin/`。
+- 公网（开发机直连）：`/admin/login`、`/wechat/callback`、`/index.html` 均 403；`http://` 301 到 https；`/` 返回 302（跳转在 access 阶段之前执行，跳过去的 `/admin/` 仍是 403）。
+- Tailscale（`--resolve` 到 `100.78.12.107`）：`/admin/login` 200。
+- 经反代的跨站防护：同源（`Origin: https://mp.nanyahui.com`）登录 POST 走到密码校验返回 401；伪造 Origin 返回 403。
+- 访问后台：hosts 加 `100.78.12.107 mp.nanyahui.com` 后打开 `https://mp.nanyahui.com/admin/`；或 `ssh -N -L 8443:127.0.0.1:443 nyh-prod` + hosts `127.0.0.1 mp.nanyahui.com`，访问 `https://mp.nanyahui.com:8443/admin/`。
+
 ## 2026-11-07 20:18 CST - nyh-wechat-mp 发布 370da91：短视频、位置、链接消息改回默认回复
 
 - 服务器：`nyh-prod`
