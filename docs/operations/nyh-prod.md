@@ -1,5 +1,14 @@
 # nyh-prod 运维时间线
 
+## 2026-11-08 CST - 用户重启 php-fpm 7.4，旧 MySQL RDS 长连接释放
+
+- 服务器：`nyh-prod`
+- 操作人：用户（重启 php 7.4）；`Claude` 验证并记录
+- 原因：php74 fpm 子进程仍持有到旧 MySQL RDS（`172.31.138.204:3306`）的长连接；相关站点（yysg、test-agent 等）均已停用。
+- 影响：php74 站点短暂中断；supervisor 队列 worker 是 CLI 进程，不受 fpm 重启影响。
+- 回滚方式：无需回滚。
+- 验证：到 `172.31.138.204:3306` 的连接数为 0；php74 master 新 pid 213646；`load.nanyahui.com` 200、`center.nanyahui.com` 302、`vip.nanyahui.com` 200（与此前一致）；nyh-wechat-mp `/healthz` 正常。至此本机已没有任何进程连旧 MySQL RDS。
+
 ## 2026-11-08 CST - 只读：sms-admin / test-agent.nanyahui.cn / tiancheng.nanyahui.com 相关服务排查
 
 - 服务器：`nyh-prod`
