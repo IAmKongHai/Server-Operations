@@ -1,5 +1,14 @@
 # nyh-prod 运维时间线
 
+## 2026-11-08 CST - 用户停用 fa.nanyahui.com 站点；nyh-wechat-mp 验收通过
+
+- 服务器：`nyh-prod`
+- 操作人：用户（在宝塔面板停用站点 `fa.nanyahui.com`）；`Claude` 记录
+- 原因：用户在公众号内实测自动回复内容正确、`mp.nanyahui.com` 后台可正常访问，确认 nyh-wechat-mp 验收通过。
+- 影响：FastAdmin 不再对外提供服务；公众号回调早已由 nyh-wechat-mp 处理（11-07 20:00 切换），不受影响。
+- 回滚方式（**比切换时多一步**）：先在宝塔面板重新启用 `fa.nanyahui.com`，确认 `https://fa.nanyahui.com/addons/weixin/index/wechat` 可用，再按 11-07 20:00 条目的命令把 `wq_url` 改回 FastAdmin 地址。
+- 仍保留：`fa-mysql` 容器与其每日备份（`/etc/cron.d/fa-mysql-backup`）、FastAdmin 每天 01:30 刷新临时素材的宝塔定时任务、站点目录与证书。后续下线需逐项确认；刷新素材的定时任务在站点停用后会请求失败，可一并处理。
+
 ## 2026-11-08 11:26 CST - mp.nanyahui.com 后台站点：反代与访问白名单（nyh-wechat-mp plan U9 第 5 步）
 
 - 服务器：`nyh-prod`
