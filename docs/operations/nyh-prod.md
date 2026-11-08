@@ -1,5 +1,27 @@
 # nyh-prod 运维时间线
 
+## 2026-11-08 CST - 停用 FastAdmin 残留：fa-mysql 容器、每日备份、01:30 刷新素材任务
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户要求停掉这三项；`fa.nanyahui.com` 站点用户已在宝塔停用，之后自己在界面删除）
+- 原因：公众号回复已由 nyh-wechat-mp 接管并验收，FastAdmin 不再使用。
+- 影响：只停用不删除。fa-mysql 不再监听 `127.0.0.1:3306`；没有其它服务使用它。
+- 备份：`/root/fa-shutdown-20261108/`（`crontab.db`、`root.crontab`、`fa-mysql-backup.cron`）。数据目录 `/www/docker/fa-mysql/data`（220M）与导出 `/www/docker/fa-mysql/backup/`（含 11-08 03:50 最后一次每日备份）保留。
+- 回滚方式：
+  - 宝塔任务：面板「计划任务」里启用 id=4「访问URL-[ https://fa.nanyahui.com/addons/weixin/index/updateMaterial ]」。
+  - 每日备份：`mv /www/docker/fa-mysql/fa-mysql-backup.cron.disabled /etc/cron.d/fa-mysql-backup`。
+  - 容器：`docker update --restart=always fa-mysql && docker start fa-mysql`。
+
+### 做了什么
+
+1. 宝塔任务 id=4：确认当前为启用后，调用面板自身的 `crontab.set_cron_status`（与界面「停用」相同）：数据库 status=0，root crontab 中对应行（`203a9d28…`）已移除。
+2. `/etc/cron.d/fa-mysql-backup` 移到 `/www/docker/fa-mysql/fa-mysql-backup.cron.disabled`。
+3. `docker update --restart=no fa-mysql && docker stop fa-mysql`：状态 exited，3306 不再监听。
+
+### 顺带发现（未处理）
+
+- `yysg.nanyahui.com` 仍连着旧 MySQL RDS `172.31.138.204:3306`（`rm-j6cb0v171f2al0h41`，原定 11-08 到期）：队列 worker `think queue:work --queue createOrderJobQueue`（pid 1427）和一个 php74 fpm 进程。该 RDS 到期停服后，yysg 的下单队列和页面可能报错，需另行确认 yysg 的数据库去向。
+
 ## 2026-11-08 CST - 用户停用 fa.nanyahui.com 站点；nyh-wechat-mp 验收通过
 
 - 服务器：`nyh-prod`
