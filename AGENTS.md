@@ -93,6 +93,7 @@
 | 别名           | 用途                                                                                   | 是否按生产对待                    |
 | -------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
 | `nyh-prod`     | 南亚汇（NYH）生产、AcquilangAi 生产、DDRicher 测试 / 生产；宝塔面板端口 10463          | **是**                            |
+| `nyh-prod-2026` | 2026-11-09 新购，**用于替代 `nyh-prod`**（阿里云香港轻量服务器 `8.217.145.133`，实例 `a9670f44600c4671a95c2a46a795657a`，aliyun `--profile default`；4C/14G/80G，2026-11-10 已原地升级 Debian 13、卸掉云盾）；`ssh nyh-prod-2026` 以 root 登录，档案 `nyh-prod-2026/README.md` | 目前是空机器；业务迁入后按生产对待 |
 | `qingfan-prod` | qingfan 项目生产（阿里云香港 ECS `8.210.153.241`，Debian 13，4C/7G）：`qingfan.app`（蓝绿 `qingfan@blue/green`）+ `flywheel.qingfan.app`（tk-flywheel），库在阿里云 RDS PG；`ssh qingfan-prod` 以 root 登录，档案 `qingfan-prod/README.md` | **是**                            |
 | `tizi-kh`      | 主代理服务器（`74.211.103.83`，2026-10-31 由 `tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.90.28.83`）；ssh 别名兼容旧名 `tizi` | **是**（挂了影响日常翻墙）        |
 | `tizi-rao`     | `tizi-kh` 的备用代理，兼 LLM API 反代 `litellm-us.konghai.me:8443`（`64.64.253.141`，2026-10-31 由 `rao-tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.75.71.21`）；ssh 别名兼容旧名 `rao-tizi` | 是                                |
