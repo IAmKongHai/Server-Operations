@@ -4,8 +4,8 @@
 # 原来宝塔把每个任务写成 /www/server/cron/<hash> 脚本，这里直接写命令。
 # 日志：/var/log/nyh-cron/<任务名>.log（logrotate 见 /etc/logrotate.d/nyh-cron）
 #
-# 切换窗口前，下面所有任务行都以 "#OFF# " 开头（未启用），防止与旧机双跑。
-# 启用：sed -i 's/^#OFF# //' /etc/cron.d/nyh-tasks
+# 2026-11-10 17:52 切换（U5）后全部启用。停用某条：行首加 "#OFF# "；全部停用：
+#   sed -i 's/^\([^#A-Z].*\)$/#OFF# \1/' /etc/cron.d/nyh-tasks
 #
 # php74 是 /usr/local/bin/php-in-container 的软链，在 php74-fpm 容器里以 www 身份执行。
 SHELL=/bin/bash
@@ -13,26 +13,26 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 LANG=en_US.UTF-8
 
 # 宝塔 6「NYH-Agent-定时任务」：每 3 分钟访问 nyhAgent 定时通知
-#OFF# */3 * * * * root curl -sS -L --connect-timeout 10 -m 3600 'https://load.nanyahui.com/notify/notification/index.html?action=timing' >> /var/log/nyh-cron/agent-timing.log 2>&1
+*/3 * * * * root curl -sS -L --connect-timeout 10 -m 3600 'https://load.nanyahui.com/notify/notification/index.html?action=timing' >> /var/log/nyh-cron/agent-timing.log 2>&1
 # 宝塔 5「NYH-Center-定时任务」：每 2 分钟访问 nyhCenter 定时通知
-#OFF# */2 * * * * root curl -sS -L --connect-timeout 10 -m 3600 'https://center.nanyahui.com/notify/notification/index.html?action=timing' >> /var/log/nyh-cron/center-timing.log 2>&1
+*/2 * * * * root curl -sS -L --connect-timeout 10 -m 3600 'https://center.nanyahui.com/notify/notification/index.html?action=timing' >> /var/log/nyh-cron/center-timing.log 2>&1
 
 # 宝塔 14/15「队列巡检 jobs:monitor」：每 5 分钟
-#OFF# */5 * * * * root cd /www/wwwroot/load.nanyahui.com && flock -xn /run/nyh-agent-jobs-monitor.lock php74 think jobs:monitor >> /var/log/nyh-cron/agent-jobs-monitor.log 2>&1
-#OFF# */5 * * * * root cd /www/wwwroot/center.nanyahui.com && flock -xn /run/nyh-center-jobs-monitor.lock php74 think jobs:monitor >> /var/log/nyh-cron/center-jobs-monitor.log 2>&1
+*/5 * * * * root cd /www/wwwroot/load.nanyahui.com && flock -xn /run/nyh-agent-jobs-monitor.lock php74 think jobs:monitor >> /var/log/nyh-cron/agent-jobs-monitor.log 2>&1
+*/5 * * * * root cd /www/wwwroot/center.nanyahui.com && flock -xn /run/nyh-center-jobs-monitor.lock php74 think jobs:monitor >> /var/log/nyh-cron/center-jobs-monitor.log 2>&1
 
 # 宝塔 13「nyhAgent Cash订单每周清理」：周一 03:10
-#OFF# 10 3 * * 1 root cd /www/wwwroot/load.nanyahui.com && flock -xn /run/nyh-agent-cash-cleanup.lock php74 think cash:cleanup >> /var/log/nyh-cron/agent-cash-cleanup.log 2>&1
+10 3 * * 1 root cd /www/wwwroot/load.nanyahui.com && flock -xn /run/nyh-agent-cash-cleanup.lock php74 think cash:cleanup >> /var/log/nyh-cron/agent-cash-cleanup.log 2>&1
 
 # 宝塔 10/11/12「清理 myPoster 二维码缓存」：删 1 天前生成的用户二维码图
-#OFF# 30 3 * * * root find /www/wwwroot/load.nanyahui.com/public/uploads/qrcode -maxdepth 1 -type f -name 'user_*.jpeg' -mtime +1 -delete
-#OFF# 35 3 * * * root find /www/wwwroot/load.nanyahui.com/public/uploads/qrcode/thumb -type f -name 'user_*.png' -mtime +1 -delete
-#OFF# 40 1 * * * root find /www/wwwroot/load.nanyahui.com/public/uploads/message -maxdepth 1 -type f -name 'user_*.png' -mtime +1 -delete
+30 3 * * * root find /www/wwwroot/load.nanyahui.com/public/uploads/qrcode -maxdepth 1 -type f -name 'user_*.jpeg' -mtime +1 -delete
+35 3 * * * root find /www/wwwroot/load.nanyahui.com/public/uploads/qrcode/thumb -type f -name 'user_*.png' -mtime +1 -delete
+40 1 * * * root find /www/wwwroot/load.nanyahui.com/public/uploads/message -maxdepth 1 -type f -name 'user_*.png' -mtime +1 -delete
 
 # root crontab：AcquiLang 生产库每日备份（脚本里经 acquilang-backend 容器执行 pg_dump）
-#OFF# 0 2 * * * root /www/wwwroot/python/backup-rds.sh >> /www/wwwroot/python/logs/db-backup.log 2>&1
+0 2 * * * root /www/wwwroot/python/backup-rds.sh >> /www/wwwroot/python/logs/db-backup.log 2>&1
 # root crontab：yunshu（bnsg.konghai.me）健康检查与磁盘告警
-#OFF# */5 * * * * root /bin/bash /www/yunshu/infra/prod/ops/healthcheck.sh >> /www/yunshu/infra/prod/ops/healthcheck.log 2>&1
+*/5 * * * * root /bin/bash /www/yunshu/infra/prod/ops/healthcheck.sh >> /www/yunshu/infra/prod/ops/healthcheck.log 2>&1
 
 # 不再迁移的宝塔任务：
 #   1「续签Let's Encrypt证书」→ certbot.timer

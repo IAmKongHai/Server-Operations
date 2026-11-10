@@ -31,7 +31,7 @@
 
 ## 生产服务器操作守则
 
-**`nyh-prod` 是生产服务器**。其它任何被纳入本仓库的服务器，默认都按生产对待，除非 README 明确标注是测试环境。
+**`nyh-prod-2026` 是生产服务器**（2026-11-10 起接替已退役的 `nyh-prod`）。其它任何被纳入本仓库的服务器，默认都按生产对待，除非 README 明确标注是测试环境。
 
 操作前：
 1. 说清楚要做什么、预期影响、能否回滚
@@ -92,8 +92,8 @@
 
 | 别名           | 用途                                                                                   | 是否按生产对待                    |
 | -------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
-| `nyh-prod`     | 南亚汇（NYH）生产、AcquilangAi 生产、DDRicher 测试 / 生产；宝塔面板端口 10463          | **是**                            |
-| `nyh-prod-2026` | 2026-11-09 新购，**用于替代 `nyh-prod`**（阿里云香港轻量服务器 `8.217.145.133`，实例 `a9670f44600c4671a95c2a46a795657a`，aliyun `--profile default`；4C/16G/80G，2026-11-10 已原地升级 Debian 13，云盾已重装为 eBPF 模式）；`ssh nyh-prod-2026` 以 root 登录，档案 `nyh-prod-2026/README.md` | 目前是空机器；业务迁入后按生产对待 |
+| `nyh-prod`     | **已退役**：ECS `i-j6chyzdlvn2vkqw0jbgv`（`47.239.167.8`）2026-11-11 00:00 到期不续费，业务 2026-11-10 已迁到 `nyh-prod-2026`；快照见 `docs/operations/nyh-prod.md` | 不再使用 |
+| `nyh-prod-2026` | 南亚汇（NYH）、AcquiLang / Kanova、DDRicher、yunshu（bnsg）、guagua 生产（阿里云香港轻量服务器 `8.217.145.133` / Tailscale `100.113.16.89`，Debian 13，4C/16G/80G，aliyun `--profile default`）；**不装宝塔**，PHP / Redis 用 Docker；`ssh nyh-prod-2026` 以 root 登录，档案 `nyh-prod-2026/README.md` | **是**                            |
 | `qingfan-prod` | qingfan 项目生产（阿里云香港 ECS `8.210.153.241`，Debian 13，4C/7G）：`qingfan.app`（蓝绿 `qingfan@blue/green`）+ `flywheel.qingfan.app`（tk-flywheel），库在阿里云 RDS PG；`ssh qingfan-prod` 以 root 登录，档案 `qingfan-prod/README.md` | **是**                            |
 | `tizi-kh`      | 主代理服务器（`74.211.103.83`，2026-10-31 由 `tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.90.28.83`）；ssh 别名兼容旧名 `tizi` | **是**（挂了影响日常翻墙）        |
 | `tizi-rao`     | `tizi-kh` 的备用代理，兼 LLM API 反代 `litellm-us.konghai.me:8443`（`64.64.253.141`，2026-10-31 由 `rao-tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.75.71.21`）；ssh 别名兼容旧名 `rao-tizi` | 是                                |
@@ -116,8 +116,8 @@
 | `icare-uat-runner-2` | CYP-2263 临时 D8s_v5 burst VM（主机名 `icare-2-uat-ci-runner-2`，`10.30.6.5`），runner `icare-2-uat-runner-2`，组 `icare-2-uat`；`ssh icare-uat-runner-2` 以 `icareadmin` 登录 | **是**（与原机同组抢 UAT 镜像构建；新机必须预建 `/var/cache/buildx` 属主 `icareadmin`；无 wait slot / 无 `gh`） |
 
 注意：
-- `nyh-prod` 上同时跑着多个项目的生产数据库与站点，任何重启 / 配置改动都要先想清楚波及哪些项目
-- 宝塔面板的 entrance 路径（URL 里 `/100c682f` 这一段）相当于第二道密码，不要写进 commit 信息或公开文档
+- `nyh-prod-2026` 上同时跑着多个项目的生产站点、队列与定时任务（业务库在阿里云 RDS PG），任何重启 / 配置改动都要先想清楚波及哪些项目；配置源码在 `nyh-prod-2026/`，改仓库再推到服务器
+- （旧机 `nyh-prod`，已退役）宝塔面板的 entrance 路径（URL 里 `/100c682f` 这一段）相当于第二道密码，不要写进 commit 信息或公开文档
 - `nas` 上的 SQL Server 容器承载历史业务数据库（`medicalassistance` 等），关键容器统一用 `--restart=always` 而非 `unless-stopped`，避免 NAS 重启后不自动拉起
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
 - `mssql-ref` 不是生产数据库，但承载 MAS 老系统完整参考数据；重启 SQL Server、改 schema/data、恢复备份前仍需先备份并确认

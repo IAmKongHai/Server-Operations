@@ -1,5 +1,7 @@
 # nyh-prod 服务器档案
 
+> **已退役（2026-11-10）**：业务已迁到 `nyh-prod-2026`，ECS 2026-11-11 00:00 到期不续费。shared-redis 的说明与登记表已移到 [`nyh-prod-2026/README.md`](../nyh-prod-2026/README.md#shared-redis共享-redis)，以那边为准；本文件只作历史参考。
+
 运维时间线见 `docs/operations/nyh-prod.md`。这里只放长期有效的公共设施说明与登记表。
 
 ## 共享 Redis：`shared-redis`

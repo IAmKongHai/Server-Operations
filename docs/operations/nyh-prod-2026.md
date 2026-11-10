@@ -1,5 +1,22 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 18:38–19:10 CST - 迁移收尾（计划 U6）：证书改 certbot、修 apt 源、删迁移密钥、档案
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Claude`（用户确认开始 U6）
+- 影响：nginx 平滑 reload 3 次；apt 源地址变更；root `authorized_keys` 少一行。业务进程没有重启。
+- 备份（都在 `/root/cutover-20261110/`）：`vhost.bak/`（改证书路径前的全部 vhost）、`acme.conf.bak`、`sources.list.bak`、`docker.list.bak`、`authorized_keys.bak`。
+- 回滚方式：把对应备份拷回原位；nginx 相关的再 `nginx -t && systemctl reload nginx`。
+- 做了什么：
+  1. **证书**：16 张新证书 `certbot certonly --webroot -w /var/www/letsencrypt --deploy-hook "systemctl reload nginx"`（证书名沿用 `/etc/nginx/nyh/cert/` 下的目录名；`ddricher.ai` 含 www，`load.nanyahui.com` 含 `api.nanyahui.com`），全部到期 2027-02-08。vhost 证书路径改到 `/etc/letsencrypt/live/<名>/`。`guagua.honc.fun` 原本就是 certbot 管理（webroot `/www/wwwroot/guagua/acme`，vhost 一致），没改；我误跑的 `certbot reconfigure` 改 webroot 因验证失败没有生效。
+     - `mp.nanyahui.com` 第一次 403：站点级 `deny all` 白名单把 ACME 验证也挡了。`snippets/acme.conf` 的 location 里加 `allow all`（location 写了访问规则就不继承 server 级），只放开 `/.well-known/acme-challenge/`；之后从 tizi-kh / 旧机访问 `/admin/` 仍是 403，白名单正常。
+     - 没换的：`-al.konghai.me` 三个（DNS 已删）、`zen-design-hualu`、`nyh-2025`（废弃）、默认站点（自签）。
+  2. **apt**：`/etc/apt/sources.list`、`sources.list.d/docker.list` 从 `http://mirrors.cloud.aliyuncs.com` 改成 `https://mirrors.aliyun.com`（内网镜像 `100.100.2.148` 被 Tailscale 丢包），`apt-get update` 无错误。
+  3. 删除 root `authorized_keys` 里旧机迁移临时密钥（`from="47.239.167.8"` 那行），确认本机仍可登录。
+  4. 仓库同步服务器现状：`cron/nyh-tasks` 去掉 `#OFF#`（服务器上只差两行头注释，未推送）、`supervisor/*.conf` 改 `autostart=true`。
+  5. 文档：`nyh-prod-2026/README.md` 重写为完整档案（服务、操作、cron、证书、nginx、shared-redis 登记表、坑、已知问题）；`nyh-prod/README.md` 标注退役；`AGENTS.md` 服务器表与生产守则改为 nyh-prod-2026。
+- 验证：20 个域名从公网握手，证书都是新签的且与主机名匹配；业务健康检查（容器、9 个队列、11 个 supervisor 程序、jobs:monitor）全部正常。`certbot renew --dry-run`（全量，日志 `/root/cutover-20261110/certbot-dryrun.log`）staging 很慢，提交时还在跑，前 4 张无失败；kanova.app 单张演练 18:33 已通过。
+
 ## 2026-11-10 18:27–18:35 CST - 上线 Kanova 正式域名 kanova.app / admin.kanova.app / api.kanova.app
 
 - 服务器：`nyh-prod-2026`
