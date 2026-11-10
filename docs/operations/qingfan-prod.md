@@ -1,5 +1,17 @@
 # qingfan-prod 运维操作时间线
 
+## 2026-11-10 11:20 CST - 只读评估是否需要启用 swap
+
+- 服务器：`qingfan-prod`
+- 操作人：`Claude`（只读排查，未做任何改动）
+- 原因：用户问是否有必要启用 swap。
+- 结论：现在没有必要。可以加一个小 swap 当保险，等用户决定。
+- 观察：
+  - 总内存 7.2G，used 约 509M，available 约 6.9G。buff/cache 6.9G 是可回收的页缓存，不算内存压力。
+  - 两个应用的常驻内存都很小：`flywheel` 约 28M，`qingfan-server` 约 25M。数据库在 RDS 上，不占本机内存。
+  - 内核日志里没有 OOM 记录。`vm.swappiness=60`，两个服务的 `MemoryMax` / `MemoryHigh` 都没有设置。
+  - `sar` 没有历史数据，开机到现在也才 18 小时左右，所以看不到峰值。
+
 ## 2026-11-10 11:05 CST - 纳入仓库：加 ssh 别名、建档案、加同事 hon 公钥
 
 - 服务器：`qingfan-prod`（`root@8.210.153.241`，阿里云香港）
