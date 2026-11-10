@@ -60,7 +60,7 @@ ssh nyh-prod-2026   # = ssh root@8.217.145.133，用 ~/.ssh/id_ed25519
 | Kanova backend / admin | 容器 `acquilang-backend` `:8000` / `acquilang-admin` `:3001`（名字待发版时换成 `kanova-*`） | `/www/wwwroot/python/kanova/docker-compose.prod.yml`（compose `name: acquilang`）；旧路径 `/www/wwwroot/python/acquilang` 是指向它的符号链接 | `api.kanova.app`、`admin.kanova.app`；移动端静态站 `kanova.app` 是 `kanova-mobile-web/out` |
 | richer engine / gateway / web | 容器 `richer-*-1`，`:9200` / `:9100` / `:8181` | `/www/wwwroot/ddricher/richer/docker-compose.prod.yml` | `ddricher.ai`、`gateway.ddricher.ai` |
 | richer_web | 容器 `richer-web` + `richer-nginx`（`:8888`） | `/www/wwwroot/ddricher/richer_web/` | `admin.ddricher.ai`；依赖外部网络 `richer_strategy_plus_network`（177.10.0.0/16，手工建的） |
-| new-api | 容器 `new-api`（`127.0.0.1:3200`）+ `new-api-redis`（不发布端口，以 `newapi-redis` 991:988 运行） | `/opt/stacks/new-api/`（仓库 `docker/new-api/`）；`.env`、`redis.conf` 只在服务器上 | `tovo.sh`，AI API 网关，对外转售 Seedance 并计费；库在 RDS `new_api`（账号 `new_api_user`）；镜像固定 `calciumion/new-api:v1.0.0-rc.49` |
+| new-api | 容器 `new-api`（`127.0.0.1:3200`）+ `new-api-redis`（不发布端口，以 `newapi-redis` 991:988 运行） | `/opt/stacks/new-api/`（仓库 `docker/new-api/`）；`.env`、`redis.conf` 只在服务器上 | `tovo.sh`，AI API 网关，对外转售 Seedance 并计费；库在 RDS `new_api`（账号 `new_api_user`）；镜像固定 `calciumion/new-api:v1.0.0-rc.49`；站内 1 计费单位 = ¥1，Seedance 2.0 fast / mini 按官方价 ×1 计费（11-10 时间线） |
 | archery | 容器，`127.0.0.1:3100` | `/www/wwwroot/Archery/` | SQLite 在站点目录里 |
 | fix-aliyun-dns-vs-tailscale | systemd oneshot | 仓库 `sbin/`、`systemd/` | 见「坑」第 1 条 |
 | 云盾 Aegis | `aegis.service` | — | eBPF 模式，见下文 |

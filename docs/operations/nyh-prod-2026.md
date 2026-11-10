@@ -1,5 +1,25 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 21:25–21:40 CST - new-api 接入 Seedance 渠道、配置计费，端到端出片验证
+
+- 服务器：`nyh-prod-2026`（只改 new-api 后台配置，存在 RDS `new_api` 库）
+- 操作人：`Claude`（用户提供供应商测试 key 与计费口径）
+- 供应商：北京通天云计算有限公司，方舟项目 `liao-1110`，key 直连火山方舟官方 `https://ark.cn-beijing.volces.com`（`GET /api/v3/contents/generations/tasks` 200）。key / AK / SK 只在 gitignore 的 `nyh-prod-2026/secrets.local.md`；new-api 只用 API key，AK/SK 不需要。
+- 计费口径：售价 = 官方价 ×1（客户折扣走线下充值返点）；成本 fast 4 折、mini 3 折。
+- 做了什么：
+  1. 渠道 id 1「通天云-Seedance（liao-1110）」：类型 Doubao(54)，模型 `doubao-seedance-2-0-fast-260128`、`doubao-seedance-2-0-mini-260615`，分组 `default`。
+  2. 币种：`general_setting.quota_display_type=CNY`、`USDExchangeRate=1`，即站内 **1 计费单位 = ¥1**（`QuotaPerUnit=500000` 额度 = ¥1）。客户充值时按人民币金额加额度。
+  3. 计费表达式（`billing_setting.plugin_billing_expr`，按官方价页面，元/百万 token）：
+     - `doubao::doubao-seedance-2-0-fast-260128`：不含视频输入 37，含参考视频 22
+     - `doubao::doubao-seedance-2-0-mini-260615`：不含视频输入 23，含参考视频 14
+     - 写法：`u("video_input") == "video" ? tier("video", u("tokens") * 22 / 1000000) : tier("base", u("tokens") * 37 / 1000000)`。两个模型都只有 480p / 720p，同价。
+  4. 用 root 临时令牌提交 mini 480p 4 秒文生视频（原生路径 `POST /api/v3/contents/generations/tasks`），约 94 秒成功；验证完删除令牌。
+- 验证：
+  - 计费：预扣按估算 38430 token = 441945 额度，完成按实际 40594 token 补扣 24886，合计 466831 = 40594 × 23 / 1e6 × 500000（¥0.9337），与官方价 ×1 一致。
+  - 下载：`GET /v1/videos/<task_id>/content` 经网关代理返回 200 `video/mp4` 1.15MB。
+  - 注意：原生查询接口返回的 `content.video_url` 是方舟 TOS 签名链接，**24 小时过期**；网关代理下载也是去取这个链接，所以客户必须 24 小时内下载转存。
+- 回滚：后台删除渠道 1、清空 `billing_setting.plugin_billing_expr`，币种改回 USD / 7.3。
+
 ## 2026-11-10 21:00–21:15 CST - 部署 new-api（tovo.sh），用于对外转售 Seedance
 
 - 服务器：`nyh-prod-2026`、RDS `pgm-j6cf5kaej216sx0z`
