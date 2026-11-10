@@ -1,0 +1,9 @@
+# /opt/stacks/new-api/redis.conf 的模板（服务器上属主 newapi-redis、600，真实密码不入库）
+bind 0.0.0.0
+port 6379
+protected-mode yes
+requirepass <redis 密码>
+appendonly yes
+dir /data
+maxmemory 192mb
+maxmemory-policy allkeys-lru

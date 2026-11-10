@@ -1,5 +1,26 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 21:00–21:15 CST - 部署 new-api（tovo.sh），用于对外转售 Seedance
+
+- 服务器：`nyh-prod-2026`、RDS `pgm-j6cf5kaej216sx0z`
+- 操作人：`Claude`（用户要求：重新部署 QuantumNous/new-api，首要支持 Seedance，对外给下游客户用并计费；旧部署数据不要；库用 RDS PG）
+- 选型：
+  - 镜像固定 `calciumion/new-api:v1.0.0-rc.49`（11-08 发布，= 当时的 latest）。Seedance 由内置任务插件 `plugins/tasks/doubao`（v1.4.0）提供：1.0 pro/lite、1.5 pro、2.0 / 2.0-fast / 2.0-mini、2.5，外加 Seedream 生图。渠道类型选「Doubao」(54)。
+  - 库：RDS 新建库 `new_api`（UTF8 / en_US.utf8）+ 普通账号 `new_api_user`（DBOwner）。`SQL_MAX_OPEN_CONNS=40`（默认 1000，RDS 2C4G、max_connections 400 多项目共用）。
+  - Redis：专用容器 `new-api-redis`（`redis:8.0.5`，不发布端口，AOF，maxmemory 192mb），新建宿主机系统用户 `newapi-redis`（991:988）运行；密码在 `redis.conf` 而不是命令行（宿主机 `ps` 看不到）。不接 `shared-redis`：new-api 不支持 key 前缀。
+  - 入口：`127.0.0.1:3200` → nginx vhost `tovo.sh.conf`。全局 `http.conf` 开着 `proxy_cache` 和 `proxy_next_upstream … http_500 http_503 http_404`，vhost 里显式 `proxy_cache off`、`proxy_next_upstream off`（防止缓存接口、重放提交导致重复计费），另 `proxy_buffering off`、读超时 900s、`client_max_body_size 128m`。
+- 影响：新增独立 compose 栈和 vhost；nginx 平滑 reload 2 次；没有重启任何现有服务。
+- 备份：新增项，无需备份。
+- 回滚方式：`cd /opt/stacks/new-api && docker compose down`；删 `/etc/nginx/nyh/vhost/tovo.sh.conf` 后 `nginx -t && systemctl reload nginx`；`certbot delete --cert-name tovo.sh`；RDS `DeleteDatabase new_api`、`DeleteAccount new_api_user`；`userdel newapi-redis`。
+- 做了什么：
+  1. `aliyun rds CreateAccount new_api_user`、`CreateDatabase new_api`、`GrantAccountPrivilege … DBOwner`。
+  2. 服务器 `/opt/stacks/new-api/`（root 700）：`compose.yaml`（仓库 `nyh-prod-2026/docker/new-api/`），`.env`（600）与 `redis.conf`（`newapi-redis` 600）按仓库 `env.example` / `redis.conf.example` 生成，真实值备份在 gitignore 的 `nyh-prod-2026/secrets.local.md`。`SESSION_SECRET` / `CRYPTO_SECRET` 已固定，**不要轮换**（会让渠道密钥解不开、已发出的视频下载链接失效）。
+  3. 临时 80 端口 vhost → `certbot certonly --webroot … --cert-name tovo.sh`（到期 2027-02-08，deploy-hook reload nginx）→ 换正式 vhost。
+  4. `docker compose up -d`；容器 healthy 后、正式 vhost 上线前，在本机 `127.0.0.1:3200` 调 `POST /api/setup` 初始化 root，防止公网抢先初始化。
+  5. 后台设置：`ServerAddress` / `TaskPublicAddress` = `https://tovo.sh`（视频结果签名下载链接用）；`RegisterEnabled=false`（先关闭公开注册，客户账号由管理员开，要开放自助注册时再改）。
+- 验证：启动日志「数据库使用 PostgreSQL」「Redis 已启用」「New API v1.0.0-rc.49 已启动」，两个容器 healthy；`http://tovo.sh` 301 到 HTTPS，`https://tovo.sh/api/status` 200，证书 CN=tovo.sh；服务器到 `ark.cn-beijing.volces.com` 建连 67ms、`ark.ap-southeast.bytepluses.com` 230ms。
+- 未做（等用户提供）：供应商的 Seedance 渠道（API key、Base URL）、模型定价与分组倍率、端到端出片验证。
+
 ## 2026-11-10 19:20 CST - Kanova 部署目录改为与 CI 一致（python/acquilang → python/kanova）
 
 - 服务器：`nyh-prod-2026`

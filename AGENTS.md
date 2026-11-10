@@ -93,7 +93,7 @@
 | 别名           | 用途                                                                                   | 是否按生产对待                    |
 | -------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
 | `nyh-prod`     | **已退役**：ECS `i-j6chyzdlvn2vkqw0jbgv`（`47.239.167.8`）2026-11-11 00:00 到期不续费，业务 2026-11-10 已迁到 `nyh-prod-2026`；快照见 `docs/operations/nyh-prod.md` | 不再使用 |
-| `nyh-prod-2026` | 南亚汇（NYH）、AcquiLang / Kanova、DDRicher、yunshu（bnsg）、guagua 生产（阿里云香港轻量服务器 `8.217.145.133` / Tailscale `100.113.16.89`，Debian 13，4C/16G/80G，aliyun `--profile default`）；**不装宝塔**，PHP / Redis 用 Docker；`ssh nyh-prod-2026` 以 root 登录，档案 `nyh-prod-2026/README.md` | **是**                            |
+| `nyh-prod-2026` | 南亚汇（NYH）、AcquiLang / Kanova、DDRicher、yunshu（bnsg）、guagua、new-api（`tovo.sh`）生产（阿里云香港轻量服务器 `8.217.145.133` / Tailscale `100.113.16.89`，Debian 13，4C/16G/80G，aliyun `--profile default`）；**不装宝塔**，PHP / Redis 用 Docker；`ssh nyh-prod-2026` 以 root 登录，档案 `nyh-prod-2026/README.md` | **是**                            |
 | `qingfan-prod` | qingfan 项目生产（阿里云香港 ECS `8.210.153.241`，Debian 13，4C/7G）：`qingfan.app`（蓝绿 `qingfan@blue/green`）+ `flywheel.qingfan.app`（tk-flywheel），库在阿里云 RDS PG；`ssh qingfan-prod` 以 root 登录，档案 `qingfan-prod/README.md` | **是**                            |
 | `tizi-kh`      | 主代理服务器（`74.211.103.83`，2026-10-31 由 `tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.90.28.83`）；ssh 别名兼容旧名 `tizi` | **是**（挂了影响日常翻墙）        |
 | `tizi-rao`     | `tizi-kh` 的备用代理，兼 LLM API 反代 `litellm-us.konghai.me:8443`（`64.64.253.141`，2026-10-31 由 `rao-tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.75.71.21`）；ssh 别名兼容旧名 `rao-tizi` | 是                                |

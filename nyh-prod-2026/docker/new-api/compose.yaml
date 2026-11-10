@@ -1,0 +1,62 @@
+# new-api（QuantumNous/new-api）AI API 网关 @ nyh-prod-2026，公网入口 https://tovo.sh
+# 服务器路径：/opt/stacks/new-api/
+# 首要用途：对外给下游客户转售 Seedance（火山方舟视频生成）并计费。
+#
+# - 数据库：阿里云 RDS PG pgm-j6cf5kaej216sx0z 的 new_api 库（账号 new_api_user），不在本机起 PG。
+# - Redis：本栈专用 new-api-redis（不接 shared-redis：new-api 不支持 key 前缀，没法按那边的 ACL 隔离）。
+# - .env（SQL_DSN、密钥等，600）和 redis.conf（含密码，600）只在服务器上，不入库；模板见 env.example / redis.conf.example。
+services:
+  new-api:
+    # 固定版本，不用 latest；Seedance 插件（plugins/tasks/doubao）随二进制内置
+    image: calciumion/new-api:v1.0.0-rc.49
+    container_name: new-api
+    restart: always
+    # env_file 必需：漏放 .env 时直接启动失败，而不是静默回退到容器内 SQLite
+    env_file: .env
+    ports:
+      # 只绑回环，公网入口一律经宿主 nginx（vhost tovo.sh.conf）
+      - "127.0.0.1:3200:3000"
+    depends_on:
+      new-api-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  new-api-redis:
+    image: redis:8.0.5
+    container_name: new-api-redis
+    # 以宿主机专用用户 newapi-redis 运行（不用镜像默认 uid 999：本机 999 是 nyh-notify，会读到密码）。
+    # 密码写在 redis.conf 里而不是命令行，避免在宿主机 ps 里可见。
+    user: "${NEWAPI_REDIS_UID}:${NEWAPI_REDIS_GID}"
+    restart: always
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$(sed -n 's/^requirepass //p' /usr/local/etc/redis/redis.conf)\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -141,9 +141,9 @@ VLESS + REALITY 场景下客户端流控取值。需要 vision 时必须显式�
 ## new-api / zzz.konghai.me AI 网关
 
 ### new-api
-部署在 `dev-cypresso` 上的自建 AI API 网关（QuantumNous/new-api，Go），公网入口 `https://zzz.konghai.me`，栈目录 `/home/ec2-user/stacks/new-api/`。
+自建 AI API 网关（QuantumNous/new-api，Go）。2026-11-10 起部署在 `nyh-prod-2026`，公网入口 `https://tovo.sh`，栈目录 `/opt/stacks/new-api/`（仓库 `nyh-prod-2026/docker/new-api/`），首要用途是对外给下游客户转售 Seedance 视频生成并计费。
 
-它是 `shared-postgres` 的一个租户（库与角色均为 `new_api`），Redis 为专用容器 `new-api-redis`，不复用 `shared-redis`。与 mac-mini 上的 Sub2API 同类但互不相关。
+库在阿里云 RDS PG（库 `new_api`、账号 `new_api_user`），Redis 为专用容器 `new-api-redis`，不复用 `shared-redis`。Seedance 由镜像内置的任务插件 `doubao` 提供，不用改代码。早先在 `dev-cypresso`（`zzz.konghai.me`）和 DO-1 上的部署已废弃，数据未迁移。与 mac-mini 上的 Sub2API 同类但互不相关。
 
 ### shared-postgres 租户
 `dev-cypresso` 共享 PostgreSQL 容器 `shared-postgres` 上的一个独立库 + 同名非超级用户角色（如 `moo_ticket`、`evp`、`new_api`）。
