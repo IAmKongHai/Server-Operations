@@ -93,6 +93,7 @@
 | 别名           | 用途                                                                                   | 是否按生产对待                    |
 | -------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
 | `nyh-prod`     | 南亚汇（NYH）生产、AcquilangAi 生产、DDRicher 测试 / 生产；宝塔面板端口 10463          | **是**                            |
+| `qingfan-prod` | qingfan 项目生产（阿里云香港 ECS `8.210.153.241`，Debian 13，4C/7G）：`qingfan.app`（蓝绿 `qingfan@blue/green`）+ `flywheel.qingfan.app`（tk-flywheel），库在阿里云 RDS PG；`ssh qingfan-prod` 以 root 登录，档案 `qingfan-prod/README.md` | **是**                            |
 | `tizi-kh`      | 主代理服务器（`74.211.103.83`，2026-10-31 由 `tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.90.28.83`）；ssh 别名兼容旧名 `tizi` | **是**（挂了影响日常翻墙）        |
 | `tizi-rao`     | `tizi-kh` 的备用代理，兼 LLM API 反代 `litellm-us.konghai.me:8443`（`64.64.253.141`，2026-10-31 由 `rao-tizi` 改名并整装为 Debian 13 + 3x-ui；Tailscale `100.75.71.21`）；ssh 别名兼容旧名 `rao-tizi` | 是                                |
 | `tizi-cyp`     | 新代理服务器（`89.208.242.203`，AlmaLinux 9.7）                                        | **是**（代理节点，按生产对待）    |
