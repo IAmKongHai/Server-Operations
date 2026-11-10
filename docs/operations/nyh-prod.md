@@ -1,5 +1,21 @@
 # nyh-prod 运维时间线
 
+## 2026-11-10 17:51 CST - 切换（计划 U5）：停后台任务、Redis 快照、最后一次同步
+
+- 服务器：`nyh-prod`（新机一侧见 `docs/operations/nyh-prod-2026.md` 同一时间的条目）
+- 操作人：`Claude`（用户确认开始切换）
+- 原因：ECS 11-11 00:00 CST 到期不续费，后台任务交接给 `nyh-prod-2026`。
+- 影响：旧机的定时任务、PHP 队列、line-*、nyh-notify、`yunshu-api`、`acquilang-backend`、`richer-engine-1`、`richer-gateway-1`、`archery`、`guagua-api` 已停。**nginx、php-fpm、宝塔 Redis 7480、nyh-wechat-mp 仍在运行**，接住 DNS 生效前的请求。
+- 备份：`/root/cutover-20261110/` 下有 root crontab、宝塔 `crontab.db`、supervisor / 容器状态、容器 restart policy、Redis dump。
+- 回滚方式（22:30 前）：先在新机执行 `rollback-new.sh`，再在旧机执行 `bash /root/cutover-20261110/rollback-old.sh`（恢复 crontab、supervisor、容器 restart policy 并启动、guagua-api），DNS 改回本机。
+- 做了什么：执行 `/root/cutover-old.sh`（源码 `nyh-prod-2026/cutover/cutover-old.sh`，md5 与仓库一致），日志 `/root/cutover-20261110/cutover-old.log`，17:51:10–17:51:56：
+  1. root crontab 任务行全部加 `#CUTOVER#`（剩余启用 0 行）。
+  2. `supervisorctl stop all`（RUNNING 0）。
+  3. 上述 5 个容器 `--restart=no` 后停止；`guagua-api` disable 并停止。
+  4. 宝塔 Redis 7480 `BGSAVE`，dump 2.9M 推到新机。
+  5. `/root/migrate-rsync.sh` 最后一次增量同步 `/www/wwwroot`、`wwwlogs`、`docker`、`yunshu`、`dk_project`、`nyh-notify`、`nyh-wechat-mp`、镜像，无报错。
+- 验证：日志无 error；supervisor 全部 STOPPED；crontab 无启用任务。
+
 ## 2026-11-10 15:55–16:10 CST - 迁移前清理 /www 里不再保留的文件（49G → 16G）
 
 - 服务器：`nyh-prod`

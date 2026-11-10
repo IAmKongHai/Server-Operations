@@ -1,5 +1,22 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 17:51–18:00 CST - 切换（计划 U5）：后台任务从旧机交接到新机
+
+- 服务器：`nyh-prod-2026`（旧机一侧见 `docs/operations/nyh-prod.md` 同一时间的条目）
+- 操作人：`Claude`（用户确认开始切换）
+- 原因：旧 ECS 将于 11-11 00:00 CST 到期，不续费。
+- 影响：17:51–17:52 旧机后台任务停止后，约 1 分钟内新机接手；网站请求两台机器都能处理（共用 RDS），DNS 改完前旧机 nginx / php-fpm 继续接流量。
+- 备份 / 回滚（22:30 前）：新机 `bash /root/cutover-20261110/rollback-new.sh` → 旧机 `bash /root/cutover-20261110/rollback-old.sh` → DNS 改回 `47.239.167.8`。
+- 做了什么：执行 `/root/cutover-new.sh`（源码 `nyh-prod-2026/cutover/cutover-new.sh`，与服务器副本 md5 一致），日志 `/root/cutover-20261110/cutover-new.log`：
+  1. 导入旧机 17:51 的宝塔 Redis 快照（2.9M，4 个库）到 `redis-7480`。
+  2. 重启 `archery`；启动 `php74-worker`（9 个队列）、宿主机 supervisor（10 个 line-* + nyh-notify）、`yunshu-api`、`acquilang-backend`、`richer-engine-1` / `richer-gateway-1` / `richer-web-1`。
+  3. 启用 `guagua-api`、`nyh-wechat-mp`、`nyh-wechat-mp-watchdog.timer`；`/etc/cron.d/nyh-tasks` 去掉 `#OFF#`，启用 10 行。
+- 验证：
+  - 所有容器 Up，php74-worker 内 9 个队列、宿主机 11 个 supervisor 程序全部 RUNNING，guagua-api / nyh-wechat-mp active。
+  - 切换后在新机 `--resolve 127.0.0.1` 重跑 25 域名 × 3 路径基准（`_backups/nyh-prod-migration-20261110/baseline-new-2-postcutover.txt`），与旧机基准 `baseline-old.txt` diff：除计划内不建站的 `fa.nanyahui.com` 外**全部一致**，之前 502 的 ddricher.ai、api-al、bnsg、guagua 已恢复（gateway / guagua 根路径 404 与旧机相同）。
+  - `richer-gateway-1` 日志的 Telegram `401 Unauthorized`、Tiger 美股行情 `permission denied` 在旧机过去 24 小时各有 4 万余条，属于原有问题，不是迁移引入。
+  - 待做：用户改 DNS 后公网逐站验证、观察队列 / cron 日志、确认旧机 RDS 连接归零。
+
 ## 2026-11-10 16:30–17:35 CST - 迁移准备（计划 U2–U4）：搭环境、首轮同步、起无状态服务
 
 - 服务器：`nyh-prod-2026`（只读访问 `nyh-prod`，在旧机 `/www/backup/migrate-images/` 写了镜像导出文件、`/root/.ssh/migrate_nyh2026` 临时迁移密钥）
