@@ -1,5 +1,16 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 15:55 CST - 内网互通后打通 RDS PostgreSQL
+
+- 服务器：`nyh-prod-2026`、RDS `pgm-j6cf5kaej216sx0z`
+- 操作人：用户在控制台开通轻量服务器「内网互通」（关联 `vpc-j6cy0gudplcfwatq8i43f`）；`Claude` 加白名单并验证
+- 原因：迁移计划 U1-2，新机要连 nyh-prod 各业务共用的 RDS PG。
+- 影响：RDS 新增白名单分组 `swas_nyh2026` = `172.21.63.219`（新机内网 IP），现有分组没动；新机装了 `postgresql-client`（17.11）。
+- 回滚方式：`aliyun rds ModifySecurityIps --profile default --DBInstanceId pgm-j6cf5kaej216sx0z --DBInstanceIPArrayName swas_nyh2026 --SecurityIps 172.21.63.219 --ModifyMode Delete`。
+- 验证：
+  - 只开内网互通、没加白名单时，`nc 172.31.138.209 5432` 仍然超时（RDS 对不在白名单的来源直接丢包，不是拒绝）。
+  - 加白名单后 `nc` 成功；用不存在的账号 `conn_probe` 登录返回 `password authentication failed`，说明已经走到 PG 认证这一步。域名 `pgm-j6cf5kaej216sx0z.pg.cnhk.rds.aliyuncs.com` 在新机解析为 `172.31.138.209`，和旧机一致，应用配置不用改。
+
 ## 2026-11-10 14:30–14:45 CST - 核对内存；重装适配 6.12 内核的云盾 Aegis
 
 - 服务器：`nyh-prod-2026`
