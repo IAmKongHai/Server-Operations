@@ -1,0 +1,7 @@
+# watchdog 单次探测（KTD3），由 nyh-wechat-mp-watchdog.timer 每分钟触发。安装到 /etc/systemd/system/
+[Unit]
+Description=nyh-wechat-mp 健康探测
+
+[Service]
+Type=oneshot
+ExecStart=/www/server/nyh-wechat-mp/watchdog.sh

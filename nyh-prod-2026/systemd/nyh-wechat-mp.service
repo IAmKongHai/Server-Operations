@@ -1,0 +1,40 @@
+# nyh-wechat-mp 主服务（KTD3）。安装到 /etc/systemd/system/nyh-wechat-mp.service
+#
+# - 以专用 nologin 用户运行，只监听 127.0.0.1:9871，内存硬上限 128M（R14）
+# - 进程退出后 5 秒重启；600 秒内启动超过 20 次即进入 failed，并由 OnFailure 触发告警（R15）
+# - 进程卡住但端口还开着的情况由 nyh-wechat-mp-watchdog.timer 兜底
+[Unit]
+Description=nyh-wechat-mp 公众号自动回复与菜单服务
+Wants=network-online.target
+After=network-online.target docker.service
+StartLimitIntervalSec=600
+StartLimitBurst=20
+OnFailure=nyh-wechat-mp-alert.service
+
+[Service]
+Type=simple
+User=nyh-wechat-mp
+Group=nyh-wechat-mp
+ExecStart=/www/server/nyh-wechat-mp/nyh-wechat-mp serve -config /www/server/nyh-wechat-mp/config.json
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+MemoryMax=128M
+
+# 加固：服务不需要写任何文件
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+ReadOnlyPaths=/www/server/nyh-wechat-mp
+InaccessiblePaths=-/www/server/nyh-wechat-mp/notify.header
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# 原宝塔 Redis（端口 7480），服务器上路径 /opt/stacks/redis-7480/
+# 使用方：nyhAgent / nyhCenter（PHP，经 127.0.0.1:7480）、yunshu-api（host.docker.internal:7480）、
+#         richer-web（172.17.0.1:7480）。所以端口发布到回环和 docker0 网关两个地址，应用配置都不用改。
+# 公网访问由轻量服务器防火墙挡住（不放行 7480）；另有 requirepass。
+# redis.conf 含密码，只在服务器上（/opt/stacks/redis-7480/redis.conf，root 600），不入库。
+services:
+  redis-7480:
+    image: redis:8.0.5
+    container_name: redis-7480
+    restart: always
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:7480:7480"
+      - "172.17.0.1:7480:7480"
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m

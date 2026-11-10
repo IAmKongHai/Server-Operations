@@ -1,0 +1,11 @@
+# 每分钟探测一次 /healthz；连续 3 次失败重启服务并告警（KTD3）。安装到 /etc/systemd/system/
+[Unit]
+Description=nyh-wechat-mp 每分钟健康探测
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

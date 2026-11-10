@@ -1,0 +1,8 @@
+# 服务进入 failed 时由 OnFailure= 触发的一次性告警（R15）。安装到 /etc/systemd/system/
+# 以 root 运行：notify key 放在 root 600 的 header 文件里，curl 用 -H @文件 读取，不出现在命令行（R14）。
+[Unit]
+Description=nyh-wechat-mp 失败告警
+
+[Service]
+Type=oneshot
+ExecStart=/www/server/nyh-wechat-mp/notify.sh critical "nyh-wechat-mp 服务已停止" "连续重启失败，unit 进入 failed。公众号自动回复全部失效（nyhAgent 不会报错）。排查：journalctl -u nyh-wechat-mp -n 100"
