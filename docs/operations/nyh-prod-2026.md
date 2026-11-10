@@ -1,5 +1,36 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 16:30–17:35 CST - 迁移准备（计划 U2–U4）：搭环境、首轮同步、起无状态服务
+
+- 服务器：`nyh-prod-2026`（只读访问 `nyh-prod`，在旧机 `/www/backup/migrate-images/` 写了镜像导出文件、`/root/.ssh/migrate_nyh2026` 临时迁移密钥）
+- 操作人：`Claude`（用户确认按计划执行；新机不装宝塔，PHP、Redis 用 Docker）
+- 计划：`docs/plans/2026-11-10-1545-ops-nyh-prod-to-nyh-prod-2026-migration-plan.md`
+- 影响：新机还没有线上流量（DNS 仍指向旧机）；旧机业务不受影响。
+- 备份：旧机系统盘快照 `s-j6c9be0n6eh1zjh04l8w`（`nyh-prod-system-final-20261110`）；数据盘快照见 16:10 条目。
+- 回滚方式：新机上的东西都可以直接停掉 / 删除，旧机没动。
+- 做了什么：
+  1. 用户：删除镜像自带的 `admin`；新建 `www`(1000)、`nyh-notify`(999)、`nyh-wechat-mp`(994)、`shared-redis`(993)、`redis7480`(992)。
+  2. apt 装 nginx 1.26.3、supervisor、certbot、fail2ban、logrotate 等；Docker CE 29.7.2（阿里云内网源，GPG 公钥从 download.docker.com 取，指纹 `9DC8 5822 9FC7 DD38 854A E2D8 8D81 803C 0EBF CD88`）；Tailscale 1.104.5。
+  3. Docker `daemon.json`：`bip 172.17.0.1/16`（应用里写死了 172.17.0.1），`default-address-pools 10.210.0.0/16 /24`。**原因**：新机内网是 `172.21.0.0/18`、RDS 在 `172.31.x`，docker 默认池会挑 172.18–31 的 /16，撞上就会把网关或 RDS 的路由劫持掉。
+  4. Tailscale：节点 `nyh-prod-2026`（`100.113.16.89`），`--advertise-exit-node --accept-dns=false`，IP 转发已开。用户已授权登录。
+  5. **DNS 被 Tailscale 搞坏（已修）**：`tailscale up` 之后阿里云 VPC DNS `100.100.2.136/138` 的应答被 Tailscale 的 `ts-input` 链丢弃（源地址在 100.64/10），所有域名解析卡死。照搬旧机的 `fix-aliyun-dns-vs-tailscale.service`（DNS 改用 223.5.5.5 / 223.6.6.6 / 8.8.8.8），在它之前创建的容器全部重建以拿到新的 resolv.conf。
+  6. PHP：自建镜像 `nyh/php74:7.4.33`、`nyh/php82:8.2.35`（debian:trixie + Sury），`/opt/stacks/php/`，`php74-fpm` :9074、`php82-fpm` :9082，host 网络；`php74-worker`（9 个队列进程）在 compose profile `worker` 里，未启动。php.ini / FPM 池参数按旧机导出值；模块与旧机对比无缺失。
+     - 旧机 `date.timezone = PRC` 在 Debian 13 无效（会退回 UTC），改成 `Asia/Shanghai`，镜像另装 `tzdata-legacy`。
+     - **Sury 的 PHP-FPM 构建内置 "Secure DNS Telemetry"**（`/usr/lib/php/php-common.mk`：`TELEMETRY_HOST=telemetry.sury.org`、端口 53），启动时会联系 `telemetry.sury.org`，没有关闭开关；CLI 二进制里没有。容器 `extra_hosts` 把它指向 `127.0.0.1`，数据不会出去。
+     - `/usr/local/bin/php74`、`php82` 是包装脚本（`docker exec -u www -w $PWD`），cron 和 CI 的 `php74 think …` 不用改。
+  7. Redis 7480：容器 `redis-7480`（`redis:8.0.5`，`/opt/stacks/redis-7480/`），配置来自旧机（密码不变），以 `redis7480` 用户运行，端口发布 `127.0.0.1:7480` 与 `172.17.0.1:7480`。数据目录放 `/opt/stacks/redis-7480/data`，不放 `/www/docker`（迁移 rsync 带 `--delete`）。
+  8. nginx：`scripts/convert-baota-nginx.py` 把宝塔 26 个站点转写到 `/etc/nginx/nyh/`（仓库 `nyh-prod-2026/nginx/`），去掉 lua well-known、site_total、WAF，ACME 统一走 `/var/www/letsencrypt`；证书 27 套 + `/etc/letsencrypt` 由旧机直接推送。`nginx -t` 通过并启动。
+  9. 首轮 rsync（旧机经临时密钥推送，`from="47.239.167.8"` 限制）：`/www/wwwroot` 9.1G 等，镜像 3.5G；16:38–16:56。
+  10. 起了：`php74-fpm`、`php82-fpm`、`redis-7480`、`shared-redis`（新 UID 重建）、`acquilang-admin`、`richer-web` + `richer-nginx`（先建外部网络 `richer_strategy_plus_network` 177.10.0.0/16）、`archery`、`nyh-wechat-mp`。
+     **没起（有定时逻辑，U5 再起）**：`php74-worker`、宿主机 supervisor（10 个 line-* + nyh-notify）、`yunshu-api`（reminder.scheduler）、`acquilang-backend`（`ENABLE_METRICS_SCHEDULER=true`）、`richer-engine` / `richer-gateway`（策略 / 行情告警）、`richer-web-1`（反代依赖 engine）、`guagua-api`（每分钟轮询 push_jobs）、`/etc/cron.d/nyh-tasks`（全部 `#OFF#`）、nyh-wechat-mp watchdog timer。
+  11. 轻量服务器防火墙加 443/udp（HTTP/3）、41641/udp（Tailscale）；8080（do1-relay 只允许 tailnet）、7480 不对公网开放。
+- 验证：
+  - 25 个域名在新机 `--resolve 127.0.0.1` 下与旧机基准逐行对比：全部 PHP 站点及 smith、duowei、admin-al、m-al 的状态码、关键响应头、证书**完全一致**；ddricher.ai / gateway / api-al / bnsg API / guagua 为 502（后端按计划未起）；fa.nanyahui.com 不再建站（403）。
+  - PHP 容器经 ThinkPHP 只读查询 RDS：`wq_url`、`jobs` 积压 0 正常；FPM 启动 1.6s。
+  - nyh-wechat-mp `/healthz`：pg / redis 正常，rules=6。
+  - Python venv（3.13.5）可导入 `nyh_line`；nyh-notify、guagua-api 二进制可运行。
+  - Tailscale：到 do-1 直连，sub2api 返回 200。mas-sit 不通，旧机也不通；菜苗苗 SIT 反代早已不在，`cmm-sit-healthz` 不再迁移。
+
 ## 2026-11-10 15:55 CST - 内网互通后打通 RDS PostgreSQL
 
 - 服务器：`nyh-prod-2026`、RDS `pgm-j6cf5kaej216sx0z`
