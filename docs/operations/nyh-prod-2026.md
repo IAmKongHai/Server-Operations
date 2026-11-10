@@ -15,7 +15,7 @@
   3. 删除 root `authorized_keys` 里旧机迁移临时密钥（`from="47.239.167.8"` 那行），确认本机仍可登录。
   4. 仓库同步服务器现状：`cron/nyh-tasks` 去掉 `#OFF#`（服务器上只差两行头注释，未推送）、`supervisor/*.conf` 改 `autostart=true`。
   5. 文档：`nyh-prod-2026/README.md` 重写为完整档案（服务、操作、cron、证书、nginx、shared-redis 登记表、坑、已知问题）；`nyh-prod/README.md` 标注退役；`AGENTS.md` 服务器表与生产守则改为 nyh-prod-2026。
-- 验证：20 个域名从公网握手，证书都是新签的且与主机名匹配；业务健康检查（容器、9 个队列、11 个 supervisor 程序、jobs:monitor）全部正常。`certbot renew --dry-run`（全量，日志 `/root/cutover-20261110/certbot-dryrun.log`）staging 很慢，提交时还在跑，前 4 张无失败；kanova.app 单张演练 18:33 已通过。
+- 验证：20 个域名从公网握手，证书都是新签的且与主机名匹配；业务健康检查（容器、9 个队列、11 个 supervisor 程序、jobs:monitor）全部正常。`certbot renew --dry-run`（全量，日志 `/root/cutover-20261110/certbot-dryrun.log`）staging 很慢（约 45 分钟），**18 张全部 success**（含 guagua.honc.fun，说明它原有的 webroot 配置可用）。
 
 ## 2026-11-10 18:27–18:35 CST - 上线 Kanova 正式域名 kanova.app / admin.kanova.app / api.kanova.app
 
