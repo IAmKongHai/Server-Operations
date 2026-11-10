@@ -8,7 +8,7 @@
   1. 管理员 `POST /api/user/` 建用户 id 2 `aozhuo-test`，显示名「奥卓测试账号」，分组 `default`；`PUT /api/user/` 补备注（创建接口不保存 `remark`）。
   2. `POST /api/user/manage` `add_quota` / `add` 25000000 额度 = ¥50（站内 1 单位 = ¥1，`QuotaPerUnit=500000`）。
   3. 以该用户登录建 API 令牌 `default`（不限额度、不过期，受账户余额约束）。初始密码与令牌只在 gitignore 的 `nyh-prod-2026/secrets.local.md`。
-- 验证：`GET /api/user/2` 余额 ¥50.0；客户令牌访问 `/v1/models` 200；`/api/pricing` 中两个 Seedance 模型对 `default` 分组可用。`/v1/models` 返回空列表：任务类模型不进这个列表，不影响提交视频任务。
+- 验证：`GET /api/user/2` 余额 ¥50.0；客户令牌访问 `/v1/models` 200；`/api/pricing` 中两个 Seedance 模型对 `default` 分组可用。`/v1/models` 返回空列表（推测任务类模型不进这个列表，未核实源码；root 用同分组提交任务已验证可用）。
 - 回滚：后台禁用 / 删除用户 2，或 `add_quota` `subtract` 扣回额度。
 
 ## 2026-11-10 21:25–21:40 CST - new-api 接入 Seedance 渠道、配置计费，端到端出片验证
