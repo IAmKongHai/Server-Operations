@@ -15,6 +15,7 @@
   - 解析到本机的全部站点首页 h2 与 h3 状态码一致：`admin.kanova.app`、`api.kanova.app`、`kanova.app`、`ddricher.ai`、`www.ddricher.ai`、`api.ddricher.ai`(502，与 h2 一致，上游 7800 本来就没进程)、`gateway.ddricher.ai`(404，同 h2)、`konghai.me`、`load.nanyahui.com`、`api.nanyahui.com`、`load.nanyahui.cn`、`vip.nanyahui.com`、`vip-dev.nanyahui.com`、`numbers.konghai.me`(Cloudflare 橙云)。
   - 静态文件 h3：`kanova.app` 230KB 0.48–0.51s，`load.nanyahui.com` 134KB 0.36–0.44s，都比 h2 快；`tovo.sh` 主包 1.48MB h3 2.3–2.6s，h2 2.1–5.4s。
 - 仍指向旧机 `47.239.167.8`（11-11 00:00 到期）的域名，权威 DNS 23:39 复查：`center.nanyahui.com`、`mp.nanyahui.com`、`vip.nanyahui.cn`、`smith.konghai.me`、`admin-al.konghai.me`、`api-al.konghai.me`。已告知用户。
+  - **更正（11-11 01:25 复查）**：Cloudflare 权威 NS 与 1.1.1.1 上，前 4 个均已解析到 `8.217.145.133`，`admin-al` / `api-al` 已无 A 记录；用户本机 ping 结果一致（`mp.nanyahui.com` 在用户本机解析为 Tailscale `100.113.16.89`）。23:39 那次的结论有误或当时记录尚未更新，以本次为准。
 
 ## 2026-11-10 22:40 CST - 排查：全部站点 HTTP/3 不可用，原因在服务器侧（只读）
 
