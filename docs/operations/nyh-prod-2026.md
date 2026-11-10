@@ -16,7 +16,7 @@
 - 验证：
   - YunShu `ops-readonly`（只读查询）workflow run `42804438571` 成功，新机 sshd 记录到 CI 公钥登录。Kanova、ddricherAi 没有只读 workflow，等下次正常部署验证。
   - 删除后 `nginx -t` 通过，load / konghai.me / ddricher.ai / kanova.app 均 200。
-- 用户待办：本机 `/etc/hosts` 里 `mp.nanyahui.com` 改为 `100.113.16.89`（需要 sudo，已给命令）。
+- 本机 `/etc/hosts`：用户手动把 `mp.nanyahui.com` 改为 `100.113.16.89`、注释掉 `fa.nanyahui.com`。19:09 验证：经 Tailscale（来源 `100.92.181.15`）访问 `/admin/` → 303 到 `/admin/login` → 200，白名单放行正常。
 
 ## 2026-11-10 18:38–19:10 CST - 迁移收尾（计划 U6）：证书改 certbot、修 apt 源、删迁移密钥、档案
 
