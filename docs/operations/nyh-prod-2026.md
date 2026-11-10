@@ -1,5 +1,25 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 22:20–22:30 CST - nginx 全局启用 Brotli；tovo.sh 关闭 HTTP/3
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Claude`（用户要求：大陆访问本机所有站点都慢，装 Brotli 让所有项目受益；tovo.sh 关 HTTP/3。用户已同意必要时重启 nginx，实际只 reload）
+- 排查结论（tovo.sh 首屏慢）：
+  - new-api 自带 gzip，主包 `index.*.js` 原始 5.2MB / gzip 1.48MB。同一文件下载：阿里云香港 `qingfan-prod` 26MB/s，美国 `tizi-kh` 750KB/s，大陆本机 150–520KB/s 且波动大。服务器出口不是瓶颈，瓶颈是大陆到香港的跨境线路。
+  - HTTP/3：本机用 `curl --http3-only` 下 3 次，3 次都中途失败（其中一次握手成功后传输中断），大陆出境 UDP 443 不稳定，浏览器优先用 h3 时会卡住再回退。
+- 影响：nginx 平滑 reload 3 次，主进程没有重启（启动时间仍为 17:04:26）；全部 vhost 的文本类静态资源对支持 br 的浏览器改为 Brotli。
+- 备份：`/root/brotli-20261110/`（`http.conf.bak`、`tovo.sh.conf.bak`、`modules-enabled.before`、两个 deb 包）。
+- 回滚方式：备份拷回 `/etc/nginx/nyh/`；`apt-get remove libnginx-mod-http-brotli-filter`（会删掉 `modules-enabled/50-mod-http-brotli-filter.conf`）；`nginx -t && systemctl reload nginx`。
+- 做了什么：
+  1. 检查包脚本：`libnginx-mod-http-brotli-filter` 1.0.0~rc-6 的 postinst 只触发 `nginx-reload`，不重启；ABI 与 nginx 1.26.3 一致。安装后 `nginx -t` 通过。没有装 `brotli-static`（本机没有预压缩的 .br 文件）。
+  2. `http.conf` 在 gzip 段后追加 `brotli on`、`brotli_comp_level 5`、`brotli_min_length 1k`，`brotli_types` 只含文本类静态资源，**不含** `application/json`、`text/event-stream`，避免影响 API 流式输出；图片不压。
+  3. `tovo.sh.conf`：去掉 `listen 443 quic`、`http3 on` 和 `Alt-Svc` 头。其它 vhost 仍有 `listen 443 quic`，但 tovo.sh 不再发 Alt-Svc，浏览器不会对它用 h3。
+  4. 试过让 tovo.sh 由 nginx 做 Brotli（`proxy_set_header Accept-Encoding ""` + `gzip_proxied any`），看起来像是静态文件返回了首页 HTML，立即回滚；后来查明那次测试打到了 DNS 指向的旧机（见下），但这条路本身也不通：上游一直回 gzip，nginx 不会对已压缩的响应再做 Brotli。**tovo.sh 目前仍是 new-api 自带的 gzip**，要 Brotli 需另做（nginx 托管预压缩的静态文件）。
+- 验证：`kanova.app` 返回 `content-encoding: br`；`api.kanova.app`、`ddricher.ai` 200；tovo.sh（`--resolve` 到新机）静态 JS 200 gzip、无 Alt-Svc；`/api/status` JSON 正常。
+- **发现的问题（未处理，已告知用户）**：
+  - 22:25 前后，Cloudflare 权威 DNS 上 `tovo.sh` 的 A 记录是 `137.184.127.196`（DigitalOcean，疑似旧部署 DO-1），不是 `8.217.145.133`。当时访问 tovo.sh 的人会到旧机，新机上的账号和令牌在那里都不能用。
+  - `bnsg.konghai.me` 仍解析到旧机 `47.239.167.8`（11-11 00:00 到期）。
+
 ## 2026-11-10 21:45 CST - new-api 开第一个客户账号 aozhuo-test 并充值 ¥50
 
 - 服务器：`nyh-prod-2026`（只改 new-api 后台数据，RDS `new_api` 库）
