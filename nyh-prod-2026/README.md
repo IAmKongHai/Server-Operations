@@ -57,7 +57,7 @@ ssh nyh-prod-2026   # = ssh root@8.217.145.133，用 ~/.ssh/id_ed25519
 | nyh-wechat-mp | systemd，`127.0.0.1:9871` | 仓库 `systemd/`；程序 `/www/server/nyh-wechat-mp/` | 公众号；`nyh-wechat-mp-watchdog.timer` 巡检 |
 | guagua-api | systemd，`127.0.0.1:3400` | 仓库 `systemd/guagua-api.service` | `guagua.honc.fun` |
 | yunshu-api | 容器，`127.0.0.1:3300` | `/www/yunshu/infra/prod/` | `bnsg.konghai.me` |
-| acquilang-backend / admin | 容器，`:8000` / `:3001` | `/www/wwwroot/python/acquilang/docker-compose.prod.yml` | Kanova：`api.kanova.app`、`admin.kanova.app`；移动端静态站 `kanova.app` 是 `acquilang-mobile-web/out` |
+| Kanova backend / admin | 容器 `acquilang-backend` `:8000` / `acquilang-admin` `:3001`（名字待发版时换成 `kanova-*`） | `/www/wwwroot/python/kanova/docker-compose.prod.yml`（compose `name: acquilang`）；旧路径 `/www/wwwroot/python/acquilang` 是指向它的符号链接 | `api.kanova.app`、`admin.kanova.app`；移动端静态站 `kanova.app` 是 `kanova-mobile-web/out` |
 | richer engine / gateway / web | 容器 `richer-*-1`，`:9200` / `:9100` / `:8181` | `/www/wwwroot/ddricher/richer/docker-compose.prod.yml` | `ddricher.ai`、`gateway.ddricher.ai` |
 | richer_web | 容器 `richer-web` + `richer-nginx`（`:8888`） | `/www/wwwroot/ddricher/richer_web/` | `admin.ddricher.ai`；依赖外部网络 `richer_strategy_plus_network`（177.10.0.0/16，手工建的） |
 | archery | 容器，`127.0.0.1:3100` | `/www/wwwroot/Archery/` | SQLite 在站点目录里 |
@@ -177,7 +177,7 @@ docker exec -i shared-redis sh -c 'read -r P; REDISCLI_AUTH="$P" redis-cli --no-
 - `richer-gateway-1` 日志大量 Telegram `401 Unauthorized` 和 Tiger 美股行情 `permission denied`（旧机上一天就各有 4 万多条）。
 - `api.ddricher.ai` 反代 `127.0.0.1:7800`，没有进程在听（旧机也一样）。
 - richer_web 的 `.env-docker` MySQL 指向 11-07 已到期的 RDS `rm-j6cb0v171f2al0h41`，`admin.ddricher.ai` 可能本来就不能用。
-- Kanova 应用里仍写死旧域名 `*-al.konghai.me`（admin 前端、APK 的 `EXPO_PUBLIC_API_URL`、后端 `PUBLIC_APP_URL`、CI workflow），用户会发版改成 `kanova.app`；CI 部署路径写的是 `python/kanova`，服务器实际是 `python/acquilang`。
+- Kanova 服务器上的代码还是旧版（`cdcffd45`，10-19，remote 仍是 `AcquiLangAI.git`），写死旧域名 `*-al.konghai.me`；GitHub main 已全面改名为 kanova（子目录、容器 `kanova-*`、网络 `kanova-network`、域名 `kanova.app`）。11-10 只把服务器目录改成了 CI 的路径（`python/kanova/kanova-*`），换成 main 代码和 `kanova-*` 容器由用户另开 session 做（注意：新容器占同样的 8000 / 3001，要先停旧容器；`backup-rds.sh` 里的容器名 `acquilang-backend` 要一起改；之后可删 `acquilang` 符号链接和 compose 的 `name: acquilang`）。
 - 到 mas-sit（`100.109.223.53`）tailscale ping 不通（旧机也不通）。
 
 ## 云盾 Aegis

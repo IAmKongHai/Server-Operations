@@ -1,5 +1,21 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 19:20 CST - Kanova 部署目录改为与 CI 一致（python/acquilang → python/kanova）
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Claude`（用户要求：acquilang 是旧项目名，服务器路径改成和 CI 统一；换代码 / 容器另开 session）
+- 原因：Kanova 的 CI workflow 部署到 `/www/wwwroot/python/kanova`（`kanova-admin`、`kanova-mobile-web/out`、`app_build`），服务器上是 `/www/wwwroot/python/acquilang/acquilang-*`。
+- 影响：**没有重启容器**（`acquilang-backend` / `acquilang-admin` 启动时间改名前后一致）；nginx 平滑 reload 一次。
+- 备份：`/root/kanova-path-20261110/`（原 `docker-compose.prod.yml`、`kanova.app.conf`、`m.acquilangai.com.conf`、容器启动时间）。
+- 回滚方式：`rm /www/wwwroot/python/acquilang && mv /www/wwwroot/python/kanova /www/wwwroot/python/acquilang`，子目录改回 `acquilang-*`，备份文件拷回原位，`nginx -t && systemctl reload nginx`。
+- 做了什么：
+  1. `mv /www/wwwroot/python/acquilang /www/wwwroot/python/kanova`，并 `ln -s kanova /www/wwwroot/python/acquilang`：运行中的 `acquilang-backend` 绑定挂载的是旧路径（`static`、`uploads`），符号链接保证以后容器重启也能解析。
+  2. 子目录 `acquilang-{admin,backend,mobile-native,mobile-web,pc-web}` 改为 `kanova-*`。目录里没有指向旧路径的绝对符号链接。
+  3. `docker-compose.prod.yml`：挂载路径改到 `/www/wwwroot/python/kanova/…`，顶部加 `name: acquilang`（容器、网络仍叫 `acquilang-*`；不固定的话从新目录执行 compose 会按目录名另起一个 `kanova` 项目，和现有容器名冲突）。`docker compose config` 通过，`compose ps` 能看到现有两个容器。
+  4. `kanova.app.conf`、`m.acquilangai.com.conf` 的移动端静态目录改为 `/www/wwwroot/python/kanova/kanova-mobile-web/out`；nginx 里不再有旧路径。
+- 验证：`kanova.app/`、`/download/`、`/build-Latest.apk`、`admin.kanova.app/`、`api.kanova.app/api/v1/health` 均 200；容器内 `/app/uploads` 可读写；CI 用到的 `kanova-admin`、`kanova-mobile-web/out`、`app_build`、`docker-compose.prod.yml`、`scripts/deploy-backend-full.sh` 都存在。
+- 未做（用户另开 session）：服务器代码换成 GitHub main（现为旧版 `cdcffd45`，remote 仍是 `AcquiLangAI.git`），容器 / 镜像 / 网络换成 `kanova-*`，`backup-rds.sh` 容器名，之后删除 `acquilang` 符号链接和 `name: acquilang`。
+
 ## 2026-11-10 19:00–19:10 CST - 上线快照；CI 部署切到新机；删除两个废弃站点
 
 - 服务器：`nyh-prod-2026`（GitHub 仓库 Secret 也有改动）
