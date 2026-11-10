@@ -1,5 +1,24 @@
 # nyh-prod 运维时间线
 
+## 2026-11-10 15:55–16:10 CST - 迁移前清理 /www 里不再保留的文件（49G → 16G）
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（用户逐类确认：A 类除 sms-admin 外删除；B 类除 88load.com / admin_apple.konghai.me / lend.88load.com 外删除；先打快照）
+- 原因：用户确认旧 ECS 不续费、今天必须迁完；新机单盘 80G，先在旧机删掉不再需要的文件，再迁移。
+- 影响：只删文件，没有停任何进程；在用站点不受影响。
+- 备份：
+  - 数据盘手动快照 `s-j6c234k2untx79f5jjiu`（`nyh-prod-www-before-cleanup-20261110`，盘 `d-j6chyzdlvn2vkqvzs96u`，150G，未设自动过期）。**删掉的所有文件都可以从这个快照找回**。
+  - `sms-admin`、`88load.com`、`admin_apple.konghai.me`、`lend.88load.com` 打包成 tar.gz（共约 265M），下载到开发机 `Server/_backups/nyh-prod-archive-20261110/`（gitignore），`SHA256SUMS` 校验通过；服务器上的副本在 `/www/backup/archive-20261110/`。
+- 删除的内容：
+  - 停用站点：`yysg.nanyahui.com`（9.5G）、`test-agent.nanyahui.cn`（7.0G）、`tiancheng.nanyahui.com`、`sms-admin`（已归档）。
+  - 两个「2025_12_15升级前备份」包（4.05G）。
+  - `center.nanyahui.com/runtime/log/2026{02..09}`（约 7.5G，保留 10、11 月）；`load.nanyahui.com/runtime/log` 下 60 天以前的 282 个文件。
+  - `/www/server/php/74.bak.20261022`（10-22 重编 PHP 7.4 前的旧版本）。
+  - 没有被任何 nginx 站点、supervisor、systemd、容器、定时任务引用的目录：`88load.com`、`admin_apple.konghai.me`、`lend.88load.com`（三个已归档），以及 `richer_test`、`erpnext`、`ax.nanyahui.com`、`phpmyadmin.nanyahui.com`、`frp`、`apple.konghai.me`、`ai_debug.konghai.me`、`lua_script.konghai.me`、`trade`、`ddricherAi`、`zen.design.hualu.konghai.me`（`zen-design-hualu` 的重复目录）、`actitime.konghai.me`、`admin.acquilangai.com`、`ai.konghai.me`、`api.acquilangai.com`、`test-center.nanyahui.com`、`testloadstudio_konghai_me`、`test-vip.nanyahui.cn`、`tokenpay.nanyahui.com`、`vip.nanyahui.com`（vip 站点实际用 `nyh-agent-pc-old`）、`www.acquilangai.com`、`m.acquilangai.com`、`stock.konghai.me`、`ai-key-air`；`python/` 下的 `ActiTime`、`nanyahui_api`（含 zip）、`tts_sJHxn.tar.gz`、`vtsi-{dito,globe,smart}`、`fd-{globe,smart}`、`xiaola_line`、`JuanCash-globe`、`ai-key-air`（旧线路已被 `nyh-line-core` 取代）。
+- 删前检查：按固定字符串在所有 nginx vhost（含 extension / open_basedir / openlitespeed）、supervisor、systemd、crontab、宝塔计划任务、容器配置、宝塔站点表里查引用，再看进程 cwd 和 `lsof`。yysg / test-agent 只在 open_basedir 设置和证书续期日志里出现（站点已停用，root 是 `/www/server/stop`），其余全部 0 引用、0 进程、0 打开文件。
+- **操作失误（已修复）**：宝塔给站点 `.user.ini` 加了 `chattr +i`，有 5 个目录第一次没删掉。我执行 `chattr -i /www/wwwroot/*/.user.ini` 时，通配符把 6 个在用站点（`ddricher.ai`、`konghai.me`、`mp.nanyahui.com`、`nyh-2025.konghai.me`、`vip-dev.nanyahui.com`、`zen-design-hualu.konghai.me`）的 `+i` 也去掉了。几分钟内已全部 `chattr +i` 恢复，并用 `lsattr` 确认。`.user.ini` 的内容没有变，PHP 的 open_basedir 不受影响。教训：去掉不可修改属性时只写要删的具体文件，不要用通配符。
+- 验证：`/www` 已用从 49G 降到 16G（`wwwroot` 9.1G）；10 个在用站点经 `--resolve 127.0.0.1` 的状态码和此前一致（load 200、center 302、vip 200、konghai.me 200、mp 302、ddricher.ai 200 等）；supervisor 全部 RUNNING。
+
 ## 2026-11-10 15:20–15:45 CST - 只读：为迁到 nyh-prod-2026 盘点全部服务
 
 - 服务器：`nyh-prod`

@@ -42,7 +42,7 @@ execution: code
 - R1. 下表「迁移」列为「是」的服务，切换后在新机上正常工作，域名、证书、端口不变。
 - R2. 队列 worker 和会写数据的定时任务，任何时刻只在一台机器上运行（两台共用同一个 RDS，双跑会重复下单、重复发短信 / 通知）。
 - R3. 本地状态完整带过去：宝塔 Redis（7480）的数据、上传文件、Archery 的 SQLite、guagua uploads、nyh-notify / nyh-wechat-mp 的工作目录、宝塔面板数据（站点、计划任务、证书）。
-- R4. 切换前给旧机两块盘打手动快照，作为长期存档和回滚依据。
+- R4. 旧机数据盘已在清理前打了手动快照 `s-j6c234k2untx79f5jjiu`；切换前再给系统盘打一个。
 - R5. 迁移后在 `nyh-prod-2026/README.md`、`docs/operations/` 里记录；`AGENTS.md` 服务器表更新 nyh-prod 的状态。
 
 ### 服务清单（2026-11-10 15:30 CST 只读盘点）
@@ -70,7 +70,7 @@ execution: code
 
 - KD1. **今天一次性切完，不分批。** 硬截止驱动；按项目分批意味着要跨天维护两台机器，而旧机今晚就停机。
 - KD2. **保留宝塔。** 用户日常在宝塔里管站点、证书和计划任务；两台都是 Debian 13 / 6.12，宝塔 13.2.0 的面板数据、nginx 1.30.1、PHP 7.4.33（10-22 在 Debian 13 上自编译）、PHP 8.2.35 都可以原样拷过去用。改成纯 systemd + nginx 是更干净，但今天做不完。
-- KD3. **强烈建议把旧 ECS 续费 1 个月**（由用户决定）。续费后今晚的切换就有完整回滚路径，观察几天再停。不续费也能做，但 00:00 以后就只能在新机上修，不能切回去。
+- KD3. ~~建议续费旧 ECS~~ **用户已确认不续费（16:00 CST）**。00:00 以后不能切回旧机，出问题只能在新机上修。旧机的长期存档是数据盘快照 `s-j6c234k2untx79f5jjiu`。
 
 ### Success Criteria
 
@@ -100,7 +100,7 @@ execution: code
 - **KTD2. 用户和 UID。** 新机的 UID 和旧机冲突：`admin`(1000) 对 `www`(1000)，`systemd-timesync`(997) 对 `shared-redis`(997)，`systemd-resolve`(996) 对 `nyh-wechat-mp`(996)。做法：删掉镜像自带、没在用的 `admin`，`www` 用 1000；其它用户按名字新建，让系统分配 UID。rsync **不加** `--numeric-ids`，按用户名映射属主。`shared-redis` 容器的 `--user 997:987` 要换成新 UID 重建。
 - **KTD3. 宝塔先装后覆盖。** 在新机用官方脚本装宝塔面板（只装面板，不装 LNMP），确认版本和旧机一样是 13.2.0（不一样就先升或降到一致）。然后停面板，用旧机的 `/www/server/panel` 覆盖（站点、计划任务、证书、面板 SSL、端口 10463、安全入口都会带过来）。nginx / PHP / Redis 的目录直接从旧机拷，`ldd` 检查缺少的库，用 apt 补。
 - **KTD4. 进程分「无状态」和「会写数据」两类。** 无状态的（nginx、php-fpm、guagua-api、nyh-wechat-mp、容器 web 层）在 U4 提前起好，用 `curl --resolve` 测。会写数据的（supervisor 全部、宝塔计划任务、root crontab 里的业务任务、richer-engine 等有定时逻辑的容器）在 U4 保持停止 / 禁用，U5 先在旧机停，再在新机起。nyh-notify 在 supervisor 里，也按会写数据处理。
-- **KTD5. 同步范围（预计 25–30G）。** 带：`/www` 全部，排除 `wwwroot/yysg.nanyahui.com`、`wwwroot/test-agent.nanyahui.cn`、`wwwroot/tiancheng.nanyahui.com`、`wwwroot/sms-admin`、`wwwroot/*升级前备份*`、`wwwroot/center.nanyahui.com/runtime/log` 里 30 天以前的日志、`wwwroot/python/tts_*.tar.gz`、`reserve_space.pl`。`/etc` 里带：supervisor 配置、`/etc/init.d/{bt,nginx,php-fpm-74,php-fpm-82,redis}`、自定义 systemd unit、`/etc/letsencrypt`、fail2ban jail、root crontab、`/root/.ssh/authorized_keys`（含 GitHub Actions 部署公钥）、`/usr/local/sbin` 下用到的脚本。`/var/lib/docker` 不拷，用到的镜像 `docker save` 后在新机 `docker load`。排除掉的东西都在 R4 的快照里。
+- **KTD5. 同步范围（约 16G）。** 16:10 已在旧机删掉停用站点、旧备份、旧日志和无引用目录（见 `docs/operations/nyh-prod.md` 同日条目），`/www` 只剩 16G。带：`/www` 全部，只排除 `reserve_space.pl` 和 `/www/backup/archive-20261110`（已下载到本地）。`/etc` 里带：supervisor 配置、`/etc/init.d/{bt,nginx,php-fpm-74,php-fpm-82,redis}`、自定义 systemd unit、`/etc/letsencrypt`、fail2ban jail、root crontab、`/root/.ssh/authorized_keys`（含 GitHub Actions 部署公钥）、`/usr/local/sbin` 下用到的脚本。`/var/lib/docker` 不拷，用到的镜像 `docker save` 后在新机 `docker load`。排除掉的东西都在 R4 的快照里。
 - **KTD6. DNS 切换前先降 TTL。** Cloudflare 记录（灰云）现在就改 TTL 为 60s；`numbers.konghai.me` 是橙云，只改源站 IP。`guagua.honc.fun` 在 DNSPod，同样先降 TTL。
 - **KTD7. 宝塔 Redis 数据在窗口内拷。** 旧机 `BGSAVE` 后停 Redis，拷 `dump.rdb` 到新机再启动。只有 13.5M，几秒钟。
 
