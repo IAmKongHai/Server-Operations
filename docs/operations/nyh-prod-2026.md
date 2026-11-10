@@ -1,5 +1,23 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 19:00–19:10 CST - 上线快照；CI 部署切到新机；删除两个废弃站点
+
+- 服务器：`nyh-prod-2026`（GitHub 仓库 Secret 也有改动）
+- 操作人：`Claude`（用户要求：用 gh 改各仓库部署 Secret、打快照、删除废弃站点的配置和文件）
+- 影响：root `authorized_keys` 增加 3 把 CI 部署公钥；nginx 平滑 reload 1 次；删除 `zen-design-hualu.konghai.me`、`nyh-2025.konghai.me` 两个站点。
+- 备份：快照 `s-j6cct8y5ay0igrzzwuhb`（`nyh-prod-2026-live-20261110`，删除之前打）；`/root/cutover-20261110/authorized_keys.bak-before-ci`；`/root/cutover-20261110/abandoned-sites-20261110.tar.gz`（两个站点的 vhost、rewrite、证书、网站文件，14M）。
+- 回滚方式：authorized_keys 拷回备份；站点 `tar -xzf … -C /` 后 `nginx -t && systemctl reload nginx`；GitHub Secret 改回 `47.239.167.8`（旧机 11-11 00:00 起不可用，实际无回滚意义）。
+- 做了什么：
+  1. 快照 `nyh-prod-2026-live-20261110`，19:03 创建，完成后才做第 4 步。
+  2. 旧机 root `authorized_keys` 里 `github-actions@acquilangai`、`github-actions@yunshu-bnsg`、`github-actions-deploy-key-ddricher` 三行原样追加到新机（都是无选项限制的 ed25519）。旧机另外的 `hon-2025`、`hon-2026`、`konghai-recovery-2025`、`deploy_key_for_nyh_2025` 没有迁。
+  3. 扫描用户 / `konghai-friends-lab` / `caimiamiao` 下 49 个仓库，只有 3 个部署到 nyh：`gh secret set` 改了 `IAmKongHai/Kanova` 的 `SERVER_HOST`、`konghai-friends-lab/YPF-YunShu` 的 `SSH_HOST` 和 `SSH_KNOWN_HOSTS`（新机 `ssh-keyscan` 结果，指纹与服务器本机 host key 一致）、`konghai-friends-lab/ddricherAi` 的 `HOST`，都改为 `8.217.145.133`。端口、用户（22 / root）新旧一致，没改。qingfan、tk-flywheel、cmm 的部署 Secret 指向其它服务器，没动。
+  4. 删除 `zen-design-hualu.konghai.me`（用户确认已废弃、DNS 已删）、`nyh-2025.konghai.me`（原宝塔面板入口，不再使用）：vhost、rewrite、`/etc/nginx/nyh/cert/` 证书目录、`/www/wwwroot/` 网站目录、`/www/wwwlogs/` 日志（含旧名 `zen.design.hualu`）。删前确认没有其它 nginx / cron / supervisor / systemd 配置引用、没有打开的文件、没有 `chattr +i`。仓库里对应 vhost / rewrite 一并删除。
+  5. `-al.konghai.me` 三个 vhost 保留：它们和 kanova.app 三个 vhost 共用网站目录与 extension 目录，且 Kanova 发版前可能需要临时恢复 DNS。
+- 验证：
+  - YunShu `ops-readonly`（只读查询）workflow run `42804438571` 成功，新机 sshd 记录到 CI 公钥登录。Kanova、ddricherAi 没有只读 workflow，等下次正常部署验证。
+  - 删除后 `nginx -t` 通过，load / konghai.me / ddricher.ai / kanova.app 均 200。
+- 用户待办：本机 `/etc/hosts` 里 `mp.nanyahui.com` 改为 `100.113.16.89`（需要 sudo，已给命令）。
+
 ## 2026-11-10 18:38–19:10 CST - 迁移收尾（计划 U6）：证书改 certbot、修 apt 源、删迁移密钥、档案
 
 - 服务器：`nyh-prod-2026`

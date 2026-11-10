@@ -24,7 +24,18 @@ ssh nyh-prod-2026   # = ssh root@8.217.145.133，用 ~/.ssh/id_ed25519
 | 系统 | Debian 13.7 (trixie)，内核 `6.12.116+deb13-amd64`，UEFI（`grub-efi-amd64` + shim） |
 | 规格 | 4 vCPU / 16G（`free -h` 显示 14Gi：crashkernel 预留和固件地址空间）/ 无 swap |
 | 时区 | `Asia/Shanghai`（CST） |
-| SSH | 只允许公钥，root 可直接登录；`authorized_keys` 只有本机 konghai 的 `id_ed25519`（迁移用的旧机临时密钥 11-10 已删） |
+| SSH | 只允许公钥，root 可直接登录，端口 22；`authorized_keys` 见下表（迁移用的旧机临时密钥 11-10 已删） |
+
+### root 的 `authorized_keys` 与 CI 部署
+
+| 注释 | 用途 |
+| --- | --- |
+| `konghai@konghai.me` | 本机 konghai 的 `~/.ssh/id_ed25519` |
+| `github-actions@acquilangai` | `IAmKongHai/Kanova` 部署（Secrets `SERVER_HOST` / `SERVER_USER` / `SSH_PRIVATE_KEY`；known_hosts 在 workflow 里现场 `ssh-keyscan`） |
+| `github-actions@yunshu-bnsg` | `konghai-friends-lab/YPF-YunShu` 部署与运维 workflow（`SSH_HOST` / `SSH_USER` / `SSH_PORT` / `SSH_KNOWN_HOSTS` / `SSH_PRIVATE_KEY`） |
+| `github-actions-deploy-key-ddricher` | `konghai-friends-lab/ddricherAi` 部署（`HOST` / `USERNAME` / `PORT` / `KEY`，appleboy/ssh-action） |
+
+三把 CI 公钥 2026-11-10 从旧机原样复制过来，三个仓库的主机 Secret 已改为 `8.217.145.133`、YunShu 的 `SSH_KNOWN_HOSTS` 换成新机指纹（ED25519 `SHA256:2GQoiNC5ZF89UtpYve3XaLGnaTFAlHZ9xQQW+TXULNg`）。旧机上另有 `hon-2025`、`hon-2026`、`konghai-recovery-2025`、`deploy_key_for_nyh_2025` 四把，**没有迁过来**；以后哪个用途需要再单独加。重装系统或换主机密钥后，记得同步改 YunShu 的 `SSH_KNOWN_HOSTS`。
 
 ### 轻量服务器防火墙
 
@@ -98,7 +109,7 @@ systemctl restart nyh-wechat-mp guagua-api
 
   证书签下来之前 vhost 不能引用它（`nginx -t` 会失败）：新域名先放一个只有 80 端口 + `include acme.conf` 的临时 vhost，签完再换成正式配置（kanova.app 就是这样做的）。
 - 证书名与域名：`kanova.app`（含 admin / api）、`ddricher.ai`（含 www）、`load.nanyahui.com`（含 `api.nanyahui.com`），其余每个域名一张。
-- `/etc/nginx/nyh/cert/` 是旧机宝塔带过来的证书，只剩默认站点（自签）和不再使用的站点在引用：`-al.konghai.me` 三个（Kanova 旧域名，DNS 已删，证书到 2027-02 过期）、`zen-design-hualu.konghai.me`、`nyh-2025.konghai.me`（均已废弃），不会续期。
+- `/etc/nginx/nyh/cert/` 是旧机宝塔带过来的证书，只剩默认站点（自签）和不再使用的站点在引用：`-al.konghai.me` 三个（Kanova 旧域名，DNS 已删，证书到 2027-02 过期），不会续期。废弃站点 `zen-design-hualu.konghai.me`、`nyh-2025.konghai.me`（原宝塔面板入口）的 vhost、证书、网站文件和日志 2026-11-10 已删除，备份 `/root/cutover-20261110/abandoned-sites-20261110.tar.gz`。
 - Cloudflare：`numbers.konghai.me` 是橙云（回源走 443），其余 Cloudflare 记录必须保持灰云，否则 HTTP-01 和 IP 白名单都会出问题。
 
 ## nginx 结构
@@ -181,8 +192,7 @@ docker exec -i shared-redis sh -c 'read -r P; REDISCLI_AUTH="$P" redis-cli --no-
 | --- | --- | --- |
 | `s-j6cf8ldl9p1wznd46hrm` | `debian12-before-upgrade` | 升级前，**云盾还在**；可删 |
 | `s-j6ch07g86tunb409g1tf` | `debian13-baseline-20261110` | 升级完成、还没重装云盾时的基线；可删 |
-
-业务上线后还没有打过快照，建议找个时间打一个 `nyh-prod-2026-live-<日期>`。
+| `s-j6cct8y5ay0igrzzwuhb` | `nyh-prod-2026-live-20261110` | 业务切换完成、证书改 certbot 后（2026-11-10 19:03），删除废弃站点之前 |
 
 ## 升级参考
 
