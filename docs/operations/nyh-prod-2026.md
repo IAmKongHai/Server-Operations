@@ -1,5 +1,20 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 18:27–18:35 CST - 上线 Kanova 正式域名 kanova.app / admin.kanova.app / api.kanova.app
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Claude`（用户已把三个域名 A 记录指向新机；`m.kanova.app` 不用，移动端直接用 `kanova.app`）
+- 原因：用户删除了 `admin-al` / `api-al` / `m-al.konghai.me`，Kanova 改用正式域名。
+- 影响：新增 3 个 vhost，`api.acquilangai.com.conf`（api-al）的 CORS 白名单加了新域名，`systemctl reload nginx` 两次（平滑）。
+- 备份：`/root/cutover-20261110/api.acquilangai.com.conf.bak.20261110`。
+- 回滚方式：删除 `/etc/nginx/nyh/vhost/{kanova.app,admin.kanova.app,api.kanova.app}.conf`，还原 api 备份，`nginx -t && systemctl reload nginx`。
+- 做了什么：
+  1. 临时 80 端口 vhost（只放 ACME 目录）→ `certbot certonly --webroot -w /var/www/letsencrypt --cert-name kanova.app -d kanova.app -d admin.kanova.app -d api.kanova.app --deploy-hook "systemctl reload nginx"`（已有 LE 账号）→ 删临时 vhost。证书到期 2027-02-08。
+  2. `nyh-prod-2026/nginx/nyh/vhost/` 新增 `kanova.app.conf`（复制自 m-al）、`admin.kanova.app.conf`（admin-al）、`api.kanova.app.conf`（api-al），只改 `server_name`、证书路径和日志文件名，去掉重复的 `proxy_cache_path`；旧 `-al` vhost 保留。
+  3. 两个 API vhost 的 CORS 白名单都加上 `https://admin.kanova.app`、`https://kanova.app`。
+- 验证：`kanova.app/`、`/download/`、`admin.kanova.app/`、`api.kanova.app/api/v1/health` 均 200，HTTP 301 到 HTTPS；证书 SAN 含三个域名；CORS 预检对新旧前端域名返回对应 `Access-Control-Allow-Origin`，对其它来源不返回；`/build-Latest.apk` 200（35.6MB）。
+- 未完成：应用里仍写死旧域名（admin 前端 JS、APK 的 `EXPO_PUBLIC_API_URL`、后端 `PUBLIC_APP_URL=https://m-al.konghai.me`、CI workflow），需要改代码重新发布；`-al` DNS 已删，旧 App 目前连不上。
+
 ## 2026-11-10 18:05–18:30 CST - DNS 切换后验证；修复 Cloudflare 回源 525（TLS HelloRetryRequest）
 
 - 服务器：`nyh-prod-2026`
