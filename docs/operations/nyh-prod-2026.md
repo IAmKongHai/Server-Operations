@@ -1,5 +1,19 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 22:40 CST - 排查：全部站点 HTTP/3 不可用，原因在服务器侧（只读）
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Claude`（用户问其它站点是否也有 HTTP/3 问题）
+- 结论：**修正上一条的判断**。tovo.sh 的 h3 失败不只是大陆出境 UDP 的问题，本机 nginx 的 QUIC 本身就不可用。
+- 证据（同一静态文件，`curl --http3-only` 各 3 次，HTTP/2 同时对照，h2 全部 200）：
+  - 大陆本机：`kanova.app`、`ddricher.ai`、`load.nanyahui.com`、`admin.kanova.app` 共 12 次 h3，全部失败（rc 55/56，`admin.kanova.app` 有 2 次返回 h3 `400`）。
+  - 阿里云香港 `qingfan-prod`（不经跨境线路）：3 次全部失败（rc 56 / 超时）。
+  - 美国 `tizi-kh`：1 次超时，2 次成功但慢（2.2s / 5.6s）。
+- 疑似原因：21 个 vhost 都有 `listen 443 quic`，但没有任何一个带 `reuseport`。`ss -ulpn` 显示 UDP 443 只有一个 socket，被 master 和全部 worker 共享；nginx 多 worker 跑 QUIC 时，同一连接的包可能被不同 worker 收到，连接就会中断。`bnsg.konghai.me` 的 vhost 里早就注释掉了 h3（"Chrome H3/JS cancel white-screen mitigation"），症状一致。
+- 影响：这些站点都在发 `Alt-Svc: h3=...`，Chrome / Safari 会先试 h3，失败后才回退 h2，所以会出现偶发的卡顿或白屏。
+- DNS 补充：22:40 复查 `tovo.sh`，Cloudflare 两台权威服务器和 1.1.1.1 / 8.8.8.8 / 223.5.5.5 都返回 `8.217.145.133`，用户控制台截图也是这个值；22:25 前后权威服务器返回的是 `137.184.127.196`，中间被改过。
+- 未改动任何配置。
+
 ## 2026-11-10 22:20–22:30 CST - nginx 全局启用 Brotli；tovo.sh 关闭 HTTP/3
 
 - 服务器：`nyh-prod-2026`
