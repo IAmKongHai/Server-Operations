@@ -1,5 +1,21 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 23:35–23:45 CST - 修复全站 HTTP/3（QUIC reuseport + 反代 Host 头）
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Claude`（用户选择先修 HTTP/3，修不好再全站关闭；已同意重启 nginx）
+- 影响：23:36:22 **重启 nginx 一次**（改 listen 参数 reload 不生效），全部站点断开约 1 秒；之后 reload 2 次。
+- 备份：`/root/h3-20261110/`（`0.default.conf.bak`、`udp443.before`、`vhost-before-host-fix.tar.gz` 为改 Host 前的整个 vhost 目录）。
+- 回滚方式：`tar -xzf /root/h3-20261110/vhost-before-host-fix.tar.gz -C /etc/nginx/nyh`，`0.default.conf.bak` 拷回，`nginx -t && systemctl restart nginx`。
+- 做了什么：
+  1. `0.default.conf` 增加 `listen 443 quic reuseport;`。`reuseport` 对同一 address:port 只能声明一次，放在默认站点，其它 vhost 仍写不带参数的 `listen 443 quic`。重启后 UDP 443 由 1 个共享 socket 变成 4 个（每个 worker 一个）。
+  2. 重启后 `kanova.app`、`load.nanyahui.com` 的 h3 恢复正常，但 `ddricher.ai`、`admin.kanova.app` 的 h3 稳定返回 400。原因：这些反代 vhost 用 `proxy_set_header Host $http_host;`，HTTP/3 没有 `Host` 请求头（用 `:authority`），`$http_host` 为空，上游容器（nginx 1.31.6）对空 Host 回 400。11 个 vhost 共 13 处全部改为 `$host`（443 上的 h1/h2 取值不变）。
+  3. `tovo.sh` 恢复 `listen 443 quic`、`http3 on`、`Alt-Svc`。
+- 验证（大陆本机 `curl --http3-only` 对照 `--http2`）：
+  - 解析到本机的全部站点首页 h2 与 h3 状态码一致：`admin.kanova.app`、`api.kanova.app`、`kanova.app`、`ddricher.ai`、`www.ddricher.ai`、`api.ddricher.ai`(502，与 h2 一致，上游 7800 本来就没进程)、`gateway.ddricher.ai`(404，同 h2)、`konghai.me`、`load.nanyahui.com`、`api.nanyahui.com`、`load.nanyahui.cn`、`vip.nanyahui.com`、`vip-dev.nanyahui.com`、`numbers.konghai.me`(Cloudflare 橙云)。
+  - 静态文件 h3：`kanova.app` 230KB 0.48–0.51s，`load.nanyahui.com` 134KB 0.36–0.44s，都比 h2 快；`tovo.sh` 主包 1.48MB h3 2.3–2.6s，h2 2.1–5.4s。
+- 仍指向旧机 `47.239.167.8`（11-11 00:00 到期）的域名，权威 DNS 23:39 复查：`center.nanyahui.com`、`mp.nanyahui.com`、`vip.nanyahui.cn`、`smith.konghai.me`、`admin-al.konghai.me`、`api-al.konghai.me`。已告知用户。
+
 ## 2026-11-10 22:40 CST - 排查：全部站点 HTTP/3 不可用，原因在服务器侧（只读）
 
 - 服务器：`nyh-prod-2026`

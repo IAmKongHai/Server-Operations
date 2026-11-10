@@ -165,6 +165,8 @@ docker exec -i shared-redis sh -c 'read -r P; REDISCLI_AUTH="$P" redis-cli --no-
 
 ## 坑（都踩过）
 
+- **HTTP/3**：`reuseport` 只在 `0.default.conf` 的 `listen 443 quic reuseport;` 声明一次，新 vhost 写不带参数的 `listen 443 quic;`。没有 reuseport 时所有 worker 共用一个 UDP socket，h3 连接会中断（11-10 全站 h3 不可用就是这个原因）。反代一律用 `proxy_set_header Host $host;`，**不要用 `$http_host`**：h3 请求没有 Host 头，上游会收到空 Host 回 400。
+
 1. **阿里云 + Tailscale：所有 `100.100.x.x` 的阿里云内网服务回包都会被 Tailscale 的 `ts-input` 链丢弃**（源地址落在 100.64/10）。已知受影响：VPC DNS `100.100.2.136/138`（解析卡死，表现为连 RDS 超时、FPM 启动 40s），apt 源 `mirrors.cloud.aliyuncs.com`（`100.100.2.148`）。处理：`fix-aliyun-dns-vs-tailscale.service` 把 DNS 改成 223.5.5.5 / 223.6.6.6 / 8.8.8.8（改完后已有容器要重建才能拿到新的 resolv.conf）；apt 源已改为公网 `https://mirrors.aliyun.com`（11-10）。以后再接入阿里云内网服务（如 OSS 内网 endpoint），先确认不是 100.100 段。
 2. **Debian 13 的 OpenSSL 3.5 + Cloudflare 回源 = 525**。默认密钥交换组配置会对只带 X25519 key share 的客户端发 HelloRetryRequest 要求 X25519MLKEM768，Cloudflare 的第二个 ClientHello 被判 `illegal_parameter`。`nginx.conf` 里的 `ssl_ecdh_curve X25519MLKEM768:X25519:prime256v1:secp384r1;`（单个优先级组，不发 HRR）就是为此加的。
 3. **Sury 的 PHP-FPM 构建内置遥测**（`telemetry.sury.org`，没有关闭开关），compose 里用 `extra_hosts` 指向 `127.0.0.1`，数据不会出去。重建镜像时保留这一项。
