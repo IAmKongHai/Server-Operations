@@ -1,5 +1,13 @@
 # nyh-prod 运维时间线
 
+## 2026-11-10 15:20–15:45 CST - 只读：为迁到 nyh-prod-2026 盘点全部服务
+
+- 服务器：`nyh-prod`
+- 操作人：`Claude`（只读，未做任何改动）
+- 原因：用户要求今天把全部服务迁到 `nyh-prod-2026`。ECS `i-j6chyzdlvn2vkqw0jbgv` 到期时间 `2026-11-10T16:00Z`（= 11-11 00:00 CST）。
+- 结果：站点、supervisor、容器、定时任务、端口、RDS 连接、证书、UID 等清单写进迁移计划 `docs/plans/2026-11-10-1545-ops-nyh-prod-to-nyh-prod-2026-migration-plan.md`。
+- 关键发现：业务库全部在 RDS PG `pgm-j6cf5kaej216sx0z`（只有内网地址），新轻量服务器默认连不上，需要「内网互通」；公网 IP 不是 EIP，必须切 DNS；新盘 80G 小于旧机已用空间，需要排除停用站点和旧备份。
+
 ## 2026-11-08 CST - 用户重启 php-fpm 7.4，旧 MySQL RDS 长连接释放
 
 - 服务器：`nyh-prod`
