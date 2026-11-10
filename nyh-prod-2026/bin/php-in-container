@@ -1,0 +1,26 @@
+#!/bin/bash
+# 宿主机上的 php74 / php82 命令（以软链名区分版本），在对应的 FPM 容器里以 www 身份执行 PHP CLI。
+# 让 cron、CI 部署脚本里沿用宝塔时期的 `php74 think ...` 写法，不用改。
+#
+# 安装：/usr/local/bin/php-in-container，软链 /usr/local/bin/php74、/usr/local/bin/php82 指向它。
+# 限制：
+#   - 当前目录必须在 /www/wwwroot 下（容器只挂了这些目录），否则拒绝执行。
+#   - 只用于一次性命令。常驻队列 worker 不要用它：docker exec 的客户端被杀时，
+#     容器里的进程不会跟着退出，会留下孤儿 worker。常驻 worker 在 php74-worker 容器里跑。
+set -euo pipefail
+
+case "$(basename "$0")" in
+  php74) container=php74-fpm; php_bin=php7.4 ;;
+  php82) container=php82-fpm; php_bin=php8.2 ;;
+  *) echo "请通过 php74 / php82 软链调用" >&2; exit 2 ;;
+esac
+
+case "$PWD/" in
+  /www/wwwroot/*|/www/php_session/*|/www/wwwlogs/*) ;;
+  *) echo "当前目录 $PWD 不在容器挂载范围内（/www/wwwroot 等），请先 cd 到站点目录" >&2; exit 2 ;;
+esac
+
+tty_flag=()
+[ -t 0 ] && [ -t 1 ] && tty_flag=(-t)
+
+exec docker exec -i "${tty_flag[@]}" -u www -w "$PWD" "$container" "$php_bin" "$@"

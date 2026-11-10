@@ -1,0 +1,53 @@
+# nyh-prod-2026 的 PHP 运行环境（服务器上路径 /opt/stacks/php/）
+#
+# - php74-fpm / php82-fpm：给宿主机 nginx 用，fastcgi_pass 127.0.0.1:9074 / 9082
+# - php74-worker：9 个 PHP 队列进程（容器内 supervisord）。放在 profile "worker" 里，
+#   `docker compose up -d` 不会启动它；切换窗口内才用
+#   `docker compose --profile worker up -d php74-worker` 启动，避免和旧机双跑。
+#
+# 全部用 host 网络：应用 .env 里的 127.0.0.1 地址（Redis 7480、shared-redis 6379）、
+# RDS 白名单（新机内网 IP）、出口公网 IP 都和直接装在宿主机上一样。
+# 目录挂成和宿主机相同的路径，nginx 传的 SCRIPT_FILENAME、.user.ini 的 open_basedir 都不用改。
+
+x-php-common: &php-common
+  network_mode: host
+  restart: always
+  environment:
+    TZ: Asia/Shanghai
+  volumes:
+    - /www/wwwroot:/www/wwwroot
+    - /www/php_session:/www/php_session
+    - /www/wwwlogs:/www/wwwlogs
+
+services:
+  php74-fpm:
+    <<: *php-common
+    image: nyh/php74:7.4.33
+    build:
+      context: .
+      args:
+        PHP_VER: "7.4"
+        PHP_EXTS: "bcmath curl gd intl mbstring mysql pgsql soap sqlite3 xml xmlrpc zip opcache"
+    container_name: php74-fpm
+
+  php82-fpm:
+    <<: *php-common
+    image: nyh/php82:8.2.35
+    build:
+      context: .
+      args:
+        PHP_VER: "8.2"
+        PHP_EXTS: "bcmath curl gd gmp igbinary intl mbstring mcrypt mysql pgsql redis soap sqlite3 swoole xml zip opcache"
+    container_name: php82-fpm
+
+  php74-worker:
+    <<: *php-common
+    image: nyh/php74:7.4.33
+    container_name: php74-worker
+    profiles: ["worker"]
+    command: ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
+    volumes:
+      - /www/wwwroot:/www/wwwroot
+      - /www/php_session:/www/php_session
+      - /www/wwwlogs:/www/wwwlogs
+      - ./worker-supervisor:/etc/supervisor/conf.d:ro
