@@ -1,0 +1,400 @@
+<title>tovo.sh Seedance 接入手册</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column (~720px) with a sticky section index on wide screens; code blocks scroll on their own */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #1b2230;
+  --muted: #5d6677;
+  --line: #dde2ea;
+  --accent: #0f6e6a;
+  --accent-soft: #e2f1ef;
+  --code-bg: #f0f2f6;
+  --warn-bg: #fff6e5;
+  --warn-fg: #7a4b00;
+  --warn-line: #f0d29a;
+  --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161d; --surface: #1a1f28; --fg: #e3e7ee; --muted: #9aa3b2; --line: #2b3240;
+    --accent: #4fc4b9; --accent-soft: #173331; --code-bg: #0e1218;
+    --warn-bg: #2e2412; --warn-fg: #f0c36d; --warn-line: #5a4520;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a1f28; --fg: #e3e7ee; --muted: #9aa3b2; --line: #2b3240;
+  --accent: #4fc4b9; --accent-soft: #173331; --code-bg: #0e1218;
+  --warn-bg: #2e2412; --warn-fg: #f0c36d; --warn-line: #5a4520;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1060px; margin: 0 auto; padding-block: 40px 80px; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 13px; }
+nav.toc p { margin: 0 0 8px; color: var(--muted); letter-spacing: .08em; font-size: 12px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: block; padding: 2px 0 2px 10px; border-left: 2px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); border-left-color: var(--accent); }
+main { min-width: 0; max-width: 760px; }
+header.top { padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: .06em; margin: 0 0 6px; }
+h1 { font-size: 30px; line-height: 1.3; margin: 0 0 10px; text-wrap: balance; font-weight: 700; }
+.lede { color: var(--muted); margin: 0; }
+h2 { font-size: 21px; margin: 48px 0 12px; padding-top: 8px; text-wrap: balance; scroll-margin-top: 24px; }
+h3 { font-size: 16px; margin: 28px 0 8px; }
+p { margin: 0 0 12px; }
+a { color: var(--accent); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; min-width: 0; }
+.table-wrap { overflow-x: auto; margin: 12px 0 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.code { position: relative; margin: 10px 0 18px; }
+.code .label { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+.copy { font: inherit; font-size: 12px; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+.copy:hover, .copy:focus-visible { border-color: var(--accent); outline: none; }
+.note { background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.note strong { color: inherit; }
+.tip { background: var(--accent-soft); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+ul { padding-left: 1.3em; margin: 0 0 12px; }
+li { margin: 3px 0; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+@media (max-width: 860px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding-block: 24px 56px; }
+  nav.toc { position: static; margin-bottom: 8px; }
+  nav.toc ol { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  h1 { font-size: 25px; }
+  .facts { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .facts dd { margin-bottom: 8px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="目录">
+    <p>目录</p>
+    <ol>
+      <li><a href="#start">接入信息</a></li>
+      <li><a href="#models">模型与价格</a></li>
+      <li><a href="#quick">三步跑通</a></li>
+      <li><a href="#python">Python 示例</a></li>
+      <li><a href="#more">图生视频与参考</a></li>
+      <li><a href="#params">参数说明</a></li>
+      <li><a href="#result">任务状态与结果</a></li>
+      <li><a href="#billing">计费与余额</a></li>
+      <li><a href="#faq">限制与常见问题</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="top">
+      <p class="eyebrow">TOVO.SH · SEEDANCE 2.0</p>
+      <h1>Seedance 视频生成接入手册</h1>
+      <p class="lede">本服务提供字节跳动 Seedance 2.0 视频生成接口。接口格式与火山方舟官方 API 一致：把官方示例里的地址换成 <code>https://tovo.sh</code>、密钥换成你的令牌，就可以直接调用。</p>
+    </header>
+
+    <h2 id="start">接入信息</h2>
+    <dl class="facts">
+      <dt>接口地址</dt><dd><code>https://tovo.sh</code></dd>
+      <dt>认证方式</dt><dd>请求头 <code>Authorization: Bearer sk-你的令牌</code></dd>
+      <dt>控制台</dt><dd>浏览器打开 <a href="https://tovo.sh" target="_blank" rel="noopener">https://tovo.sh</a>，用我们提供的账号登录，可以查看余额、消费明细，也可以在「API 密钥」页面新建或删除令牌</dd>
+      <dt>接口格式</dt><dd>火山方舟视频生成原生格式（创建任务 + 查询任务）</dd>
+    </dl>
+    <div class="note"><strong>请保管好令牌。</strong>令牌等同于账户余额的支付凭证，不要写进前端代码或公开仓库。怀疑泄露时，在控制台「API 密钥」页面删除旧令牌、新建一个即可。首次登录后请修改初始密码。</div>
+
+    <h2 id="models">模型与价格</h2>
+    <p>按生成视频实际消耗的 token 计费，价格与火山方舟官方刊例价一致。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>模型 ID</th><th>分辨率</th><th>单价（元 / 百万 token）</th><th>带参考视频时</th></tr></thead>
+        <tbody>
+          <tr><td><code>doubao-seedance-2-0-fast-260128</code></td><td>480p、720p</td><td class="num">37</td><td class="num">22</td></tr>
+          <tr><td><code>doubao-seedance-2-0-mini-260615</code></td><td>480p、720p</td><td class="num">23</td><td class="num">14</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>token 用量大约等于 <code>（输入视频秒数 + 输出秒数）× 宽 × 高 × 24 ÷ 1024</code>。参考费用（16:9，无参考视频，按估算 token 计算，实际以账单为准）：</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>规格</th><th>约 token</th><th>mini</th><th>fast</th></tr></thead>
+        <tbody>
+          <tr><td>480p · 5 秒</td><td class="num">4.8 万</td><td class="num">¥1.10</td><td class="num">¥1.78</td></tr>
+          <tr><td>720p · 5 秒</td><td class="num">10.8 万</td><td class="num">¥2.48</td><td class="num">¥4.00</td></tr>
+          <tr><td>720p · 10 秒</td><td class="num">21.6 万</td><td class="num">¥4.97</td><td class="num">¥7.99</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>实测一条 mini · 480p · 4 秒文生视频，实际用量 40,594 token，扣费 ¥0.93。</p>
+
+    <h2 id="quick">三步跑通</h2>
+    <p>先用最便宜的规格（mini、480p、4 秒）确认链路是通的。以下命令在 macOS / Linux 终端直接运行，Windows 可用 Git Bash 或 WSL。</p>
+
+    <h3>第 1 步　提交任务</h3>
+    <div class="code"><div class="label"><span>bash</span><button class="copy" type="button">复制</button></div><pre>export TOVO_KEY="sk-你的令牌"
+
+curl -s https://tovo.sh/api/v3/contents/generations/tasks \
+  -H "Authorization: Bearer $TOVO_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "doubao-seedance-2-0-mini-260615",
+    "content": [
+      { "type": "text", "text": "一只橘猫在窗台上伸懒腰，阳光洒进来，镜头缓慢推近" }
+    ],
+    "resolution": "480p",
+    "ratio": "16:9",
+    "duration": 4,
+    "generate_audio": false,
+    "watermark": false
+  }'</pre></div>
+    <p>成功会立即返回任务 ID：</p>
+    <div class="code"><div class="label"><span>返回</span></div><pre>{"id":"task_wqZPE7wb6pRMq14fEzpfORzNcW1yKeeu"}</pre></div>
+
+    <h3>第 2 步　查询进度</h3>
+    <p>视频生成需要一到几分钟（实测 480p 4 秒约 1.5 分钟）。每 10 秒左右查询一次，直到 <code>status</code> 变成 <code>succeeded</code> 或 <code>failed</code>。</p>
+    <div class="code"><div class="label"><span>bash</span><button class="copy" type="button">复制</button></div><pre>TASK_ID="task_wqZPE7wb6pRMq14fEzpfORzNcW1yKeeu"   # 换成上一步返回的 id
+
+curl -s https://tovo.sh/api/v3/contents/generations/tasks/$TASK_ID \
+  -H "Authorization: Bearer $TOVO_KEY"</pre></div>
+    <p>完成时的返回（节选）：</p>
+    <div class="code"><div class="label"><span>返回</span></div><pre>{
+  "id": "task_wqZPE7wb6pRMq14fEzpfORzNcW1yKeeu",
+  "model": "doubao-seedance-2-0-mini-260615",
+  "status": "succeeded",
+  "content": { "video_url": "https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/...mp4?..." },
+  "resolution": "480p",
+  "ratio": "16:9",
+  "duration": 4,
+  "framespersecond": 24,
+  "usage": { "completion_tokens": 40594, "total_tokens": 40594 }
+}</pre></div>
+
+    <h3>第 3 步　下载视频</h3>
+    <p>两种方式任选其一：</p>
+    <div class="code"><div class="label"><span>方式 A：直接下载 video_url（不经过我们的服务器，速度最快）</span><button class="copy" type="button">复制</button></div><pre>curl -L -o output.mp4 "这里粘贴 content.video_url 的完整地址"</pre></div>
+    <div class="code"><div class="label"><span>方式 B：通过 tovo.sh 代理下载（只需要任务 ID 和令牌）</span><button class="copy" type="button">复制</button></div><pre>curl -L -o output.mp4 https://tovo.sh/v1/videos/$TASK_ID/content \
+  -H "Authorization: Bearer $TOVO_KEY"</pre></div>
+    <div class="note"><strong>视频地址只保留 24 小时。</strong>两种方式都依赖同一个临时地址，过期后视频无法再下载。请在任务完成后尽快下载并保存到自己的存储。</div>
+
+    <h2 id="python">Python 完整示例</h2>
+    <p>提交、轮询、下载一次完成。需要 <code>pip install requests</code>。</p>
+    <div class="code"><div class="label"><span>seedance_demo.py</span><button class="copy" type="button">复制</button></div><pre>import os
+import time
+import requests
+
+BASE_URL = "https://tovo.sh"
+API_KEY = os.environ["TOVO_KEY"]          # export TOVO_KEY="sk-你的令牌"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+
+def submit_task():
+    """提交视频生成任务，返回任务 ID"""
+    payload = {
+        "model": "doubao-seedance-2-0-mini-260615",
+        "content": [{"type": "text", "text": "海浪拍打礁石，黄昏，航拍视角缓慢后退"}],
+        "resolution": "480p",
+        "ratio": "16:9",
+        "duration": 4,
+        "generate_audio": False,
+    }
+    resp = requests.post(f"{BASE_URL}/api/v3/contents/generations/tasks",
+                         headers=HEADERS, json=payload, timeout=60)
+    resp.raise_for_status()
+    return resp.json()["id"]
+
+
+def wait_for_task(task_id, interval_seconds=10, max_wait_seconds=1800):
+    """轮询任务直到结束，返回最后一次查询结果"""
+    deadline = time.time() + max_wait_seconds
+    while time.time() &lt; deadline:
+        resp = requests.get(f"{BASE_URL}/api/v3/contents/generations/tasks/{task_id}",
+                            headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+        task = resp.json()
+        print("status:", task.get("status"))
+        if task.get("status") in ("succeeded", "failed", "expired", "cancelled"):
+            return task
+        time.sleep(interval_seconds)
+    raise TimeoutError(f"task {task_id} not finished in time")
+
+
+def download_video(task_id, output_path):
+    """经 tovo.sh 代理下载视频（24 小时内有效）"""
+    with requests.get(f"{BASE_URL}/v1/videos/{task_id}/content",
+                      headers=HEADERS, stream=True, timeout=300) as resp:
+        resp.raise_for_status()
+        with open(output_path, "wb") as output_file:
+            for chunk in resp.iter_content(chunk_size=1 &lt;&lt; 20):
+                output_file.write(chunk)
+
+
+if __name__ == "__main__":
+    task_id = submit_task()
+    print("task id:", task_id)
+    task = wait_for_task(task_id)
+    if task["status"] == "succeeded":
+        download_video(task_id, "output.mp4")
+        print("saved output.mp4, tokens:", task["usage"]["completion_tokens"])
+    else:
+        print("failed:", task.get("error"))</pre></div>
+
+    <h2 id="more">图生视频与参考素材</h2>
+    <p>在 <code>content</code> 数组里加入图片、视频或音频即可。素材可以是公网可访问的 URL；图片和音频也可以用 Base64（如 <code>data:image/png;base64,...</code>）。以下三种用法<strong>互斥</strong>，一次请求只能选一种。</p>
+
+    <h3>首帧生成</h3>
+    <p>视频从这张图开始。1 张图，<code>role</code> 填 <code>first_frame</code>（也可以不填）。</p>
+    <div class="code"><div class="label"><span>请求体</span><button class="copy" type="button">复制</button></div><pre>{
+  "model": "doubao-seedance-2-0-fast-260128",
+  "content": [
+    { "type": "text", "text": "女孩转身微笑，头发被风吹起" },
+    { "type": "image_url", "image_url": { "url": "https://example.com/first.png" }, "role": "first_frame" }
+  ],
+  "resolution": "720p",
+  "duration": 5
+}</pre></div>
+
+    <h3>首尾帧生成</h3>
+    <p>指定开头和结尾两张图，模型生成中间的过渡。2 张图，<code>role</code> 必填。</p>
+    <div class="code"><div class="label"><span>请求体</span><button class="copy" type="button">复制</button></div><pre>{
+  "model": "doubao-seedance-2-0-fast-260128",
+  "content": [
+    { "type": "text", "text": "花苞缓慢绽放" },
+    { "type": "image_url", "image_url": { "url": "https://example.com/start.png" }, "role": "first_frame" },
+    { "type": "image_url", "image_url": { "url": "https://example.com/end.png" },   "role": "last_frame" }
+  ],
+  "resolution": "720p",
+  "duration": 5
+}</pre></div>
+
+    <h3>多模态参考</h3>
+    <p>最多 9 张参考图、3 段参考视频、3 段参考音频，在提示词里用「图片1」「视频1」按顺序引用。每个素材的 <code>role</code> 必填。至少要有一张图或一段视频，不能只给音频。<strong>带参考视频时按上表「带参考视频」单价计费，参考视频的时长也计入 token。</strong></p>
+    <div class="code"><div class="label"><span>请求体</span><button class="copy" type="button">复制</button></div><pre>{
+  "model": "doubao-seedance-2-0-mini-260615",
+  "content": [
+    { "type": "text", "text": "图片1中的小狗按照视频1的运镜在草地上奔跑" },
+    { "type": "image_url", "image_url": { "url": "https://example.com/dog.png" },     "role": "reference_image" },
+    { "type": "video_url", "video_url": { "url": "https://example.com/camera.mp4" }, "role": "reference_video" }
+  ],
+  "resolution": "480p",
+  "ratio": "16:9",
+  "duration": 5
+}</pre></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>素材</th><th>要求</th></tr></thead>
+        <tbody>
+          <tr><td>图片</td><td>jpeg / png / webp / bmp / tiff / gif / heic；单张小于 30 MB；宽高比 0.4–2.5；边长 300–6000 px</td></tr>
+          <tr><td>参考视频</td><td>mp4 / mov（H.264 或 H.265）；每段 2–15 秒，最多 3 段，总长不超过 15 秒；单个不超过 200 MB；帧率 24–60；只支持 URL</td></tr>
+          <tr><td>参考音频</td><td>wav / mp3；每段 2–15 秒，最多 3 段，总长不超过 15 秒；单段不超过 15 MB</td></tr>
+          <tr><td>整个请求</td><td>不超过 64 MB（Base64 图片会让请求体变大，素材多时优先用 URL）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="params">参数说明</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>参数</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>model</code></td><td>必填，见「模型与价格」</td></tr>
+          <tr><td><code>content</code></td><td>必填，数组；文本 <code>{"type":"text","text":"..."}</code> 加可选素材。中文提示词建议 500 字以内</td></tr>
+          <tr><td><code>resolution</code></td><td><code>480p</code> 或 <code>720p</code>，默认 <code>720p</code>。fast / mini 不支持 1080p 和 4k，传了会被拒绝</td></tr>
+          <tr><td><code>ratio</code></td><td><code>16:9</code>、<code>4:3</code>、<code>1:1</code>、<code>3:4</code>、<code>9:16</code>、<code>21:9</code>、<code>adaptive</code>（按素材自动选择，默认值）</td></tr>
+          <tr><td><code>duration</code></td><td>视频秒数，4–15 的整数；<code>-1</code> 表示由模型决定长度（此时按最长 15 秒预扣，完成后按实际退差）</td></tr>
+          <tr><td><code>generate_audio</code></td><td>是否同时生成声音，默认 <code>true</code>；不需要声音时传 <code>false</code></td></tr>
+          <tr><td><code>watermark</code></td><td>是否加「AI 生成」水印，默认 <code>false</code></td></tr>
+          <tr><td><code>return_last_frame</code></td><td>传 <code>true</code> 时，结果里额外返回尾帧图片 <code>content.last_frame_url</code>，可用于续拍下一段</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="result">任务状态与结果</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>status</th><th>含义</th><th>处理</th></tr></thead>
+        <tbody>
+          <tr><td><code>queued</code></td><td>排队中</td><td>继续查询</td></tr>
+          <tr><td><code>running</code></td><td>生成中</td><td>继续查询</td></tr>
+          <tr><td><code>succeeded</code></td><td>完成</td><td>读取 <code>content.video_url</code>，24 小时内下载</td></tr>
+          <tr><td><code>failed</code></td><td>失败</td><td>看 <code>error.code</code> / <code>error.message</code>；失败任务不收费，预扣金额自动退回</td></tr>
+          <tr><td><code>expired</code></td><td>超时未完成</td><td>不收费，可重新提交</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>返回的 <code>id</code> 以 <code>task_</code> 开头，是本平台的任务号，查询和下载都用它。任务记录也可以在控制台「任务日志」里查看。</p>
+
+    <h2 id="billing">计费与余额</h2>
+    <ul>
+      <li><strong>提交时预扣</strong>：按请求的分辨率和时长估算 token，先从余额里扣掉这部分。余额不足时，提交会直接返回错误，不会产生任务。</li>
+      <li><strong>完成后结算</strong>：按实际返回的 <code>usage.completion_tokens</code> 计价，多退少补。</li>
+      <li><strong>失败不收费</strong>：任务失败或超时，预扣金额全部退回。</li>
+      <li><strong>查看明细</strong>：登录控制台，「钱包」看余额，「使用日志」看每次扣费。</li>
+      <li><strong>充值</strong>：联系我们的商务人员。</li>
+    </ul>
+
+    <h2 id="faq">限制与常见问题</h2>
+    <h3>不支持的功能</h3>
+    <ul>
+      <li><code>callback_url</code>（任务完成回调）：传了会被拒绝，请改用轮询查询。</li>
+      <li>取消任务、列出全部任务：暂不提供，需要时请在自己的系统里记录任务 ID。</li>
+      <li>1080p、4k：fast 和 mini 两个模型本身不支持。</li>
+      <li>素材 ID（<code>asset://...</code>）：请改用公网 URL 或 Base64。</li>
+    </ul>
+    <h3>常见错误</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
+        <tbody>
+          <tr><td>HTTP 401</td><td>令牌缺失、写错或已被删除。确认请求头是 <code>Authorization: Bearer sk-...</code></td></tr>
+          <tr><td>提示余额不足 / 额度不足</td><td>余额不够本次预扣，联系商务充值</td></tr>
+          <tr><td>提示分辨率不支持</td><td>fast / mini 只支持 480p、720p</td></tr>
+          <tr><td>HTTP 429 或提示请求过多</td><td>同时进行的任务太多，稍等几秒后重试，并适当降低并发</td></tr>
+          <tr><td>任务 <code>failed</code>，提示内容审核</td><td>提示词或素材未通过审核。Seedance 2.0 不接受包含真人人脸的参考图片或视频</td></tr>
+          <tr><td>素材相关报错</td><td>素材 URL 必须能从公网直接下载（不能需要登录或签名已过期），并符合上表的格式和尺寸要求</td></tr>
+          <tr><td>下载视频 403 / 404</td><td>超过 24 小时，视频地址已失效，需要重新生成</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tip">更多提示词写法和素材用法，可以参考火山方舟官方文档《<a href="https://ark.volcengine.com/region:cn-beijing/docs/seedance-2-0" target="_blank" rel="noopener">Doubao Seedance 2.0 系列教程</a>》和《<a href="https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh" target="_blank" rel="noopener">创建视频生成任务</a>》。请求格式与本服务一致，调用时把地址换成 <code>https://tovo.sh</code> 即可。</div>
+
+    <footer>tovo.sh · Seedance 接入手册 · 2026-11-10 版</footer>
+  </main>
+</div>
+
+<script>
+// 代码块复制按钮：复制同一 .code 容器内 pre 的文本，失败时退回选中文本
+document.querySelectorAll('.code .copy').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var pre = button.closest('.code').querySelector('pre');
+    var text = pre.innerText;
+    var done = function () { button.textContent = '已复制'; setTimeout(function () { button.textContent = '复制'; }, 1500); };
+    var selectFallback = function () {
+      var range = document.createRange(); range.selectNodeContents(pre);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      button.textContent = '已选中，按 Ctrl/⌘+C';
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, selectFallback);
+    } catch (e) { selectFallback(); }
+  });
+});
+</script>
