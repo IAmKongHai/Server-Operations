@@ -2,11 +2,14 @@
 # 使用方：nyhAgent / nyhCenter（PHP，经 127.0.0.1:7480）、yunshu-api（host.docker.internal:7480）、
 #         richer-web（172.17.0.1:7480）。所以端口发布到回环和 docker0 网关两个地址，应用配置都不用改。
 # 公网访问由轻量服务器防火墙挡住（不放行 7480）；另有 requirepass。
-# redis.conf 含密码，只在服务器上（/opt/stacks/redis-7480/redis.conf，root 600），不入库。
+# redis.conf 含密码，只在服务器上（/opt/stacks/redis-7480/redis.conf，600），不入库。
+# 容器以宿主机专用用户 redis7480（992:989）运行，配置和 data/ 都属于它。不用镜像默认的 uid 999：
+# 999 在这台机器上是 nyh-notify，会让它读到 Redis 密码（旧机 shared-redis 踩过同样的坑）。
 services:
   redis-7480:
     image: redis:8.0.5
     container_name: redis-7480
+    user: "992:989"
     restart: always
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:

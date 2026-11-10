@@ -1,0 +1,12 @@
+[Unit]
+Description=Public DNS + routes so Aliyun VPC DNS works with Tailscale
+After=network-online.target systemd-resolved.service tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fix-aliyun-dns-vs-tailscale.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

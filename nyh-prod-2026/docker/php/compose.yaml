@@ -12,6 +12,12 @@
 x-php-common: &php-common
   network_mode: host
   restart: always
+  # Sury 2026-10 起的 PHP-FPM 构建内置了 "Secure DNS Telemetry"（编译参数 TELEMETRY_HOST=telemetry.sury.org，
+  # 见容器内 /usr/lib/php/php-common.mk），FPM 启动时会解析并联系这个地址，没有关闭开关。
+  # 这里把它指向 127.0.0.1：解析在本地完成，后续发往 127.0.0.1:53 的包无人接收立即失败，
+  # 不会有数据出去；否则阿里云 DNS 上查询超时会让 FPM 启动卡 40 秒。
+  extra_hosts:
+    - "telemetry.sury.org:127.0.0.1"
   environment:
     TZ: Asia/Shanghai
   volumes:
