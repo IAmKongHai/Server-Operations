@@ -14,6 +14,7 @@ execution: code
 > - 15:45 初稿（新机装宝塔、整体覆盖）。
 > - 16:10 用户确认旧机不续费；旧机 `/www` 已清理到 16G。
 > - 16:25 **用户决定新机不装宝塔**：以后服务器全部由 Claude 维护，不再人工在面板里操作。本版按纯 Debian（apt + systemd + certbot）重写 U3–U6。
+> - 16:35 **用户决定 PHP 用 Docker 运行**（以后这台机器上的服务都尽量用 Docker）；Redis 按 Claude 建议也用 Docker。见 KTD8，KTD1 表中 PHP / Redis / supervisor 三行以 KTD8 为准。
 
 ## Goal Capsule
 
@@ -117,7 +118,15 @@ execution: code
   | 防火墙 / 面板 / WAF / 统计 | 轻量服务器防火墙；其它不要 |
   | `.user.ini` 的 open_basedir | Sury PHP-FPM 同样读 `.user.ini`（`user_ini.filename` 默认值），文件随目录同步，不用改 |
 
-- **KTD2. nginx 配置转写。** 不手写 27 个站点。脚本逐个读取宝塔 vhost，做固定替换：`include enable-php-74.conf` → `include snippets/php74.conf`（`fastcgi_pass unix:/run/php/php7.4-fpm.sock`），82、00 同理；`/www/server/panel/vhost/rewrite/` → `/etc/nginx/nyh/rewrite/`，`extension/` → `/etc/nginx/nyh/extension/`（目录原样拷过去）；证书路径 → `/etc/nginx/certs/<站点>/`（先放旧证书，certbot 签完再改成 `/etc/letsencrypt/live/`）；去掉宝塔专用的行（`site_total` 日志格式、WAF、`#error_page` 注释块等）。`http` 级别的公共配置（`0.websocket.conf`、`0.fastcgi_cache.conf`、HSTS、TLS 套件）放进 `/etc/nginx/conf.d/`。转写后 `nginx -t` 必须通过。
+- **KTD8. PHP 与 Redis 容器化（16:35 用户决定）。**
+  - 镜像：自建 `nyh/php74`、`nyh/php82`，`FROM debian:trixie` + Sury 包（与旧机同版本、同扩展），容器内建 `www`(1000)。**不用官方 `php:7.4-fpm`**（2022 年停更，底层是未打补丁的 Debian 11）。Dockerfile 和 compose 放本仓库 `nyh-prod-2026/docker/php/`，服务器上在 `/opt/stacks/php/`。
+  - 运行：compose 项目 `php`，三个容器：`php74-fpm`（`127.0.0.1:9074`）、`php82-fpm`（`127.0.0.1:9082`）、`php74-worker`（容器内 supervisord 跑 9 个 PHP 队列进程：cashRefund、createOrderJobQueue×5、nyh-sms-worker、fareJobQueue、orderPushJobQueue）。全部 `network_mode: host`，挂载 `/www/wwwroot`、`/www/php_session`（同路径），`TZ=Asia/Shanghai`。host 网络保证应用里的 `127.0.0.1` 地址、RDS 白名单、出口 IP 都不变。
+  - nginx 留在宿主机（apt），`fastcgi_pass 127.0.0.1:9074` / `9082`；`SCRIPT_FILENAME` 路径与容器内一致，`.user.ini` 的 open_basedir 照常生效。
+  - 宿主机 `/usr/local/bin/php74`、`php82` 是包装脚本：`docker exec -i -u www -w "$PWD" php74-worker php "$@"`（82 进 `php82-fpm`）。cron 和 CI 里的 `php74 think ...` 不用改。**队列 worker 不用这个包装脚本跑**：`docker exec` 的客户端被杀时容器里的进程不会退出，会留下孤儿 worker，所以常驻 worker 一律在 `php74-worker` 容器自己的 supervisord 里。
+  - `php74-worker` 容器在 U5 之前**不启动**，这就是 R2 的开关。
+  - Redis（原宝塔 7480）：`redis:8.0.x` 固定小版本，compose 项目 `redis-7480`，数据 `/www/docker/redis-7480/`，端口发布到 `127.0.0.1:7480` 和 `172.17.0.1:7480`（现有容器用 `host.docker.internal:7480`，不改应用配置），密码不变。
+  - 宿主机 supervisor 只剩 Python 的 10 个 line-* 和 `nyh-notify`（今天不容器化，后续再说）。
+- **KTD2. nginx 配置转写。** 不手写 27 个站点。脚本逐个读取宝塔 vhost，做固定替换：`include enable-php-74.conf` → `include snippets/php74.conf`（`fastcgi_pass 127.0.0.1:9074`，见 KTD8），82、00 同理；`/www/server/panel/vhost/rewrite/` → `/etc/nginx/nyh/rewrite/`，`extension/` → `/etc/nginx/nyh/extension/`（目录原样拷过去）；证书路径 → `/etc/nginx/certs/<站点>/`（先放旧证书，certbot 签完再改成 `/etc/letsencrypt/live/`）；去掉宝塔专用的行（`site_total` 日志格式、WAF、`#error_page` 注释块等）。`http` 级别的公共配置（`0.websocket.conf`、`0.fastcgi_cache.conf`、HSTS、TLS 套件）放进 `/etc/nginx/conf.d/`。转写后 `nginx -t` 必须通过。
 - **KTD3. 用户和 UID。** 新机 `admin`(1000) 与 `www`(1000)、`systemd-timesync`(997) 与 `shared-redis`(997)、`systemd-resolve`(996) 与 `nyh-wechat-mp`(996) 冲突。删掉镜像自带、没在用的 `admin`，`www` 用 1000；其它用户按名字新建、让系统分配 UID。rsync 不加 `--numeric-ids`，按用户名映射属主。`shared-redis` 容器的 `--user` 换成新 UID 重建。PHP-FPM 池用户设为 `www`（和旧机一样）。
 - **KTD4. 进程分「无状态」和「会写数据」两类。** 无状态的（nginx、php-fpm、guagua-api、nyh-wechat-mp、容器 web 层）在 U4 提前起好，用 `curl --resolve` 测。会写数据的（supervisor 全部、`/etc/cron.d/nyh-tasks`、`backup-rds`、richer-engine 等有定时逻辑的容器）在 U4 保持停止 / 注释，U5 先停旧机再起新机。
 - **KTD5. 同步范围（约 16G）。** `/www` 里带：`wwwroot`、`wwwlogs`（只带最近 7 天）、`docker`、`yunshu`、`dk_project`、`server/nyh-notify`、`server/nyh-wechat-mp`、`php_session`。不带：`server/{panel,nginx,php,redis,…}`（宝塔自身，只把 vhost / rewrite / extension / cert 单独拷出来做转写）、`backup/`、`reserve_space.pl`。`/etc` 里带：supervisor ini、自定义 systemd unit、`/etc/letsencrypt`、`/root/.ssh/authorized_keys`（含 GitHub Actions 部署公钥）、`/usr/local/sbin` 下用到的脚本。`/var/lib/docker` 不拷，镜像 `docker save` / `load`。
@@ -182,9 +191,10 @@ execution: code
 ### U3. 新机底座
 
 - 删 `admin`；建 `www`(1000)、`nyh-notify`、`nyh-wechat-mp`、`shared-redis`（KTD3）。
-- apt：`nginx`、`php7.4-*` / `php8.2-*`（Sury，扩展按旧机 `php -m`）、`redis-server`、`supervisor`、`certbot`、`fail2ban`、`rsync`、`sqlite3`、`logrotate`；Docker CE（阿里云镜像源）；Tailscale。
-- PHP：对比旧机 `php -i`，把改过的 `php.ini` 项和 FPM 池参数（`pm`、`max_children`、`request_terminate_timeout` 等）写进 `/etc/php/<ver>/{fpm/conf.d/99-nyh.ini,fpm/pool.d/www.conf}`；`/usr/local/bin/php74`、`php82` 软链。
-- Redis：`/etc/redis/redis.conf` 端口 7480、`requirepass` 同旧机，`bind 127.0.0.1 172.17.0.1` 加上 `177.10.0.0/16` 网段对应的网关（U4 建好 docker 网络后再确定）。
+- apt：`nginx`、`supervisor`、`certbot`、`fail2ban`、`rsync`、`sqlite3`、`logrotate`；Docker CE（阿里云镜像源）；Tailscale。PHP、Redis 不用 apt 装（KTD8）。
+- 构建 `nyh/php74`、`nyh/php82` 镜像；`php -m` 与旧机对比一致。
+- PHP：对比旧机 `php -i`，把改过的 `php.ini` 项和 FPM 池参数（`pm`、`max_children`、`request_terminate_timeout` 等）写进镜像里的 `conf.d/99-nyh.ini`、`pool.d/www.conf`；装 `/usr/local/bin/php74`、`php82` 包装脚本（KTD8）。
+- Redis：容器 `redis-7480`（KTD8），配置同旧机（密码、持久化策略）。
 - 轻量服务器防火墙：放行 22、80、443/tcp、443/udp、41641/udp；8080 视 Open Question 3 决定。
 - Tailscale 加入，主机名 `nyh-prod-2026`，`--advertise-exit-node`。
 - 验证：`php7.4 -m` / `php8.2 -m` 与旧机一致；`docker run --rm hello-world`；`tailscale status`。
@@ -193,7 +203,7 @@ execution: code
 
 - 第一次 `rsync -aHAX`（KTD5），旧机推到新机。
 - 宝塔 vhost / rewrite / extension / cert 拷到新机暂存目录，跑转写脚本（KTD2）生成 `/etc/nginx/sites-enabled/*.conf`，`nginx -t` 通过后启动。核对每张证书的到期时间。
-- 起 php-fpm、redis（此时是预同步的旧数据）、`guagua-api`、`nyh-wechat-mp`。supervisor 装好，ini 放进 `conf.d`，但 `supervisorctl stop all`，并把各 ini 设 `autostart=false`（U5 再改回）。
+- 起 `php74-fpm`、`php82-fpm`、`redis-7480`（此时是预同步的旧数据）、`guagua-api`、`nyh-wechat-mp`。**`php74-worker` 不起**。宿主机 supervisor 装好 Python line-* 和 nyh-notify 的 ini，但设 `autostart=false` 且不启动（U5 再改）。
 - `docker load` 镜像；按各 compose 目录 `docker compose up -d` 起 web 层容器；`shared-redis` 用新 UID 重建。`richer-engine` 先看 compose / 代码是否有定时逻辑，有就先不起。
 - 写好 `/etc/cron.d/nyh-tasks`（全部注释）、logrotate、certbot webroot。
 - 验证：新机上逐个域名 `curl -sk --resolve <域名>:443:127.0.0.1`，状态码和关键响应头与 U2 基准一致；`mp.nanyahui.com` 从公网访问是 403；PHP 站点能连 RDS（load 首页正常）。
@@ -204,11 +214,11 @@ execution: code
 2. 旧机：确认队列积压后 `supervisorctl stop all`；停 `richer-engine` 等有定时逻辑的容器、`yunshu-api`、`acquilang-backend`、`guagua-api`、`nyh-wechat-mp`。nginx / php-fpm 继续运行。
 3. 旧机宝塔 Redis `BGSAVE` → 停 → 拷 `dump.rdb` → 新机重启 Redis。
 4. 最后一次增量 rsync（上传目录、Archery `data/`、guagua `uploads/`、acquilang `uploads/` `static/`、nyh-notify / nyh-wechat-mp 工作目录、`runtime/session`）。
-5. 新机：supervisor 全部 `autostart=true` 并启动；启用 `/etc/cron.d/nyh-tasks`；起剩下的容器和服务。
+5. 新机：`docker compose up -d php74-worker`；宿主机 supervisor 的 ini 改 `autostart=true` 并启动；启用 `/etc/cron.d/nyh-tasks`；起剩下的容器和服务。
 6. 用户改 DNS：所有 A 记录改 `8.217.145.133`（`numbers.konghai.me` 改 Cloudflare 源站）。
 7. 验证（Verification Contract）。
 
-回滚（仅 22:30 前）：新机 `supervisorctl stop all`、注释 `nyh-tasks`；旧机恢复第 1、2 步；DNS 改回。
+回滚（仅 22:30 前）：新机 `docker stop php74-worker`、`supervisorctl stop all`、注释 `nyh-tasks`；旧机恢复第 1、2 步；DNS 改回。
 
 ### U6. 切换后收尾
 
@@ -225,7 +235,7 @@ execution: code
 | 项目 | 标准 |
 | --- | --- |
 | 站点 | U2 基准里每个域名的状态码和关键响应头，在新机上一致 |
-| 队列 | 新机 supervisor 20 个 RUNNING，旧机 0；`think jobs:monitor` 不报积压；`line-*` 日志无连接被拒 / 403 |
+| 队列 | 新机 `php74-worker` 容器内 9 个 + 宿主机 supervisor 11 个 RUNNING，旧机 0；`think jobs:monitor` 不报积压；`line-*` 日志无连接被拒 / 403 |
 | 公众号 | `nyh-wechat-mp` `/healthz` 正常，有新的回调记录 |
 | 容器 | `docker ps` 与旧机切换前一致（`fa-mysql` 停着），健康检查 healthy |
 | RDS 连接 | 旧机到 `172.31.138.209:5432` 的连接降到 0，新机有连接 |
