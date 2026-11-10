@@ -1,5 +1,22 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-10 18:05–18:30 CST - DNS 切换后验证；修复 Cloudflare 回源 525（TLS HelloRetryRequest）
+
+- 服务器：`nyh-prod-2026`
+- 操作人：用户改 DNS；`Claude` 验证、排查、改 nginx
+- 原因：用户 18:05 前后把 DNS 改到 `8.217.145.133`，开始公网验证。
+- 影响：`/etc/nginx/nginx.conf` 加了一行 `ssl_ecdh_curve`（见下），`systemctl reload nginx`（平滑，不断连接）；装了 `tcpdump`。
+- 备份：`/etc/nginx/nginx.conf.bak.20261110`。
+- 回滚方式：`cp /etc/nginx/nginx.conf.bak.20261110 /etc/nginx/nginx.conf && nginx -t && systemctl reload nginx`。
+- 验证与发现：
+  1. 公网经新 IP 访问 18 个站点，状态码与旧机基准一致。
+  2. **`numbers.konghai.me`（Cloudflare 橙云）回源 525**。tcpdump 看到：Cloudflare 第一个 ClientHello（517 字节，SNI 正确）→ 新机回 99 字节 HelloRetryRequest（random 以 `cf21ad74…` 开头）→ Cloudflare 第二个 ClientHello（1471 字节，带 X25519MLKEM768）→ 新机回 alert `fatal illegal_parameter(47)` 并断开。原因是 Debian 13 的 OpenSSL 3.5 默认按 `X25519MLKEM768 / X25519…` 分组，客户端只带 X25519 key share 时也会要求改用抗量子组；旧机宝塔的 OpenSSL 不支持 ML-KEM，不会走 HRR。OpenSSL 客户端（s_client 3.5）走 HRR 能成功，只有 Cloudflare 回源失败。
+     修复：`nyh-prod-2026/nginx/nginx.conf` 的 http 块加 `ssl_ecdh_curve X25519MLKEM768:X25519:prime256v1:secp384r1;`（单个优先级组，客户端带了哪个组的 key share 就直接用，不发 HRR）。之后 numbers 返回 403，与旧机基准相同（站点根目录无首页）；tizi-kh 用 X25519MLKEM768 / X25519 / P-256 分别握手都成功。
+  3. 新机 apt 不能用：源 `mirrors.cloud.aliyuncs.com` 解析为 `100.100.2.148`，与 VPC DNS 一样被 Tailscale `ts-input` 丢弃。这次临时用 `deb.debian.org` 单独装了 tcpdump，系统源配置没改，待修。
+  4. jobs 监控（`/var/log/nyh-cron/*-jobs-monitor.log`）每 5 分钟一次，均为"异常 0 组"；微信回调已经打到新机。
+  5. 旧机 18:20 后只剩 `nyh-2025`（宝塔，弃用）、`load.nanyahui.com` 上合作方 `119.23.185.225`（Java 客户端，只读的 `/openapi/v1/orders`、`balance`）仍走旧 IP，旧机到 RDS 只剩 1 条连接。17:52 后旧机只收到两个 POST（17:55 微信支付回调、17:56 新机发来的订单回调，都在改 DNS 前，返回 200；队列在 RDS `jobs` 表，新机 worker 照常处理）。
+  6. 权威 DNS 仍是旧 IP：`load.nanyahui.cn`、`guagua.honc.fun`、`kanova.app` / `admin.kanova.app` / `api.kanova.app`；`zen-design-hualu.konghai.me`、`m.kanova.app` 没有记录；用户已删 `admin-al` / `api-al` / `m-al`。
+
 ## 2026-11-10 17:51–18:00 CST - 切换（计划 U5）：后台任务从旧机交接到新机
 
 - 服务器：`nyh-prod-2026`（旧机一侧见 `docs/operations/nyh-prod.md` 同一时间的条目）
