@@ -1,5 +1,25 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-12 00:40–00:43 CST - 使用用户 hon 令牌端到端验证 Gemini TTS 语音合成与计费对账
+
+- 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh/gemini`）
+- 操作人：`Antigravity`（按用户指令使用 `hon` 的 API Key 实测 Gemini TTS）
+- 原因：验证 `hon`（`user_id=3`）既有生产令牌无需换 Key 即可经 `tovo.sh` 调用 Google Gemini TTS 模型合成中英双语语音，并核验 `AUDIO` 模态输出 token 是否按 `150% × 7.3` 倍率准确扣费。
+- 影响：仅使用 `hon` 名下令牌 `id=6` `青帆`（`sk-L5XCiz...IQ2f`）发起 4 次 TTS 与 1 次 Whisper STT 闭环验证请求（累计消耗 `quota=29,054`，折合 `¥0.058108`），未修改任何服务器配置或数据库策略。
+- 回滚方式：纯接口调用与只读核账，无配置变更，无需回滚。
+- 验证结果：
+  1. **调用端点与鉴权方式**：Gemini TTS 走原生端点 `POST https://tovo.sh/v1beta/models/{model}:generateContent`（`new-api` Gemini 渠道适配器未实现 `/v1/audio/speech` 转换），实测 `x-goog-api-key: sk-...` 与 `Authorization: Bearer sk-...` 两种请求头均正常鉴权并命中渠道 `#8`（`DO1-Gemini-Primary`）。
+  2. **新一代正式版 TTS（推荐业务使用，直传纯文本、直出标准 WAV）**：
+     - `gemini-3.8-flash-tts`（`voiceName=Kore`，中英混合文本）：两次调用均 `200 OK`（耗时 `4.48s` / `4.68s`），直接返回带标准 RIFF 头的 `audio/wav`（`24000Hz / 16bit / 单声道`，约 `6.36s`、`311,396 bytes`）；送入同令牌 `POST https://tovo.sh/v1/audio/transcriptions`（`whisper-large-v3-turbo`）闭环转写为 `'你好,欢迎使用清凡语音合成服务。Hello from Gemini TTS。'`，发音清晰准确。
+     - `gemini-3.8-flash-lite-tts`（`voiceName=Kore`）：`200 OK`（耗时 `2.92s`），同样直接返回标准 `audio/wav`（约 `6.09s`、`292,196 bytes`）。
+  3. **旧版预览 TTS 差异说明（`gemini-2.5-flash-preview-tts`）**：
+     - 直接传纯文本时上游返回 `400`（`Model tried to generate text, but it should only be used for TTS`），需显式加朗读指令前缀（如 `"Say cheerfully: ..."`）才返回 `200 OK`（耗时 `4.30s`）；且返回格式为无 WAV 头的裸 PCM 流 `audio/L16;codec=pcm;rate=24000`（`330,766 bytes`），不如 `3.8` 系列开箱即用。
+  4. **账单精确对账（`billing-usage-gemini` 路径准确按 `CompletionRatio` 计入 `AUDIO` 输出 token）**：
+     - 日志 `#72` `gemini-3.8-flash-tts`（`in=16, audio_out=153`）：实扣 `quota=7,583`（`¥0.015166`），理论值 `(16 + 153×18) × 2.7375 = 7,582.88`。
+     - 日志 `#75` `gemini-3.8-flash-tts`（`in=16, audio_out=159`）：实扣 `quota=7,879`（`¥0.015758`），理论值 `(16 + 159×18) × 2.7375 = 7,878.53`。
+     - 日志 `#73` `gemini-3.8-flash-lite-tts`（`in=16, audio_out=149`）：实扣 `quota=3,693`（`¥0.007386`），理论值 `(16 + 149×18) × 1.36875 = 3,692.89`。
+     - 日志 `#77` `gemini-2.5-flash-preview-tts`（`in=20, audio_out=172`）：实扣 `quota=9,472`（`¥0.018944`），理论值 `(20 + 172×20) × 2.7375 = 9,471.75`。
+
 ## 2026-11-12 00:10–00:26 CST - 在 new-api 接入 Anthropic(15)、Gemini(62)、OpenAI(98) 官方主备渠道并统一按官方价 150% 人民币计费
 
 - 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh` / `100.86.92.103:8080`）
