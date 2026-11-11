@@ -1,5 +1,29 @@
 # do-1 运维操作时间线
 
+## 2026-11-11 22:37–22:45 CST - 彻底移除已停用的 new-api（tovo.sh 旧部署）
+
+- 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）
+- 操作人：Claude（用户确认「全部删除」，含托管库）
+- 原因：`tovo.sh` 已迁到 `nyh-prod-2026`（公网 DNS 已指向 `8.217.145.133`），DO-1 上的 `new-api@blue` 还在空跑，监听 `*:3001`（所有网卡），并且还在续期 `tovo.sh` 证书。
+- 影响：去掉 `tovo.sh` 在 DO-1 上的入口（未知 Host 默认 444）；nginx 平滑 reload 1 次，`sub2api` 和 `sub.tovo.sh` 不受影响。删除前库里最后一条请求日志在 11-11 当天，应该是还缓存着旧 DNS 的客户端。
+- 备份：服务器 `/root/new-api-removal-20261111/`，本机 `_backups/do-1-new-api-removal-20261111/`（不入库）：
+  - `new_api-final.dump`：`pg_dump -Fc`，38 张表
+  - `redis-db1.txt`：Redis DB 1 全部 10 个 key 的明文导出
+  - `new-api-files.tgz`：`/etc/new-api`、unit、nginx 站点 / upstream、3 个脚本、`/var/backups/new-api` 历史 dump、`/var/log/new-api`、`tovo.sh` 证书
+  - `tk-pro-backups`：改之前的 cron 文件
+- 回滚方式：在托管 PG 用 `doadmin` 重建 `new_api` 角色和库，`pg_restore --no-owner` 导入 dump；解开 tgz 还原文件，`useradd -r -s /usr/sbin/nologin new-api`，`daemon-reload` 后 `enable --now new-api@blue`；nginx 站点恢复后签发 `tovo.sh` 证书。
+- 做了什么：
+  1. `systemctl disable --now new-api@blue`，删除 `new-api@.service`，执行 `daemon-reload`
+  2. 删除 nginx `sites-{available,enabled}/new-api.conf` 和 `upstreams/new-api-upstream.conf`，`nginx -t` 通过后 reload
+  3. `certbot delete --cert-name tovo.sh`
+  4. 从 `/etc/cron.d/tk-pro-backups` 删掉 `new-api-backup` 那一行
+  5. Redis DB 1 `FLUSHDB`（`sub2api` 的 DB 0 共 359 个 key，没动）
+  6. 托管 PG：`DROP DATABASE new_api; DROP ROLE new_api;`（剩下 `qingfan`、`sub2api`、`tk_flywheel`）
+  7. 删除 `/opt/new-api`、`/etc/new-api`、`/var/lib/new-api`、`/var/log/new-api`、`/var/backups/new-api`，以及 `/usr/local/sbin/new-api-{deploy,rollback,backup}`
+  8. `userdel new-api`
+  9. 仓库：删除 `do-1/` 下所有 new-api 配置和 `ci-templates/new-api-package.sh`，同步 cron 文件
+- 验证：没有 `new-api*` unit，3001 / 3002 无监听，`find` 查不到残留，`new-api` 用户已删除；`sub2api` 和 nginx 都 active，`:8080/health` 返回 200，`sub.tovo.sh/health` 本机和从 `nyh-prod-2026` 访问都返回 200；`certbot renew --cert-name sub.tovo.sh --dry-run` 成功。
+
 ## 2026-11-11 16:39–16:43 CST - 在 sub.tovo.sh 与 :8080 增加 /groq/ 无状态美区透明反代供 nyh-prod-2026 new-api 接入 Groq 官方 API
 
 - 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）

@@ -1,6 +1,6 @@
 # tk-pro 服务器运维手册（tk-flywheel / qingfan / new-api / sub2api）
 
-> **归档说明（2026-11-11）**：本手册迁自已废弃的 `DigitalOcean` 仓库（原 `docs/tk-flywheel-服务器运维手册.md`，最后提交 `d0e8b49`），文中 `tk-pro` 即 `do-1`。qingfan / tk-flywheel 已于 2026-11-10 迁到 `qingfan-prod`，new-api（`tovo.sh`）已迁到 `nyh-prod-2026`；DO-1 当前状态以 [`do-1/README.md`](../../do-1/README.md) 和 [`docs/operations/do-1.md`](../operations/do-1.md) 为准。
+> **归档说明（2026-11-11）**：本手册迁自已废弃的 `DigitalOcean` 仓库（原 `docs/tk-flywheel-服务器运维手册.md`，最后提交 `d0e8b49`），文中 `tk-pro` 即 `do-1`。qingfan / tk-flywheel 已于 2026-11-10 迁到 `qingfan-prod`，new-api（`tovo.sh`）已迁到 `nyh-prod-2026`，并于 2026-11-11 从 DO-1 彻底移除（下文 new-api 相关内容仅作历史参考）；DO-1 当前状态以 [`do-1/README.md`](../../do-1/README.md) 和 [`docs/operations/do-1.md`](../operations/do-1.md) 为准。
 
 > 整理日期：2026-11-02（已连上生产机 `137.184.127.196` 核实硬件、网络、数据库及线上服务状态）
 > 来源：代码仓库 `IAmKongHai/tk-flywheel`、`IAmKongHai/qingfan`、`QuantumNous/new-api`、`Wei-Shaw/sub2api` 以及本运维仓库 `do-1/`。
