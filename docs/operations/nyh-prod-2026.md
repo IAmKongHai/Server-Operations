@@ -1,5 +1,26 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 09:25–09:50 CST - 排查：nyh-prod-2026 (new-api) 与 do-1 (sub2api) 跨洋访问通道延迟与吞吐基准实测（只读）
+
+- 服务器：`nyh-prod-2026`（阿里云香港轻量，峰值带宽 200 Mbps）、`do-1`（DigitalOcean SFO3 `137.184.127.196` / Tailscale `100.86.92.103`）
+- 操作人：`Antigravity`（用户要求评估 `new-api` 接入 `do-1` `sub2api` 作为上游供应商的最稳最快连接方式）
+- 原因：对比 Tailscale WireGuard P2P 直连、本机 Nginx `do1-relay` 二次反代、公网 HTTPS `:443`（TLS 1.3 + HTTP/2 / HTTP/1.1）及美西代理跳板中转的网络延迟、抖动、重传率与上下行吞吐量。
+- 影响：纯网络探测与短时内存流测速，未修改两台服务器任何配置文件、防火墙、内核参数或运行中服务（临时测试端口测完已自动退出并确认清理）。
+- 回滚方式：无配置变更，无需回滚。
+- 做了什么与实测结论：
+  1. **底层物理路由**：往返对称走阿里云香港 ↔ NTT 国际骨干网（`129.250.*`）↔ DigitalOcean SFO3，物理 RTT `154.8–156.2 ms`，0% 丢包，回程 StDev `0.3 ms`；经 `tizi-kh`（avg `174.2 ms`，sd `18.3 ms`）、`tizi-rao`（avg `193.9 ms`，sd `23.7 ms`）、`tizi-cyp`（avg `172.3 ms`）跳板均更慢且抖动显著增大，排除中转。
+  2. **容器网络直通验证**：`new-api` 容器内经 Docker 网桥 MASQUERADE SNAT 可直接访问 `http://100.86.92.103:8080/health`（返回 `200 OK`，PMTUD 在 `tailscale0` MTU 1280 下工作正常）；而访问宿主机 `172.17.0.1:8080`（`do1-relay`）因仅放行 `127.0.0.1` 和 `100.64.0.0/10` 返回 `403`，且实测绕 `do1-relay` 比直连多 `3–12 ms` 延迟与 5 倍抖动（p95 `167.8 ms` vs `157.6 ms`）。
+  3. **连接延迟与突发对比（`new-api` 容器 netns 实测）**：
+     - 热连接复用：公网 HTTPS H2（p50 `155.42 ms`，p95 `156.45 ms`，sd `0.48 ms`）与 Tailscale HTTP Keep-Alive（p50 `148.4–155.68 ms`，p95 `157.60 ms`，sd `0.67 ms`）同处物理光速极限。
+     - 冷连接与 20 并发突发：Tailscale HTTP 省 1 个 TLS 1.3 RTT（冷建连 p50 `312.3 ms` vs 公网 HTTPS `477.7 ms`；20 并发冷突发墙钟 `439.4 ms` vs 公网 HTTPS `921.6 ms`，单次 WireGuard rekey 偶发 `474.6 ms`）；公网 HTTPS 若保持 H2 常驻连接（`RELAY_HTTP2_PING_IDLE_TIMEOUT`）则并发流无需重复握手。
+  4. **双向吞吐实测（`new-api` 容器 netns）**：
+     - 下行（DO-1 → NYH）：单次 `4.92 MiB` Tailscale `27.1 Mbps` vs 公网 H2 `24.0 Mbps`；单连接连续流 Tailscale `114.2 Mbps`、公网 H1.1 `93.2 Mbps`、公网 H2 `70.1 Mbps`（受单流 H2 窗口限制）；4 并发 `118.1 MiB` Tailscale `169.2 Mbps`（`tailscaled` 占单核约 31% CPU，0 重传）、公网 H1.1 `165.3 Mbps`，均跑满阿里云 200 Mbps 出口上限。
+     - 上行（NYH → DO-1 POST）：单连接 `40 MiB` Tailscale `81.9 Mbps` vs 公网 H1.1 `69.4 Mbps`；4 并发 `100 MiB` 公网 HTTPS H2 最快达 `153.8 Mbps`（MTU 1500 优势），公网 H1.1 `117.3 Mbps`，Tailscale `116.9 Mbps`。
+  5. **发现的待确认调优点（未改动）**：
+     - 两机均为 `cubic` + `tcp_slow_start_after_idle=1`（空闲 >1s 后大请求退回慢启动），改 `bbr` + `tcp_slow_start_after_idle=0` 可显著提速单次多模态大包；
+     - `new-api` 默认 `RELAY_IDLE_CONN_TIMEOUT=90` 大于 `do-1` Nginx 默认 `keepalive_timeout 75s`，存在 75s 边界跨洋空闲连接复用 EOF/502 竞态风险；
+     - `do-1` `/etc/nginx/nginx.conf` 未开启 `underscores_in_headers on;`，会丢弃 `sub2api` 粘性会话所需的 `session_id` 请求头；`sub2api.conf` 未关 `proxy_request_buffering`。
+
 ## 2026-11-10 23:35–23:45 CST - 修复全站 HTTP/3（QUIC reuseport + 反代 Host 头）
 
 - 服务器：`nyh-prod-2026`
