@@ -1,5 +1,32 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 10:45–11:00 CST - 打通 nyh-prod-2026 (new-api) 与 do-1 (sub2api) 主备双通道（sub.tovo.sh + BBR/Nginx 4 项调优）
+
+- 服务器：`nyh-prod-2026`、`do-1`（`137.184.127.196` / `100.86.92.103`）
+- 操作人：`Antigravity`（用户选定方案 B「公网 HTTPS IP 白名单主通道 + Tailscale 备通道」，提供已解析域名 `sub.tovo.sh`，并同意一并修复 4 项性能与稳定性隐患）
+- 影响：两机 `sysctl` 在线生效（无重启）；`do-1` Nginx 平滑 reload 2 次（无连接中断）；`nyh-prod-2026` `/opt/stacks/new-api/.env` 已写入连接池保活参数（待用户确认窗口后再重建 `new-api` 容器生效）。
+- 备份：
+  - `nyh-prod-2026`：`/root/sub2api-tovo-20261111/`（`sysctl.before`、`new-api.env.bak`）
+  - `do-1`：`/root/sub2api-tovo-20261111/`（`sysctl.before`、`nginx.conf.bak`、`sub2api.conf.bak`）
+- 回滚方式：
+  - `do-1`：`cp /root/sub2api-tovo-20261111/nginx.conf.bak /etc/nginx/nginx.conf && cp /root/sub2api-tovo-20261111/sub2api.conf.bak /etc/nginx/sites-available/sub2api.conf && nginx -t && systemctl reload nginx`；`rm -f /etc/sysctl.d/98-cross-ocean-tcp.conf /etc/modules-load.d/bbr.conf && sysctl --system`；`certbot delete --cert-name sub.tovo.sh`。
+  - `nyh-prod-2026`：`cp /root/sub2api-tovo-20261111/new-api.env.bak /opt/stacks/new-api/.env`；`rm -f /etc/sysctl.d/98-cross-ocean-tcp.conf /etc/modules-load.d/bbr.conf` 并按 `sysctl.before` 恢复 `cubic` / `fq_codel` / `tcp_slow_start_after_idle=1`。
+- 做了什么：
+  1. **两机对称开启 BBR 与跨洋 TCP 调优**：在 `nyh-prod-2026` 与 `do-1` 写入 `/etc/modules-load.d/bbr.conf`（`tcp_bbr`）和 `/etc/sysctl.d/98-cross-ocean-tcp.conf`（仓库 `nyh-prod-2026/sysctl/98-cross-ocean-tcp.conf`），在线启用 `net.core.default_qdisc=fq`、`net.ipv4.tcp_congestion_control=bbr`、`net.ipv4.tcp_slow_start_after_idle=0` 及 32MiB `rmem_max/wmem_max/tcp_rmem/tcp_wmem`。
+  2. **`do-1` 签发 `sub.tovo.sh` 证书并保障自动续期**：
+     - 建 `/var/www/sub2api-acme`；在 `/etc/nginx/sites-available/sub2api.conf` 新增 `sub.tovo.sh` 的 `:80` 与 `:443` server 块（与 `:8080` 共享 `sub2api_backend` upstream，兼容 `sub2api-deploy` 蓝绿发布且避免重复定义 upstream）。
+     - `:80` 与 `:443` 的 `location ^~ /.well-known/acme-challenge/` 均独立显式配置 `allow all;`，不受 API IP 白名单影响；续期由 `do-1` 既有 `certbot.timer` + `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx` 自动平滑重载。
+     - `certbot certonly --webroot -w /var/www/sub2api-acme --cert-name sub.tovo.sh -d sub.tovo.sh --key-type ecdsa` 签发成功（到期 `2027-02-09`）。
+  3. **`do-1` Nginx 安全白名单与流式/保活修复**：
+     - `/etc/nginx/nginx.conf` 启用 `underscores_in_headers on;`（保留 `sub2api` 粘性会话所需的 `session_id` 请求头）。
+     - `sub.tovo.sh` `:443` 严格限制 `allow 8.217.145.133; allow 100.64.0.0/10; allow 127.0.0.1; allow ::1; deny all;`。
+     - `:443` 与 `:8080` 同步配置 `keepalive_timeout 120s; keepalive_requests 10000; client_max_body_size 128m; proxy_request_buffering off; proxy_buffering off; proxy_read_timeout 900s; proxy_send_timeout 900s;`（`120s` 已大于 `new-api` 当前运行中的默认 `90s`，提前消除空闲断连竞态）。
+  4. **`nyh-prod-2026` `new-api` 保活参数预写入**：`/opt/stacks/new-api/.env`（及仓库 `env.example`）追加 `RELAY_IDLE_CONN_TIMEOUT=60` 与 `RELAY_HTTP2_PING_IDLE_TIMEOUT=30`（保持 `600` 权限）。
+- 验证：
+  - **自动续期演练**：`certbot renew --cert-name sub.tovo.sh --dry-run --no-random-sleep-on-renew` 通过（`Congratulations, all simulated renewals succeeded`）。
+  - **IP 白名单拦截**：从非授权公网 `tizi-kh` 访问 `https://sub.tovo.sh/health` 与 `http://sub.tovo.sh/` 均返回 `403`，而 `http://sub.tovo.sh/.well-known/acme-challenge/test-probe` 正常穿透白名单返回 `404`。
+  - **容器双通道与提速复测**：`nyh-prod-2026` `new-api` 容器内访问主通道 `https://sub.tovo.sh/v1/models`（携带 `for-tovo.sh` key 与 `session_id` 头）返回 `200 OK`（HTTP/2，TLS 校验 `0`，热连接 p50 `160.7 ms`），备通道 `http://100.86.92.103:8080/health` 返回 `200 OK`；开启 BBR + `tcp_slow_start_after_idle=0` 后，热连接单次 `4.92 MiB` 下载速度由 `11.11 MiB/s` 提升至 `14.93 MiB/s`（`0.33s` 完成）。
+
 ## 2026-11-11 09:25–09:50 CST - 排查：nyh-prod-2026 (new-api) 与 do-1 (sub2api) 跨洋访问通道延迟与吞吐基准实测（只读）
 
 - 服务器：`nyh-prod-2026`（阿里云香港轻量，峰值带宽 200 Mbps）、`do-1`（DigitalOcean SFO3 `137.184.127.196` / Tailscale `100.86.92.103`）
