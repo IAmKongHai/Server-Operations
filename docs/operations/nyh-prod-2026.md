@@ -1,5 +1,31 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 12:42–13:00 CST - 在 new-api 配置 DO-1 Sub2API 主备双渠道与 28 个模型人民币对齐计费并通过端到端验收
+
+- 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh` / `100.86.92.103:8080`）
+- 操作人：`Antigravity`（按用户确认的渠道配置与「官方美元原价 × 7.3 折算人民币」计费方案执行）
+- 原因：完成 `new-api` 对接上游 `do-1` `sub2api` 的生产渠道落地与统一人民币钱包计费对齐，使下游生产 App 仅凭单个 `default` 分组令牌即可同时调用 Seedance 视频模型与 OpenAI 系列模型。
+- 影响：在线修改 `new-api` `options` 定价倍率并新增渠道 `#2`、`#3`，无服务中断；既有渠道 `#1`（通天云 Seedance）及客户账号 `aozhuo-test`（余额 `¥50.00`，消费 `0`）完全未触碰。
+- 备份：`/root/sub2api-tovo-20261111/new-api-billing-options.before.json`（变更前完整 `options` 与 `channels` 快照，权限 `600`）
+- 回滚方式：在 `new-api` 后台删除渠道 `#2`、`#3`，并用 `/root/sub2api-tovo-20261111/new-api-billing-options.before.json` 中的 `ModelRatio`、`CompletionRatio`、`CacheRatio`、`CreateCacheRatio`、`ImageRatio` 原值通过 `PUT /api/option/` 恢复。
+- 做了什么：
+  1. **对齐 28 个 OpenAI 模型的人民币计费倍率（`1 内部单位 = ¥1.00`，`USDExchangeRate=1`）**：
+     - 合并更新 `ModelRatio`（公式：`官方输入 $/1M × 7.3 / 2.0 = USD_in × 3.65`）、`CompletionRatio`、`CacheRatio`、`CreateCacheRatio`、`ImageRatio`（含 `gpt-image-1.5` 补全倍率 `6.4`、`gpt-image-2/2.5-*` 补全倍率 `6` 与图片输入倍率 `1.6`）。
+     - 核心模型折算结果：`gpt-6-luna` 输入 `¥0.73/1M`（`ModelRatio=0.365, CompletionRatio=5`）、`codex-auto-review` / `gpt-5.6-luna` 输入 `¥1.46/1M`（`0.73, ×6`）、`gpt-5.4-mini` 输入 `¥5.475/1M`（`2.7375, ×6`）、`gpt-6.1-terra` 输入 `¥7.30/1M`（`3.65, ×5`）、`gpt-5.2*` / `gpt-5.3-codex-spark` 输入 `¥12.775/1M`（`6.3875, ×8`）、`gpt-5.6-terra` / `gpt-6-sol` / `gpt-6.1-sol` 输入 `¥14.60/1M`（`7.3`）、`gpt-5.4*` 输入 `¥18.25/1M`（`9.125, ×6`）、`gpt-5.6` / `gpt-5.6-sol` / `gpt-reserve` / `gpt-image-*` 输入 `¥36.50/1M`（`18.25`）、`gpt-6` / `gpt-6-astra` 输入 `¥73.00/1M`（`36.5, ×5`）、`gpt-5.2-pro*` 输入 `¥153.30/1M`（`76.65, ×8`）。
+  2. **创建主备双渠道（复用 `do-1` `sub2api` `for-tovo.sh` 专用 API Key，归入 `default` 组）**：
+     - 渠道 `#2` `DO1-Sub2API-Primary (sub.tovo.sh)`：类型 `OpenAI(1)`，Base URL `https://sub.tovo.sh`，优先级 `10`（主力流量走公网 HTTPS HTTP/2 常驻长连接 + IP 白名单），标签 `sub2api-do1`。
+     - 渠道 `#3` `DO1-Sub2API-Backup (Tailscale)`：类型 `OpenAI(1)`，Base URL `http://100.86.92.103:8080`，优先级 `0`（主通道异常时自动无缝回退 Tailscale WireGuard P2P 直连），标签 `sub2api-do1`。
+     - 将两渠道 `test_model` 设为 ChatGPT Codex OAuth 原生支持且单价最低的 `gpt-6-luna`（注：Codex OAuth 账号不支持 `gpt-5.4-mini`，若用其测活会返回 `400 model_not_found`）。
+- 验证：
+  - **内置渠道测活**：渠道 `#2`（主 `sub.tovo.sh`）测活成功（`1.491s`，`do-1` Nginx 记录 `8.217.145.133` `HTTP/2.0 200`）；渠道 `#3`（备 Tailscale）测活成功（`2.84s`，`do-1` Nginx 记录 `100.113.16.89` `HTTP/1.1 200`）。
+  - **端到端公网流式调用与路由验证**（使用临时 `root` 测试令牌，测完已删除）：
+    - `GET https://tovo.sh/v1/models` 返回 `200 OK`（完整列出 28 个模型）。
+    - `POST https://tovo.sh/v1/chat/completions`（`gpt-6-luna`，SSE 流式 + `session_id` 头）返回 `200 OK`，`TTFT=1.23s`、`Total=1.28s`，命中主渠道 `ch=2`。
+    - `POST https://tovo.sh/v1/responses`（`gpt-6-luna`，SSE 流式 + `session_id` 头）返回 `200 OK`，`TTFT=1.17s`、`Total=1.41s`，命中主渠道 `ch=2` 且成功触发上游粘性会话 Prompt Cache（`cache_tokens=4224`）。
+  - **精确计费对账**：
+    - `logs.id=4`（`/v1/chat/completions`，`in=16, out=6, cache=0`）：扣费 `quota=17`（`¥0.000034`，理论值 `(16 + 6×5)×0.365 = 16.79` 向上取整 `17`）。
+    - `logs.id=5`（`/v1/responses`，`in=4395, cache=4224, out=5`）：扣费 `quota=226`（`¥0.000452`，理论值 `(171 + 4224×0.1 + 5×5)×0.365 = 225.716` 向上取整 `226`）。
+
 ## 2026-11-11 12:22 CST - 重建 new-api 容器使跨洋连接池与 H2 保活参数生效
 
 - 服务器：`nyh-prod-2026`
