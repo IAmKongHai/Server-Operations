@@ -1,5 +1,17 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 17:25–17:28 CST - 排查：用户 hon 调用 tovo.sh 返回 401 的原因核实（只读）
+
+- 服务器：`nyh-prod-2026`（`tovo.sh`）
+- 操作人：`Antigravity`（用户反馈同事 `hon` 测试 `https://tovo.sh/v1` 报 `401`，要求核查是 Key 还是权限问题）
+- 影响：纯只读查询 RDS `new_api`（`users` / `tokens` / `logs`）与容器日志，未做任何变更。
+- 回滚方式：无变更，无需回滚。
+- 排查结论：
+  1. **账号与模型权限完全正常**：`hon`（`user_id=3`）状态启用（`status=1`），分组 `default`，余额 `quota=49,999,821,710`（约 `¥99,999.64`）；全站 5 条渠道（Seedance、OpenAI Sub2API 主备、Groq 主备）均归属 `default` 组，且其有效令牌均未开启模型或 IP 限制（`model_limits_enabled=f`），可直接调用 `tovo.sh` 上全部模型。
+  2. **`401` 根因是传入了无效 Key（`ValidateUserToken: record not found`），而非权限问题**：
+     - `hon` 名下现有 2 把有效无限额令牌：`id=6` `青帆`（`sk-L5XCiz...IQ2f`）与 `id=7` `哇呱记账`（`sk-bcbe6f...xl67`），实测两把 Key 请求 `GET https://tovo.sh/v1/models` 均返回 `200 OK`（40 个对话/语音模型全可见），且 `id=7` 在 `16:08–17:03` 已成功调通 9 次 `gpt-6.1-sol`。
+     - 触发 `401` 的请求（来自 `8.210.153.241` `qingfan-prod` 与 `8.217.145.133` 本机）均因使用了已删除的 `id=5` `娃呱记账`（`sk-qo9puy...OXSi`，14:13:47 已软删除）、旧 `do-1` `tovo.sh` 遗留 Key，或直接复制了后台列表带 `*` 的脱敏掩码串所致。
+
 ## 2026-11-11 16:43–16:54 CST - 在 new-api 接入 Groq 官方全部 12 个模型（经 DO-1 /groq/ 主备反代，按官方价 150% 人民币计费）
 
 - 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh/groq` / `100.86.92.103:8080/groq`）
