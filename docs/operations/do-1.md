@@ -1,5 +1,21 @@
 # do-1 运维操作时间线
 
+## 2026-11-12 00:00–00:25 CST - 在 Nginx 新增 Anthropic、Gemini、OpenAI 三条美区无状态透明反代通道
+
+- 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）
+- 操作人：`Antigravity`（经用户确认执行）
+- 原因：`nyh-prod-2026` 香港公网出口直连 `api.anthropic.com`、`generativelanguage.googleapis.com`、`api.openai.com` 均返回 `403`；沿用 `/groq/` 模式，在 `do-1` Nginx `:443`（`sub.tovo.sh` IP 白名单）与 `:8080`（Tailscale 内网备入口）新增三条零状态美区透明反代，供 `nyh-prod-2026` `new-api` 主备双渠道调用。
+- 影响：`nginx -t` 校验通过后执行 `systemctl reload nginx` 平滑重载，零断连；既有 `sub2api`、`/groq/` 与 Let's Encrypt ACME 自动续期不受影响。
+- 备份：`/root/sub2api-tovo-20261111/sub2api.conf.before-3providers.bak`
+- 回滚方式：将 `/root/sub2api-tovo-20261111/sub2api.conf.before-3providers.bak` 还原回 `/etc/nginx/sites-available/sub2api.conf`，删除 `/etc/nginx/upstreams/{anthropic,gemini,openai}-upstream.conf`，执行 `nginx -t && systemctl reload nginx`。
+- 做了什么：
+  1. 新增 `/etc/nginx/upstreams/anthropic-upstream.conf`（`api.anthropic.com:443`）、`gemini-upstream.conf`（`generativelanguage.googleapis.com:443`）、`openai-upstream.conf`（`api.openai.com:443`），均开启 `max_fails=0; keepalive 16; keepalive_timeout 55s;`。
+  2. 在 `/etc/nginx/sites-available/sub2api.conf` 顶层增加 `map $http_upgrade $connection_upgrade`（常规 HTTP 保持 `Connection: ""` 复用上游 Keep-Alive，WebSocket 请求自动升级以支持 `/openai/v1/realtime` 等实时流），并在 `:8080` 与 `:443` 同步新增 `location ^~ /anthropic/`、`location ^~ /gemini/`、`location ^~ /openai/` 反代块（清空 `X-Real-IP` / `X-Forwarded-For`、开启 TLS SNI 与无缓冲流式透传）。
+- 验证：
+  - `nginx -t` 通过，`systemctl is-active nginx` 为 `active`。
+  - `certbot renew --cert-name sub.tovo.sh --dry-run --no-random-sleep-on-renew` 模拟续期成功。
+  - 从 `nyh-prod-2026` 分别经 `https://sub.tovo.sh/{anthropic,gemini,openai}` 与 `http://100.86.92.103:8080/{anthropic,gemini,openai}` 请求上游模型列表与推理接口全部返回 `200 OK`；公网非白名单扫描流量仍被 `:443` 顶层规则拦截为 `403`。
+
 ## 2026-11-11 22:55–23:15 CST - 彻底移除 qingfan、tk-flywheel 和旧域名 qingfan.konghai.me / tk.konghai.me
 
 - 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）

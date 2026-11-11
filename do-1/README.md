@@ -29,7 +29,7 @@ ssh -i ~/.ssh/id_ed25519 root@100.86.92.103
 | Upstream | `/etc/nginx/upstreams/sub2api-upstream.conf`（由 `sub2api-deploy` 自动切换端口并 reload nginx） |
 | 主入口（公网 HTTPS 白名单） | `https://sub.tovo.sh`（`:443`，`/etc/nginx/sites-available/sub2api.conf`），**仅放行 `8.217.145.133`（`nyh-prod-2026`）+ `100.64.0.0/10` + 回环** |
 | 备入口（Tailscale 内网） | `http://100.86.92.103:8080`（`:8080`，同上配置文件，仅放行 `100.64.0.0/10` + 回环） |
-| Groq 美区透明出口 | `:443` 与 `:8080` 下的 `location ^~ /groq/`（upstream `/etc/nginx/upstreams/groq-upstream.conf` → `https://api.groq.com/openai/`，清空 `X-Real-IP`/`X-Forwarded-For` 并保持 TLS Keep-Alive），供香港 `nyh-prod-2026` `new-api` 绕过 Groq 香港 IP 403 封锁，无状态透传 LLM / Responses / Orpheus TTS / Whisper STT |
+| 官方 LLM 美区透明出口 | `:443` 与 `:8080` 下的 4 条无状态路径反代（均剥离 `X-Real-IP`/`X-Forwarded-For`、开启 TLS SNI 与上游 Keep-Alive 连接池），供香港 `nyh-prod-2026` `new-api` 绕过海外供应商对香港 IP 的 `403` 锁区：<br>• `location ^~ /groq/` → `https://api.groq.com/openai/`（`groq-upstream.conf`）<br>• `location ^~ /anthropic/` → `https://api.anthropic.com/`（`anthropic-upstream.conf`）<br>• `location ^~ /gemini/` → `https://generativelanguage.googleapis.com/`（`gemini-upstream.conf`，支持 WebSocket Upgrade）<br>• `location ^~ /openai/` → `https://api.openai.com/`（`openai-upstream.conf`，支持 `/v1/realtime` WebSocket Upgrade） |
 | Nginx 注意事项 | `/etc/nginx/nginx.conf` 已开启 `underscores_in_headers on;`（保留 `session_id` 粘性会话头）；`sub2api.conf` 开启 `proxy_request_buffering off;`、`proxy_buffering off;`、`keepalive_timeout 120s;` |
 
 ## 证书与自动续期

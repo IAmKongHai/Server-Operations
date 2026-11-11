@@ -1,5 +1,31 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-12 00:10–00:26 CST - 在 new-api 接入 Anthropic(15)、Gemini(62)、OpenAI(98) 官方主备渠道并统一按官方价 150% 人民币计费
+
+- 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh` / `100.86.92.103:8080`）
+- 操作人：`Antigravity`（按用户确认的「三家开放全量模型、统一按官方美元原价 150% × 7.3 计费、Claude 开启 CacheRatio=0.1 / CreateCacheRatio=1.25、Sub2API 优先 + OpenAI 官方兜底」方案执行）
+- 原因：`nyh-prod-2026` 香港出口直连 Anthropic / Gemini / OpenAI 均返回 `403`；通过 `do-1` Nginx `/anthropic/`、`/gemini/`、`/openai/` 美区无状态反代接入三把官方 API Key，补齐全站 Claude 4.5~5.5/Fable 5、Gemini 2.5~4、OpenAI 全量对话/语音/图像/向量模型。
+- 影响：通过 `new-api` 管理 API 在线更新计费选项、上调 `sub2api` 渠道 `#2/#3` 优先级并新增渠道 `#6..#11`，无需重启容器，零服务中断；全站可见模型数增至 `196` 个，既有业务令牌（如 `hon`）无需换 Key 即可直接调用，客户测试账号 `aozhuo-test`（余额 `¥50.00`，消费 `0`）未受任何影响。
+- 备份：`/root/sub2api-tovo-20261111/new-api-before-3providers.json`（变更前完整 `options` 与 `#1..#5` `channels` 含密钥快照，权限 `600`）
+- 回滚方式：在 `new-api` 删除渠道 `#6..#11`，将渠道 `#2/#3` 优先级改回 `10/0`，并用 `/root/sub2api-tovo-20261111/new-api-before-3providers.json` 原值恢复 `ModelPrice`、`ModelRatio`、`CompletionRatio`、`CacheRatio`、`CreateCacheRatio`、`ImageRatio`、`AudioRatio`、`AudioCompletionRatio`。
+- 做了什么：
+  1. **统一对齐 150% 官方美元原价 × 7.3 人民币计费倍率（`1 USD × 150% × 7.3 = ¥10.95`，`ModelRatio = USD_in × 5.475`）**：
+     - **Anthropic 15 模型**（含 reasoning 后缀变体）：补齐 `claude-fable-5-2`（`$8 → 43.8`）、`claude-fable-5-1` / `5`（`$10 → 54.75`）、`claude-opus-5-5`（`$4 → 21.9`）、`claude-opus-5` / `4-8..4-5`（`$5 → 27.375`）、`claude-sonnet-5-5` / `5`（`$2 → 10.95`）、`claude-sonnet-4-6` / `4-5`（`$3 → 16.425`）、`claude-haiku-5-5`（`$0.10 → 0.5475`）、`claude-haiku-4-5-20251001`（`$1 → 5.475`）；显式写入 Claude 5 全系 `CompletionRatio = 5`（规避 `new-api` 仅硬编码 Claude 3/4 导致 Claude 5 补全退回 `1` 的问题），并全量配置 `CacheRatio = 0.1`、`CreateCacheRatio = 1.25`。
+     - **Gemini 62 模型**：补齐 `gemini-4-carbon` / `argon`（`$2 → 10.95, ×5`）、`gemini-3.8/3.7/3.6-flash`（`$0.75 → 4.10625, ×5`）、`gemini-3.5-flash` / `omni-*`（`$1.50 → 8.2125, ×6`）、`gemini-3.1-pro-*`（`$2 → 10.95, ×6`）、`gemini-3.5/3.1-flash-lite*`（`$0.25 → 1.36875, ×6`）、图像/TTS/原生音频/Embedding（`gemini-embedding-001` `0.82125`、`gemini-embedding-2*` `1.095`）等全部 62 模型的倍率。
+     - **OpenAI 98 官方模型 + Sub2API 28 模型**：全部统一对齐至 `USD_in × 5.475`（含 `gpt-5.5` `27.375, ×6`、`gpt-5.4-pro` / `5.5-pro` `164.25, ×6`、`gpt-5.3-codex` / `5.2` `9.58125, ×8`、`gpt-5.1` / `5` `6.84375, ×8`、`gpt-4.1` `10.95, ×4`、`gpt-4o` `13.6875, ×4`、`o3` `10.95, ×4`、`whisper-1` `32.85`、`tts-1` `82.125`、`tts-1-hd` `164.25`、`text-embedding-3-small` `0.1095` 等）；从 `ModelPrice` 移除 `gpt-4o-mini-tts` 固定按次计费项，改走按 token + 音频时长精确计费（`ModelRatio=3.285, AudioCompletionRatio=20`）。
+  2. **调整路由优先级并创建 6 条新渠道（全部归入 `default` 组）**：
+     - 将 `DO1-Sub2API-Primary`（`#2`）与 `Backup`（`#3`）优先级分别由 `10 / 0` 上调为 `20 / 15`，确保重叠的 21 个 OpenAI 模型优先走订阅池。
+     - 渠道 `#6` / `#7`：`DO1-Anthropic-Primary`（`https://sub.tovo.sh/anthropic`，优先级 `10`）/ `Backup`（`http://100.86.92.103:8080/anthropic`，优先级 `0`），类型 `Anthropic(14)`，15 模型，`test_model=claude-haiku-4-5-20251001`。
+     - 渠道 `#8` / `#9`：`DO1-Gemini-Primary`（`https://sub.tovo.sh/gemini`，优先级 `10`）/ `Backup`（`http://100.86.92.103:8080/gemini`，优先级 `0`），类型 `Gemini(24)`，62 模型，`test_model=gemini-3.6-flash`（注：实测新账号调 `gemini-2.5-flash` 会被 Google 返回 `404 no longer available to new users`，`gemini-3.8-flash` 偶发 `503 high demand`，故选用响应约 `1.2s` 且稳定的 `gemini-3.6-flash` 作测活模型）。
+     - 渠道 `#10` / `#11`：`DO1-OpenAI-Primary`（`https://sub.tovo.sh/openai`，优先级 `10`）/ `Backup`（`http://100.86.92.103:8080/openai`，优先级 `0`），类型 `OpenAI(1)`，98 模型，`test_model=gpt-5-nano`。
+- 验证：
+  - **内置渠道测活**：`#2..#11` 共 10 条主备渠道内置测活全部 `success=True`（全站 11 条渠道 `status=1`，禁用数 `0`）。
+  - **公网端到端调用、路由分流与账单对账**（使用临时 `root` 令牌，测完已删除）：
+    - `GET https://tovo.sh/v1/models`：`200 OK`（`0.090s`），可见模型总数 `196`。
+    - Anthropic 原生 `/v1/messages` + Prompt Caching（`claude-sonnet-5-5`）：首次写入缓存（`in=15, cache_write=7703, out=5`）扣费 `quota=105,873`（`¥0.211746`，理论值 `(15+7703×1.25+5×5)×10.95=105,872.81`）；二次命中缓存（`in=15, cache_read=7703, out=5`）扣费 `quota=8,873`（`¥0.017746`，理论值 `(15+7703×0.1+5×5)×10.95=8,872.79`）；`/v1/chat/completions` 调 `claude-haiku-5-5`（`in=16, out=4`）扣费 `quota=20`（理论值 `19.71`）。
+    - Gemini 原生 `/v1beta` 与 `/v1/chat/completions`（`gemini-3.6-flash`）：分别精确扣费 `quota=620` 与 `quota=1,257`；`/v1/embeddings`（`gemini-embedding-2`，3072 维，`in=2`）扣费 `quota=2`（注：该 Gemini Key 调 `gemini-4-carbon` 上游返回 `429`，取决于 Google 账号对该预览模型的配额档位）。
+    - OpenAI 路由分流与计费：官方独有模型 `gpt-5.5`（`in=11, out=18`）与 `text-embedding-3-small` 自动命中渠道 `#10`（`DO1-OpenAI-Primary`），扣费 `quota=3,258`（`¥0.006516`，理论值 `3,257.63`）与 `quota=1`；重叠模型 `gpt-6-luna`（`in=11, out=5`）自动优先命中渠道 `#2`（`DO1-Sub2API-Primary`，优先级 `20`），按新倍率扣费 `quota=20`（理论值 `19.71`）。
+
 ## 2026-11-11 17:25–17:28 CST - 排查：用户 hon 调用 tovo.sh 返回 401 的原因核实（只读）
 
 - 服务器：`nyh-prod-2026`（`tovo.sh`）
