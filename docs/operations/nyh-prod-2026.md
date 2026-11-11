@@ -23,7 +23,9 @@
     - `POST https://tovo.sh/v1/chat/completions`（`openai/gpt-oss-120b` 流式）：`200 OK`，`TTFT=0.563s`、`Total=0.676s`，`in=79, out=32`，扣费 `quota=170`（`¥0.00034`，理论值 `(79+32×4)×0.82125=169.999`）。
     - `POST https://tovo.sh/v1/responses`（`openai/gpt-oss-20b`）：`200 OK`，`Total=0.337s`，`in=73, out=36`，扣费 `quota=89`（`¥0.000178`，理论值 `(73+36×4)×0.410625=89.106`）。
     - `POST https://tovo.sh/v1/audio/transcriptions`（`whisper-large-v3-turbo`，1 秒 WAV）：`200 OK`，`Total=1.011s`，`prompt_tokens=17`，扣费 `quota=62`（`¥0.000124`，理论值 `17×3.65=62.05`）。
-    - `POST https://tovo.sh/v1/audio/speech`（`canopylabs/orpheus-v1-english`）：请求成功直达 Groq `/openai/v1/audio/speech`，上游返回 `400 model_terms_required`（需组织管理员在 Groq Console Playground 一次性点击同意 Canopy Labs 模型协议后即可出音频；失败请求预扣费自动退回 `quota=0`）。
+    - `POST https://tovo.sh/v1/audio/speech`（用户在 Groq Console 勾选同意 Canopy Labs 模型协议后 17:19 CST 复测）：
+      - 英文 TTS `canopylabs/orpheus-v1-english`（`voice=troy`，`"Hello world!"` 12 字符）：`200 OK`，`Total=1.053s`，输出 `42,310 bytes` WAV（送入 `whisper-large-v3-turbo` 闭环转写 `0.600s` 准确还原 `' Hello world!'`）；`AudioCompletionRatio=0` 生效，严格按字符扣费 `quota=1445`（`¥0.00289`，理论值 `12×120.45=1445.4`）。
+      - 阿语 TTS `canopylabs/orpheus-arabic-saudi`（`voice=fahad`，`"مرحبا"` 5 字符）：`200 OK`，`Total=0.758s`，输出 `61,510 bytes` WAV；严格按字符扣费 `quota=1095`（`¥0.00219`，理论值 `5×219=1095`）。
 
 ## 2026-11-11 12:42–13:00 CST - 在 new-api 配置 DO-1 Sub2API 主备双渠道与 28 个模型人民币对齐计费并通过端到端验收
 
