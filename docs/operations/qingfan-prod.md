@@ -1,5 +1,17 @@
 # qingfan-prod 运维操作时间线
 
+## 2026-11-11 23:10 CST - 撤掉 DO-1 迁移用的 hk-migrate 受限入口
+
+- 服务器：`qingfan-prod`
+- 操作人：Claude（用户确认）
+- 原因：DO-1 上的 qingfan / tk-flywheel 已经彻底删除（见 `docs/operations/do-1.md` 同日条目），迁移计划写明切换后要撤掉这个入口。
+- 影响：去掉 root `authorized_keys` 里只允许 `137.184.127.196` 使用的 `hk-migrate` 强制命令密钥；其它密钥（`konghai@konghai.me`、`hon-2026`、`tk-flywheel-github-deploy`）不动，业务不受影响。
+- 备份：`/root/.ssh/authorized_keys.bak.20261111`；本机 `_backups/do-1-qingfan-flywheel-removal-20261111/qingfan-prod-hk-migrate.tgz`（`authorized_keys` 和两个脚本）。
+- 回滚方式：`cp -p /root/.ssh/authorized_keys.bak.20261111 /root/.ssh/authorized_keys`，再从 tgz 恢复脚本。
+- 做了什么：删掉 `authorized_keys` 里的 `hk-migrate` 那一行；删除 `/usr/local/sbin/hk-migrate-{recv,db}` 和 `/var/lib/hk-migrate/`（75M，是 11-09 演练留下的旧 dump）；删除临时中转目录 `/root/relay-do1-20261111`。
+- 验证：新开 SSH 连接正常；`qingfan.app`、`flywheel.qingfan.app` 的 `/healthz` 都返回 200。
+- 另外发现：qingfan 现在由 Docker 容器里的 `qingfan-server` 监听 `127.0.0.1:8090`（11-11 08:29 UTC 起），systemd `qingfan@blue` 是 inactive。README 的服务表还是旧写法，已标为待核实。
+
 ## 2026-11-10 11:20 CST - 只读评估是否需要启用 swap
 
 - 服务器：`qingfan-prod`

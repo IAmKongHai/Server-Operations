@@ -1,6 +1,6 @@
 # hk-1 服务器运维手册（qingfan / tk-flywheel）
 
-> **归档说明（2026-11-11）**：本手册迁自已废弃的 `DigitalOcean` 仓库（原 `docs/hk-1-服务器运维手册.md`），文中 `hk-1` 即 `qingfan-prod`。配置副本在本仓库 `qingfan-prod/`（按服务器绝对路径镜像）；主机档案见 [`qingfan-prod/README.md`](../../qingfan-prod/README.md)。
+> **归档说明（2026-11-11）**：本手册迁自已废弃的 `DigitalOcean` 仓库（原 `docs/hk-1-服务器运维手册.md`），文中 `hk-1` 即 `qingfan-prod`。配置副本在本仓库 `qingfan-prod/`（按服务器绝对路径镜像）；主机档案见 [`qingfan-prod/README.md`](../../qingfan-prod/README.md)。2026-11-11 已删除 DO-1 上 qingfan / tk-flywheel 的全部残留和 DO 托管库，第 6、7 节写的回滚路径（R12）已经不能用；`hk-migrate` 迁移入口也已撤掉。
 
 > 建立日期：2026-11-10。来源：本仓库 `qingfan-prod/`（服务器上每个配置文件的副本）、迁移计划 `docs/plans/2026-11-10-0226-feat-hk-migration-qingfan-flywheel-plan.md`。
 > 本文档不含密码、私钥或连接串；凭据只在服务器 `/etc/qingfan/`、`/etc/tk-flywheel/`、`/root/rds-credentials.env` 和 GitHub Actions Secrets 中。

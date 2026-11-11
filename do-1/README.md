@@ -1,8 +1,8 @@
 # do-1
 
-**生产服务器**（DigitalOcean SFO3 旧金山，`ubuntu-s-4vcpu-8gb-sfo3`）。主要承载 `sub2api` 订阅配额分发网关（作为 `nyh-prod-2026` `new-api` 的上游供应商），同时保留 `qingfan.konghai.me` 旧客户端反代等过渡入口。原 `new-api`（`tovo.sh`）已于 2026-11-11 从本机彻底移除（服务、配置、证书、托管库 `new_api`、Redis DB 1），现只跑在 `nyh-prod-2026`。
+**生产服务器**（DigitalOcean SFO3 旧金山，`ubuntu-s-4vcpu-8gb-sfo3`）。主要承载 `sub2api` 订阅配额分发网关（作为 `nyh-prod-2026` `new-api` 的上游供应商），2026-11-11 起本机**只跑 sub2api**：原 `new-api`（`tovo.sh`，现在在 `nyh-prod-2026`）、qingfan 与 tk-flywheel（现在在 `qingfan-prod`），以及旧域名 `qingfan.konghai.me` / `tk.konghai.me`，都已从本机彻底移除（服务、配置、证书、DO 托管库），见 [`docs/operations/do-1.md`](../docs/operations/do-1.md)。DO 托管 PG 现在只剩 `sub2api` 库；`doadmin` 凭据在 `/root/do-pg-admin.env`（600）。
 
-> 原 `DigitalOcean` 仓库已于 2026-11-11 合并进本仓库后废弃（最后提交 `d0e8b49`，其中 `hosts/tk-pro` 即本机）。配置源码在 `do-1/` 下按服务器绝对路径镜像存放（`etc/`、`usr/local/`），外部打包脚本在 `ci-templates/`；qingfan / tk-flywheel 相关文件是迁出前的快照，留作回滚参考。旧手册见 [`docs/runbooks/do-1-ops-manual.md`](../docs/runbooks/do-1-ops-manual.md)，运维时间线见 [`docs/operations/do-1.md`](../docs/operations/do-1.md)。
+> 原 `DigitalOcean` 仓库已于 2026-11-11 合并进本仓库后废弃（最后提交 `d0e8b49`，其中 `hosts/tk-pro` 即本机）。配置源码在 `do-1/` 下按服务器绝对路径镜像存放（`etc/`、`usr/local/`），外部打包脚本在 `ci-templates/`。旧手册见 [`docs/runbooks/do-1-ops-manual.md`](../docs/runbooks/do-1-ops-manual.md)，运维时间线见 [`docs/operations/do-1.md`](../docs/operations/do-1.md)。
 
 ## 连接与实例
 

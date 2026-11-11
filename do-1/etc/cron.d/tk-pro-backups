@@ -1,7 +1,5 @@
-# Daily PostgreSQL backups for tk-flywheel, qingfan, and sub2api (staggered by 5 minutes)
+# Daily PostgreSQL backup for sub2api
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-15 3 * * * root /usr/local/sbin/tk-flywheel-backup scheduled
-20 3 * * * root /usr/local/sbin/qingfan-backup scheduled
 30 3 * * * root /usr/local/sbin/sub2api-backup scheduled

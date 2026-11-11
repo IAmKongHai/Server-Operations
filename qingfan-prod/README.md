@@ -25,9 +25,8 @@ ssh qingfan-prod   # = ssh root@8.210.153.241，用 ~/.ssh/id_ed25519
 | `konghai@konghai.me` | 本机 konghai 的 `~/.ssh/id_ed25519` |
 | `hon-2026` | 同事 hon 的公钥（2026-11-10 加入，指纹 `SHA256:t5JxvwYZEe9z6KOnXyd08lYm/3rRTIrfzSM8J1k3e+0`），无限制 |
 | `tk-flywheel-github-deploy` | `restrict,command="/usr/local/sbin/tk-flywheel-deploy"`：GitHub 部署用，只能上传发布包，拿不到 shell |
-| `hk-migrate` | `restrict,from="137.184.127.196",command="/usr/local/sbin/hk-migrate-recv"`：迁移数据用的受限入口 |
 
-改之前的备份：`/root/.ssh/authorized_keys.bak.20261110`。
+改之前的备份：`/root/.ssh/authorized_keys.bak.20261110`；2026-11-11 撤掉 `hk-migrate` 迁移入口之前的备份：`/root/.ssh/authorized_keys.bak.20261111`。
 
 ## 服务
 
@@ -49,6 +48,8 @@ qingfan 用阿里云 RDS PostgreSQL（香港）：`pgm-j6cd36m59smx6n9g.pg.cnhk.
 `app.env` 里还有 OSS、TTS、collector / runner key 等密钥，只记键名，不要抄值进仓库。
 
 ## 注意事项
+
+- **待核实（2026-11-11 观察到）**：qingfan 当前是 Docker 容器里的 `qingfan-server` 在监听 `127.0.0.1:8090`（11-11 08:29 UTC 起），不再是下表的 systemd `qingfan@blue`（unit 显示 inactive）。部署方式变了，下文“服务”表还没更新。
 
 - 蓝绿切换时只有 `active_slot` 指向的那个槽在跑，另一个槽 unit 不常驻；排查前先 `cat /opt/qingfan/active_slot`。
 - 无 swap，内存 7.2G；应用常态只用 ~500M。

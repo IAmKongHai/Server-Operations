@@ -1,5 +1,40 @@
 # do-1 运维操作时间线
 
+## 2026-11-11 22:55–23:15 CST - 彻底移除 qingfan、tk-flywheel 和旧域名 qingfan.konghai.me / tk.konghai.me
+
+- 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）
+- 操作人：Claude（用户确认：全部删除，旧客户端反代一起删）
+- 原因：qingfan、tk-flywheel 11-10 已切到 `qingfan-prod`（`qingfan.app`、`flywheel.qingfan.app`），用户确认不再需要 DO-1 这边的回滚路径（原计划保留到 11-24）。删除前 `tk-flywheel.service` 还 enabled、在运行，48 小时内没有请求。
+- 影响：
+  - `qingfan.konghai.me` 反代下线。这个反代之前把 0.1.47 以前的旧桌面端转发到 `qingfan.app`，删除前两天还有 Go 客户端在调 `/v1/releases`、`/v1/compass/products`；这些没升级的客户端现在连不上，用户已接受。
+  - `tk.konghai.me` 下线。
+  - nginx 平滑 reload 1 次，`sub2api` 和 `sub.tovo.sh` 不受影响。
+  - 释放约 34 GB 磁盘（`/` 现在用了 4.1G）。
+- 备份：服务器 `/root/qingfan-flywheel-removal-20261111/`，本机 `_backups/do-1-qingfan-flywheel-removal-20261111/`（不入库，sha256 已和服务器核对）：
+  - `qingfan-final.dump`：33 张表，32M
+  - `tk_flywheel-final.dump`：43 张表，3.9M
+  - `files.tgz`：`/etc/{qingfan,tk-flywheel}`、unit、nginx、脚本、sudoers、`qingfan-deploy` 和 root 的 `.ssh`、`/root` 下的 qingfan 临时脚本、两张证书
+  - `tk-pro-backups`：改之前的 cron 文件
+  - 还有 `/root/.ssh/authorized_keys.bak.20261111`
+  - 没有备份的：21G 旧发布包和 12G `/var/lib/qingfan`。这些在 11-10 已经同步到 `qingfan-prod` 并校验过
+  - 传输方式：DO-1 直连本机只有十几 KB/s，所以先用转发的 agent 从 DO-1 `scp` 推到 `qingfan-prod`（15 秒），再从香港拉回本机（42 秒），中转目录用完就删了。注意 `qingfan-prod` 连不上 DO-1 的 22 端口（DO Cloud Firewall 没放行），只能 DO-1 往外推；heredoc 脚本里的内层 `ssh` 要加 `-n`，否则它会把后面的命令当 stdin 读走
+- 回滚方式：用 `/root/do-pg-admin.env` 重建角色和库，然后 `pg_restore --no-owner`；从 `files.tgz` 恢复配置；发布包要从 `qingfan-prod` 拷回来，或者重新发布。实际上没有需要回滚的场景，生产在 `qingfan-prod`。
+- 做了什么：
+  1. `/etc/tk-flywheel/admin.env`（DO PG `doadmin`）挪到 `/root/do-pg-admin.env`（600），留给 sub2api 库的管理用
+  2. 停掉并 disable `tk-flywheel`、`tk-flywheel-tune.timer`、`qingfan@{blue,green}`，删除 4 个 unit 文件，执行 `daemon-reload`
+  3. 托管 PG：`DROP DATABASE qingfan / tk_flywheel`，`DROP ROLE qingfan / tk_flywheel`（现在只剩 `sub2api`）
+  4. 删除 nginx 的 `qingfan.konghai.me.conf`（含 `.pre-gzip`）、`tk.konghai.me.conf`、`upstreams/qingfan-upstream.conf`，`nginx -t` 通过后 reload；`certbot delete` 删掉两张证书
+  5. cron `/etc/cron.d/tk-pro-backups` 只留 `sub2api-backup`
+  6. root `authorized_keys` 删掉 `tk-flywheel-deploy` 强制命令密钥；删除 `/root/.ssh/hk-migrate{,.pub}`、`/etc/sudoers.d/qingfan-deploy`（`visudo -c` 通过）
+  7. 删除 `/opt/{qingfan,tk-flywheel}`、`/var/lib/{qingfan,tk-flywheel}`、`/etc/{qingfan,tk-flywheel}`、`/var/backups/{qingfan,tk-flywheel}`、`/var/log/{qingfan,tk-flywheel}`、`/var/www/{qingfan,tk-flywheel}-acme`；`/usr/local/bin` 下的 `qingfan-deploy*`、`whisper-cli`、`sherpa-onnx-offline*`；`/usr/local/sbin` 下的 `qingfan-*`、`tk-flywheel-*`、`hk-migrate-db`；`/root` 下的 `calls.py`、`costs.json`、`setimage.py`、`.qingfan_*` 和旧 nginx 备份
+  8. `userdel -r qingfan-deploy`，`userdel qingfan tk-flywheel`
+  9. 仓库：`do-1/` 只保留 sub2api、nginx 全局配置、sshd 和 sysctl
+- 验证：
+  - 没有 qingfan / flywheel 的 unit、端口、用户，`find` 查不到残留，nginx / cron / systemd / sudoers 里都搜不到
+  - `sites-enabled` 只剩 `sub2api.conf`，证书只剩 `sub.tovo.sh`，`certbot renew --dry-run` 成功
+  - `nginx`、`sub2api`、`redis-server` 都 active；`:8080/health` 返回 200，`sub.tovo.sh/health` 本机和从 `nyh-prod-2026` 访问都返回 200
+  - `qingfan.app`、`flywheel.qingfan.app` 的 `/healthz` 都返回 200
+
 ## 2026-11-11 22:37–22:45 CST - 彻底移除已停用的 new-api（tovo.sh 旧部署）
 
 - 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）
