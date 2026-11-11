@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Root-owned forced SSH command for Sub2API Blue-Green zero-downtime deployment.
+# Accepts "deploy <40-char SHA>" and reads the release tar.gz from stdin.
+set -euo pipefail
+umask 077
+
+cmd=${SSH_ORIGINAL_COMMAND:-"deploy ${1:-}"}
+[[ $cmd =~ ^deploy\ ([0-9a-f]{40})$ ]] || { echo 'Expected deploy <40-char commit SHA>' >&2; exit 1; }
+sha=${BASH_REMATCH[1]}
+
+exec 9>/run/lock/sub2api-deploy.lock
+flock -n 9 || { echo 'Another sub2api deployment is running' >&2; exit 1; }
+
+base=/opt/sub2api
+release=$base/releases/$sha
+[[ ! -e $release ]] || { echo 'Release already exists; inspect before retrying' >&2; exit 1; }
+
+archive=$(mktemp)
+trap 'rm -f "$archive"' EXIT
+cat > "$archive"
+[[ $(stat -c %s "$archive") -lt 536870912 ]]
+
+install -d -o root -g sub2api -m 750 "$base/releases" "$base/slots"
+install -d -o sub2api -g sub2api -m 755 "$release"
+chown sub2api:sub2api "$archive"
+
+# Safely extract archive as non-root application user
+runuser -u sub2api -- python3 - "$archive" "$release" <<'PY'
+import sys, tarfile
+with tarfile.open(sys.argv[1]) as archive:
+    archive.extractall(sys.argv[2], filter='data')
+PY
+
+# Application user may read and execute the release, never modify it
+chown -R root:sub2api "$release"
+chmod -R g+rX,g-w,o-rwx "$release"
+[[ $(cat "$release/version.txt") == "$sha" ]]
+
+# Determine current active slot and target standby slot
+active_slot=""
+if [[ -f $base/active_slot ]]; then
+  active_slot=$(tr -d '[:space:]' < "$base/active_slot")
+fi
+
+if [[ $active_slot == "blue" ]]; then
+  target_slot="green"
+  target_port=8082
+  active_port=8081
+else
+  target_slot="blue"
+  target_port=8081
+  active_port=8082
+fi
+
+# Backup database before starting new release (which runs SQL migrations on startup)
+/usr/local/sbin/sub2api-backup "pre-$sha"
+
+# Point standby slot symlink to the new release and start standby service
+ln -s "$release" "$base/slots/${target_slot}.next"
+mv -Tf "$base/slots/${target_slot}.next" "$base/slots/${target_slot}"
+systemctl restart "sub2api@${target_slot}" || true
+
+# Health check on standby slot (up to 60s)
+healthy=false
+for attempt in $(seq 1 30); do
+  if health_json=$(curl -fsS "http://127.0.0.1:${target_port}/health" 2>/dev/null) && \
+     grep -q '"status":[[:space:]]*"ok"' <<<"$health_json"; then
+    healthy=true
+    break
+  fi
+  sleep 2
+done
+
+if [[ $healthy != true ]]; then
+  systemctl stop "sub2api@${target_slot}" || true
+  echo "Sub2API health check failed on ${target_slot} (127.0.0.1:${target_port}); active slot (${active_slot:-none}) remains untouched." >&2
+  exit 1
+fi
+
+# Atomically switch Nginx upstream to target slot and reload
+upstream_conf=/etc/nginx/upstreams/sub2api-upstream.conf
+cat > "${upstream_conf}.next" <<EOF
+# Managed by sub2api-deploy (active: ${target_slot} -> ${sha})
+upstream sub2api_backend {
+    server 127.0.0.1:${target_port};
+    keepalive 64;
+}
+EOF
+chmod 0644 "${upstream_conf}.next"
+mv -Tf "${upstream_conf}.next" "$upstream_conf"
+nginx -t
+systemctl reload nginx
+
+# Record active slot and current release symlink
+printf '%s\n' "$target_slot" > "$base/active_slot.next"
+mv -Tf "$base/active_slot.next" "$base/active_slot"
+ln -s "$release" "$base/current.next"
+mv -Tf "$base/current.next" "$base/current"
+systemctl enable "sub2api@${target_slot}" >/dev/null 2>&1 || true
+
+# Drain in-flight SSE connections on previous slot before stopping it
+# (Crucial for sub2api because main.go hardcodes a 5s Shutdown timeout)
+if [[ -n $active_slot && $active_slot != "$target_slot" ]] && systemctl is-active --quiet "sub2api@${active_slot}"; then
+  for drain_attempt in $(seq 1 45); do
+    conns=$(ss -Htn state established "( sport = :${active_port} )" | wc -l)
+    if [[ $conns -eq 0 ]]; then
+      break
+    fi
+    sleep 2
+  done
+  systemctl stop "sub2api@${active_slot}" || true
+  systemctl disable "sub2api@${active_slot}" >/dev/null 2>&1 || true
+fi
+
+printf 'Deployed sub2api %s to %s slot (port %d)\n' "$sha" "$target_slot" "$target_port"

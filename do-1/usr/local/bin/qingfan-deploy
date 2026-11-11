@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Drop-in Blue-Green replacement for /usr/local/bin/qingfan-deploy.
+# Keeps 100% CLI compatibility with GitHub Actions (`sudo /usr/local/bin/qingfan-deploy <version>`),
+# while eliminating downtime via qingfan@blue (:8090) / qingfan@green (:8091) + Nginx reload + connection draining.
+set -euo pipefail
+umask 022
+
+version=${1:?usage: qingfan-deploy <version>}
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "版本号无效：$version" >&2; exit 1; }
+
+exec 9>/run/lock/qingfan-deploy.lock
+flock -n 9 || { echo "另一个青帆发布正在运行" >&2; exit 1; }
+
+base=/opt/qingfan
+incoming=/home/qingfan-deploy/incoming/$version
+releases=$base/releases
+downloads=/var/lib/qingfan/server/downloads
+target=$releases/$version
+tarball=$incoming/qingfan-server-$version.tar.gz
+[[ -f $tarball ]] || { echo "缺少 $tarball" >&2; exit 1; }
+
+install -d -m 755 "$releases" "$base/slots"
+rm -rf "$target.new"
+mkdir -p "$target.new"
+tar -xzf "$tarball" -C "$target.new" --no-same-owner
+[[ -x $target.new/qingfan-server && -f $target.new/admin/index.html ]] || { echo "发布包不完整" >&2; exit 1; }
+chown -R root:root "$target.new"
+chmod -R go-w,a+rX "$target.new"
+rm -rf "$target"
+mv "$target.new" "$target"
+
+# Published installers are never overwritten; a re-run of the same version keeps the first copy.
+install -d -o qingfan -g qingfan -m 755 /var/lib/qingfan/server "$downloads"
+for f in "$incoming/qingfan-$version-macos.dmg" "$incoming/qingfan-$version-windows.zip" "$incoming/qingfan-$version-windows.exe" "$incoming/qingfan-claw-$version.zip"; do
+  [[ -f $f ]] || continue
+  dest=$downloads/$(basename "$f")
+  [[ -e $dest ]] || install -o qingfan -g qingfan -m 644 "$f" "$dest"
+done
+
+# Backup database before starting new release
+if [[ -x /usr/local/sbin/qingfan-backup && -f /etc/qingfan/pg.env ]]; then
+  /usr/local/sbin/qingfan-backup "pre-$version"
+fi
+
+# Determine active slot and standby slot
+active_slot=""
+if [[ -f $base/active_slot ]]; then
+  active_slot=$(tr -d '[:space:]' < "$base/active_slot")
+fi
+
+if [[ $active_slot == "blue" ]]; then
+  target_slot="green"
+  target_port=8091
+  active_port=8090
+else
+  target_slot="blue"
+  target_port=8090
+  active_port=8091
+fi
+
+ln -sfn "$target" "$base/slots/${target_slot}.next"
+mv -Tf "$base/slots/${target_slot}.next" "$base/slots/${target_slot}"
+systemctl restart "qingfan@${target_slot}"
+
+healthy=false
+for _ in $(seq 30); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:${target_port}/healthz"; then
+    healthy=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ $healthy != true ]]; then
+  echo "青帆 $version 在 ${target_slot} (127.0.0.1:${target_port}) 没有通过健康检查，线上 ${active_slot:-none} 槽位保持不受影响" >&2
+  journalctl -u "qingfan@${target_slot}" -n 40 --no-pager >&2 || true
+  systemctl stop "qingfan@${target_slot}" || true
+  exit 1
+fi
+
+# Atomically switch /opt/qingfan/current (for /admin/ static assets) and Nginx upstream
+ln -sfn "$target" "$base/current.next"
+mv -Tf "$base/current.next" "$base/current"
+
+upstream_conf=/etc/nginx/upstreams/qingfan-upstream.conf
+cat > "${upstream_conf}.next" <<EOF
+# Managed by qingfan-deploy (active: ${target_slot} -> ${version})
+upstream qingfan_backend {
+    server 127.0.0.1:${target_port};
+    keepalive 32;
+}
+EOF
+chmod 0644 "${upstream_conf}.next"
+mv -Tf "${upstream_conf}.next" "$upstream_conf"
+nginx -t -q
+systemctl reload nginx
+
+printf '%s\n' "$target_slot" > "$base/active_slot.next"
+mv -Tf "$base/active_slot.next" "$base/active_slot"
+systemctl enable "qingfan@${target_slot}" >/dev/null 2>&1 || true
+
+# Drain in-flight connections on previous slot before stopping it
+if [[ -n $active_slot && $active_slot != "$target_slot" ]] && systemctl is-active --quiet "qingfan@${active_slot}"; then
+  for _ in $(seq 1 60); do
+    conns=$(ss -Htn state established "( sport = :${active_port} )" | wc -l)
+    if [[ $conns -eq 0 ]]; then
+      break
+    fi
+    sleep 2
+  done
+  systemctl stop "qingfan@${active_slot}" || true
+  systemctl disable "qingfan@${active_slot}" >/dev/null 2>&1 || true
+fi
+
+rm -rf "$incoming"
+# Keep the five newest releases (never deleting either bound slot)
+ls -1dt "$releases"/*/ | tail -n +6 | xargs -r rm -rf
+echo "青帆 $version 已通过蓝绿发布上线 (${target_slot} 槽位, 端口 ${target_port})"

@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# One-time database move from DO Managed PG to the hk-1 RDS (rehearsal and cutover use the same commands).
+# Installed as /usr/local/sbin/hk-migrate-db on BOTH machines; removed after the DO-1 retention period.
+#
+#   DO-1:  hk-migrate-db export  qingfan|tk_flywheel
+#            Opens a REPEATABLE READ snapshot, counts every table inside it (the baseline), streams
+#            pg_dump --snapshot to hk-1 over the temporary migration key, then compares hk-1's counts.
+#   hk-1:  hk-migrate-db restore qingfan|tk_flywheel   (reached only through hk-migrate-recv)
+#            Saves the dump from stdin, validates it, stops the app, recreates the public schema,
+#            restores as the business account, and prints the restored row counts on stdout.
+set -euo pipefail
+umask 077
+
+mode=${1:-}
+db=${2:-}
+case $db in
+  qingfan)     env_file=/etc/qingfan/pg.env;     services=(qingfan@blue qingfan@green) ;;
+  tk_flywheel) env_file=/etc/tk-flywheel/pg.env; services=(tk-flywheel-tune.timer tk-flywheel) ;;
+  *) echo 'usage: hk-migrate-db export|restore qingfan|tk_flywheel' >&2; exit 2 ;;
+esac
+set -a
+. "$env_file"
+set +a
+
+# Exact row count of every base table as "schema.table<TAB>count", sorted by name.
+count_sql="select format('%I.%I', table_schema, table_name),
+  (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text
+from information_schema.tables
+where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema')
+order by 1;"
+
+log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
+
+export_db() {
+  local target=${HK_MIGRATE_TARGET:-root@8.210.153.241}
+  local key=${HK_MIGRATE_KEY:-/root/.ssh/hk-migrate}
+  local snapshot line start
+  start=$(date +%s)
+  work=$(mktemp -d)  # global: the EXIT trap still needs it after this function returns
+  # Hold one transaction open: the snapshot it exports is what both the baseline and pg_dump see.
+  coproc PSQL { psql -XAtq -v ON_ERROR_STOP=1 -F $'\t'; }
+  trap 'kill "$PSQL_PID" 2>/dev/null || true; rm -rf "$work"' EXIT
+  printf '%s\n' 'begin isolation level repeatable read read only;' 'select pg_export_snapshot();' >&"${PSQL[1]}"
+  read -r -t 30 snapshot <&"${PSQL[0]}"
+  [[ $snapshot =~ ^[0-9A-F-]+$ ]] || { log "unexpected snapshot id: $snapshot"; exit 1; }
+  printf '%s\n' "$count_sql" "select '__end__';" >&"${PSQL[1]}"
+  while read -r -t 300 line <&"${PSQL[0]}"; do
+    [[ $line == __end__ ]] && break
+    printf '%s\n' "$line" >> "$work/source.tsv"
+  done
+  log "$db: snapshot $snapshot, $(wc -l < "$work/source.tsv") tables counted"
+
+  pg_dump -Fc --snapshot="$snapshot" \
+    | ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes "$target" "restore $db" > "$work/target.tsv"
+  printf '%s\n' 'commit;' >&"${PSQL[1]}"
+  log "$db: dump streamed and restored on hk-1 in $(( $(date +%s) - start ))s"
+
+  if diff "$work/source.tsv" "$work/target.tsv" >&2; then
+    log "$db: row counts match on all $(wc -l < "$work/source.tsv") tables"
+    grep -E '(^|\.)schema_migrations\b' "$work/source.tsv" >&2 || true
+  else
+    log "$db: ROW COUNT MISMATCH (< source, > hk-1)"
+    exit 1
+  fi
+}
+
+restore_db() {
+  local dir=/var/lib/hk-migrate dump service
+  install -d -m 700 "$dir"
+  dump=$dir/$db-$(date -u +%Y%m%dT%H%M%S).dump
+  cat > "$dump"
+  pg_restore --list "$dump" > /dev/null
+  log "$db: received $(stat -c %s "$dump") bytes, archive is readable"
+
+  for service in "${services[@]}"; do
+    systemctl stop "$service"
+  done
+  # The business account owns the database, so it can rebuild the schema and own every restored object.
+  PGOPTIONS='-c client_min_messages=warning' psql -XAtq -v ON_ERROR_STOP=1 \
+    -c 'drop schema public cascade' \
+    -c 'create schema public' \
+    -c 'alter schema public owner to pg_database_owner' >&2
+  pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -d "$PGDATABASE" "$dump" >&2
+  # Fresh tables have no planner statistics yet; only this schema (system catalogs need superuser).
+  psql -XAtq -v ON_ERROR_STOP=1 -c "select format('analyze %I.%I;', schemaname, relname) from pg_stat_user_tables" \
+    | psql -XAtq -v ON_ERROR_STOP=1 >&2
+  log "$db: restored; ${services[*]} left stopped until the counts are checked"
+  psql -XAtq -v ON_ERROR_STOP=1 -F $'\t' -c "$count_sql"
+}
+
+case $mode in
+  export)  export_db ;;
+  restore) restore_db ;;
+  *) echo 'usage: hk-migrate-db export|restore qingfan|tk_flywheel' >&2; exit 2 ;;
+esac

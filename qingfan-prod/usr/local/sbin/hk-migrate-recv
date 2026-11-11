@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Forced command for the temporary DO-1 -> hk-1 migration key in /root/.ssh/authorized_keys:
+#   restrict,from="137.184.127.196",command="/usr/local/sbin/hk-migrate-recv" ssh-ed25519 ... hk-migrate
+# Allows only an rsync confined to /var/lib/qingfan and the restore end of hk-migrate-db.
+# Delete this file together with that key line once the cutover is finished.
+set -euo pipefail
+cmd=${SSH_ORIGINAL_COMMAND:-}
+case $cmd in
+  'rsync --server '*)                        exec /usr/bin/rrsync /var/lib/qingfan ;;
+  'restore qingfan' | 'restore tk_flywheel') exec /usr/local/sbin/hk-migrate-db restore "${cmd#restore }" ;;
+  *) echo 'hk-migrate-recv: command not allowed' >&2; exit 1 ;;
+esac

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+mkdir -p /var/backups/qingfan
+file=/var/backups/qingfan/$(date -u +%Y%m%dT%H%M%S)-${1:-scheduled}.dump
+[[ ${1:-scheduled} =~ ^[a-zA-Z0-9.-]+$ ]]
+set -a
+. /etc/qingfan/pg.env
+set +a
+pg_dump -Fc > "$file.partial"
+pg_restore --list "$file.partial" > /dev/null
+mv "$file.partial" "$file"
+find /var/backups/qingfan -maxdepth 1 -name '*.dump' -mtime +14 -delete

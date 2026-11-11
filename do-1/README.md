@@ -2,7 +2,7 @@
 
 **生产服务器**（DigitalOcean SFO3 旧金山，`ubuntu-s-4vcpu-8gb-sfo3`）。主要承载 `sub2api` 订阅配额分发网关（作为 `nyh-prod-2026` `new-api` 的上游供应商），同时保留 `qingfan.konghai.me` 旧客户端反代等过渡入口。
 
-> 原 `/Users/konghai/code/Project/DigitalOcean` 仓库准备废弃，2026-11-11 起 `do-1` 的服务器配置源码与运维时间线统一归口到本仓库（`do-1/` 与 [`docs/operations/do-1.md`](../docs/operations/do-1.md)）。
+> 原 `DigitalOcean` 仓库已于 2026-11-11 合并进本仓库后废弃（最后提交 `d0e8b49`，其中 `hosts/tk-pro` 即本机）。配置源码在 `do-1/` 下按服务器绝对路径镜像存放（`etc/`、`usr/local/`），外部打包脚本在 `ci-templates/`；qingfan / tk-flywheel / new-api 相关文件是迁出前的快照，留作回滚参考。旧手册见 [`docs/runbooks/do-1-ops-manual.md`](../docs/runbooks/do-1-ops-manual.md)，运维时间线见 [`docs/operations/do-1.md`](../docs/operations/do-1.md)。
 
 ## 连接与实例
 
@@ -18,7 +18,7 @@ ssh -i ~/.ssh/id_ed25519 root@100.86.92.103
 | 云厂商 / 地域 | DigitalOcean，`sfo3`（旧金山） |
 | 系统 | Ubuntu 24.04.4 LTS，内核 `6.8.0-147-generic` |
 | 规格 | 4 vCPU / 8 GiB RAM / 160 GB SSD |
-| TCP 调优 | `bbr` + `fq`、`tcp_slow_start_after_idle=0`、32MiB TCP buffer（`/etc/sysctl.d/98-cross-ocean-tcp.conf`，源码 `sysctl/`） |
+| TCP 调优 | `bbr` + `fq`、`tcp_slow_start_after_idle=0`、32MiB TCP buffer（`/etc/sysctl.d/98-cross-ocean-tcp.conf`，源码 `etc/sysctl.d/`） |
 
 ## 核心服务（`sub2api`）
 

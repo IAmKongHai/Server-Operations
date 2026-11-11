@@ -1,0 +1,1 @@
+qingfan-deploy ALL=(root) NOPASSWD: /usr/local/bin/qingfan-deploy

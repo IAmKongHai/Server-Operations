@@ -1,0 +1,20 @@
+[Unit]
+Description=TK Flywheel automatic tuning pass
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tk-flywheel
+Group=tk-flywheel
+WorkingDirectory=/opt/tk-flywheel/current/backend
+EnvironmentFile=/etc/tk-flywheel/app.env
+Environment=PATH=/opt/tk-flywheel/current/bin:/usr/bin:/bin
+ExecStart=/opt/tk-flywheel/current/backend/flywheel tune
+# One pass asks the model once per due plan; a pass that outlives the hour is stuck, not busy.
+TimeoutStartSec=50min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

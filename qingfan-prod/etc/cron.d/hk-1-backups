@@ -1,0 +1,6 @@
+# Daily PostgreSQL backups for tk-flywheel and qingfan on the RDS (times in UTC, as on DO-1)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+15 3 * * * root /usr/local/sbin/tk-flywheel-backup scheduled
+20 3 * * * root /usr/local/sbin/qingfan-backup scheduled

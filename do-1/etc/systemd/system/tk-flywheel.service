@@ -1,0 +1,23 @@
+[Unit]
+Description=TK Flywheel API and frontend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=tk-flywheel
+Group=tk-flywheel
+WorkingDirectory=/opt/tk-flywheel/current/backend
+EnvironmentFile=/etc/tk-flywheel/app.env
+Environment=PATH=/opt/tk-flywheel/current/bin:/usr/bin:/bin
+ExecStart=/opt/tk-flywheel/current/backend/flywheel
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

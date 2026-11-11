@@ -26,7 +26,7 @@ head: "cb911fba30dc4d8fdb1aad748f19e82107339a6a"
 
 ## 先读这些（权威指针）
 
-- `do-1/nginx/sites-available/sub2api.conf`（第 1–50 行 `:8080` 备入口与 `/groq/` 反代块；第 84–140 行 `:443` `sub.tovo.sh` IP 白名单、ACME 续期豁免与 `/groq/` 反代块）及 `do-1/nginx/upstreams/groq-upstream.conf`：新增官方供应商反代时的直接配置模板。
+- `do-1/etc/nginx/sites-available/sub2api.conf`（第 1–50 行 `:8080` 备入口与 `/groq/` 反代块；第 84–140 行 `:443` `sub.tovo.sh` IP 白名单、ACME 续期豁免与 `/groq/` 反代块）及 `do-1/etc/nginx/upstreams/groq-upstream.conf`：新增官方供应商反代时的直接配置模板。
 - `do-1/README.md`（第 9–41 行）：大陆本机 SSH 登录方式（直连公网易超时，必须走 Tailscale `ssh -i ~/.ssh/id_ed25519 root@100.86.92.103`）、`sub2api` 蓝绿槽位机制与 `certbot` 自动续期约束。
 - `nyh-prod-2026/README.md`（第 64–65 行）与 `nyh-prod-2026/docker/new-api/compose.yaml`（第 11–18 行）：`new-api` 固定镜像 `calciumion/new-api:v1.0.0-rc.49`，宿主机回环监听 **`127.0.0.1:3200`**（非 `:3000`）。
 - `/Users/konghai/code/Project/Server/nyh-prod-2026/secrets.local.md`（machine-local，gitignored）：存有 `tovo.sh` `root` 后台密码、RDS/Redis 凭据及现有渠道 `#1..#5` 密钥留档；后续新增的供应商官方 Key 同样只追加到此文件，严禁写入 Git 跟踪文件。
@@ -37,7 +37,7 @@ head: "cb911fba30dc4d8fdb1aad748f19e82107339a6a"
 ## 当前线上状态（已上线并完成端到端对账）
 
 - **跨洋底层与连接保活（已完成）**：
-  - `nyh-prod-2026` 与 `do-1` 双端对称开启 `bbr` + `fq`、`tcp_slow_start_after_idle=0`、32MiB TCP buffer（`nyh-prod-2026/sysctl/98-cross-ocean-tcp.conf`、`do-1/sysctl/98-cross-ocean-tcp.conf`）。
+  - `nyh-prod-2026` 与 `do-1` 双端对称开启 `bbr` + `fq`、`tcp_slow_start_after_idle=0`、32MiB TCP buffer（`nyh-prod-2026/sysctl/98-cross-ocean-tcp.conf`、`do-1/etc/sysctl.d/98-cross-ocean-tcp.conf`）。
   - `do-1` `/etc/nginx/nginx.conf` 已开 `underscores_in_headers on;`；`sub2api.conf` `keepalive_timeout 120s` 大于 `nyh-prod-2026` `/opt/stacks/new-api/.env` 的 `RELAY_IDLE_CONN_TIMEOUT=60`（配 `RELAY_HTTP2_PING_IDLE_TIMEOUT=30`），消除跨洋空闲连接复用 502/EOF 竞态。
 - **`tovo.sh` 统一计费基线与现有 `default` 组渠道（已完成）**：
   - 站内启用人民币口径：`1 内部单位 = ¥1.00 = 500,000 quota`，`USDExchangeRate = 1`；`ModelRatio = 1.0` 对应 `¥2.00 / 1M tokens`（汇率按 `1 USD = ¥7.30` 折算，故 100% 官方价公式为 `ModelRatio = USD_in × 3.65`，150% 官方价公式为 `ModelRatio = USD_in × 5.475`）。
@@ -57,7 +57,7 @@ head: "cb911fba30dc4d8fdb1aad748f19e82107339a6a"
 - **`new-api` URL 拼接核实**：`/Users/konghai/code/Project/new-api/relay/channel/claude/adaptor.go`（第 76–90 行）直接执行 `fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)` 并保留 `?beta=true` 及 Anthropic 原生请求头。
 - **标准接入动作（待用户提供 Key、目标模型范围与定价倍率并确认执行后落地）**：
   1. 向用户确认三件事：官方 API Key、开放模型范围（全量或指定列表）、对客计费倍率（如 100% 还是 150% 官方价；注：OpenAI 用了 100%，Groq 用户指定了 150%，**不可自行假设，须由用户拍板**）。
-  2. 在本仓库新增 `do-1/nginx/upstreams/anthropic-upstream.conf`（`api.anthropic.com:443 max_fails=0; keepalive 16; keepalive_timeout 55s;`），并在 `do-1/nginx/sites-available/sub2api.conf` 的 `:8080` 与 `:443` 各加一段 `location ^~ /anthropic/`（`proxy_pass https://anthropic_api/;`，头处理同 `/groq/`）；先备份 `do-1` 原文件，再推送并 `nginx -t && systemctl reload nginx`。
+  2. 在本仓库新增 `do-1/etc/nginx/upstreams/anthropic-upstream.conf`（`api.anthropic.com:443 max_fails=0; keepalive 16; keepalive_timeout 55s;`），并在 `do-1/etc/nginx/sites-available/sub2api.conf` 的 `:8080` 与 `:443` 各加一段 `location ^~ /anthropic/`（`proxy_pass https://anthropic_api/;`，头处理同 `/groq/`）；先备份 `do-1` 原文件，再推送并 `nginx -t && systemctl reload nginx`。
   3. 先备份 `nyh-prod-2026` `new-api` 当前 `options` 与 `channels` JSON；再合并更新 `ModelRatio`、`CompletionRatio`、`CacheRatio`（Claude 读缓存通常 `0.1`）、`CreateCacheRatio`（Claude 5m 写缓存通常 `1.25`），创建 Anthropic 类型（`type=14`）主备双渠道（`https://sub.tovo.sh/anthropic` 优先级 `10`、`http://100.86.92.103:8080/anthropic` 优先级 `0`，归入 `default` 组）。
   4. 用 `root` 临时令牌做公网端到端实测（可同时验证 `/v1/messages` 原生格式与 `/v1/chat/completions` 转换格式）及日志扣费对账，测完删除临时令牌，把密钥留档进 `secrets.local.md`，更新 `README.md` 与 `docs/operations/{do-1,nyh-prod-2026}.md` 并在 `main` 提交。
 - **接入其他官方供应商（如 Gemini / xAI / OpenAI 官方 Key 等）**：先在 `/Users/konghai/code/Project/new-api/relay/channel/` 查清对应渠道 `Adaptor.GetRequestURL` 的路径拼接前缀（避免双写或漏写 `/v1`），其余流程完全一致。

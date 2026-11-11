@@ -1,0 +1,28 @@
+# Template unit for Blue-Green deployment: sub2api@blue.service / sub2api@green.service
+[Unit]
+Description=Sub2API Gateway (%i slot)
+After=network-online.target redis-server.service
+Wants=network-online.target redis-server.service
+
+[Service]
+Type=simple
+User=sub2api
+Group=sub2api
+WorkingDirectory=/opt/sub2api/slots/%i
+Environment=HOME=/var/lib/sub2api
+EnvironmentFile=/etc/sub2api/app.env
+EnvironmentFile=/etc/sub2api/slot-%i.env
+ExecStart=/opt/sub2api/slots/%i/sub2api
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=150
+LimitNOFILE=100000
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sub2api
+
+[Install]
+WantedBy=multi-user.target

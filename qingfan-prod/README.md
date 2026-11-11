@@ -53,3 +53,4 @@ qingfan 用阿里云 RDS PostgreSQL（香港）：`pgm-j6cd36m59smx6n9g.pg.cnhk.
 - 蓝绿切换时只有 `active_slot` 指向的那个槽在跑，另一个槽 unit 不常驻；排查前先 `cat /opt/qingfan/active_slot`。
 - 无 swap，内存 7.2G；应用常态只用 ~500M。
 - 运维时间线：[`docs/operations/qingfan-prod.md`](../docs/operations/qingfan-prod.md)。
+- 配置源码：本目录下 `etc/`、`usr/local/`、`root/` 按服务器绝对路径镜像（迁自已废弃的 `DigitalOcean` 仓库 `hosts/hk-1/`）；详细运维手册 [`docs/runbooks/qingfan-prod-ops-manual.md`](../docs/runbooks/qingfan-prod-ops-manual.md)，迁移计划 [`docs/plans/2026-11-10-0226-feat-hk-migration-qingfan-flywheel-plan.md`](../docs/plans/2026-11-10-0226-feat-hk-migration-qingfan-flywheel-plan.md)。

@@ -201,4 +201,4 @@ docker exec -i shared-redis sh -c 'read -r P; REDISCLI_AUTH="$P" redis-cli --no-
 
 ## 升级参考
 
-Debian 12 → 13 原地升级完全按 `/Users/konghai/Code/Project/DigitalOcean/docs/阿里云轻量服务器-Debian12原地升级13-操作手册.md`（本机路径）。现在装的已经是 `grub-efi-amd64`，以后 apt 升级 grub 不需要额外处理。
+Debian 12 → 13 原地升级完全按 [`docs/runbooks/aliyun-swas-debian12-to-13-upgrade.md`](../docs/runbooks/aliyun-swas-debian12-to-13-upgrade.md)。现在装的已经是 `grub-efi-amd64`，以后 apt 升级 grub 不需要额外处理。

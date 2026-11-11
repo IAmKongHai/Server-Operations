@@ -14,8 +14,8 @@
   nginx -t && systemctl reload nginx
   ```
 - 做了什么：
-  1. 新增 `/etc/nginx/upstreams/groq-upstream.conf`（仓库 `do-1/nginx/upstreams/groq-upstream.conf`）：定义 `upstream groq_api` 指向 `api.groq.com:443`（`max_fails=0; keepalive 16; keepalive_timeout 55s;`），复用 `do-1` 至 Cloudflare 边缘节点的 TLS 长连接。
-  2. 更新 `/etc/nginx/sites-available/sub2api.conf`（仓库 `do-1/nginx/sites-available/sub2api.conf`）：在 `:443`（`sub.tovo.sh`）与 `:8080`（Tailscale 备份）两个 `server` 块中增加 `location ^~ /groq/`，反代至 `https://groq_api/openai/`，显式设置 `Host api.groq.com`、`proxy_ssl_server_name on`、`proxy_ssl_name api.groq.com`，清空 `X-Real-IP` / `X-Forwarded-For` 防止泄露上游香港 IP，并关闭请求/响应缓冲。
+  1. 新增 `/etc/nginx/upstreams/groq-upstream.conf`（仓库 `do-1/etc/nginx/upstreams/groq-upstream.conf`）：定义 `upstream groq_api` 指向 `api.groq.com:443`（`max_fails=0; keepalive 16; keepalive_timeout 55s;`），复用 `do-1` 至 Cloudflare 边缘节点的 TLS 长连接。
+  2. 更新 `/etc/nginx/sites-available/sub2api.conf`（仓库 `do-1/etc/nginx/sites-available/sub2api.conf`）：在 `:443`（`sub.tovo.sh`）与 `:8080`（Tailscale 备份）两个 `server` 块中增加 `location ^~ /groq/`，反代至 `https://groq_api/openai/`，显式设置 `Host api.groq.com`、`proxy_ssl_server_name on`、`proxy_ssl_name api.groq.com`，清空 `X-Real-IP` / `X-Forwarded-For` 防止泄露上游香港 IP，并关闭请求/响应缓冲。
   3. 执行 `nginx -t && systemctl reload nginx`。
 - 验证：
   - `nyh-prod-2026` 访问主通道 `https://sub.tovo.sh/groq/v1/models` 与备通道 `http://100.86.92.103:8080/groq/v1/models` 均返回 `200 OK`（12 个模型）。
@@ -37,11 +37,11 @@
   certbot delete --cert-name sub.tovo.sh
   ```
 - 做了什么：
-  1. **开启 BBR 与跨洋 TCP 调优**：写入 `/etc/modules-load.d/bbr.conf` 与 `/etc/sysctl.d/98-cross-ocean-tcp.conf`（仓库 `do-1/sysctl/98-cross-ocean-tcp.conf`），启用 `fq` + `bbr`、`tcp_slow_start_after_idle=0` 及 32MiB socket 缓冲区上限。
-  2. **全局保留下划线请求头**：`/etc/nginx/nginx.conf` 的 `http` 块增加 `underscores_in_headers on;`（仓库 `do-1/nginx/nginx.conf`），防止丢弃 `sub2api` 粘性会话依赖的 `session_id` 请求头。
+  1. **开启 BBR 与跨洋 TCP 调优**：写入 `/etc/modules-load.d/bbr.conf` 与 `/etc/sysctl.d/98-cross-ocean-tcp.conf`（仓库 `do-1/etc/sysctl.d/98-cross-ocean-tcp.conf`），启用 `fq` + `bbr`、`tcp_slow_start_after_idle=0` 及 32MiB socket 缓冲区上限。
+  2. **全局保留下划线请求头**：`/etc/nginx/nginx.conf` 的 `http` 块增加 `underscores_in_headers on;`（仓库 `do-1/etc/nginx/nginx.conf`），防止丢弃 `sub2api` 粘性会话依赖的 `session_id` 请求头。
   3. **签发 `sub.tovo.sh` 证书并配置 IP 白名单与无缓冲透传**：
      - 创建 `/var/www/sub2api-acme`，签发 Let's Encrypt ECDSA 证书 `sub.tovo.sh`（有效期至 `2027-02-09`）。
-     - 更新 `/etc/nginx/sites-available/sub2api.conf`（仓库 `do-1/nginx/sites-available/sub2api.conf`）：新增 `sub.tovo.sh` `:80` 与 `:443` server 块（共享 `sub2api_backend` upstream，兼容 `sub2api-deploy` 蓝绿切换），`:443` 仅放行 `8.217.145.133`、`100.64.0.0/10` 及回环地址，而 `/.well-known/acme-challenge/` 独立 `allow all;` 确保自动续期不受白名单影响。
+     - 更新 `/etc/nginx/sites-available/sub2api.conf`（仓库 `do-1/etc/nginx/sites-available/sub2api.conf`）：新增 `sub.tovo.sh` `:80` 与 `:443` server 块（共享 `sub2api_backend` upstream，兼容 `sub2api-deploy` 蓝绿切换），`:443` 仅放行 `8.217.145.133`、`100.64.0.0/10` 及回环地址，而 `/.well-known/acme-challenge/` 独立 `allow all;` 确保自动续期不受白名单影响。
      - `:443` 与 `:8080` 统一配置 `keepalive_timeout 120s; keepalive_requests 10000; client_max_body_size 128m; proxy_request_buffering off; proxy_buffering off; proxy_read_timeout 900s; proxy_send_timeout 900s;`。
 - 验证：
   - `certbot renew --cert-name sub.tovo.sh --dry-run --no-random-sleep-on-renew` 模拟续期成功。
