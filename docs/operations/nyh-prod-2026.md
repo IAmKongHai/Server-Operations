@@ -1,5 +1,16 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 12:22 CST - 重建 new-api 容器使跨洋连接池与 H2 保活参数生效
+
+- 服务器：`nyh-prod-2026`
+- 操作人：`Antigravity`（用户确认同意重启）
+- 原因：加载 `/opt/stacks/new-api/.env` 新增的 `RELAY_IDLE_CONN_TIMEOUT=60` 与 `RELAY_HTTP2_PING_IDLE_TIMEOUT=30`。
+- 影响：执行前核实 `tasks` 表在途异步任务为 `0`；`new-api` 容器重建耗时约 6 秒恢复 `healthy`。
+- 备份：`/root/sub2api-tovo-20261111/new-api.env.bak`
+- 回滚方式：`cp /root/sub2api-tovo-20261111/new-api.env.bak /opt/stacks/new-api/.env && cd /opt/stacks/new-api && docker compose up -d`
+- 做了什么：`cd /opt/stacks/new-api && docker compose up -d` 重建 `new-api` 容器。
+- 验证：容器状态 `healthy`，容器内 `env` 确认 `RELAY_IDLE_CONN_TIMEOUT=60`、`RELAY_HTTP2_PING_IDLE_TIMEOUT=30` 已生效，`https://tovo.sh/api/status` 返回 `200 OK`。
+
 ## 2026-11-11 11:24 CST - root 的 authorized_keys 加入同事公钥 `hon-2026`
 
 - 服务器：`nyh-prod-2026`
