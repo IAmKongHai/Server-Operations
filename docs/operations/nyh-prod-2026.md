@@ -1,5 +1,30 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 16:43–16:54 CST - 在 new-api 接入 Groq 官方全部 12 个模型（经 DO-1 /groq/ 主备反代，按官方价 150% 人民币计费）
+
+- 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh/groq` / `100.86.92.103:8080/groq`）
+- 操作人：`Antigravity`（按用户确认的方案 3 及「开放全部 Groq 模型、按官方价格 150% 计费」执行）
+- 原因：`nyh-prod-2026` 香港出口直连 `api.groq.com` 返回 `403`；经 `do-1` Nginx `/groq/` 无状态反代接入 Groq 官方 API Key，使下游凭 `default` 分组同一令牌即可调用 Groq LLM、Responses、Orpheus TTS 与 Whisper STT。
+- 影响：通过 `new-api` 管理 API 在线更新计费选项并新增渠道 `#4`、`#5`，无需重启容器，零服务中断；既有渠道 `#1/#2/#3` 及客户账号 `aozhuo-test`（余额 `¥50.00`，消费 `0`）未受任何影响。
+- 备份：`/root/sub2api-tovo-20261111/new-api-before-groq.json`（变更前完整 `options` 与 `channels` 快照，权限 `600`）
+- 回滚方式：在 `new-api` 删除渠道 `#4`、`#5`，并用 `/root/sub2api-tovo-20261111/new-api-before-groq.json` 原值恢复 `ModelRatio`、`CompletionRatio`、`CacheRatio`、`AudioCompletionRatio`。
+- 做了什么：
+  1. **合并写入 12 个 Groq 模型的 150% 人民币计费倍率（`1 USD × 150% × 7.3 = ¥10.95`）**：
+     - 对话与安全模型（`ModelRatio = USD_in × 5.475`）：`openai/gpt-oss-120b`（`0.82125, ×4, cache 0.5`）、`openai/gpt-oss-20b`（`0.410625, ×4, cache 0.5`）、`openai/gpt-oss-safeguard-20b`（`0.410625, ×4, cache 0.5`）、`qwen/qwen3.8-27b` 与 `qwen/qwen3.6-27b`（`4.38, ×5, cache 0.5`）、`meta-llama/llama-prompt-guard-2-22m`（`0.16425, ×1`）、`meta-llama/llama-prompt-guard-2-86m`（`0.219, ×1`）、`allam-2-7b`（`0.410625, ×4`）。
+     - Orpheus TTS 模型（按 `1 字符 = 1 token` 计费，并显式置 `AudioCompletionRatio = 0` 防止按输出音频时长二次扣费）：`canopylabs/orpheus-v1-english`（`$22/1M chars → ¥240.90/1M chars, ModelRatio=120.45`）、`canopylabs/orpheus-arabic-saudi`（`$40/1M chars → ¥438.00/1M chars, ModelRatio=219`）。
+     - Whisper STT 模型（按 `1 分钟 = 1,000 tokens` 即 `1 小时 = 0.06M tokens` 计费，`ModelRatio = ¥/h ÷ 0.12`）：`whisper-large-v3`（`$0.111/h → ¥1.21545/h, ModelRatio=10.12875`）、`whisper-large-v3-turbo`（`$0.04/h → ¥0.438/h, ModelRatio=3.65`）。
+  2. **创建 Groq 主备双渠道（类型 `OpenAI(1)`，归入 `default` 组，标签 `groq-do1`，`test_model=openai/gpt-oss-20b`）**：
+     - 渠道 `#4` `DO1-Groq-Primary (sub.tovo.sh)`：Base URL `https://sub.tovo.sh/groq`，优先级 `10`。
+     - 渠道 `#5` `DO1-Groq-Backup (Tailscale)`：Base URL `http://100.86.92.103:8080/groq`，优先级 `0`。
+- 验证：
+  - **渠道测活**：渠道 `#4`（`1.713s`）与渠道 `#5`（热连接 `0.679s`）内置测活均通过。
+  - **公网端到端调用与账单对账**（使用临时 `root` 令牌，测完已删除）：
+    - `GET https://tovo.sh/v1/models` 返回 `200 OK`，12 个 Groq 模型全部在列。
+    - `POST https://tovo.sh/v1/chat/completions`（`openai/gpt-oss-120b` 流式）：`200 OK`，`TTFT=0.563s`、`Total=0.676s`，`in=79, out=32`，扣费 `quota=170`（`¥0.00034`，理论值 `(79+32×4)×0.82125=169.999`）。
+    - `POST https://tovo.sh/v1/responses`（`openai/gpt-oss-20b`）：`200 OK`，`Total=0.337s`，`in=73, out=36`，扣费 `quota=89`（`¥0.000178`，理论值 `(73+36×4)×0.410625=89.106`）。
+    - `POST https://tovo.sh/v1/audio/transcriptions`（`whisper-large-v3-turbo`，1 秒 WAV）：`200 OK`，`Total=1.011s`，`prompt_tokens=17`，扣费 `quota=62`（`¥0.000124`，理论值 `17×3.65=62.05`）。
+    - `POST https://tovo.sh/v1/audio/speech`（`canopylabs/orpheus-v1-english`）：请求成功直达 Groq `/openai/v1/audio/speech`，上游返回 `400 model_terms_required`（需组织管理员在 Groq Console Playground 一次性点击同意 Canopy Labs 模型协议后即可出音频；失败请求预扣费自动退回 `quota=0`）。
+
 ## 2026-11-11 12:42–13:00 CST - 在 new-api 配置 DO-1 Sub2API 主备双渠道与 28 个模型人民币对齐计费并通过端到端验收
 
 - 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh` / `100.86.92.103:8080`）
