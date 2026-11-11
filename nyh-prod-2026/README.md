@@ -34,8 +34,9 @@ ssh nyh-prod-2026   # = ssh root@8.217.145.133，用 ~/.ssh/id_ed25519
 | `github-actions@acquilangai` | `IAmKongHai/Kanova` 部署（Secrets `SERVER_HOST` / `SERVER_USER` / `SSH_PRIVATE_KEY`；known_hosts 在 workflow 里现场 `ssh-keyscan`） |
 | `github-actions@yunshu-bnsg` | `konghai-friends-lab/YPF-YunShu` 部署与运维 workflow（`SSH_HOST` / `SSH_USER` / `SSH_PORT` / `SSH_KNOWN_HOSTS` / `SSH_PRIVATE_KEY`） |
 | `github-actions-deploy-key-ddricher` | `konghai-friends-lab/ddricherAi` 部署（`HOST` / `USERNAME` / `PORT` / `KEY`，appleboy/ssh-action） |
+| `hon-2026` | 同事 hon 的个人密钥（ED25519 `SHA256:t5JxvwYZEe9z6KOnXyd08lYm/3rRTIrfzSM8J1k3e+0`），2026-11-11 应用户要求加入，以 root 登录 |
 
-三把 CI 公钥 2026-11-10 从旧机原样复制过来，三个仓库的主机 Secret 已改为 `8.217.145.133`、YunShu 的 `SSH_KNOWN_HOSTS` 换成新机指纹（ED25519 `SHA256:2GQoiNC5ZF89UtpYve3XaLGnaTFAlHZ9xQQW+TXULNg`）。旧机上另有 `hon-2025`、`hon-2026`、`konghai-recovery-2025`、`deploy_key_for_nyh_2025` 四把，**没有迁过来**；以后哪个用途需要再单独加。重装系统或换主机密钥后，记得同步改 YunShu 的 `SSH_KNOWN_HOSTS`。
+三把 CI 公钥 2026-11-10 从旧机原样复制过来，三个仓库的主机 Secret 已改为 `8.217.145.133`、YunShu 的 `SSH_KNOWN_HOSTS` 换成新机指纹（ED25519 `SHA256:2GQoiNC5ZF89UtpYve3XaLGnaTFAlHZ9xQQW+TXULNg`）。旧机上另有 `hon-2025`、`hon-2026`、`konghai-recovery-2025`、`deploy_key_for_nyh_2025` 四把，当时**没有迁过来**（`hon-2026` 已于 11-11 单独补加）；以后哪个用途需要再单独加。重装系统或换主机密钥后，记得同步改 YunShu 的 `SSH_KNOWN_HOSTS`。
 
 ### 轻量服务器防火墙
 

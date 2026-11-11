@@ -1,5 +1,16 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-11 11:24 CST - root 的 authorized_keys 加入同事公钥 `hon-2026`
+
+- 服务器：`nyh-prod-2026`
+- 操作人：Claude（用户要求把同事 hon 的公钥加到这台服务器）
+- 原因：同事需要 SSH 登录 `nyh-prod-2026`；旧机 `nyh-prod` 上就有这把 `hon-2026`，迁移时没带过来。
+- 影响：`hon-2026` 对应私钥可以 root 身份登录本机；sshd 配置未改，不需要 reload。
+- 备份：`/root/.ssh/authorized_keys.bak.20261111`（追加前的 4 把密钥）
+- 回滚方式：`cp -p /root/.ssh/authorized_keys.bak.20261111 /root/.ssh/authorized_keys`，或删掉注释为 `hon-2026` 的那一行。
+- 做了什么：备份后把 `ssh-ed25519 …HZfjPj hon-2026` 追加到 `/root/.ssh/authorized_keys`（先 grep 判重）；权限保持 `600 root:root`。
+- 验证：文件现有 5 把密钥（`konghai@konghai.me`、3 把 CI、`hon-2026`），`ssh-keygen -lf` 解析出 `256 SHA256:t5JxvwYZEe9z6KOnXyd08lYm/3rRTIrfzSM8J1k3e+0 hon-2026 (ED25519)`。同事侧实际登录待对方自测。
+
 ## 2026-11-11 10:45–11:00 CST - 打通 nyh-prod-2026 (new-api) 与 do-1 (sub2api) 主备双通道（sub.tovo.sh + BBR/Nginx 4 项调优）
 
 - 服务器：`nyh-prod-2026`、`do-1`（`137.184.127.196` / `100.86.92.103`）
