@@ -1,5 +1,17 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-13 13:45–13:48 CST - 复查：最近 3 天运行情况（只读）
+
+- 服务器：`nyh-prod-2026`
+- 操作人：Claude（用户再次要求检查最近 3 天运行情况）
+- 原因：距离 13:38 那次巡检只过了几分钟，这次只复核状态和两个未解决的问题。
+- 影响：只读查询，未做任何变更。
+- 回滚方式：无变更，无需回滚。
+- 结论：
+  1. 与 13:38 巡检结果一致：开机 2 天 21 小时，负载 0.1–0.3，可用内存 12Gi，根盘 37%；无 failed unit，内核日志里没有 OOM / IO 错误；16 个容器在跑，都没有新增重启或 OOM；宿主 supervisor 11 个进程和 `php74-worker` 里的队列都在跑；`nginx` / `docker` / `cron` / `supervisor` / `certbot.timer` 都是 active，最早到期的证书还有 87 天；nginx 12:00 以后没有 5xx。
+  2. **❗ richer-gateway 告警风暴还在继续**：最近 30 分钟有 875 条 `alert delivery failed`（Tiger 美股行情 `permission denied` 加上 Telegram `401 Unauthorized`）。
+  3. **❗ Kanova RDS 备份**还是原来的 cron 和脚本（`/etc/cron.d/nyh-tasks`），还没修，等用户决定怎么修。
+
 ## 2026-11-13 13:38–13:45 CST - 巡检：最近 3 天运行情况（只读）
 
 - 服务器：`nyh-prod-2026`
