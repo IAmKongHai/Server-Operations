@@ -1,5 +1,21 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-13 13:38–13:45 CST - 巡检：最近 3 天运行情况（只读）
+
+- 服务器：`nyh-prod-2026`
+- 操作人：Claude（用户要求检查最近 3 天运行情况）
+- 原因：切换到新机（11-10）后的例行巡检。
+- 影响：只读查询（`systemctl` / `journalctl` / `docker ps|logs|stats` / `supervisorctl` / nginx 访问日志统计 / `certbot certificates`），未做任何变更。
+- 回滚方式：无变更，无需回滚。
+- 结论：
+  1. **整体正常**：自 11-10 15:46 开机后没有再重启，负载 0.1–0.4，内存可用 12Gi / 14Gi，根盘 37%；无 failed unit，无 OOM / IO 错误；16 个容器全部在跑，没有容器重启或 OOM（`richer-web` 的 `RestartCount=1` 发生在迁移当天）；宿主 supervisor 11 个进程、`php74-worker` 内 9 个队列都在跑，运行时长约 2 天 19 小时；`jobs:monitor` 两站共 1626 次全部是 `异常 0 组`；20 张证书都还有 78 天以上，`certbot.timer` 正常。
+  2. **站点 5xx**（只统计 11-10 到 11-13 的日志行）：`center.nanyahui.com` 33 万请求中只有 3 个 5xx；其余业务站基本为 0。`api.ddricher.ai` 1997 请求中 1541 个是 502，都是扫描器请求，属于已知问题（上游 `127.0.0.1:7800` 本来就没有进程监听，旧机也一样）。`konghai.me` 有 40 个 500，都是爬虫请求 `/index.php/feed/...`，error log 里是 `404.html` 不存在。
+  3. **❗ Kanova RDS 每日备份从 2026-09-15 起一直失败**：`/etc/cron.d/nyh-tasks` 每天 02:00 跑 `/www/wwwroot/python/backup-rds.sh`，脚本用 `acquilang-backend` 容器里的 `pg_dump`（17.11）去备份 RDS `acquilangai_db`，RDS 是 18.4，报 `aborting because of server version mismatch`；最后一份成功的备份是 `acquilangai_db_2026-09-14_02-00-01_rds.sql.gz`。旧机上已经在失败，迁移后仍失败（失败 93 次）。另外脚本里写着明文数据库密码。**待用户决定修复方式**，例如改成用 `postgres:18` 镜像跑一次性 `pg_dump`。
+  4. **❗ richer-gateway 告警风暴**：从 11-12 15:52 CST 开始，`quote_poller` 大约每 2 秒报一次 Tiger 行情 `4000:permission denied (... US market)`，每次都触发告警，而 Telegram `sendMessage` 返回 `401 Unauthorized`，所以 72h 里有 3.8 万条 `alert delivery failed`，到巡检时还在继续。要处理两件事：Tiger 账号的美股行情权限，以及 Telegram bot token 失效。
+  5. **new-api**：Gemini 渠道在 11-11、11-12 零星出现上游 `429 You exceeded your current quota`（Google 账号配额），sub2api 渠道测活偶尔 429，没有持续故障。
+  6. **SSH**：只有已知密钥登录（konghai、hon-2026；旧机 `47.239.167.8` 最后一次登录是 11-10 16:38，属于迁移）；11-12 15:04 有 `117.81.248.133` 爆破 root/admin，因为只允许公钥登录，全部失败。
+  7. 其它：`yunshu` healthcheck 只在失败时写日志，最后一条失败记录是 11-10 19:00（迁移期间），之后都正常，现在 `bnsg.konghai.me/api/v1/health` 返回 `200`；云盾 11-13 12:36 自动加载了新版内核模块 `AliSecProcFilterAdv64`，这是正常行为。
+
 ## 2026-11-12 00:40–00:43 CST - 使用用户 hon 令牌端到端验证 Gemini TTS 语音合成与计费对账
 
 - 服务器：`nyh-prod-2026`（`tovo.sh`）、`do-1`（`sub.tovo.sh/gemini`）
