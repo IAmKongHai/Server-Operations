@@ -1,5 +1,17 @@
 # home-router 运维操作时间线
 
+## 2026-11-14 14:11 CST - 复查路由器 DNS 对 `qingfan.app` 的解析（已刷新为新 IP `8.217.180.182`）
+
+- 服务器：`home-router`（`192.168.2.1`），查询端 `mac-mini`
+- 操作人：Antigravity（全程只读）
+- 原因：用户要求从 `mac-mini` 查看家里路由器当前对 `qingfan.app` 解析出的 IP，确认 13:58 条目中遗留的旧 IP 缓存是否已更新。
+- 影响：无（只读 DNS 与 HTTPS 探测，未登录或改动路由器）。
+- 回滚方式：不涉及。
+- 验证：
+  - `dig @192.168.2.1 qingfan.app A`（UDP/TCP `:53`）与 `dig @192.168.2.1 -p 11400 qingfan.app A`（PassWall `dnsmasq_default`）均返回 **`8.217.180.182`**（首次命中新记录 TTL `300`，随后递减至 `271`）。
+  - `dig @192.168.2.1 flywheel.qingfan.app A` 触发上游实时递归（耗时 `70 ms`），同样返回 **`8.217.180.182`**（TTL `300`），证明路由器上游电信递归 DNS 的旧记录（`8.210.153.241`）已过期刷新。
+  - `mac-mini` 本机 `dscacheutil` 解析为 `8.217.180.182`；`curl` 直连 `https://qingfan.app/healthz` 与 `https://flywheel.qingfan.app/healthz` 均连向 `8.217.180.182`，TCP connect 约 `80 ms`，总耗时约 `0.24 s`，返回 `200`。
+
 ## 2026-11-14 13:58 CST - 验证 PassWall 直连列表加入 `qingfan.app` 后的路径（只读）
 
 - 服务器：`home-router`（用户在 Web 界面把 `qingfan.app` 加进 PassWall 直连列表），验证端 `mac-mini`，对端 `qingfan-prod`（`8.217.180.182`）
