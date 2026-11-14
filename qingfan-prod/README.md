@@ -11,7 +11,7 @@ ssh qingfan-prod   # = ssh root@8.210.153.241，用 ~/.ssh/id_ed25519
 | 项目 | 值 |
 | --- | --- |
 | 公网 IP | `8.210.153.241` |
-| 云厂商 / 地域 | 阿里云 ECS，`cn-hongkong`，规格 `ecs.e-c1m2.xlarge` |
+| 云厂商 / 地域 | 阿里云**轻量应用服务器（SWAS）**，`cn-hongkong`，实例 `68c002bd79054bd2bdaffdfef2321cce`，套餐 `swas.s.c4m8s70b1.linux`，到期 2027-11-09；aliyun `--profile new-hk`。轻量不支持更换公网 IP，`8.210.153.241` 国内被封（见 `docs/operations/qingfan-prod.md` 2026-11-14） |
 | 主机名 | `iZj6cfbbt4l6yxdiqkoqnfZ` |
 | 系统 | Debian 13 (trixie)，内核 `6.12.116+deb13-amd64` |
 | 规格 | 4 vCPU / 7.2G 内存 / 无 swap / 系统盘 69G ext4（`/dev/vda3`，2026-11-10 已用 25%） |
