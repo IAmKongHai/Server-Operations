@@ -22,7 +22,8 @@
 - 验证：
   - `--resolve` 指向 `8.217.180.182` 测试 `qingfan.app/healthz`、`/`、`/admin/`、`flywheel.qingfan.app/healthz` 均返回 `HTTP 200`，`/version.txt` 返回 `b6d024bf6e7bcf5f0da9055fe275955495306a43`。
   - `ssh qingfan-prod` 正常登录新主机 `iZj6cg6lmcje31wwguao8bZ`。
-  - 待用户在 Cloudflare 将 `qingfan.app`、`flywheel.qingfan.app` A 记录切至 `8.217.180.182`，并在 `18:01 CST` 前于阿里云控制台完成旧实例五天无理由退订。
+  - `13:39 CST` Cloudflare DNS 切换完成后，`223.5.5.5`、`119.29.29.29`、`114.114.114.114`、`1.1.1.1` 均已解析至 `8.217.180.182`；已将 RDS `swas_hk` 白名单收敛为仅 `172.21.63.216`。
+  - `13:41 CST` Globalping 中国大陆多省端到端 HTTPS 验收：深圳、武汉联通、北京、东莞电信、芜湖联通、南京电信、成都、台山移动、济南对 `https://qingfan.app/healthz`（`200`）与 `https://flywheel.qingfan.app/healthz`（HEAD `405`，GET `200`）均成功连入 `8.217.180.182` 并完成完整 TLS + HTTP 往返。
 
 ## 2026-11-14 12:35 CST - 复查国内访问 `qingfan.app`（结论不变：`8.210.153.241` 整 IP 不通）
 
