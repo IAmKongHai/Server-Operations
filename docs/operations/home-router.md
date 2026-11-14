@@ -1,5 +1,21 @@
 # home-router 运维操作时间线
 
+## 2026-11-14 13:55 CST - 本机 ssh 配置新增经 `mac-mini` 跳板访问 `home-router`
+
+- 服务器：`home-router`（`192.168.2.1`），跳板 `mac-mini`（Tailscale `100.108.64.126`）
+- 操作人：Claude Code
+- 原因：用户在外要访问家里网关管理界面。
+- 影响：只改本机 `~/.ssh/config`；路由器和 mac-mini 均无改动。
+- 备份：`~/.ssh/config.bak.20261114-router`
+- 回滚方式：删掉 `~/.ssh/config` 末尾 `Host home-router` / `Host home-router-web` 两段，或用备份覆盖回去。
+- 做了什么：
+  - `Host home-router`：`root@192.168.2.1:22`，`ProxyJump mac-mini`。
+  - `Host home-router-web`：连 mac-mini，`LocalForward 127.0.0.1:18081 192.168.2.1:80`。
+- 验证：
+  - 从 mac-mini 探测 `192.168.2.1` 的 `22/80/443` 均可连。
+  - `ssh -fN home-router-web` 后 `curl http://localhost:18081/` 返回 `200`。
+  - `ssh home-router` 能通过跳板到达路由器，但路由器没有本机公钥，需要手动输入 root 密码（BatchMode 下报 `Permission denied (publickey,password)`，属预期）。
+
 ## 2026-09-18 12:17 CST - 清 Passwall/dnsmasq DNS 缓存（zzz.konghai.me）
 
 - 服务器：`home-router`（Kwrt，LAN `192.168.2.1`）
