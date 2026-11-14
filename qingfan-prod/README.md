@@ -1,18 +1,18 @@
 # qingfan-prod
 
-qingfan 项目的**生产服务器**（阿里云香港 ECS），2026-11-10 纳入本仓库。上面跑 `qingfan.app` 主站和 `flywheel.qingfan.app`（tk-flywheel）。按生产对待：重启服务、改 nginx / SSH / 防火墙 / 数据库前必须先征得用户确认。
+qingfan 项目的**生产服务器**（阿里云香港轻量应用服务器），2026-11-10 纳入本仓库；因原实例（`8.210.153.241`）公网 IP 在中国大陆全网被封，2026-11-14 通过自定义镜像迁移至同配置新实例 `8.217.180.182`。上面跑 `qingfan.app` 主站和 `flywheel.qingfan.app`（tk-flywheel）。按生产对待：重启服务、改 nginx / SSH / 防火墙 / 数据库前必须先征得用户确认。
 
 ## 连接
 
 ```bash
-ssh qingfan-prod   # = ssh root@8.210.153.241，用 ~/.ssh/id_ed25519
+ssh qingfan-prod   # = ssh root@8.217.180.182，用 ~/.ssh/id_ed25519
 ```
 
 | 项目 | 值 |
 | --- | --- |
-| 公网 IP | `8.210.153.241` |
-| 云厂商 / 地域 | 阿里云**轻量应用服务器（SWAS）**，`cn-hongkong`，实例 `68c002bd79054bd2bdaffdfef2321cce`，套餐 `swas.s.c4m8s70b1.linux`，到期 2027-11-09；aliyun `--profile new-hk`。轻量不支持更换公网 IP，`8.210.153.241` 国内被封（见 `docs/operations/qingfan-prod.md` 2026-11-14） |
-| 主机名 | `iZj6cfbbt4l6yxdiqkoqnfZ` |
+| 公网 IP | `8.217.180.182`（内网 `172.21.63.216`） |
+| 云厂商 / 地域 | 阿里云**轻量应用服务器（SWAS）**，`cn-hongkong`，实例 `64554ead28484ec19f550547435b4418`，套餐 `swas.s.c4m8s70b1.linux`，到期 2027-11-14；aliyun `--profile new-hk`（2026-11-14 由原实例 `68c002bd79054bd2bdaffdfef2321cce` / `8.210.153.241` 迁入，见 `docs/operations/qingfan-prod.md`） |
+| 主机名 | `iZj6cg6lmcje31wwguao8bZ` |
 | 系统 | Debian 13 (trixie)，内核 `6.12.116+deb13-amd64` |
 | 规格 | 4 vCPU / 7.2G 内存 / 无 swap / 系统盘 69G ext4（`/dev/vda3`，2026-11-10 已用 25%） |
 | 时区 | `Etc/UTC`（看日志时注意 +8 换算成 CST） |

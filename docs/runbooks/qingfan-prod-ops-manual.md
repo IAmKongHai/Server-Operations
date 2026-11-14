@@ -12,11 +12,11 @@
 
 | 资源 | 标识 | 说明 |
 |---|---|---|
-| 轻量应用服务器（SWAS） | 新阿里云账号，实例 `68c002bd79054bd2bdaffdfef2321cce`，cn-hongkong-d，公网 `8.210.153.241`，内网 `172.21.63.215` | 4 vCPU / 8 GiB / 70 GB，Debian 13.7，系统时区 UTC；本机 aliyun CLI 用 `--profile new-hk`，SWAS 命令带 `--biz-region-id cn-hongkong` |
+| 轻量应用服务器（SWAS） | 新阿里云账号，实例 `64554ead28484ec19f550547435b4418`（2026-11-14 由原 `68c002bd79054bd2bdaffdfef2321cce` / `8.210.153.241` 自定义镜像迁入），cn-hongkong，公网 `8.217.180.182`，内网 `172.21.63.216` | 4 vCPU / 8 GiB / 70 GB，Debian 13.7，系统时区 UTC；本机 aliyun CLI 用 `--profile new-hk`，SWAS 命令带 `--biz-region-id cn-hongkong` |
 | 防火墙（SWAS） | 放行 TCP 22/80/443 与 ICMP，来源 0.0.0.0/0 | 22 端口对公网开放，sshd 只允许密钥登录、`MaxAuthTries 3` |
-| RDS PostgreSQL 18 | `pgm-j6cd36m59smx6n9g`，`pgm-j6cd36m59smx6n9g.pg.cnhk.rds.aliyuncs.com` → `10.0.0.67:5432` | 经轻量服务器“内网互通”连到 for-qingfan-VPC；强制 SSL；最多 400 连接；白名单分组 `swas_hk` |
+| RDS PostgreSQL 18 | `pgm-j6cd36m59smx6n9g`，`pgm-j6cd36m59smx6n9g.pg.cnhk.rds.aliyuncs.com` → `10.0.0.67:5432` | 经轻量服务器“内网互通”（VPC Peer `172.16.0.0/12`）连到 for-qingfan-VPC；强制 SSL；最多 400 连接；白名单分组 `swas_hk`（`172.21.63.216`） |
 | 库 / 账号 | `qingfan`/`qingfan`，`tk_flywheel`/`tk_flywheel`，高权限账号 `qf_admin` | 库属主为同名业务账号，两库都 `REVOKE CONNECT FROM PUBLIC`；两库都设了 `ALTER DATABASE … SET timezone = 'GMT'`（与 DO 托管库一致，见 6.3） |
-| 域名（Cloudflare，仅 DNS） | `qingfan.app`、`flywheel.qingfan.app` → `8.210.153.241` | 必须保持灰色云朵：HTTP-01 续期和客户端真实 IP 都依赖直连 |
+| 域名（Cloudflare，仅 DNS） | `qingfan.app`、`flywheel.qingfan.app` → `8.217.180.182` | 必须保持灰色云朵：HTTP-01 续期和客户端真实 IP 都依赖直连 |
 
 ## 2. 服务
 

@@ -1,5 +1,29 @@
 # qingfan-prod 运维操作时间线
 
+## 2026-11-14 13:31 CST - 通过自定义镜像迁移至同配置香港轻量新实例 `8.217.180.182`（解决 `8.210.153.241` 被墙）
+
+- 服务器：新 `qingfan-prod`（实例 `64554ead28484ec19f550547435b4418`，公网 `8.217.180.182`，内网 `172.21.63.216`）← 旧实例 `68c002bd79054bd2bdaffdfef2321cce`（`8.210.153.241` / `172.21.63.215`）
+- 操作人：Antigravity（用户确认并完成新实例下单付款）
+- 原因：旧实例公网 IP `8.210.153.241` 在中国大陆三大运营商全网 100% 丢包不可达，且阿里云轻量不支持单独更换公网 IP；赶在旧实例 5 天无理由退订截止（`2026-11-14 18:01:50 CST`）前通过自定义镜像新开同配实例切换。
+- 影响：应用切换窗口约 15 秒；数据库位于同地域 RDS `pgm-j6cd36m59smx6n9g`，数据零变更；打快照至切换期间 `/var/lib/qingfan` 无文件新增，零数据丢失。
+- 备份：
+  - 系统盘快照：`s-j6c26v4rfczskai5tp8v`（`qingfan-prod-migrate-20261114`）
+  - 自定义镜像：`m-j6ccgmgyr80s1o747hp3`（`qingfan-prod-migrate-20261114`）
+  - 本机 SSH 配置：`~/.ssh/config.bak.20261114`
+- 回滚方式（旧机退订前）：停止新机 `qingfan-green` 与 `tk-flywheel`；在旧机 `8.210.153.241` 执行 `docker update --restart=unless-stopped qingfan-green && docker start qingfan-green && systemctl start tk-flywheel nginx`；恢复 `~/.ssh/config.bak.20261114` 与 Cloudflare DNS。
+- 变更时序：
+  1. `12:54 CST`：对旧机系统盘 `d-j6cc43u7chuzdtv45vgv` 创建快照 `s-j6c26v4rfczskai5tp8v`，`12:57` 完成；`12:58` 基于该快照生成自定义镜像 `m-j6ccgmgyr80s1o747hp3`。
+  2. `13:16 CST`：用户基于自定义镜像 `m-j6ccgmgyr80s1o747hp3` 新购同规格（`swas.s.c4m8s70b1.linux`，4C/8G/70G ESSD，1 年）香港轻量实例 `64554ead28484ec19f550547435b4418`，分配公网 `8.217.180.182`、内网 `172.21.63.216`。
+  3. `13:23 CST`：核实新实例自动继承 4 条防火墙规则（TCP `22/80/443` + ICMP `0.0.0.0/0`）；SSH 登录新机先暂停 `qingfan-green` 与 `tk-flywheel`，避免双 worker 并发。
+  4. `13:25 CST`：Globalping 全国多省三网检测新 IP `8.217.180.182`：广州电信 21ms、东莞电信 23ms、台山移动 25ms、宁波移动 47ms、长沙移动 65ms、武汉联通 61ms、荆州联通 73ms，`TCP:443` / `TCP:22` **全部 0% 丢包**。（注：云南 `km-landui` 因本省对阿里云香港全网段阻断仍超时，属预期。）
+  5. `13:26 CST`：将新机内网 IP `172.21.63.216` 追加至 RDS `pgm-j6cd36m59smx6n9g` 白名单分组 `swas_hk`（`172.21.63.215,172.21.63.216`），将新实例重命名为 `qingfan-prod`，实测 `qingfan` / `tk_flywheel` 两库内网连通正常。
+  6. `13:30 CST`：核查旧机 `/var/lib/qingfan`、`/opt`、`/etc` 自快照起无任何文件改动；停掉旧机 `qingfan-green`（设 `--restart=no`）、`tk-flywheel`、`nginx`，启动新机 `qingfan-green` 与 `tk-flywheel`。
+  7. `13:31 CST`：更新 GitHub `IAmKongHai/qingfan`（`DEPLOY_HOST`、`DEPLOY_KNOWN_HOSTS`）、`IAmKongHai/tk-flywheel`（`PRODUCTION_KNOWN_HOSTS`）及本机 `~/.ssh/config` 的 `qingfan-prod` 指向 `8.217.180.182`。
+- 验证：
+  - `--resolve` 指向 `8.217.180.182` 测试 `qingfan.app/healthz`、`/`、`/admin/`、`flywheel.qingfan.app/healthz` 均返回 `HTTP 200`，`/version.txt` 返回 `b6d024bf6e7bcf5f0da9055fe275955495306a43`。
+  - `ssh qingfan-prod` 正常登录新主机 `iZj6cg6lmcje31wwguao8bZ`。
+  - 待用户在 Cloudflare 将 `qingfan.app`、`flywheel.qingfan.app` A 记录切至 `8.217.180.182`，并在 `18:01 CST` 前于阿里云控制台完成旧实例五天无理由退订。
+
 ## 2026-11-14 12:35 CST - 复查国内访问 `qingfan.app`（结论不变：`8.210.153.241` 整 IP 不通）
 
 - 服务器：`qingfan-prod`（`8.210.153.241`），对照组 `nyh-prod-2026`（`8.217.145.133`），国内跳板 `km-landui` + Globalping 国内节点
