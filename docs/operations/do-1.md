@@ -1,5 +1,21 @@
 # do-1 运维操作时间线
 
+## 2026-11-15 13:02–13:22 CST - 在 Nginx 新增 `/vertex/` 美区透明反代并切换 `tovo.sh` 至 Vertex AI 渠道
+
+- 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`），关联业务 `tovo.sh`（`new-api` on `nyh-prod-2026`）
+- 操作人：`Antigravity`（经用户确认执行）
+- 原因：Google AI Studio Tier 1 对单模型有 `100 RPD` 限制，用户在 GCP 新建 `qingfan`（`handy-bay-514802-v8`）项目并迁移至 Google Cloud Vertex AI，同时要求通过 `sub.tovo.sh` 转发。
+- 影响：`nginx -t` 校验通过后执行 `systemctl reload nginx` 平滑重载，零断连；既有 `sub2api` 与其余 4 条反代通道不受影响。
+- 备份：`/etc/nginx/sites-available/sub2api.conf.bak.20261115`
+- 回滚方式：将 `/etc/nginx/sites-available/sub2api.conf.bak.20261115` 还原回 `/etc/nginx/sites-available/sub2api.conf`，删除 `/etc/nginx/upstreams/vertex-upstream.conf`，执行 `nginx -t && systemctl reload nginx`。
+- 做了什么：
+  1. 新增 `/etc/nginx/upstreams/vertex-upstream.conf`（指向 `aiplatform.googleapis.com:443`，开启 `max_fails=0; keepalive 16; keepalive_timeout 55s;`）。
+  2. 在 `/etc/nginx/sites-available/sub2api.conf` 的 `:8080` 与 `:443` 两个 server 块中同步添加 `location ^~ /vertex/` 透明反代。
+  3. 在 GCP `qingfan` 项目下创建服务账号 `vertex-newapi@handy-bay-514802-v8.iam.gserviceaccount.com`（`Agent Platform User` / `roles/aiplatform.user`）并导出 JSON 密钥，在 `https://tovo.sh/channels` 创建 `#12 DO1-VertexAI-Primary (sub.tovo.sh)` 渠道（`JSON` 认证、部署区域 `{"default": "global"}`、`base_url` 为 `https://sub.tovo.sh/vertex`、优先级 `10`），并禁用原 `#8 DO1-Gemini-Primary` 与 `#9 DO1-Gemini-Backup` 渠道；同步清理 Sub2API 中误加的 `#3 qingfan-vertex` 账号。
+- 验证：
+  - `nginx -t` 通过，`systemctl is-active nginx` 为 `active`。
+  - 在 `tovo.sh` 渠道测试连接中测试 `gemini-3.8-flash` 返回 `成功`（耗时 `3.57 秒`）。
+
 ## 2026-11-12 00:00–00:25 CST - 在 Nginx 新增 Anthropic、Gemini、OpenAI 三条美区无状态透明反代通道
 
 - 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）
