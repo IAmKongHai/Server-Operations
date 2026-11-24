@@ -25,7 +25,7 @@ ssh -i ~/.ssh/id_ed25519 root@100.86.92.103
 | 组件 | 位置 / 说明 |
 | --- | --- |
 | 蓝绿服务 | `sub2api@blue.service`（`:8081`）/ `sub2api@green.service`（`:8082`），当前活跃槽记录于 `/opt/sub2api/active_slot` |
-| 发布与回滚 | `/usr/local/sbin/sub2api-deploy`、`/usr/local/sbin/sub2api-rollback`、`/usr/local/sbin/sub2api-backup` |
+| 发布与回滚 | 远端 `/usr/local/sbin/sub2api-deploy`、`/usr/local/sbin/sub2api-rollback`、`/usr/local/sbin/sub2api-backup`；本机一键升级脚本 `./scripts/upgrade-sub2api.sh latest --dry-run` / `./scripts/upgrade-sub2api.sh <target-tag>`（自动在 `do-1` 拉取官方包、校验 sha256、合入 `resources` 并走蓝绿零停机切换） |
 | Upstream | `/etc/nginx/upstreams/sub2api-upstream.conf`（由 `sub2api-deploy` 自动切换端口并 reload nginx） |
 | 主入口（公网 HTTPS 白名单） | `https://sub.tovo.sh`（`:443`，`/etc/nginx/sites-available/sub2api.conf`），**仅放行 `8.217.145.133`（`nyh-prod-2026`）+ `100.64.0.0/10` + 回环** |
 | 备入口（Tailscale 内网） | `http://100.86.92.103:8080`（`:8080`，同上配置文件，仅放行 `100.64.0.0/10` + 回环） |
