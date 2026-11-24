@@ -87,6 +87,10 @@ supervisorctl restart line-xiaola-submit
 
 # systemd 服务
 systemctl restart nyh-wechat-mp guagua-api
+
+# new-api (tovo.sh) 一键升级（在本机仓库根目录运行，含 Release Notes 预检、在途任务检查、RDS 备份、同步与健康核验）
+./scripts/upgrade-new-api.sh latest --dry-run
+./scripts/upgrade-new-api.sh <target-tag>
 ```
 
 注意 `php74` 包装脚本和 `docker exec -i` 会吞 stdin：在 ssh heredoc 里调用时加 `</dev/null`，或者写成脚本文件再执行。
