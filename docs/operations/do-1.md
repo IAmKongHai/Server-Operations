@@ -1,5 +1,22 @@
 # do-1 运维操作时间线
 
+## 2026-11-24 09:07–09:09 CST - 蓝绿零停机升级 sub2api（sub.tovo.sh）从 v0.2.19 到 v0.2.24
+
+- 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`）
+- 操作人：`Antigravity`（经用户确认执行）
+- 原因：管理后台提示有新版本 `v0.2.24` 可用（含安全修复：拒绝重复字段防计费绕过、修复 Codex 403 误停调 OpenAI OAuth 账号；以及 GPT-6.2 Sol/Astra、Claude Fable 5.2/Mythos 5.2、Gemini 4 Carbon 支持与请求体内存/流式超时优化）。
+- 影响：走 `/usr/local/sbin/sub2api-deploy` 蓝绿发布，由 `blue`（`:8081`）平滑切至 `green`（`:8082`），Nginx `reload` 零停机，旧槽连接排空后自动停服。
+- 备份：`/var/backups/sub2api/20261124T010852-pre-5c2982a81b46e2142d0143d2f83c1ce9c4da1d24.dump`（`1.5M`，由 `sub2api-deploy` 自动调用 `sub2api-backup` 生成）；旧槽 release 保留于 `/opt/sub2api/releases/4a4a83ee5ec86b19d3a2dd9b6471de5128963bec`。
+- 回滚方式：执行 `/usr/local/sbin/sub2api-rollback` 切回 `blue` 槽（`v0.2.19`）；如需回退数据库迁移，先停服再从上述 `.dump` 恢复。
+- 做了什么：
+  1. 在 `do-1` 下载官方预编译包 `sub2api_0.2.24_linux_amd64.tar.gz` 并核对 `checksums.txt`（sha256 `ea57798a4ab0e9673c7b52fe1aa88bece81726ff1f827166fe08bc8d0e2f47ee` 一致）。
+  2. 拉取 `v0.2.24` 源码中的 `backend/resources`（含最新 `model-pricing`），与 `sub2api` 二进制和 `version.txt`（commit SHA `5c2982a81b46e2142d0143d2f83c1ce9c4da1d24`）封装为发布包。
+  3. 喂给 `/usr/local/sbin/sub2api-deploy 5c2982a81b46e2142d0143d2f83c1ce9c4da1d24` 自动完成 PG 备份、`green` 槽启动与 `/health` 检查、Nginx upstream 切换及 `blue` 槽排空停服，清理临时目录。
+- 验证：
+  - `active_slot` 已切为 `green`，`current` 指向 `/opt/sub2api/releases/5c2982a81b46e2142d0143d2f83c1ce9c4da1d24`。
+  - `sub2api@green` 为 `active`，`sub2api@blue` 为 `inactive`，启动日志无报错。
+  - `http://127.0.0.1:8082/health`、`http://100.86.92.103:8080/health` 与本机访问 `https://sub.tovo.sh/health` 均返回 `{"status":"ok"}`；`https://sub.tovo.sh/api/v1/settings/public` 返回 `version: 0.2.24`。
+
 ## 2026-11-15 13:02–13:22 CST - 在 Nginx 新增 `/vertex/` 美区透明反代并切换 `tovo.sh` 至 Vertex AI 渠道
 
 - 服务器：`do-1`（`137.184.127.196` / Tailscale `100.86.92.103`），关联业务 `tovo.sh`（`new-api` on `nyh-prod-2026`）
