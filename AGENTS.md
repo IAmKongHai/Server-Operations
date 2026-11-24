@@ -117,7 +117,8 @@
 | `icare-uat-runner-2` | CYP-2263 临时 D8s_v5 burst VM（主机名 `icare-2-uat-ci-runner-2`，`10.30.6.5`），runner `icare-2-uat-runner-2`，组 `icare-2-uat`；`ssh icare-uat-runner-2` 以 `icareadmin` 登录 | **是**（与原机同组抢 UAT 镜像构建；新机必须预建 `/var/cache/buildx` 属主 `icareadmin`；无 wait slot / 无 `gh`） |
 
 注意：
-- `nyh-prod-2026` 上同时跑着多个项目的生产站点、队列与定时任务（业务库在阿里云 RDS PG），任何重启 / 配置改动都要先想清楚波及哪些项目；配置源码在 `nyh-prod-2026/`，改仓库再推到服务器
+- `nyh-prod-2026` 上同时跑着多个项目的生产站点、队列与定时任务（业务库在阿里云 RDS PG），任何重启 / 配置改动都要先想清楚波及哪些项目；配置源码在 `nyh-prod-2026/`，改仓库再推到服务器；`new-api`（`tovo.sh`）升级直接用 `./scripts/upgrade-new-api.sh <tag|latest>`（先 `--dry-run` 预检，自动备份 RDS 与 `compose.yaml`、同步仓库并核验健康）
+- `do-1` 的 `sub2api`（`sub.tovo.sh`）是只读 systemd 蓝绿槽位部署，**不要**点网页「立即更新」；升级直接用 `./scripts/upgrade-sub2api.sh <tag|latest>`（先 `--dry-run` 预检，自动校验官方包并经 `/usr/local/sbin/sub2api-deploy` 完成 PG 备份与零停机蓝绿切换）
 - （旧机 `nyh-prod`，已退役）宝塔面板的 entrance 路径（URL 里 `/100c682f` 这一段）相当于第二道密码，不要写进 commit 信息或公开文档
 - `nas` 上的 SQL Server 容器承载历史业务数据库（`medicalassistance` 等），关键容器统一用 `--restart=always` 而非 `unless-stopped`，避免 NAS 重启后不自动拉起
 - `pve` 当前定位为开发测试虚拟化宿主；PVE 网络、存储、VM 等基础设施改动仍按“先备份、再改动、可回滚”执行
