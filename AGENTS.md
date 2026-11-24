@@ -28,6 +28,10 @@
   curl -s -u "$SONAR_TOKEN:" "http://mac-mini:9000/api/issues/search?componentKeys=<projectKey>&pullRequest=<PR号>&resolved=false"
   curl -s -u "$SONAR_TOKEN:" "http://mac-mini:9000/api/qualitygates/project_status?projectKey=<projectKey>&pullRequest=<PR号>"
   ```
+- **Cloudflare CLI (`cf`)：** 已全局安装 `cf`（别名 `cloudflare`），`CLOUDFLARE_API_TOKEN`（权限 `Zone:Read` + `DNS:Edit`，覆盖 `All zones`）与 `CLOUDFLARE_ACCOUNT_ID` 已通过 `~/.config/secrets.env` 注入环境变量。常用命令：
+  - 查域名 / Zone ID：`cf zones list`
+  - 查解析记录：`cf dns records list -z <域名或ZoneID>`
+  - 新增解析前先加 `--dry-run` 预演（例如 `cf dns records create -z <域名或ZoneID> --body '{"type":"A","name":"sub","content":"1.2.3.4","proxied":false}' --dry-run`）；修改或删除已有生产域名解析记录前必须先征得用户确认。
 
 ## 生产服务器操作守则
 
