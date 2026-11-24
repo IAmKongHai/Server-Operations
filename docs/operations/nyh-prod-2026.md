@@ -1,5 +1,26 @@
 # nyh-prod-2026 运维操作时间线
 
+## 2026-11-24 08:34–08:36 CST - 升级 new-api（tovo.sh）从 v1.0.0-rc.49 到 v1.0.0-rc.51
+
+- 服务器：`nyh-prod-2026`（`tovo.sh`）
+- 操作人：`Antigravity`（经用户确认执行升级）
+- 原因：管理后台提示有新版本 `v1.0.0-rc.51` 可用（含 `rc.50` 新增的提供商插件、请求处理插件、社区插件市场，以及 `rc.51` 对无 AVX CPU SIGILL 崩溃的修复）。
+- 影响：重建 `new-api` 容器中断约 6 秒；`new-api-redis` 未重启；升级前确认 RDS `tasks` 表在途异步任务为 `0`。
+- 备份：
+  - compose 文件：`/root/backups/new-api/compose.yaml.before-v1.0.0-rc.51.20261124`
+  - RDS PG `new_api` 逻辑备份：`/root/backups/new-api/new_api-before-v1.0.0-rc.51-20261124.sql.gz`（263KB，`postgres:18.6-alpine` `pg_dump`，权限 `600`）
+- 回滚方式：
+  - 若仅需回退镜像：将 `nyh-prod-2026/docker/new-api/compose.yaml` 改回 `v1.0.0-rc.49` 同步到 `/opt/stacks/new-api/compose.yaml` 并 `docker compose up -d new-api`（注意：若涉及 `rc.50` 迁移的敏感词设置等 schema/数据变更，需先停 `new-api` 再从上述 `.sql.gz` 恢复 `new_api` 库）。
+- 做了什么：
+  1. 预检 Release Notes、服务器与仓库 `compose.yaml` 一致性（sha256 相同）及 RDS `new_api`（PG 18.4，`tasks` 在途为 0，`channels=12`，`users=4`）。
+  2. 备份服务器 `compose.yaml` 并用 `postgres:18.6-alpine` 导出 `new_api` 全库备份。
+  3. 更新仓库 `nyh-prod-2026/docker/new-api/compose.yaml` 与 `nyh-prod-2026/README.md` 版本号为 `v1.0.0-rc.51`，`rsync --chown=root:root` 同步 `compose.yaml`。
+  4. 执行 `docker compose pull new-api && docker compose up -d new-api`，等待容器进入 `healthy`。
+- 验证：
+  - `docker ps`：`new-api` 运行 `calciumion/new-api:v1.0.0-rc.51`，约 6 秒进入 `healthy`；`new-api-redis` 未中断（`Up 13 days`）。
+  - 容器启动日志：PostgreSQL 数据库迁移成功、Redis 已启用、渠道已同步、`Tovo Cloud v1.0.0-rc.51` 启动耗时 `1569 ms`，无报错。
+  - 公网 `GET https://tovo.sh/api/status` 返回 `version: v1.0.0-rc.51`，`system_name: Tovo Cloud`。
+
 ## 2026-11-13 13:45–13:48 CST - 复查：最近 3 天运行情况（只读）
 
 - 服务器：`nyh-prod-2026`
