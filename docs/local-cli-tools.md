@@ -21,7 +21,7 @@
 - **`aliyun`**：阿里云 CLI，已配置 profile `default`（默认、`cn-hongkong`）与 `new-hk`（`cn-hongkong`）。
 - **`aws` / `aws-vault`**：AWS CLI 与凭据管理，已配置 profile `default`、`bb1`、`konghai`。
 - **`az`**：Azure CLI，已登录账号（注意：mac-mini CI runner 仍各自走独立配置与 OIDC）。
-- **`gcloud` / `gsutil` / `bq`**：Google Cloud CLI（Homebrew cask `gcloud-cli`），尚未登录（需交互执行 `gcloud auth login` 或 `gcloud init`）。
+- **`gcloud` / `gsutil` / `bq`**：Google Cloud CLI（Homebrew cask `gcloud-cli`），已登录 `konghai007@gmail.com`；当前未设置默认 project，执行项目级命令时需指定 `--project <PROJECT_ID>`（可先 `gcloud projects list` 查看可用项目）。
 - **`coscli`**：腾讯云 COS 对象存储 CLI（`~/.local/bin/coscli`，配置文件 `~/.cos.yaml`）。
 - **`terraform`**：HashiCorp 官方 tap，用于基础设施即代码（IaC）。
 - **`docker` / `kubectl` / `tailscale`**：本地位于 `/usr/local/bin/`（容器、Kubernetes、Tailscale 组网状态查询）。
