@@ -22,6 +22,9 @@
 - **`aws` / `aws-vault`**：AWS CLI 与凭据管理，已配置 profile `default`、`bb1`、`konghai`。
 - **`az`**：Azure CLI，已登录账号（注意：mac-mini CI runner 仍各自走独立配置与 OIDC）。
 - **`gcloud` / `gsutil` / `bq`**：Google Cloud CLI（Homebrew cask `gcloud-cli`），已登录 `konghai007@gmail.com`；当前未设置默认 project，执行项目级命令时需指定 `--project <PROJECT_ID>`（可先 `gcloud projects list` 查看可用项目）。
+- **`colab`（`google-colab-cli`）**：Google 官方 Colab CLI（`~/.local/bin/colab`，`uv tool install google-colab-cli`）。支持从终端/Agent 调度 Colab 远程算力（含 Google AI Ultra 附带的 `H100` / `A100` / `G4` / `L4` / `T4` / TPU）：
+  - 常用命令：`colab usage`（查 Compute Units 余额与速率）、`colab new -s <name> --gpu H100`、`colab exec -s <name> -f script.py`、`colab run --gpu H100 script.py`（跑完自动销毁）、`colab sessions`、`colab stop -s <name>`、`colab skill`（内置 Agent 操作指南）。
+  - 默认走 ADC 认证（`--auth=adc`），需要包含 `colaboratory` 与 `userinfo.email` scope 的凭证；**注意：GPU/TPU 运行时空闲也会持续扣除 Compute Units，任务结束后务必及时 `colab stop -s <name>` 或使用一次性 `colab run`**。
 - **`coscli`**：腾讯云 COS 对象存储 CLI（`~/.local/bin/coscli`，配置文件 `~/.cos.yaml`）。
 - **`terraform`**：HashiCorp 官方 tap，用于基础设施即代码（IaC）。
 - **`docker` / `kubectl` / `tailscale`**：本地位于 `/usr/local/bin/`（容器、Kubernetes、Tailscale 组网状态查询）。
